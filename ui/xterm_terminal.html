@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body {
+    margin: 0; padding: 0;
+    background: #1e1e1e;
+    width: 100%; height: 100%;
+    overflow: hidden;
+  }
+  #terminal { width: 100%; height: 100vh; }
+  .xterm-viewport::-webkit-scrollbar { width: 8px; }
+  .xterm-viewport::-webkit-scrollbar-thumb {
+    background: #555; border-radius: 4px;
+  }
+</style>
+<!--XTERM_CSS-->
+</head>
+<body>
+<div id="terminal"></div>
+<!--XTERM_JS-->
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script>
+  const term = new Terminal({
+    allowTransparency: false,
+    theme: {
+      background: '#1e1e1e',
+      foreground: '#d4d4d4',
+      cursor:     '#d4d4d4',
+      selectionBackground: '#264f78',
+    },
+    fontFamily: 'Consolas, "Courier New", monospace',
+    fontSize: 13,
+    cursorBlink: true,
+    scrollback: 5000,
+  });
+
+  const fitAddon = new FitAddon.FitAddon();
+  term.loadAddon(fitAddon);
+  term.open(document.getElementById('terminal'));
+
+  let bridge = null;
+  let _started = false;
+
+  // Only fit when the container actually has non-zero height.
+  // Returns true if fit was performed.
+  function _tryFit() {
+    const el = document.getElementById('terminal');
+    if (!el || el.offsetHeight === 0) return false;
+    fitAddon.fit();
+    return true;
+  }
+
+  // Start the shell exactly once, after both the bridge and a valid
+  // container size are available.  Called from both the QWebChannel
+  // callback and the ResizeObserver so whichever fires last wins.
+  function _tryStart() {
+    if (!bridge || _started) return;
+    if (!_tryFit()) return;
+    _started = true;
+    bridge.terminal_ready();
+    bridge.on_resize(term.cols, term.rows);
+  }
+
+  new QWebChannel(qt.webChannelTransport, function(channel) {
+    bridge = channel.objects.bridge;
+    bridge.send_to_terminal.connect(function(data) { term.write(data); });
+    _tryStart();
+  });
+
+  term.onData(function(data) {
+    if (bridge) bridge.on_input(data);
+  });
+
+  const _ro = new ResizeObserver(function() {
+    if (!term.element) return;
+    if (!_started) {
+      // Haven't started yet — try to initialize.
+      _tryStart();
+      return;
+    }
+    // Already running — just refit on resize.
+    if (!_tryFit()) return;
+    if (bridge) bridge.on_resize(term.cols, term.rows);
+  });
+  _ro.observe(document.getElementById('terminal'));
+</script>
+</body>
+</html>
