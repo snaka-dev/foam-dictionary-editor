@@ -158,6 +158,9 @@ class OpenFoamParser:
         if key == "regions":
             return self._parse_regions_entry(key, start_index)
 
+        if key == "boundary":
+            return self._parse_boundary_entry(key, start_index)
+
         return None
 
     def _parse_field_value_block_entry(self, key: str, start_index: int) -> FoamNode:
@@ -221,7 +224,7 @@ class OpenFoamParser:
                 raise ParseError("unexpected EOF while parsing regions block")
 
             region_name = self._parse_key()
-            self._skip_soft_trivia()
+            self._collect_trivia()
 
             if not self._check("LBRACE"):
                 raise ParseError(
@@ -233,6 +236,39 @@ class OpenFoamParser:
             region_node.leading_trivia = inner_trivia
             region_node.node_type = "region_entry"
             node.add_child(region_node)
+
+        self._expect("RPAREN")
+        self._expect("SEMICOLON")
+
+        node.inline_comment = self._collect_inline_comment()
+        node.raw_text = self._tokens_text(start_index, self.index)
+        return node
+
+    def _parse_boundary_entry(self, key: str, start_index: int) -> FoamNode:
+        self._expect("LPAREN")
+        node = FoamNode(name=key, node_type="boundary_block")
+
+        while True:
+            inner_trivia = self._collect_trivia()
+
+            if self._check("RPAREN"):
+                break
+            if self._check("EOF"):
+                raise ParseError("unexpected EOF while parsing boundary block")
+
+            patch_name = self._parse_key()
+            self._collect_trivia()
+
+            if not self._check("LBRACE"):
+                raise ParseError(
+                    f"expected LBRACE after patch name '{patch_name}' "
+                    f"but got {self.tokens[self.index].kind} at {self.tokens[self.index].pos}"
+                )
+
+            patch_node = self._parse_dictionary_entry(patch_name, self.index - 1)
+            patch_node.leading_trivia = inner_trivia
+            patch_node.node_type = "boundary_entry"
+            node.add_child(patch_node)
 
         self._expect("RPAREN")
         self._expect("SEMICOLON")
@@ -286,6 +322,9 @@ class OpenFoamParser:
             if tok.kind in self.SOFT_TRIVIA:
                 if parts and not parts[-1].endswith((" ", "\n", "\t")):
                     parts.append(" ")
+                continue
+
+            if tok.kind in {"LINE_COMMENT", "BLOCK_COMMENT"}:
                 continue
 
             parts.append(tok.text)
@@ -357,6 +396,9 @@ class OpenFoamParser:
 
             if tok.kind in {"WORD", "STRING", "DIRECTIVE"}:
                 parts.append(tok.text)
+                continue
+
+            if tok.kind in {"LINE_COMMENT", "BLOCK_COMMENT"}:
                 continue
 
             raise ParseError(f"unexpected token {tok.kind} at {tok.pos}")

@@ -3,6 +3,9 @@
 # Learn more about .gitignore:
 #     https://www.atlassian.com/git/tutorials/saving-changes/gitignore
 
+# foam dictionary editor settings for user
+app_config.json
+
 # Python interpreter to store compiled bytecode files (.pyc files)
 __pycache__/
 *.pyc
