@@ -2,8 +2,24 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+from pathlib import Path
+
 
 SCALAR_FORMAT_PRECISION = 12
+
+
+def read_foam_file(path: str | Path) -> str:
+    """Read a file as text, trying UTF-8 then falling back to latin-1.
+
+    OpenFOAM files are nominally ASCII/UTF-8, but some Windows-generated
+    cases contain non-UTF-8 bytes in comments or string values.  latin-1
+    can decode any byte sequence without data loss.
+    """
+    p = Path(path)
+    try:
+        return p.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return p.read_text(encoding="latin-1")
 
 
 def is_int(text: str) -> bool:

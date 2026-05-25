@@ -3,7 +3,7 @@
 from __future__ import annotations
 from foam.utils import classify_parenthesized_value, classify_simple_value, is_int, is_number, parse_box_pair
 from foam.lexer import OpenFoamLexer
-from foam.nodes import FoamNode
+from foam.nodes import BOOL_WORDS, FoamNode
 
 class ParseError(Exception):
     pass
@@ -23,10 +23,19 @@ class OpenFoamParser:
         "surfaceVectorFieldValue",
     }
 
+    _FIELD_VALUE_KEYS: frozenset[str] = frozenset({"defaultFieldValues", "default", "fieldValues"})
+
+    # Add new named-block entries here; _try_parse_special_parenthesized_entry needs no changes.
+    _NAMED_BLOCK_PARAMS: dict[str, tuple[str, str]] = {
+        "regions":  ("region_block",   "region_entry"),
+        "boundary": ("boundary_block", "boundary_entry"),
+    }
+
     def __init__(self, text: str):
         self.text = text
         self.tokens = OpenFoamLexer(text).tokenize()
         self.index = 0
+        self.errors: list[tuple[int, str]] = []
 
     def parse(self) -> FoamNode:
         root = FoamNode(name="root", node_type="dictionary")
@@ -76,7 +85,9 @@ class OpenFoamParser:
             node = FoamNode(name=key, node_type=node_type, value=value)
             return self._finalize_node(node, start_index)
 
-        except ParseError:
+        except ParseError as e:
+            pos = self.tokens[start_index].pos if start_index < len(self.tokens) else -1
+            self.errors.append((pos, str(e)))
             self.index = start_index
             return self._parse_unknown_raw_entry(start_index)
 
@@ -149,18 +160,16 @@ class OpenFoamParser:
 
         self._expect("RBRACE")
         node.raw_text = self._tokens_text(start_index, self.index)
+        node.source_line = self._token_line(start_index)
+        node.source_end_line = self._token_line(self.index - 1)
         return node
 
     def _try_parse_special_parenthesized_entry(self, key: str, start_index: int):
-        if key in {"defaultFieldValues", "default", "fieldValues"}:
+        if key in self._FIELD_VALUE_KEYS:
             return self._parse_field_value_block_entry(key, start_index)
-
-        if key == "regions":
-            return self._parse_regions_entry(key, start_index)
-
-        if key == "boundary":
-            return self._parse_boundary_entry(key, start_index)
-
+        params = self._NAMED_BLOCK_PARAMS.get(key)
+        if params is not None:
+            return self._parse_named_dict_block(key, start_index, *params)
         return None
 
     def _parse_field_value_block_entry(self, key: str, start_index: int) -> FoamNode:
@@ -211,9 +220,11 @@ class OpenFoamParser:
             },
         )
 
-    def _parse_regions_entry(self, key: str, start_index: int) -> FoamNode:
+    def _parse_named_dict_block(
+        self, key: str, start_index: int, block_type: str, entry_type: str,
+    ) -> FoamNode:
         self._expect("LPAREN")
-        node = FoamNode(name=key, node_type="region_block")
+        node = FoamNode(name=key, node_type=block_type)
 
         while True:
             inner_trivia = self._collect_trivia()
@@ -221,61 +232,26 @@ class OpenFoamParser:
             if self._check("RPAREN"):
                 break
             if self._check("EOF"):
-                raise ParseError("unexpected EOF while parsing regions block")
+                raise ParseError(f"unexpected EOF while parsing {key!r} block")
 
-            region_name = self._parse_key()
+            entry_name = self._parse_key()
             self._collect_trivia()
 
             if not self._check("LBRACE"):
                 raise ParseError(
-                    f"expected LBRACE after region selector '{region_name}' "
+                    f"expected LBRACE after {key!r} entry '{entry_name}' "
                     f"but got {self.tokens[self.index].kind} at {self.tokens[self.index].pos}"
                 )
 
-            region_node = self._parse_dictionary_entry(region_name, self.index - 1)
-            region_node.leading_trivia = inner_trivia
-            region_node.node_type = "region_entry"
-            node.add_child(region_node)
+            entry_node = self._parse_dictionary_entry(entry_name, self.index - 1)
+            entry_node.leading_trivia = inner_trivia
+            entry_node.node_type = entry_type
+            node.add_child(entry_node)
 
         self._expect("RPAREN")
         self._expect("SEMICOLON")
 
-        node.inline_comment = self._collect_inline_comment()
-        node.raw_text = self._tokens_text(start_index, self.index)
-        return node
-
-    def _parse_boundary_entry(self, key: str, start_index: int) -> FoamNode:
-        self._expect("LPAREN")
-        node = FoamNode(name=key, node_type="boundary_block")
-
-        while True:
-            inner_trivia = self._collect_trivia()
-
-            if self._check("RPAREN"):
-                break
-            if self._check("EOF"):
-                raise ParseError("unexpected EOF while parsing boundary block")
-
-            patch_name = self._parse_key()
-            self._collect_trivia()
-
-            if not self._check("LBRACE"):
-                raise ParseError(
-                    f"expected LBRACE after patch name '{patch_name}' "
-                    f"but got {self.tokens[self.index].kind} at {self.tokens[self.index].pos}"
-                )
-
-            patch_node = self._parse_dictionary_entry(patch_name, self.index - 1)
-            patch_node.leading_trivia = inner_trivia
-            patch_node.node_type = "boundary_entry"
-            node.add_child(patch_node)
-
-        self._expect("RPAREN")
-        self._expect("SEMICOLON")
-
-        node.inline_comment = self._collect_inline_comment()
-        node.raw_text = self._tokens_text(start_index, self.index)
-        return node
+        return self._finalize_node(node, start_index)
 
     def _parse_embedded_value(self):
         self._skip_soft_trivia()
@@ -424,6 +400,9 @@ class OpenFoamParser:
             return "macro", text
 
         if " " in text:
+            parts = text.split(None, 2)
+            if len(parts) >= 2 and parts[0] == "nonuniform" and parts[1].startswith("List"):
+                return "nonuniform_list", text
             return "compound", text
 
         if is_int(text):
@@ -431,6 +410,9 @@ class OpenFoamParser:
 
         if is_number(text):
             return "scalar", float(text)
+
+        if text in BOOL_WORDS:
+            return "bool", text
 
         return "word", text
 
@@ -479,7 +461,14 @@ class OpenFoamParser:
             raise ParseError(f"expected {kind} but got {tok.kind} at {tok.pos}")
         return tok
 
+    def _token_line(self, token_index: int) -> int:
+        if token_index >= len(self.tokens):
+            return 0
+        return self.text.count("\n", 0, self.tokens[token_index].pos) + 1
+
     def _finalize_node(self, node: FoamNode, start_index: int) -> FoamNode:
         node.inline_comment = self._collect_inline_comment()
         node.raw_text = self._tokens_text(start_index, self.index)
+        node.source_line = self._token_line(start_index)
+        node.source_end_line = self._token_line(self.index - 1)
         return node

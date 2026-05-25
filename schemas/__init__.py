@@ -36,41 +36,67 @@ def get_schema_modules() -> list[str]:
     return _registry.get_schema_modules()
 
 
-def schema_for_file_key(file_path: str | None, key_name: str | None) -> KeySchema | None:
-    return _registry.schema_for_file_key(file_path, key_name)
+def schema_for_file_key(
+    file_path: str | None,
+    key_name: str | None,
+    parent_key: str | None = None,
+    grandparent_key: str | None = None,
+) -> KeySchema | None:
+    return _registry.schema_for_file_key(file_path, key_name, parent_key, grandparent_key)
 
 
-def choices_for_file_key(file_path: str | None, key_name: str | None) -> list[str]:
-    return _registry.choices_for_file_key(file_path, key_name)
+def choices_for_file_key(
+    file_path: str | None,
+    key_name: str | None,
+    parent_key: str | None = None,
+    grandparent_key: str | None = None,
+) -> list[str]:
+    return _registry.choices_for_file_key(file_path, key_name, parent_key, grandparent_key)
 
 
 def choice_description_for_value(
     file_path: str | None,
     key_name: str | None,
     value: str | None,
+    parent_key: str | None = None,
+    grandparent_key: str | None = None,
 ) -> str:
-    return _registry.choice_description_for_value(file_path, key_name, value)
+    return _registry.choice_description_for_value(file_path, key_name, value, parent_key, grandparent_key)
 
 
 def choice_supported_in_for_value(
     file_path: str | None,
     key_name: str | None,
     value: str | None,
+    parent_key: str | None = None,
+    grandparent_key: str | None = None,
 ) -> str:
-    return _registry.choice_supported_in_for_value(file_path, key_name, value)
+    return _registry.choice_supported_in_for_value(file_path, key_name, value, parent_key, grandparent_key)
 
 
 def choice_note_for_value(
     file_path: str | None,
     key_name: str | None,
     value: str | None,
+    parent_key: str | None = None,
+    grandparent_key: str | None = None,
 ) -> str:
-    return _registry.choice_note_for_value(file_path, key_name, value)
+    return _registry.choice_note_for_value(file_path, key_name, value, parent_key, grandparent_key)
 
 
-def schema_supported_in_text(file_path: str | None, key_name: str | None) -> str:
-    return _registry.schema_supported_in_text(file_path, key_name)
+def schema_supported_in_text(
+    file_path: str | None,
+    key_name: str | None,
+    parent_key: str | None = None,
+    grandparent_key: str | None = None,
+) -> str:
+    return _registry.schema_supported_in_text(file_path, key_name, parent_key, grandparent_key)
 
 
-def schema_note_text(file_path: str | None, key_name: str | None) -> str:
-    return _registry.schema_note_text(file_path, key_name)
+def schema_note_text(
+    file_path: str | None,
+    key_name: str | None,
+    parent_key: str | None = None,
+    grandparent_key: str | None = None,
+) -> str:
+    return _registry.schema_note_text(file_path, key_name, parent_key, grandparent_key)

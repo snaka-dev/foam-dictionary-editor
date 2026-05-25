@@ -448,3 +448,64 @@ class TestJsonStructure:
         manager.save()
         content = json.loads(config_path.read_text(encoding="utf-8"))
         assert isinstance(content["case_library_dirs"], list)
+
+
+class TestFeatureFlags:
+    def test_get_feature_defaults_to_true_when_absent(self, manager):
+        assert manager.get_feature("terminal") is True
+        assert manager.get_feature("blockmesh") is True
+
+    def test_get_feature_respects_custom_default(self, manager):
+        assert manager.get_feature("nonexistent", default=False) is False
+
+    def test_get_feature_returns_false_when_set_false(self, config_path):
+        data = {"features": {"terminal": False, "blockmesh": False}}
+        config_path.write_text(json.dumps(data), encoding="utf-8")
+        mgr = AppConfigManager(config_path=str(config_path))
+        assert mgr.get_feature("terminal") is False
+        assert mgr.get_feature("blockmesh") is False
+
+    def test_get_feature_returns_true_when_set_true(self, config_path):
+        data = {"features": {"terminal": True, "blockmesh": True}}
+        config_path.write_text(json.dumps(data), encoding="utf-8")
+        mgr = AppConfigManager(config_path=str(config_path))
+        assert mgr.get_feature("terminal") is True
+        assert mgr.get_feature("blockmesh") is True
+
+    def test_get_feature_mixed_values(self, config_path):
+        data = {"features": {"terminal": False, "blockmesh": True}}
+        config_path.write_text(json.dumps(data), encoding="utf-8")
+        mgr = AppConfigManager(config_path=str(config_path))
+        assert mgr.get_feature("terminal") is False
+        assert mgr.get_feature("blockmesh") is True
+
+    def test_features_saved_to_json(self, config_path):
+        mgr = AppConfigManager(config_path=str(config_path))
+        mgr._features = {"terminal": False, "blockmesh": True}
+        mgr.save()
+        content = json.loads(config_path.read_text(encoding="utf-8"))
+        assert content["features"] == {"terminal": False, "blockmesh": True}
+
+    def test_features_not_written_when_empty(self, manager, config_path):
+        manager.save()
+        content = json.loads(config_path.read_text(encoding="utf-8"))
+        assert "features" not in content
+
+    def test_features_persist_across_reload(self, config_path):
+        mgr1 = AppConfigManager(config_path=str(config_path))
+        mgr1._features = {"terminal": False, "blockmesh": False}
+        mgr1.save()
+        mgr2 = AppConfigManager(config_path=str(config_path))
+        assert mgr2.get_feature("terminal") is False
+        assert mgr2.get_feature("blockmesh") is False
+
+    def test_reset_clears_features(self, config_path):
+        mgr = AppConfigManager(config_path=str(config_path))
+        mgr._features = {"terminal": False}
+        mgr.reset()
+        assert mgr.get_feature("terminal") is True
+
+    def test_broken_json_clears_features(self, config_path):
+        config_path.write_text("{ broken", encoding="utf-8")
+        mgr = AppConfigManager(config_path=str(config_path))
+        assert mgr.get_feature("terminal") is True

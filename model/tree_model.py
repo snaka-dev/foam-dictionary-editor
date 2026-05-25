@@ -1,21 +1,30 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
-from PySide6.QtCore import QAbstractItemModel, QModelIndex, Qt
+from PySide6.QtCore import QAbstractItemModel, QModelIndex, Qt, Signal
+from PySide6.QtGui import QBrush, QColor
 from foam.utils import classify_simple_value, format_embedded_value, format_scalar, is_int, is_number, parse_box_pair
-from foam.nodes import FoamNode, NON_KEY_EDITABLE, STRING_TYPES
+from foam.nodes import BOOL_WORDS, FoamNode, NON_KEY_EDITABLE, STRING_TYPES
 
 
 class FoamTreeModel(QAbstractItemModel):
     HEADERS = ["Key", "Type", "Value"]
-    
+
     COL_KEY   = 0
     COL_TYPE  = 1
     COL_VALUE = 2
-    
+
+    edit_rejected = Signal(str)
+
+    _DIFF_BG: dict[str, QColor] = {
+        "changed":   QColor("#FFFACD"),  # light yellow
+        "only_here": QColor("#E3F2FD"),  # light blue
+    }
+
     def __init__(self, root: FoamNode, parent=None):
         super().__init__(parent)
         self.root = root
+        self._diff: "dict[FoamNode, tuple[str, FoamNode | None]] | None" = None
         self._attach_parents(self.root, None)
 
     def columnCount(self, parent=QModelIndex()):
@@ -71,7 +80,24 @@ class FoamTreeModel(QAbstractItemModel):
             return self._column_value(node, index.column())
 
         if role == Qt.ToolTipRole:
-            return self._tooltip(node)
+            tip = self._tooltip(node)
+            if self._diff:
+                entry = self._diff.get(node)
+                if entry is not None:
+                    status, ref_node = entry
+                    if status == "only_here":
+                        tip += "\n(not in reference case)"
+                    elif ref_node is not None:
+                        tip += f"\nRef: {self._display_value(ref_node)}"
+            return tip
+
+        if role == Qt.ForegroundRole and node.node_type == "unknown_raw_entry":
+            return QColor("#B8860B")
+
+        if role == Qt.BackgroundRole and self._diff:
+            entry = self._diff.get(node)
+            if entry:
+                return QBrush(self._DIFF_BG[entry[0]])
 
         return None
 
@@ -91,6 +117,7 @@ class FoamTreeModel(QAbstractItemModel):
         elif column == self.COL_VALUE:
             ok = self._set_node_value(node, value)
             if not ok:
+                self.edit_rejected.emit(f'Invalid {node.node_type} value: "{value}"')
                 return False
 
         else:
@@ -154,6 +181,28 @@ class FoamTreeModel(QAbstractItemModel):
         node.parent = None
         self.endRemoveRows()
 
+    def set_diff(self, diff: "dict[FoamNode, tuple[str, FoamNode | None]]") -> None:
+        self._diff = diff
+        self._emit_datachanged_recursive(QModelIndex())
+
+    def clear_diff(self) -> None:
+        if self._diff is None:
+            return
+        self._diff = None
+        self._emit_datachanged_recursive(QModelIndex())
+
+    def _emit_datachanged_recursive(self, parent: QModelIndex) -> None:
+        n = self.rowCount(parent)
+        if n == 0:
+            return
+        self.dataChanged.emit(
+            self.index(0, 0, parent),
+            self.index(n - 1, self.COL_VALUE, parent),
+            [Qt.BackgroundRole],
+        )
+        for row in range(n):
+            self._emit_datachanged_recursive(self.index(row, 0, parent))
+
     def _index_of_node(self, node: FoamNode) -> QModelIndex:
         if node is self.root or node is None:
             return QModelIndex()
@@ -210,6 +259,15 @@ class FoamTreeModel(QAbstractItemModel):
                 f"{format_embedded_value(data.get('value_type'), data.get('value'), data.get('raw_value'))}"
             ).strip()
 
+        if t == "bool":
+            return str(node.value)
+
+        if t == "nonuniform_list":
+            parts = str(node.value).split(None, 3)
+            list_type = parts[1] if len(parts) > 1 else "List"
+            count = parts[2] if len(parts) > 2 and parts[2] != "(" else "?"
+            return f"nonuniform {list_type} ({count} values)"
+
         if t in {"directive_entry", "unknown_raw_entry", "macro_entry"}:
             return str(node.value)
 
@@ -255,6 +313,7 @@ class FoamTreeModel(QAbstractItemModel):
 
     def _is_value_editable(self, node: FoamNode) -> bool:
         return node.node_type in {
+            "bool",
             "word",
             "string",
             "int",
@@ -339,6 +398,11 @@ class FoamTreeModel(QAbstractItemModel):
             if text.startswith("(") and text.endswith(")"):
                 return "raw_list", text[1:-1].strip()
             return "raw_list", text
+
+        if node_type == "bool":
+            if text.lower() not in BOOL_WORDS:
+                return None, None
+            return "bool", text.lower()
 
         if node_type in STRING_TYPES:
             return node_type, text

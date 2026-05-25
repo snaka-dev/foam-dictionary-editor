@@ -41,6 +41,8 @@ class DetailPanel(QWidget):
         super().__init__(parent)
         self._current_file: str | None = None
         self._current_node_name: str | None = None
+        self._current_parent_key: str | None = None
+        self._current_grandparent_key: str | None = None
 
         self._stack = QStackedWidget()
         self._stack.addWidget(self._build_empty_page())
@@ -62,6 +64,12 @@ class DetailPanel(QWidget):
     def show_for_node(self, node: FoamNode, model: FoamTreeModel, file_path: str | None) -> None:
         self._current_file = file_path
         self._current_node_name = node.name
+        self._current_parent_key = node.parent.name if node.parent else None
+        self._current_grandparent_key = (
+            node.parent.parent.name
+            if node.parent and node.parent.parent
+            else None
+        )
         self._populate_normal(node, model, file_path)
         self._stack.setCurrentIndex(_PAGE_NORMAL)
 
@@ -170,8 +178,10 @@ class DetailPanel(QWidget):
 
         current_value = model._display_value(node)
         editable = model._is_value_editable(node)
-        choices = choices_for_file_key(file_path, node.name)
-        schema = schema_for_file_key(file_path, node.name)
+        parent_key = self._current_parent_key
+        grandparent_key = self._current_grandparent_key
+        choices = choices_for_file_key(file_path, node.name, parent_key, grandparent_key)
+        schema = schema_for_file_key(file_path, node.name, parent_key, grandparent_key)
 
         if schema is not None and schema.description:
             self._key_description_label.setText(schema.description)
@@ -180,11 +190,11 @@ class DetailPanel(QWidget):
             self._key_description_label.clear()
             self._key_description_label.setVisible(False)
 
-        key_supported_in = schema_supported_in_text(file_path, node.name)
+        key_supported_in = schema_supported_in_text(file_path, node.name, parent_key, grandparent_key)
         self._key_supported_in_label.setText(key_supported_in)
         self._key_supported_in_label.setVisible(bool(key_supported_in))
 
-        key_note = schema_note_text(file_path, node.name)
+        key_note = schema_note_text(file_path, node.name, parent_key, grandparent_key)
         self._key_note_label.setText(key_note)
         self._key_note_label.setVisible(bool(key_note))
 
@@ -245,9 +255,11 @@ class DetailPanel(QWidget):
         self._value_edit.setEnabled(editable)
 
     def _update_choice_help(self, node_name: str, value: str) -> None:
-        description = choice_description_for_value(self._current_file, node_name, value)
-        supported_in = choice_supported_in_for_value(self._current_file, node_name, value)
-        note = choice_note_for_value(self._current_file, node_name, value)
+        parent_key = self._current_parent_key
+        grandparent_key = self._current_grandparent_key
+        description = choice_description_for_value(self._current_file, node_name, value, parent_key, grandparent_key)
+        supported_in = choice_supported_in_for_value(self._current_file, node_name, value, parent_key, grandparent_key)
+        note = choice_note_for_value(self._current_file, node_name, value, parent_key, grandparent_key)
 
         self._choice_description_label.setText(description)
         self._choice_description_label.setVisible(bool(description))

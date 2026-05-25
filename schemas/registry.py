@@ -52,21 +52,43 @@ class SchemaRegistry:
         self,
         file_path: str | None,
         key_name: str | None,
+        parent_key: str | None = None,
+        grandparent_key: str | None = None,
     ) -> KeySchema | None:
-        """Return the schema for a file/key pair."""
+        """Return the schema for a file/key pair.
+
+        Lookup order (first match wins):
+        1. ``"<parent_key>.<key_name>"``      — direct parent context
+        2. ``"<grandparent_key>.<key_name>"`` — grandparent context, used for
+           blocks whose immediate parent is a user-defined name (e.g. a named
+           geometry or refinement-region entry)
+        3. plain ``key_name``                 — flat fallback
+
+        Existing schema modules that use only flat keys are unaffected.
+        """
         if not file_path or not key_name:
             return None
         file_name = Path(file_path).name
         per_file = self._file_key_schemas.get(file_name, {})
+        if parent_key:
+            schema = per_file.get(f"{parent_key}.{key_name}")
+            if schema is not None:
+                return schema
+        if grandparent_key:
+            schema = per_file.get(f"{grandparent_key}.{key_name}")
+            if schema is not None:
+                return schema
         return per_file.get(key_name)
 
     def choices_for_file_key(
         self,
         file_path: str | None,
         key_name: str | None,
+        parent_key: str | None = None,
+        grandparent_key: str | None = None,
     ) -> list[str]:
         """Return choice values for a file/key pair."""
-        schema = self.schema_for_file_key(file_path, key_name)
+        schema = self.schema_for_file_key(file_path, key_name, parent_key, grandparent_key)
         if schema is None:
             return []
         return [item.value for item in schema.choices]
@@ -76,9 +98,11 @@ class SchemaRegistry:
         file_path: str | None,
         key_name: str | None,
         value: str | None,
+        parent_key: str | None = None,
+        grandparent_key: str | None = None,
     ) -> ChoiceItem | None:
         """Return the matching choice item for a file/key/value triple."""
-        schema = self.schema_for_file_key(file_path, key_name)
+        schema = self.schema_for_file_key(file_path, key_name, parent_key, grandparent_key)
         if schema is None or value is None:
             return None
         for item in schema.choices:
@@ -91,9 +115,11 @@ class SchemaRegistry:
         file_path: str | None,
         key_name: str | None,
         value: str | None,
+        parent_key: str | None = None,
+        grandparent_key: str | None = None,
     ) -> str:
         """Return the choice description for a file/key/value triple."""
-        item = self.choice_for_value(file_path, key_name, value)
+        item = self.choice_for_value(file_path, key_name, value, parent_key, grandparent_key)
         return item.description if item else ""
 
     def choice_supported_in_for_value(
@@ -101,9 +127,11 @@ class SchemaRegistry:
         file_path: str | None,
         key_name: str | None,
         value: str | None,
+        parent_key: str | None = None,
+        grandparent_key: str | None = None,
     ) -> str:
         """Return supported version text for a file/key/value triple."""
-        item = self.choice_for_value(file_path, key_name, value)
+        item = self.choice_for_value(file_path, key_name, value, parent_key, grandparent_key)
         if item is None or not item.supported_in:
             return ""
         return _versions_text(item.supported_in)
@@ -113,18 +141,22 @@ class SchemaRegistry:
         file_path: str | None,
         key_name: str | None,
         value: str | None,
+        parent_key: str | None = None,
+        grandparent_key: str | None = None,
     ) -> str:
         """Return the choice note for a file/key/value triple."""
-        item = self.choice_for_value(file_path, key_name, value)
+        item = self.choice_for_value(file_path, key_name, value, parent_key, grandparent_key)
         return item.note if item else ""
 
     def schema_supported_in_text(
         self,
         file_path: str | None,
         key_name: str | None,
+        parent_key: str | None = None,
+        grandparent_key: str | None = None,
     ) -> str:
         """Return supported version text for a file/key pair."""
-        schema = self.schema_for_file_key(file_path, key_name)
+        schema = self.schema_for_file_key(file_path, key_name, parent_key, grandparent_key)
         if schema is None or not schema.supported_in:
             return ""
         return _versions_text(schema.supported_in)
@@ -133,9 +165,11 @@ class SchemaRegistry:
         self,
         file_path: str | None,
         key_name: str | None,
+        parent_key: str | None = None,
+        grandparent_key: str | None = None,
     ) -> str:
         """Return the schema note for a file/key pair."""
-        schema = self.schema_for_file_key(file_path, key_name)
+        schema = self.schema_for_file_key(file_path, key_name, parent_key, grandparent_key)
         return schema.note if schema else ""
 
     @staticmethod

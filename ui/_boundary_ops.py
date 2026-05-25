@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QDialog, QMessageBox
 
 from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser
+from foam.utils import read_foam_file
 from foam.writer import write_root
 from services.case_loader import FIELD_DIRS
 from ui.layout_constants import (
@@ -26,14 +27,14 @@ class _BoundaryOpsMixin:
             return []
         candidates = list(FIELD_DIRS)
         if self._case_files_config:
-            candidates.extend(self._case_files_config.get_extra_dirs())
+            candidates.extend(p for p, _ in self._case_files_config.get_extra_dirs())
         return [d for d in candidates if (Path(self.current_case_dir) / d).is_dir()]
 
     def _cache_parsed_root(self, path: str) -> FoamNode | None:
         text = self.file_buffers.get(path)
         if text is None:
             try:
-                text = Path(path).read_text(encoding="utf-8")
+                text = read_foam_file(path)
             except OSError:
                 return None
         try:
@@ -124,15 +125,7 @@ class _BoundaryOpsMixin:
             live_patch.modified = True
             live_patch.raw_text = ""
 
-        text = write_root(root)
-        self.file_buffers[path] = text
-        self._mark_path_dirty(path)
-
-        if path == self.current_file:
-            self.editor_panel.set_text(text)
-            self._load_tree(root)
-
-        self.boundary_panel.update_field(path, root)
+        self._apply_boundary_root_change(path, root)
         self.statusBar().showMessage(
             f"Boundary updated: {Path(path).name} / {patch_name}", _STATUS_SHORT
         )
@@ -177,13 +170,7 @@ class _BoundaryOpsMixin:
         boundary_field.children.append(new_patch)
         boundary_field.modified = True
 
-        text = write_root(root)
-        self.file_buffers[path] = text
-        self._mark_path_dirty(path)
-        if path == self.current_file:
-            self.editor_panel.set_text(text)
-            self._load_tree(root)
-        self.boundary_panel.update_field(path, root)
+        self._apply_boundary_root_change(path, root)
         self.statusBar().showMessage(f"Created boundary: {field_name} / {patch_name}", _STATUS_SHORT)
 
     def _on_patch_paste_requested(self, path: str, patch_name: str, content: str) -> None:
@@ -220,13 +207,7 @@ class _BoundaryOpsMixin:
         live_patch.modified = True
         live_patch.raw_text = ""
 
-        text = write_root(root)
-        self.file_buffers[path] = text
-        self._mark_path_dirty(path)
-        if path == self.current_file:
-            self.editor_panel.set_text(text)
-            self._load_tree(root)
-        self.boundary_panel.update_field(path, root)
+        self._apply_boundary_root_change(path, root)
         self.statusBar().showMessage(
             f"Pasted to {Path(path).name} / {patch_name}", _STATUS_SHORT
         )
@@ -250,6 +231,56 @@ class _BoundaryOpsMixin:
         boundary_field.children.remove(patch_node)
         boundary_field.modified = True
 
+        self._apply_boundary_root_change(path, root)
+        self.boundary_panel.refresh()
+        self.statusBar().showMessage(
+            f"Deleted boundary: {Path(path).name} / {patch_name}", _STATUS_SHORT
+        )
+
+    def _on_rename_boundary_by_name(self, old_name: str) -> None:
+        from ui.rename_boundary_dialog import RenameBoundaryDialog, find_rename_targets
+
+        # Ensure all loaded files are parsed
+        for path in list(self.file_buffers):
+            if path not in self._parsed_roots:
+                self._cache_parsed_root(path)
+
+        # Use the live current_root for the open file
+        roots: dict[str, FoamNode] = dict(self._parsed_roots)
+        if self.current_file and self.current_root is not None:
+            roots[self.current_file] = self.current_root
+
+        targets = find_rename_targets(old_name, roots)
+
+        dlg = RenameBoundaryDialog(old_name, targets, self.current_case_dir or "", self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+
+        new_name = dlg.new_name
+        selected = set(dlg.selected_paths)
+
+        for path in selected:
+            root = roots.get(path)
+            if root is None:
+                continue
+            for n in targets.get(path, []):
+                n.name = new_name
+                n.modified = True
+            self._apply_boundary_root_change(path, root)
+
+        self.boundary_panel.refresh()
+        self.statusBar().showMessage(
+            f"Renamed '{old_name}' → '{new_name}' in {len(selected)} file(s).",
+            _STATUS_NORMAL,
+        )
+
+    def _on_patch_selected(self, path: str, patch_name: str) -> None:
+        if path != self.current_file:
+            self.load_selected_file(path)
+            self.file_list_panel.select_file(path)
+        self.editor_panel.jump_to_text(patch_name)
+
+    def _apply_boundary_root_change(self, path: str, root) -> None:
         text = write_root(root)
         self.file_buffers[path] = text
         self._mark_path_dirty(path)
@@ -257,10 +288,6 @@ class _BoundaryOpsMixin:
             self.editor_panel.set_text(text)
             self._load_tree(root)
         self.boundary_panel.update_field(path, root)
-        self.boundary_panel.refresh()
-        self.statusBar().showMessage(
-            f"Deleted boundary: {Path(path).name} / {patch_name}", _STATUS_SHORT
-        )
 
     def _on_patch_delete_all_requested(self, patch_name: str) -> None:
         from ui.boundary_view_panel import _extract_boundary
@@ -296,14 +323,7 @@ class _BoundaryOpsMixin:
                 continue
             boundary_field.children.remove(patch_node)
             boundary_field.modified = True
-
-            text = write_root(root)
-            self.file_buffers[path] = text
-            self._mark_path_dirty(path)
-            if path == self.current_file:
-                self.editor_panel.set_text(text)
-                self._load_tree(root)
-            self.boundary_panel.update_field(path, root)
+            self._apply_boundary_root_change(path, root)
 
         self.boundary_panel.refresh()
         self.statusBar().showMessage(
@@ -351,14 +371,7 @@ class _BoundaryOpsMixin:
             new_patch.parent = boundary_field
             boundary_field.children.append(new_patch)
             boundary_field.modified = True
-
-            text = write_root(root)
-            self.file_buffers[path] = text
-            self._mark_path_dirty(path)
-            if path == self.current_file:
-                self.editor_panel.set_text(text)
-                self._load_tree(root)
-            self.boundary_panel.update_field(path, root)
+            self._apply_boundary_root_change(path, root)
             added.append(path)
 
         if added:

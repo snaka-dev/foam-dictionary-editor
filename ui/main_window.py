@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSortFilterProxyModel
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QFileDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -21,7 +25,10 @@ from PySide6.QtWidgets import (
 )
 
 from app_config import get_app_config
+from foam.diff import diff_trees
 from foam.nodes import FoamNode
+from foam.parser import OpenFoamParser
+from foam.utils import read_foam_file
 from foam.writer import write_root
 from model.tree_model import FoamTreeModel
 from ui._boundary_ops import _BoundaryOpsMixin
@@ -33,6 +40,7 @@ from ui.editor_panel import EditorPanel
 from ui.file_list_panel import FileListPanel, display_file_name
 from ui.terminal_panel import TerminalPanel
 from ui.layout_constants import (
+    BLOCKMESH_DICT_NAME as _BLOCKMESH_DICT_NAME,
     SPLITTER_DETAIL_WIDTH,
     SPLITTER_FILE_LIST_WIDTH,
     SPLITTER_HANDLE_WIDTH,
@@ -40,9 +48,16 @@ from ui.layout_constants import (
     SPLITTER_TREE_WIDTH,
     SPLITTER_UPPER_HEIGHT,
     STATUS_SHORT as _STATUS_SHORT,
+    STATUS_WARNING as _STATUS_WARNING,
 )
 
 _TREE_EXPAND_DEPTH = 2
+
+
+def _act(menu, label: str, shortcut: str, slot) -> None:
+    action = menu.addAction(label)
+    action.setShortcut(QKeySequence(shortcut))
+    action.triggered.connect(slot)
 
 
 class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin, QMainWindow):
@@ -58,8 +73,12 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         self.file_buffers: dict[str, str] = {}
         self.file_dirty: dict[str, bool] = {}
         self.text_dirty = False
+        self._source_lines_valid = False
+        self._syncing = False
         self._case_files_config = None
         self._parsed_roots: dict[str, FoamNode] = {}
+        self._diff_case_dir: str | None = None
+        self._diff_parsed_roots: dict[str, FoamNode] = {}
 
         self._build_ui()
 
@@ -67,18 +86,18 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
 
     def _build_ui(self) -> None:
         self.setStatusBar(QStatusBar(self))
-
         self.file_list_panel = FileListPanel()
         self.detail_panel = DetailPanel()
         self.editor_panel = EditorPanel()
+        top_bar = self._build_top_bar()
+        tree_container = self._build_tree_area()
+        self._build_feature_panels()
+        self._build_diff_bar()
+        self._build_splitters(tree_container, top_bar)
+        self._connect_signals()
+        self._build_menu_bar()
 
-        self.tree = QTreeView()
-        self.tree.setModel(self.current_model)
-        self.tree.setAlternatingRowColors(True)
-        self.tree.setUniformRowHeights(True)
-        self.tree.setEditTriggers(QTreeView.DoubleClicked | QTreeView.EditKeyPressed)
-        self.tree.setSelectionBehavior(QTreeView.SelectRows)
-
+    def _build_top_bar(self) -> QHBoxLayout:
         self.current_case_label = QLabel("-")
         self.current_case_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.current_case_label.setToolTip("Current case name")
@@ -91,47 +110,109 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         save_all_btn = QPushButton("Save All Files")
         apply_btn = QPushButton("Apply Text to Tree")
         reload_btn = QPushButton("Reload from Tree")
-
         save_btn.clicked.connect(self.save_file)
         save_all_btn.clicked.connect(self.save_all_files)
         apply_btn.clicked.connect(self.apply_text_to_tree)
         reload_btn.clicked.connect(self.reload_text_from_tree)
 
-        top_bar = QHBoxLayout()
-        top_bar.setContentsMargins(4, 4, 4, 2)
-        top_bar.addWidget(save_btn)
-        top_bar.addWidget(save_all_btn)
-        top_bar.addWidget(apply_btn)
-        top_bar.addWidget(reload_btn)
-        top_bar.addWidget(QLabel("Case:"))
-        top_bar.addWidget(self.current_case_label)
-        top_bar.addSpacing(16)
-        top_bar.addWidget(QLabel("File:"))
-        top_bar.addWidget(self.current_file_label)
-        top_bar.addStretch(1)
+        layout = QHBoxLayout()
+        layout.setContentsMargins(4, 4, 4, 2)
+        layout.addWidget(save_btn)
+        layout.addWidget(save_all_btn)
+        layout.addWidget(apply_btn)
+        layout.addWidget(reload_btn)
+        layout.addWidget(QLabel("Case:"))
+        layout.addWidget(self.current_case_label)
+        layout.addSpacing(16)
+        layout.addWidget(QLabel("File:"))
+        layout.addWidget(self.current_file_label)
+        layout.addStretch(1)
+        return layout
 
-        self.terminal_panel = TerminalPanel()
+    def _build_tree_area(self) -> QWidget:
+        self.proxy_model = QSortFilterProxyModel(self)
+        self.proxy_model.setSourceModel(self.current_model)
+        self.proxy_model.setFilterCaseSensitivity(Qt.CaseInsensitive)
+        self.proxy_model.setRecursiveFilteringEnabled(True)
+        self.proxy_model.setFilterKeyColumn(FoamTreeModel.COL_KEY)
+
+        self.tree_filter_input = QLineEdit()
+        self.tree_filter_input.setPlaceholderText("Filter keys…")
+        self.tree_filter_input.setClearButtonEnabled(True)
+        self.tree_filter_input.textChanged.connect(self.proxy_model.setFilterFixedString)
+
+        self.editor_autoscroll_checkbox = QCheckBox("Auto-scroll editor")
+        self.editor_autoscroll_checkbox.setChecked(True)
+        self._update_sync_checkbox()
+
+        self.tree = QTreeView()
+        self.tree.setModel(self.proxy_model)
+        self.tree.setAlternatingRowColors(True)
+        self.tree.setUniformRowHeights(True)
+        self.tree.setEditTriggers(QTreeView.DoubleClicked | QTreeView.EditKeyPressed)
+        self.tree.setSelectionBehavior(QTreeView.SelectRows)
+
+        filter_bar = QHBoxLayout()
+        filter_bar.setContentsMargins(0, 0, 0, 0)
+        filter_bar.setSpacing(6)
+        filter_bar.addWidget(self.tree_filter_input)
+        filter_bar.addWidget(self.editor_autoscroll_checkbox)
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+        layout.addLayout(filter_bar)
+        layout.addWidget(self.tree)
+        return container
+
+    def _build_feature_panels(self) -> None:
+        cfg = get_app_config()
+        _feat_terminal  = cfg.get_feature("terminal")
+        _feat_blockmesh = cfg.get_feature("blockmesh")
+
+        self.terminal_panel: TerminalPanel | None = None
+        if _feat_terminal:
+            self.terminal_panel = TerminalPanel()
 
         self.bottom_tabs = QTabWidget()
         self.bottom_tabs.addTab(self.editor_panel, "Editor")
-        self.bottom_tabs.addTab(self.terminal_panel, self.terminal_panel.tab_label)
-
-        right_upper_splitter = QSplitter(Qt.Horizontal)
-        right_upper_splitter.addWidget(self.tree)
-        right_upper_splitter.addWidget(self.detail_panel)
-        right_upper_splitter.setSizes([SPLITTER_TREE_WIDTH, SPLITTER_DETAIL_WIDTH])
-
-        # Allow all panes to shrink freely regardless of child minimum hints.
-        self.tree.setMinimumSize(0, 0)
-        self.detail_panel.setMinimumSize(0, 0)
-        right_upper_splitter.setMinimumSize(0, 0)
+        if self.terminal_panel is not None:
+            self.bottom_tabs.addTab(self.terminal_panel, self.terminal_panel.tab_label)
 
         from ui.boundary_view_panel import BoundaryViewPanel
         self.boundary_panel = BoundaryViewPanel()
 
+        self.block_mesh_panel = None
+        if _feat_blockmesh:
+            from ui.block_mesh_panel import BlockMeshPanel
+            self.block_mesh_panel = BlockMeshPanel()
+            self.block_mesh_panel.vertices_changed.connect(
+                self._on_blockmesh_vertices_changed
+            )
+
+    def _build_splitters(self, tree_container: QWidget, top_bar: QHBoxLayout) -> None:
+        right_upper_splitter = QSplitter(Qt.Horizontal)
+        right_upper_splitter.addWidget(tree_container)
+        right_upper_splitter.addWidget(self.detail_panel)
+        right_upper_splitter.setSizes([SPLITTER_TREE_WIDTH, SPLITTER_DETAIL_WIDTH])
+
+        # Allow all panes to shrink freely regardless of child minimum hints.
+        tree_container.setMinimumSize(0, 0)
+        self.tree.setMinimumSize(0, 0)
+        self.detail_panel.setMinimumSize(0, 0)
+        right_upper_splitter.setMinimumSize(0, 0)
+
         self.upper_tabs = QTabWidget()
         self.upper_tabs.addTab(right_upper_splitter, "Tree")
         self.upper_tabs.addTab(self.boundary_panel, "Boundary")
+        if self.block_mesh_panel is not None:
+            # When terminal is present, BlockMesh tab visibility depends on
+            # whether xterm is active (xterm and VTK share the OpenGL context).
+            # When there is no terminal, show BlockMesh unconditionally.
+            show_bm = (self.terminal_panel is None) or (not self.terminal_panel.use_xterm)
+            if show_bm:
+                self.upper_tabs.addTab(self.block_mesh_panel, "BlockMesh")
         self.upper_tabs.setMinimumSize(0, 0)
 
         right_splitter = QSplitter(Qt.Vertical)
@@ -161,9 +242,11 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addLayout(top_bar)
+        layout.addWidget(self._diff_bar)
         layout.addWidget(self.main_splitter, 1)
         self.setCentralWidget(central)
 
+    def _connect_signals(self) -> None:
         self.file_list_panel.file_selected.connect(self.load_selected_file)
         self.file_list_panel.create_file_requested.connect(self._on_create_file_requested)
         self.file_list_panel.add_file_requested.connect(self._on_add_file_requested)
@@ -173,6 +256,7 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         self.file_list_panel.duplicate_file_requested.connect(self._on_duplicate_file_requested)
         self.file_list_panel.duplicate_dir_requested.connect(self._on_duplicate_dir_requested)
         self.file_list_panel.delete_file_requested.connect(self._on_delete_file_requested)
+        self.file_list_panel.delete_dir_requested.connect(self._on_delete_dir_requested)
         self.file_list_panel.save_file_requested.connect(self.save_file)
         self.file_list_panel.add_time_dir_requested.connect(self._on_add_time_dir)
         self.file_list_panel.remove_extra_dir_requested.connect(self._on_remove_extra_dir)
@@ -182,9 +266,16 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         self.boundary_panel.patch_paste_requested.connect(self._on_patch_paste_requested)
         self.boundary_panel.patch_delete_all_requested.connect(self._on_patch_delete_all_requested)
         self.boundary_panel.patch_add_all_requested.connect(self._on_patch_add_all_requested)
+        self.boundary_panel.patch_rename_requested.connect(self._on_rename_boundary_by_name)
+        self.boundary_panel.patch_selected.connect(self._on_patch_selected)
         self.detail_panel.value_apply_requested.connect(self._on_value_apply)
         self.detail_panel.field_value_apply_requested.connect(self._on_field_value_apply)
         self.editor_panel.user_text_changed.connect(self._on_user_text_changed)
+        self.editor_panel.find_in_tree_requested.connect(self._sync_tree_to_editor_line)
+        find_tree_sc = QShortcut(QKeySequence("Ctrl+Shift+T"), self)
+        find_tree_sc.activated.connect(self._sync_tree_to_editor_line)
+        if self.terminal_panel is not None:
+            self.terminal_panel.mode_changed.connect(self._on_terminal_mode_changed)
 
         self._connect_tree_selection()
         self._setup_tree_copy_paste()
@@ -193,13 +284,15 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         self._update_case_label()
         self._update_file_label()
 
+    def _build_menu_bar(self) -> None:
         menubar = self.menuBar()
 
         case_menu = menubar.addMenu("Case")
-        case_menu.addAction("Open Case\tCtrl+O").triggered.connect(self.open_case)
+        _act(case_menu, "Open Case",              "Ctrl+O",       self.open_case)
         case_menu.addAction("Open from Case Library...").triggered.connect(self.open_from_library)
+        case_menu.addAction("Reload Case").triggered.connect(self.reload_case)
         case_menu.addSeparator()
-        case_menu.addAction("Save Case\tCtrl+Shift+S").triggered.connect(self.save_all_files)
+        _act(case_menu, "Save Case",              "Ctrl+Shift+S", self.save_all_files)
         case_menu.addAction("Save as New Case...").triggered.connect(self.save_as_new_case)
         case_menu.addSeparator()
         case_menu.addAction("Duplicate Case...").triggered.connect(self.duplicate_case)
@@ -207,12 +300,11 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         case_menu.addSeparator()
         case_menu.addAction("Clean Backup Files...").triggered.connect(self._on_clean_backups)
         case_menu.addSeparator()
-        case_menu.addAction("Exit\tCtrl+Q").triggered.connect(self.close)
+        case_menu.addAction("Compare with Case...").triggered.connect(self._compare_with_case)
+        case_menu.addSeparator()
+        _act(case_menu, "Exit",                   "Ctrl+Q",       self.close)
 
-        QShortcut(QKeySequence("Ctrl+O"), self).activated.connect(self.open_case)
         QShortcut(QKeySequence("Ctrl+S"), self).activated.connect(self.save_file)
-        QShortcut(QKeySequence("Ctrl+Shift+S"), self).activated.connect(self.save_all_files)
-        QShortcut(QKeySequence("Ctrl+Q"), self).activated.connect(self.close)
 
         settings_menu = menubar.addMenu("Settings")
         settings_menu.addAction("Set Default Case Directory").triggered.connect(self.set_default_case_directory)
@@ -232,9 +324,27 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         self._show_type_action.toggled.connect(self._on_toggle_type_column)
         view_menu.addAction(self._show_type_action)
 
+        self._blockmesh_action: QAction | None = None
+        if self.block_mesh_panel is not None:
+            view_menu.addSeparator()
+            self._blockmesh_action = QAction("BlockMesh 3-D Panel", self)
+            self._blockmesh_action.setCheckable(True)
+            xterm_active = (
+                self.terminal_panel is not None and self.terminal_panel.use_xterm
+            )
+            self._blockmesh_action.setChecked(not xterm_active)
+            self._blockmesh_action.setEnabled(not xterm_active)
+            if xterm_active:
+                self._blockmesh_action.setText(
+                    "BlockMesh 3-D Panel  (unavailable: xterm active)"
+                )
+            self._blockmesh_action.toggled.connect(self._on_toggle_blockmesh_panel)
+            view_menu.addAction(self._blockmesh_action)
+
         help_menu = menubar.addMenu("Help")
         help_menu.addAction("About Foam Dictionary Editor (FoDE)...").triggered.connect(self.show_about)
         help_menu.addSeparator()
+        help_menu.addAction("Keyboard Shortcuts...").triggered.connect(self.show_keyboard_shortcuts)
         help_menu.addAction("Resources...").triggered.connect(self.show_openfoam_resources)
 
     # ── window lifecycle ──────────────────────────────────────────────────────
@@ -243,6 +353,10 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         if not self._confirm_discard_if_needed():
             event.ignore()
             return
+        if self.terminal_panel is not None:
+            self.terminal_panel.cleanup()
+        if self.block_mesh_panel is not None:
+            self.block_mesh_panel.shutdown()
         cfg = get_app_config()
         cfg.set_window_size(self.width(), self.height())
         cfg.save()
@@ -259,6 +373,11 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         from ui.about_dialog import AboutDialog
 
         AboutDialog(self).exec()
+
+    def show_keyboard_shortcuts(self) -> None:
+        from ui.keyboard_shortcuts_dialog import KeyboardShortcutsDialog
+
+        KeyboardShortcutsDialog(self).exec()
 
     def show_openfoam_resources(self) -> None:
         from ui.openfoam_resources_dialog import OpenFOAMResourcesDialog
@@ -279,6 +398,8 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         self._mark_dirty()
         if self.current_file:
             self.boundary_panel.update_field(self.current_file, self.current_root)
+            if self.block_mesh_panel is not None and Path(self.current_file).name == _BLOCKMESH_DICT_NAME:
+                self.block_mesh_panel.update_block_mesh(self.current_file, self.current_root)
         self._resize_tree_columns()
         self.on_tree_selection()
         self.statusBar().showMessage("Tree changes applied to text editor", _STATUS_SHORT)
@@ -286,11 +407,19 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
     def _load_tree(self, root: FoamNode) -> None:
         self.current_root = root
         self.current_model = FoamTreeModel(root)
-        self.tree.setModel(self.current_model)
+        self.current_model.edit_rejected.connect(
+            lambda msg: self.statusBar().showMessage(msg, _STATUS_WARNING)
+        )
+        self.proxy_model.setSourceModel(self.current_model)
+        self.tree_filter_input.clear()
         self.tree.expandToDepth(_TREE_EXPAND_DEPTH)
         self._collapse_foam_file()
         self._connect_tree_selection()
         self._resize_tree_columns()
+        self._source_lines_valid = True
+        self._update_sync_checkbox()
+        self.editor_panel.clear_node_highlight()
+        self._recompute_diff()
 
     def _clear_current_file(self) -> None:
         self.current_file = None
@@ -339,9 +468,33 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
 
     def _current_primary_index(self):
         indexes = self.tree.selectedIndexes()
-        if not indexes:
-            return self.tree.currentIndex()
-        return self.current_model.index(indexes[0].row(), 0, indexes[0].parent())
+        proxy_idx = (
+            self.proxy_model.index(indexes[0].row(), 0, indexes[0].parent())
+            if indexes
+            else self.tree.currentIndex()
+        )
+        return self.proxy_model.mapToSource(proxy_idx)
+
+    def _to_source(self, proxy_index):
+        return self.proxy_model.mapToSource(proxy_index)
+
+    def _to_proxy(self, source_index):
+        return self.proxy_model.mapFromSource(source_index)
+
+    def _on_toggle_blockmesh_panel(self, checked: bool) -> None:
+        if self.block_mesh_panel is None:
+            return
+        from PySide6.QtCore import QTimer
+        if checked:
+            idx = self.upper_tabs.indexOf(self.block_mesh_panel)
+            if idx < 0:
+                self.upper_tabs.addTab(self.block_mesh_panel, "BlockMesh")
+            QTimer.singleShot(0, self.block_mesh_panel._init_plotter)
+        else:
+            self.block_mesh_panel.shutdown()
+            idx = self.upper_tabs.indexOf(self.block_mesh_panel)
+            if idx >= 0:
+                self.upper_tabs.removeTab(idx)
 
     def _on_toggle_type_column(self, checked: bool) -> None:
         self.tree.setColumnHidden(FoamTreeModel.COL_TYPE, not checked)
@@ -355,10 +508,10 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
 
     def _collapse_foam_file(self) -> None:
         for row in range(self.current_model.rowCount()):
-            index = self.current_model.index(row, 0)
-            node = index.internalPointer()
+            src_index = self.current_model.index(row, 0)
+            node = src_index.internalPointer()
             if node is not None and node.name == "FoamFile":
-                self.tree.setExpanded(index, False)
+                self.tree.setExpanded(self._to_proxy(src_index), False)
                 break
 
     # ── label / title updates ─────────────────────────────────────────────────
@@ -384,3 +537,133 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
     def _update_window_title(self) -> None:
         mark = "*" if self.text_dirty else ""
         self.setWindowTitle(f"foam dictionary editor{mark}")
+
+    def _update_sync_checkbox(self) -> None:
+        stale = self.current_file is not None and not self._source_lines_valid
+        if stale:
+            self.editor_autoscroll_checkbox.setText("Auto-scroll editor (stale)")
+            self.editor_autoscroll_checkbox.setStyleSheet("color: gray;")
+            self.editor_autoscroll_checkbox.setToolTip(
+                "Source lines are stale — the editor text has changed since the last parse.\n"
+                "Apply Text to Tree to re-enable jump-to-line and span highlight."
+            )
+        else:
+            self.editor_autoscroll_checkbox.setText("Auto-scroll editor")
+            self.editor_autoscroll_checkbox.setStyleSheet("")
+            self.editor_autoscroll_checkbox.setToolTip(
+                "When checked, the editor scrolls to the selected tree entry.\n"
+                "The span highlight is always shown regardless of this setting."
+            )
+
+    # ── diff overlay ─────────────────────────────────────────────────────────
+
+    def _build_diff_bar(self) -> None:
+        self._diff_bar = QFrame()
+        self._diff_bar.setStyleSheet(
+            "QFrame { background-color: #FFFBEA; border-bottom: 1px solid #E0C04C; }"
+        )
+        legend = QLabel(
+            '<span style="background:#FFFACD;padding:0 4px;border:1px solid #ccc;">&#160;</span>'
+            " changed &nbsp;"
+            '<span style="background:#E3F2FD;padding:0 4px;border:1px solid #ccc;">&#160;</span>'
+            " only in this file &nbsp;|&nbsp;"
+        )
+        legend.setTextFormat(Qt.RichText)
+        self._diff_path_label = QLabel()
+        clear_btn = QPushButton("Clear")
+        clear_btn.setFixedWidth(60)
+        clear_btn.clicked.connect(self._clear_diff)
+        bar_layout = QHBoxLayout(self._diff_bar)
+        bar_layout.setContentsMargins(8, 2, 8, 2)
+        bar_layout.addWidget(legend)
+        bar_layout.addWidget(self._diff_path_label, 1)
+        bar_layout.addWidget(clear_btn)
+        self._diff_bar.hide()
+
+    def _compare_with_case(self) -> None:
+        directory = QFileDialog.getExistingDirectory(
+            self,
+            "Select Reference Case Directory",
+            self.current_case_dir or "",
+        )
+        if not directory:
+            return
+        self._diff_case_dir = directory
+        name = Path(directory).name or directory
+        self._diff_path_label.setText(f"Comparing with: <b>{name}</b>  ({directory})")
+        self._diff_path_label.setTextFormat(Qt.RichText)
+        self._diff_bar.show()
+        self._recompute_diff()
+
+    def _clear_diff(self) -> None:
+        self._diff_case_dir = None
+        self._diff_parsed_roots.clear()
+        self._diff_bar.hide()
+        self.current_model.clear_diff()
+        self.file_list_panel.clear_diff_marks()
+        self.statusBar().showMessage("Diff cleared.", _STATUS_SHORT)
+
+    def _recompute_diff(self) -> None:
+        if not self._diff_case_dir or not self.current_file or not self.current_case_dir:
+            return
+        try:
+            rel = Path(self.current_file).relative_to(Path(self.current_case_dir))
+        except ValueError:
+            return
+        other_path = Path(self._diff_case_dir) / rel
+        other_key = str(other_path)
+        if other_key not in self._diff_parsed_roots:
+            if not other_path.exists():
+                self.current_model.clear_diff()
+                self.statusBar().showMessage(
+                    f"Diff: {rel} not found in reference case.", _STATUS_SHORT
+                )
+                return
+            try:
+                self._diff_parsed_roots[other_key] = OpenFoamParser(
+                    read_foam_file(other_key)
+                ).parse()
+            except Exception:
+                self.current_model.clear_diff()
+                return
+        other_root = self._diff_parsed_roots[other_key]
+        diff_map = diff_trees(self.current_root, other_root)
+        self.current_model.set_diff(diff_map)
+        n = len(diff_map)
+        self.file_list_panel.mark_diff(self.current_file, n)
+        self.statusBar().showMessage(
+            f"Diff: {n} difference{'s' if n != 1 else ''} in {rel}.", _STATUS_SHORT
+        )
+
+    # ── terminal mode switch ──────────────────────────────────────────────────
+
+    def _on_terminal_mode_changed(self, use_xterm: bool) -> None:
+        if self.block_mesh_panel is None:
+            return
+        from PySide6.QtCore import QTimer
+        if use_xterm:
+            # xterm needs GPU/Vulkan — shut down VTK first and hide the tab.
+            self.block_mesh_panel.shutdown()
+            idx = self.upper_tabs.indexOf(self.block_mesh_panel)
+            if idx >= 0:
+                self.upper_tabs.removeTab(idx)
+            if self._blockmesh_action is not None:
+                self._blockmesh_action.setEnabled(False)
+                self._blockmesh_action.setText(
+                    "BlockMesh 3-D Panel  (unavailable: xterm active)"
+                )
+        else:
+            # Simple terminal is GPU-free — restore BlockMesh tab if user wants it.
+            if self._blockmesh_action is not None:
+                self._blockmesh_action.setEnabled(True)
+                self._blockmesh_action.setText("BlockMesh 3-D Panel")
+            user_wants_bm = (
+                self._blockmesh_action is None or self._blockmesh_action.isChecked()
+            )
+            if user_wants_bm:
+                idx = self.upper_tabs.indexOf(self.block_mesh_panel)
+                if idx < 0:
+                    self.upper_tabs.addTab(self.block_mesh_panel, "BlockMesh")
+                # Brief delay lets the WebEngine GPU process finish cleaning up
+                # before VTK claims the OpenGL context.
+                QTimer.singleShot(300, self.block_mesh_panel._init_plotter)

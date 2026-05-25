@@ -46,6 +46,26 @@ class _CaseOpsMixin:
         app_config.save()
         self._load_case_dir(directory)
 
+    def reload_case(self) -> None:
+        if not self.current_case_dir:
+            QMessageBox.information(self, "No Case Open", "Please open a case first.")
+            return
+
+        dirty_count = sum(1 for d in self.file_dirty.values() if d)
+        if dirty_count > 0:
+            reply = QMessageBox.question(
+                self,
+                "Reload Case",
+                f"Reloading will discard unsaved changes in {dirty_count} file(s).\n\nReload from disk?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if reply != QMessageBox.Yes:
+                return
+
+        self._load_case_dir(self.current_case_dir)
+        self.statusBar().showMessage(f"Case reloaded: {self.current_case_dir}", _STATUS_NORMAL)
+
     def open_from_library(self) -> None:
         if not self._confirm_discard_if_needed():
             return

@@ -15,22 +15,33 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 | I want to… | Section |
 |---|---|
 | Browse and manage case files | [File list behavior](#file-list-behavior) |
-| Edit boundary conditions in bulk | [Boundary view](#boundary-view) |
-| Edit values in the tree | [Tree view context menu](#tree-view-context-menu) |
-| Get help on a dictionary setting | [Detail pane](#detail-pane) |
-| Add schema help for custom keys | [Schema module configuration](#schema-module-configuration) |
+| Open or reload a case | [Reloading a case](#reloading-a-case) |
 | Save or duplicate a case | [Duplicating a case](#duplicating-a-case) / [Saving as a new case](#saving-as-a-new-case) |
-| Run OpenFOAM commands from FoDE | [Terminal tab](#terminal-tab) |
+| Compare two cases side-by-side | [Case comparison](#case-comparison) |
 | Use tutorial or template cases | [Case Library](#case-library) |
 | Understand tree ↔ text sync | [Tree and text workflow](#tree-and-text-workflow) |
+| Edit values in the tree | [Tree view context menu](#tree-view-context-menu) |
+| Get help on a dictionary setting | [Detail pane](#detail-pane) |
+| Edit boundary conditions in bulk | [Boundary view](#boundary-view) |
+| View blockMeshDict geometry in 3-D | [BlockMesh panel](#blockmesh-panel) |
+| Filter tree keys | [Tree key filter](#tree-key-filter-and-editor-sync) |
+| Jump to a tree entry from the editor | [Find in Tree](#tree-key-filter-and-editor-sync) |
+| Find text in the editor | [Editor toolbar](#current-ui-layout) |
+| View keyboard shortcuts | Help > Keyboard Shortcuts… |
+| Run OpenFOAM commands from FoDE | [Terminal tab](#terminal-tab) |
+| Choose a variant (no-terminal, BlockMesh) | [Variants](#variants) |
+| Add schema help for custom keys | [Schema module configuration](#schema-module-configuration) |
 | Configure application settings | [Application settings](#application-settings) |
 | Open help links or reference sites | [Resources dialog](#resources-dialog) |
 
 ## Contents
 
+**Getting started**
 - [Features](#features)
 - [UI layout](#current-ui-layout)
 - [Current case and file display](#current-case-and-file-display)
+
+**File & case management**
 - [File list behavior](#file-list-behavior)
   - [Directory header markers](#directory-header-markers)
   - [Default target files](#default-target-files)
@@ -47,30 +58,49 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
   - [Deleting a file](#deleting-a-file)
   - [Duplicating a file](#duplicating-a-file)
   - [Duplicating a field directory](#duplicating-a-field-directory)
+  - [Deleting a field directory](#deleting-a-field-directory)
   - [Resetting the file list](#resetting-the-file-list)
+- [Case Library](#case-library)
+- [Case comparison](#case-comparison)
+- [Reloading a case](#reloading-a-case)
+- [Saving as a new case](#saving-as-a-new-case)
+- [Duplicating a case](#duplicating-a-case)
+
+**Editing**
+- [Tree and text workflow](#tree-and-text-workflow)
+- [Tree view context menu](#tree-view-context-menu)
+- [Detail pane](#detail-pane)
 - [Boundary view](#boundary-view)
   - [Table layout](#table-layout)
   - [Directory selector](#directory-selector)
   - [Transpose](#transpose)
+  - [Single-click navigation](#single-click-navigation)
   - [Editing a boundary condition](#editing-a-boundary-condition)
   - [Creating a patch entry](#creating-a-patch-entry)
   - [Deleting a patch entry](#deleting-a-patch-entry)
   - [Copy and paste](#copy-and-paste)
+  - [Renaming a boundary patch](#renaming-a-boundary-patch)
   - [Deleting a boundary condition across all field files](#deleting-a-boundary-condition-across-all-field-files)
   - [Adding a boundary condition across all field files](#adding-a-boundary-condition-across-all-field-files)
+- [BlockMesh panel](#blockmesh-panel)
+- [Behavior on parse failure](#behavior-on-parse-failure)
+
+**Navigation & search**
+- [Tree key filter and editor sync](#tree-key-filter-and-editor-sync)
+  - [Tree key filter](#tree-key-filter)
+  - [Editor sync (Auto-scroll editor)](#editor-sync-auto-scroll-editor)
+  - [Find in Tree (editor → tree)](#find-in-tree-editor--tree)
+- [Editor behavior](#editor-behavior)
+
+**Configuration**
+- [Terminal tab](#terminal-tab)
+- [Variants](#variants)
 - [Schema module configuration](#schema-module-configuration)
 - [Application settings](#application-settings)
 - [Resetting settings](#resetting-settings)
-- [Terminal tab](#terminal-tab)
-- [Tree view context menu](#tree-view-context-menu)
-- [Case Library](#case-library)
 - [Resources dialog](#resources-dialog)
-- [Saving as a new case](#saving-as-a-new-case)
-- [Duplicating a case](#duplicating-a-case)
-- [Tree and text workflow](#tree-and-text-workflow)
-- [Detail pane](#detail-pane)
-- [Behavior on parse failure](#behavior-on-parse-failure)
-- [Editor behavior](#editor-behavior)
+
+**Reference**
 - [Supported syntax and node types](#supported-syntax-and-node-types)
 - [Limitations](#limitations)
 - [Disclaimer](#disclaimer)
@@ -87,7 +117,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 - Automatically collect phase-variant files such as `thermophysicalProperties.air` and `turbulenceProperties.water` that are present in `constant/` or per-region constant directories.
 - Display symbolic links in the file list with a `⇢` marker and italic text; hovering shows the link target in the tooltip.
 - Add files not in the default list to the file panel at runtime via right-click on a directory header.
-- Add entire directories to the file list so that all files inside are scanned automatically, just like `0/` and `0.orig/`. Useful for custom field directories (`initial/`), restart time steps (`0.5/`), or deep subdirectories (`lagrangian/chemkin/`). Extra directories are shown with a distinct (purple) header. Right-click the **Results** indicator to add a numeric time directory directly; use **Settings > Manage Extra Files & Directories…** or the indicator button for arbitrary directories.
+- Add entire directories to the file list so that all files inside are scanned automatically, just like `0/` and `0.orig/`. Each directory can be scanned flat (direct files only, default) or recursively (all subdirectories). Useful for custom field directories (`initial/`), restart time steps (`0.5/`), or deep subdirectories (`lagrangian/chemkin/`) and cases that include a `validation/` tree. Extra directories are shown with a distinct (purple) header. Right-click the **Results** indicator to add a numeric time directory directly; use **Settings > Manage Extra Files & Directories…** or the indicator button for arbitrary directories.
 - Create a new file from a FoamFile template in any directory group via right-click on the directory header.
 - Save per-case extra file and directory selections to `.foam-editor-files.json` inside the case directory.
 - Show an indicator at the top of the file list when extra files or directories are registered for the current case, with a link to the management dialog.
@@ -97,8 +127,10 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 - Clean up accumulated backup files for the current case via **Case > Clean Backup Files...**. A dialog lists all `.bak_*` files found in the case directory with checkboxes (all selected by default) and **Select All** / **Deselect All** buttons for quick bulk selection.
 - Duplicate any file in the file list via right-click; a dialog prompts for a new name and the `object` field in the FoamFile header is updated automatically to the new name. If the source file has unsaved changes, the application asks whether to save first or duplicate with the unsaved state.
 - Duplicate the `0/` or `0.orig/` directory to create the missing counterpart via right-click on the group header (shown only when exactly one of the two directories exists).
-- View all boundary conditions across field variables at a glance in the **Boundary** tab. Rows are field files and columns are patches by default; a **Transpose** checkbox swaps the orientation. Double-click a cell to edit its content, or to create a new entry for a `–` cell. Right-click any cell to edit, create, delete, copy, or paste a boundary condition. Right-click a patch column/row header to delete that boundary condition from all field files, or to add a new patch entry across all field files.
-- Show the parsed dictionary structure in a tree view.
+- Delete the `0/` directory from disk via right-click on the `0` group header. Shown only when `0.orig` exists. A confirmation dialog shows the full path; any open files inside `0/` are closed and the deletion cannot be undone.
+- View all boundary conditions across field variables at a glance in the **Boundary** tab. Rows are field files and columns are patches by default; a **Transpose** checkbox swaps the orientation. Double-click a cell to edit its content, or to create a new entry for a `–` cell. Right-click any cell to edit, create, delete, copy, paste, or rename a boundary condition. Right-click a patch column/row header to rename, delete, or add a boundary condition across all field files.
+- Show the parsed dictionary structure in a tree view. Filter visible keys by typing in the **filter bar** above the tree; matching is case-insensitive and recursive (parent nodes remain visible when a descendant matches).
+- Highlight `unknown_raw_entry` nodes (entries the parser could not fully interpret) in amber so they stand out from normal entries.
 - Indicate the presence of numeric time directories (OpenFOAM calculation results such as `0.5`, `1`, `10`) with a bold **Results: …** row at the bottom of the file list. The indicator shows up to six directory names and notes the total count when more exist. Hovering shows the full count and range. Right-clicking the indicator offers a submenu to add any listed directory to the file list as an extra directory.
 - Hide the **Type** column in the tree by default; re-enable it with **View > Show Type Column**.
 - View rich schema information for each setting in the right-side detail pane:
@@ -112,6 +144,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 - Rebuild the tree from edited text with **Apply Text to Tree**.
 - Save the current file from the raw text editor with **Save File**.
 - Save all modified files at once with **Save Case**.
+- Reload the current case from disk with **Case > Reload Case**, discarding all in-memory edits. If there are unsaved changes, a confirmation dialog shows the number of affected files before proceeding.
 - Duplicate the open case to a new directory with **Case > Duplicate Case**, choosing between a full directory copy or a copy of only the app-visible files.
 - Save the currently open case as a new case with **Case > Save as New Case...**, which copies files from disk (all files or app-visible files only, selectable) and then writes any unsaved in-memory edits on top, then switches to the new case.
 - Register reference case directories in the **Case Library** for quick access. The `$FOAM_TUTORIALS` directory is included automatically whenever the environment variable is set.
@@ -134,12 +167,13 @@ The main window is divided into two top-level columns separated by a horizontal 
 
 - **Left column** — file list for the selected OpenFOAM case (full window height).
 - **Right column** — a vertical splitter with two rows:
-  - **Upper row** — a tab widget with two tabs:
+  - **Upper row** — a tab widget with up to three tabs:
     - **Tree** tab — parsed dictionary tree (center) and detail editor (right).
     - **Boundary** tab — boundary condition table for all field variables (see [Boundary view](#boundary-view)).
+    - **BlockMesh** tab — interactive 3-D viewer for `blockMeshDict` geometry (see [BlockMesh panel](#blockmesh-panel)). Visible only when the Simple terminal is active; can also be toggled via **View > BlockMesh 3-D Panel**.
   - **Lower row** — tabbed panel with two tabs:
     - **Editor** — plain-text editor with line numbers.
-    - **Terminal** — integrated terminal (see [Terminal tab](#terminal-tab) below).
+    - **Terminal** — integrated terminal with a mode toggle (see [Terminal tab](#terminal-tab) below).
 
 The top action bar contains the frequently used commands and the current case and file display.
 
@@ -150,11 +184,13 @@ The top action bar contains the frequently used commands and the current case an
 - Case: current case name display.
 - File: current file name display.
 
-A second edit toolbar provides text editing operations.
+The **Editor** tab has its own toolbar row with text search operations.
 
-- Undo, Redo.
-- Cut, Copy, Paste, Select All.
-- Find, Find Next.
+- Find — opens a search dialog (Ctrl+F).
+- Find Prev — wraps to the previous match (Shift+F3).
+- Find Next — advances to the next match (F3).
+- Find in Tree — selects the deepest tree node whose source span covers the current cursor line (Ctrl+Shift+T).
+- Line: N — current cursor line number (right side of the toolbar).
 
 The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, and a **Help** menu.
 
@@ -162,10 +198,12 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, and
 
 - Case > Open Case `Ctrl+O`.
 - Case > Open from Case Library...
+- Case > Reload Case.
 - Case > Duplicate Case...
 - Case > Duplicate from Case Library...
 - Case > Save as New Case...
 - Case > Clean Backup Files...
+- Case > Compare with Case...
 - Case > Save File `Ctrl+S`.
 - Case > Save Case `Ctrl+Shift+S`.
 - Case > Exit `Ctrl+Q`.
@@ -173,6 +211,7 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, and
 **View menu:**
 
 - View > Show Type Column (checkable; hidden by default).
+- View > BlockMesh 3-D Panel (checkable; shows or hides the BlockMesh tab. Grayed out — with the label "BlockMesh 3-D Panel  (unavailable: xterm active)" — while xterm terminal mode is active due to the GPU conflict).
 
 **Settings menu:**
 
@@ -187,6 +226,7 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, and
 **Help menu:**
 
 - Help > About Foam Dictionary Editor (FoDE)...
+- Help > Keyboard Shortcuts...
 - Help > Resources...
 
 ## Current case and file display
@@ -278,6 +318,7 @@ Right-click any directory header in the file list to open a context menu with th
 - **Add files from '\<dir\>'...** — add existing files to the file list. A dialog lists all files in that directory that are not yet shown. Select one or more and click **OK** to add them.
 - **Remove '\<dir\>' from file list** — removes an extra directory from the file list. Shown only on extra-directory headers (see [Adding extra directories](#adding-extra-directories)).
 - **Duplicate '\<dir\>' → '\<counterpart\>'...** — copy a `0/` or `0.orig/` directory to create the missing counterpart (see [Duplicating a field directory](#duplicating-a-field-directory)). This action is shown only for `0` and `0.orig` headers, and only when exactly one of the two directories is present.
+- **Delete '0' directory...** — permanently delete the `0/` directory from disk (see [Deleting a field directory](#deleting-a-field-directory)). Shown only on the `0` header, and only when `0.orig` exists.
 
 Added files are saved to `.foam-editor-files.json` in the case directory and are restored the next time the case is opened. The config file is also copied when **Duplicate Case** uses the app-visible files only mode.
 
@@ -285,11 +326,12 @@ Extra files are displayed in a distinct colour in the file list so they can be t
 
 ### Adding extra directories
 
-Any directory inside the case root can be added to the file list so that all files directly inside it are scanned and listed automatically, in the same way as `0/` and `0.orig/`. This is useful for:
+Any directory inside the case root can be added to the file list so that all files inside it are scanned and listed automatically, in the same way as `0/` and `0.orig/`. This is useful for:
 
 - Custom field directories used by non-standard solvers (e.g. `initial/` for `laserBeamFoam`).
 - Restart time steps you want to browse and edit (e.g. `0.5/`, `1/`).
 - Deep subdirectories with supplementary dictionaries (e.g. `lagrangian/sprayFoam/aachenBomb/chemkin/`).
+- Result or validation trees (e.g. `validation/`) that contain files in subdirectories.
 
 Extra directory group headers are shown in **purple** to distinguish them from built-in groups. The `[+]` unlisted-files marker is never shown for extra directories because all files are already loaded.
 
@@ -297,7 +339,10 @@ Extra directory group headers are shown in **purple** to distinguish them from b
 Right-click the **Results: …** row at the bottom of the file list. A submenu lists each time directory; click one to add it. Directories already added are greyed out.
 
 **Adding an arbitrary directory via the management dialog:**  
-Open **Settings > Manage Extra Files & Directories…** (or click the indicator button at the top of the file list). In the **Extra Directories** tab, click **Add Directory…**. A folder picker opens rooted at the case directory; select any subdirectory and click **OK**. The selected directory is added immediately and the file list refreshes.
+Open **Settings > Manage Extra Files & Directories…** (or click the indicator button at the top of the file list). In the **Extra Directories** tab, click **Add Directory…**. A folder picker opens rooted at the case directory; select any subdirectory and click **OK**. The selected directory is added with flat (non-recursive) scanning by default and the file list refreshes.
+
+**Enabling recursive scan:**  
+By default a directory is scanned flat — only files directly inside it are listed. To include files in subdirectories, check the entry in the **Extra Directories** tab and click **Toggle Recursive**. The entry label changes to `<dir>  [recursive]` to indicate the mode. Click **Toggle Recursive** again on the same entry to revert to flat scanning.
 
 **Removing an extra directory:**  
 Right-click the (purple) directory header in the file list and select **Remove '\<dir\>' from file list**, or use the **Extra Directories** tab in the management dialog (check the entry, then click **Remove Selected**).
@@ -309,7 +354,7 @@ Files created or duplicated inside an extra directory are not added to the extra
 When extra files or directories are registered for the current case, a button appears at the top of the file list panel showing the count (e.g. **Extra files: 2, directories: 1 — Manage…**). Clicking it opens the **Manage Extra Files & Directories** dialog, which has two tabs.
 
 - **Extra Files** — lists all individually registered extra files. Select one or more and click **Remove Selected** to remove them.
-- **Extra Directories** — lists all registered extra directories. Click **Add Directory…** to add a new one via a folder picker. Select one or more and click **Remove Selected** to remove them.
+- **Extra Directories** — lists all registered extra directories. Entries with recursive scanning enabled are shown as `<dir>  [recursive]`. Click **Add Directory…** to add a new one (flat by default). Check one or more entries and click **Toggle Recursive** to flip their scan mode, or **Remove Selected** to remove them.
 
 Changes take effect immediately when the dialog is closed. When neither extra files nor extra directories are registered the indicator is hidden.
 
@@ -381,6 +426,14 @@ Files duplicated outside `0/` and `0.orig/` are registered in `.foam-editor-file
 
 Right-click the `0` or `0.orig` header in the file list and select **Duplicate '\<dir\>' → '\<counterpart\>'...**. This action copies the entire directory to create the missing counterpart (`0/` → `0.orig/` or `0.orig/` → `0/`). The action is shown only when exactly one of the two directories is present. A confirmation dialog is displayed before the copy begins.
 
+### Deleting a field directory
+
+Right-click the `0` header in the file list and select **Delete '0' directory...**. This action permanently deletes the entire `0/` directory and all files inside it from disk. The action is shown only when `0.orig` exists, so that initial field data is preserved.
+
+A confirmation dialog shows the full directory path before deletion begins. If the currently open file is inside `0/`, the editor and tree view are cleared. The file list and boundary panel are refreshed after deletion.
+
+This action deletes files from disk and cannot be undone.
+
 ### Resetting the file list
 
 Select **Settings > Reset File List** to remove all user-added files and directories for the current case. This deletes `.foam-editor-files.json` from the case directory and reloads the file list with the default target files only.
@@ -413,6 +466,17 @@ A drop-down at the top of the panel selects which field directory to display. It
 
 Check the **Transpose** checkbox at the top of the panel to swap rows and columns. The table is rebuilt immediately. All other operations (edit, create, copy, paste) work the same in both orientations.
 
+### Single-click navigation
+
+Clicking a cell opens its field file in the editor and scrolls to the corresponding patch entry in `boundaryField`.
+
+The **Auto-scroll editor** checkbox at the top of the panel controls this behaviour:
+
+- **Checked (default)** — clicking a cell loads the file (if it is not already open), updates the file list selection, and scrolls the editor to the patch name, highlighting the line in amber.
+- **Unchecked** — single-click has no effect on the editor; only double-click (edit) and right-click (context menu) remain active.
+
+When a cell shows `–` (no patch entry in that file), the file is still opened in the editor but no scroll is performed because there is no location to jump to.
+
 ### Editing a boundary condition
 
 Double-click a cell (or right-click → **Edit**) to open the **Edit boundary** dialog. The dialog header shows the variable name and patch name in read-only form.
@@ -433,6 +497,18 @@ Right-click a cell with a defined patch and select **Delete Entry** to remove th
 
 Right-click any cell with a defined patch and select **Copy** to store that patch's full content in an internal clipboard. Then right-click any other cell (including `–` cells) and select **Paste** to apply the copied content. Pasting into a `–` cell creates the entry; pasting into an existing cell replaces its content. The clipboard persists within the application session.
 
+### Renaming a boundary patch
+
+Right-click a cell, a patch column header (non-transposed view), or a patch row header (transposed view) and select **Rename Boundary...**. The same action is available by right-clicking a `boundary_entry` node or a patch `dictionary` node inside `boundaryField` in the tree view.
+
+A dialog shows the current patch name, a text field for the new name, and a checklist of all loaded files in which that patch name was found — including both `blockMeshDict` boundary entries and `boundaryField` patch keys in field files. All matching files are pre-selected.
+
+- Uncheck any file you want to leave unchanged.
+- Use **Select All** / **Deselect All** to toggle the whole list.
+- The **Rename** button is enabled only when the new name is non-empty, different from the current name, and at least one file is selected. It shows the count of selected files.
+
+Clicking **Rename** applies the change atomically: each selected file is updated in memory and marked dirty. If the currently open file is among the renamed files, the tree view and text editor are refreshed immediately.
+
 ### Deleting a boundary condition across all field files
 
 Right-click a patch column header (non-transposed view) or a patch row header (transposed view) and select **Delete BoundaryField '\<patch\>'**. A confirmation dialog lists the affected field files. Clicking **Yes** removes that patch entry from every field file in the current directory in one step.
@@ -447,6 +523,80 @@ Cells whose patch sub-dictionary has no `type` key are displayed in italic text.
 
 Changes from all boundary view operations are immediately reflected in the tree view and text editor. Files modified through the boundary view are marked dirty (`*`) in the title bar and file list, the same as any other edit.
 
+## BlockMesh panel
+
+The **BlockMesh** tab in the upper panel provides an interactive 3-D view of the geometry defined in `blockMeshDict`. It is powered by [pyVista](https://pyvista.org/) / VTK and is available only when `pyvista` and `pyvistaqt` are installed. If they are absent, the tab shows an install prompt.
+
+**Availability:** The BlockMesh tab is shown when the `blockmesh` feature flag is enabled. In the `standard` variant it is visible only when the Terminal is in Simple mode (switching to xterm mode hides it — see [Terminal tab](#terminal-tab)). In the `no-terminal-blockmesh` variant it is always visible because there is no terminal to conflict with. In the `no-terminal` variant the tab is absent entirely. See [Variants](#variants).
+
+The tab can also be toggled at any time via **View > BlockMesh 3-D Panel** (checkable). When xterm terminal mode is active the action is grayed out and its label changes to **"BlockMesh 3-D Panel  (unavailable: xterm active)"** to explain why. Switch the terminal to Simple mode first to re-enable the panel.
+
+The panel is updated automatically whenever `blockMeshDict` is loaded or edited. A **Refresh** button forces a manual update.
+
+### Geometry controls (first toolbar row)
+
+| Control | Description |
+|---|---|
+| **Vertices** | Show mesh vertices as red spheres. |
+| **Vertex labels** | Overlay vertex index numbers. |
+| **Block edges** | Show hex block edges as a wireframe. |
+| **Block labels** | Overlay the block index number at the centroid of each hex block. |
+| **Color blocks** | Color each hex block with a distinct colour from a qualitative palette (tab10). Applies to both wireframe edges and solid faces. |
+| **Solid blocks** | Render semi-transparent solid hex block faces (opacity 0.25) in addition to the wireframe. Shares the color setting with **Color blocks**. |
+| **Boundary faces** | Show boundary patch faces, colour-coded by type. |
+| **Vertices table** | Show or hide the vertices coordinate table on the right of the panel. |
+| **Refresh** | Re-extract geometry from the current tree and redraw. |
+| **Load STL…** | Load an STL file and display it as a translucent grey overlay. Multiple files can be loaded. |
+| **Clear STL** | Remove all loaded STL overlays. |
+
+### Boundary face colours
+
+| Patch type | Colour |
+|---|---|
+| `wall` | Orange |
+| `patch` | Blue |
+| `empty` | Light grey |
+| `symmetry` / `symmetryPlane` | Green |
+| `wedge` | Purple |
+| `cyclic` / `cyclicAMI` | Gold |
+| `inlet` | Light blue |
+| `outlet` | Red |
+| Other / unknown | Blue |
+
+### Vertices table
+
+A scrollable table on the right side of the panel lists every vertex from the `vertices` block as a row with columns **#**, **X**, **Y**, **Z** (coordinates are shown after applying the `scale`/`convertToMeters` factor).
+
+- **Click a row** to highlight the corresponding vertex in the 3-D view as a larger cyan sphere.
+- **Double-click an X, Y, or Z cell** to edit the coordinate value inline. Entering a non-numeric value cancels the edit and restores the previous value. After a valid commit the FoamNode tree and text editor are updated immediately and the file is marked dirty. Click **Refresh** to update the 3-D view with the new coordinates.
+- The **#** index column is read-only. Reordering vertices would silently break all `hex` and `faces` index references.
+- For meshes with more than 500 vertices only the first 500 rows are shown, with a truncation notice at the bottom.
+- The **Vertices table** checkbox in the first toolbar row collapses the table pane entirely, giving more space to the 3-D view.
+
+### Scale info and label controls (second toolbar row)
+
+| Control | Description |
+|---|---|
+| **Axes** | Corner XYZ orientation arrows widget. |
+| **Grid** | Coordinate grid with tick labels at model coordinates. |
+| **Dimensions** | Wireframe bounding box and an overlay showing X/Y/Z extents and, when `convertToMeters` or `scale` is not 1, the scale factor. |
+| **Label size** | Spin box (range 6–32, default 10) that sets the font size for both vertex labels and block labels simultaneously. |
+| **View: +X −X +Y −Y +Z −Z Iso** | Snap the camera to a standard direction. **+X** looks from the +X side toward the origin (shows the YZ plane), **−X** from the opposite side, and so on for Y and Z. **Iso** uses an isometric view. |
+
+### Mouse controls
+
+A compact hint bar at the bottom of the BlockMesh panel shows the key bindings at a glance. Hover the hint to see the full tooltip.
+
+| Action | Mouse / key |
+|---|---|
+| Rotate | Left drag |
+| Pan | Shift + left drag |
+| Zoom | Scroll wheel  or  right drag |
+| Reset camera | `R` |
+| Fly to point | `F` |
+
+The full reference is also available in **Help > Keyboard Shortcuts…** under "BlockMesh 3-D viewer (mouse)".
+
 ## Schema module configuration
 
 Schema definitions for each dictionary type are managed in the `schemas/` directory. The runtime schema registry is handled by `schemas/registry.py`, and the default built-in configuration is defined in `schemas/builtin.py`.
@@ -457,7 +607,7 @@ Built-in schema modules:
 - `schemas/fv_schemes.py` — schema for `fvSchemes`.
 - `schemas/fv_solution.py` — schema for `fvSolution`.
 - `schemas/block_mesh_dict.py` — schema for `blockMeshDict`. Covers the top-level scaling keys (`convertToMeters`, `scale`), `mergeType`, and `verbose`.
-- `schemas/snappy_hex_mesh_dict.py` — schema for `snappyHexMeshDict`. Covers the three phase-toggle keys (`castellatedMesh`, `snap`, `addLayers`) and the most common settings inside `castellatedMeshControls`, `snapControls`, `addLayersControls`, and `meshQualityControls`.
+- `schemas/snappy_hex_mesh_dict.py` — schema for `snappyHexMeshDict`. Covers the top-level phase-toggle keys (`castellatedMesh`, `snap`, `addLayers`), `mergeTolerance`, and `debug`; common settings inside `castellatedMeshControls`, `snapControls`, `addLayersControls` (including layer-quality and medial-axis parameters), and `meshQualityControls` (including the `relaxed` sub-dict); per-surface keys inside `refinementSurfaces` entries (`level`, `faceZone`, `cellZone`, `cellZoneInside`, `faceType`); per-region keys inside `refinementRegions` entries (`mode`, `levels`); per-patch `nSurfaceLayers` inside `layers` entries; and `patchInfo.type` with patch-type choices.
 
 Which schema modules to load is controlled at runtime via `schema_config.json`. You can add or remove schema modules without modifying the source code.
 
@@ -467,6 +617,18 @@ Each schema module must define two module-level names.
 
 - `TARGET_FILE` — the dictionary filename the module applies to (e.g. `"controlDict"`).
 - `SCHEMAS` — a `dict[str, KeySchema]` mapping entry keys to their schema definitions.
+
+Keys in `SCHEMAS` can be plain (`"startFrom"`) or **context-qualified** with a dotted prefix to avoid collisions between identically named keys in different sub-dicts:
+
+- `"snapControls.nRelaxIter"` — matched when the selected node's direct parent is `snapControls`
+- `"addLayersControls.nRelaxIter"` — matched when the parent is `addLayersControls`
+
+For blocks whose parent name is user-defined (such as named entries inside `refinementSurfaces`, `refinementRegions`, or `layers`), use the **grandparent** as the prefix instead:
+
+- `"refinementSurfaces.level"` — matched when the grandparent node is `refinementSurfaces`, regardless of what the immediate parent (surface name) is
+- `"layers.nSurfaceLayers"` — matched when the grandparent is `layers`
+
+The lookup order is: parent-qualified match → grandparent-qualified match → plain key. Existing flat keys continue to work without any changes.
 
 The registry imports each configured module and reads these two names. Any module that follows this convention can be added through **Settings > Manage Schema Modules** without further configuration.
 
@@ -488,6 +650,41 @@ The registry imports each configured module and reads these two names. Any modul
 
 To add a custom schema module, select **Settings > Manage Schema Modules** in the application, then use the **Add Module from File** button to select a Python file. The change is saved to `schema_config.json` and takes effect immediately.
 
+## Variants
+
+FoDE ships in three configurations controlled by feature flags. Choose the one that matches your platform and workflow.
+
+| Variant | Terminal tab | BlockMesh tab | Launch command |
+|---|---|---|---|
+| `standard` | Yes (xterm / Simple toggle) | Yes (visible in Simple mode) | `python3 main.py` |
+| `no-terminal` | No | No | `python3 main.py --variant no-terminal` |
+| `no-terminal-blockmesh` | No | Yes (always visible) | `python3 main.py --variant no-terminal-blockmesh` |
+
+The `--variant` flag loads a preset from the `presets/` directory and saves the chosen feature flags to `app_config.json` on exit. Subsequent launches without `--variant` use the saved flags automatically.
+
+The `no-terminal` variants avoid the `QtWebEngineWidgets` dependency and are the recommended choice for Windows or environments where the xterm.js terminal is not needed.
+
+Preset files are in `presets/`:
+
+```
+presets/standard.json
+presets/no-terminal.json
+presets/no-terminal-blockmesh.json
+```
+
+You can also set the flags directly in `app_config.json`:
+
+```json
+{
+  "features": {
+    "terminal": false,
+    "blockmesh": true
+  }
+}
+```
+
+Feature flags default to `true` when absent, so a plain `app_config.json` with no `features` key runs in standard mode.
+
 ## Application settings
 
 General application settings are stored in `app_config.json`, which is separate from `schema_config.json`. This file is created the first time a case is opened (which triggers an automatic save of the case directory). If the file does not exist, built-in defaults are used. Settings are managed internally by the `app_config` package (`app_config/app_config_manager.py`).
@@ -499,7 +696,8 @@ General application settings are stored in `app_config.json`, which is separate 
   "window_size": [1200, 800],
   "default_case_dir": "/path/to/cases",
   "case_library_dirs": ["/home/user/my_templates"],
-  "user_links": [{"label": "My reference", "url": "https://example.com"}]
+  "user_links": [{"label": "My reference", "url": "https://example.com"}],
+  "features": {"terminal": true, "blockmesh": true}
 }
 ```
 
@@ -509,6 +707,7 @@ General application settings are stored in `app_config.json`, which is separate 
 | `default_case_dir` | Initial directory shown when **Case > Open Case** is used. Updated automatically to the parent of the last opened case. Also used as the default destination parent in **Case > Duplicate from Case Library...** and **Case > Save as New Case...**. |
 | `case_library_dirs` | User-added Case Library directories. The `$FOAM_TUTORIALS` directory is not stored here; it is included dynamically from the environment variable. |
 | `user_links` | User-defined reference links shown in **Help > Resources... > My Links**. Each entry is `{"label": "…", "url": "…"}`. |
+| `features` | Feature flags set by `--variant` (see [Variants](#variants)). Omitting this key is equivalent to `{"terminal": true, "blockmesh": true}`. |
 
 ### Setting the default case directory
 
@@ -524,10 +723,20 @@ Select **Settings > Reset All Settings** to reset `app_config.json`, `schema_con
 
 ## Terminal tab
 
-The bottom panel contains an **Editor** tab and a **Terminal** tab. The terminal implementation is selected automatically at startup.
+The bottom panel contains an **Editor** tab and a **Terminal** tab. The Terminal tab has two modes that can be switched at runtime.
 
-- **Linux / macOS with `PySide6.QtWebEngineWidgets` available** — A full PTY-based terminal powered by [xterm.js](https://xtermjs.org/) v6 rendered in a `QWebEngineView`. It provides full VT100/xterm emulation with colour output, cursor control, and support for interactive programs such as `vim` and `htop`. The tab is labelled **Terminal**.
-- **Windows or when `QtWebEngineWidgets` is absent** — `SimpleTerminalWidget` is used, a `QProcess`-based fallback that runs a persistent shell (`bash` on Linux/macOS, `cmd.exe` on Windows) and displays output in a plain-text area. ANSI escape codes are stripped from the output. The tab is labelled **Terminal (Simple)**.
+### Mode toggle
+
+A checkbox at the top of the Terminal tab reads **"xterm terminal (hides BlockMesh 3-D panel)"**.
+
+| Mode | Description |
+|---|---|
+| **xterm** (checked, default on Linux/macOS) | Full PTY terminal powered by [xterm.js](https://xtermjs.org/) v6 in a `QWebEngineView`. Full VT100/xterm emulation: colour output, cursor control, interactive programs (`vim`, `htop`, …). The BlockMesh tab is hidden while this mode is active, and **View > BlockMesh 3-D Panel** is grayed out. |
+| **Simple** (unchecked) | `QProcess`-based terminal running a persistent shell (`bash` on Linux/macOS, `cmd.exe` on Windows). Output shown in a plain-text area; ANSI escape codes are stripped. The BlockMesh 3-D panel becomes visible in the upper tab widget and **View > BlockMesh 3-D Panel** is re-enabled. |
+
+The xterm checkbox is disabled on Windows or when `QtWebEngineWidgets` is not installed — Simple mode is used automatically in those cases. In the `no-terminal` and `no-terminal-blockmesh` variants the Terminal tab is absent entirely; see [Variants](#variants).
+
+**Why are they mutually exclusive?** The Qt WebEngine GPU process (used by xterm.js) and VTK (used by the BlockMesh viewer) compete for the same GPU/OpenGL context on Linux. Switching modes ensures only one of the two is active at a time.
 
 When a case is opened, the terminal automatically changes its working directory to the case root so that OpenFOAM commands such as `blockMesh` or `interFoam` can be run directly.
 
@@ -550,6 +759,37 @@ The xterm.js library files are downloaded automatically from jsDelivr on first u
 - Click **Clear** to clear the output area.
 - If the shell process exits unexpectedly, it is restarted automatically.
 - The shell process is terminated cleanly when the application closes.
+
+## Tree key filter and editor sync
+
+### Tree key filter
+
+A filter bar sits above the tree view. Type any substring to narrow the tree to rows whose key contains the text (case-insensitive). Matching is recursive: when a descendant matches, all its ancestors remain visible so the path to the match is always clear.
+
+Clearing the filter restores the full tree. The filter is also cleared automatically whenever a new file is loaded.
+
+`unknown_raw_entry` and `directive_entry` nodes have an empty key and are hidden by an active filter unless a sibling or descendant matches.
+
+### Editor sync (Auto-scroll editor)
+
+Selecting a row in the tree highlights the corresponding lines in the text editor with an amber background, so you can immediately see the raw text for the selected entry.
+
+The **Auto-scroll editor** checkbox sits to the right of the filter bar and controls whether the editor also scrolls to the highlighted lines:
+
+- **Checked (default)** — the editor scrolls to the entry's first line and highlights its full span in amber. Useful for navigating through a file using the tree.
+- **Unchecked** — the amber highlight appears but the editor does not scroll. Useful for keeping a specific region of the raw text visible while browsing the tree structure.
+
+The checkbox label turns grey and reads **Auto-scroll editor (stale)** when the editor text has been modified since the last parse. In this state the stored line numbers no longer match the text, so both jump and highlight are suspended. The status bar shows a reminder: *"Apply Text to Tree to re-enable jump-to-line"*. Jump and highlight resume automatically as soon as you press **Apply Text to Tree**, load a different file and return, or open a new case.
+
+When a node was added or modified directly in the tree (rather than parsed from text), it has no associated source location. Selecting such a node leaves the editor position unchanged and shows *"No source location — entry was added or modified in the tree"* in the status bar.
+
+### Find in Tree (editor → tree)
+
+Click **Find in Tree** in the Editor toolbar (or press **Ctrl+Shift+T**) to navigate in the opposite direction: the tree selects the deepest node whose source span covers the current editor cursor line.
+
+- If source lines are stale (text edited since the last parse), a status bar message is shown instead. Press **Apply Text to Tree** first.
+- If the cursor sits outside every node's span (for example, a blank line at the top of the file), *"No tree entry found for line N"* is shown.
+- If the matched node is hidden by the current key filter, the nearest visible ancestor is selected instead. If no ancestor is visible, *"Entry is hidden by the current filter"* is shown.
 
 ## Tree view context menu
 
@@ -661,6 +901,53 @@ If there are unsaved changes when **Duplicate Case** is pressed, the application
 
 To duplicate a case from a reference directory rather than the currently open case, use **Case > Duplicate from Case Library...** (see [Case Library](#case-library)).
 
+## Case comparison
+
+Select **Case > Compare with Case...** to pick a reference case directory and compare it against the currently open case.
+
+Once a reference is selected, a diff bar appears below the action bar. It shows a colour legend, the reference case name and full path, and a **Clear** button to exit compare mode.
+
+### Tree overlay
+
+While compare mode is active, the tree view annotates rows with a background colour showing how the open file differs from the corresponding file in the reference case (`<relative path>` is resolved relative to each case root).
+
+| Background | Meaning |
+|---|---|
+| Light yellow | Key exists in both cases; value or type differs. |
+| Light blue | Key exists in this case but is absent in the reference. |
+| No colour | Key is identical, or the node type is not compared (see below). |
+
+Hovering over a highlighted row shows the reference value appended to the tooltip:
+- **Changed** rows end with `Ref: <value>`, where `<value>` is formatted exactly like the Value column of the reference node.
+- **Only here** rows end with `(not in reference case)`.
+
+Comparison recurses into structural blocks (`dictionary`, `boundary_block`, `boundary_entry`, `region_block`, `region_entry`, `field_value_block`), matching children by key name. Positional list items (e.g. `vertices`, `blocks`) and anonymous nodes (`#include`, `$macro`) are not annotated.
+
+If the corresponding file does not exist in the reference case, no overlay is applied and the status bar shows a *"not found in reference case"* message.
+
+### File list markers
+
+The `≠` suffix is added to a file in the file list the first time it is opened while compare mode is active (lazy evaluation — no background scan). The marker updates automatically every time the file is reloaded or re-parsed.
+
+| Suffix | Colour | Meaning |
+|---|---|---|
+| *(none)* | — | Not yet visited in compare mode. |
+| `≠0` | Gray | Checked and identical to the reference. |
+| `≠N` | Amber | N differences found. |
+| `≠50+` | Amber | More than 50 differences (display cap). |
+
+### Clearing compare mode
+
+Click **Clear** in the diff bar to exit compare mode. This removes all `≠` markers from the file list and all background highlights from the tree. Selecting **Case > Compare with Case...** again replaces the current reference with a new one.
+
+## Reloading a case
+
+Select **Case > Reload Case** to discard all in-memory edits and reload the current case from disk. All file buffers and dirty state are cleared, and the file list and boundary panel are refreshed exactly as if the case had just been opened.
+
+If there are unsaved changes, a confirmation dialog shows the number of affected files and asks whether to proceed. Clicking **Yes** discards all changes; clicking **No** leaves the current state unchanged.
+
+This is useful when you want to undo edits across multiple files without closing and reopening the case.
+
 ## Tree and text workflow
 
 The editor is designed so that raw text editing remains available even when the parser cannot fully interpret a file. The intended workflow is:
@@ -668,9 +955,9 @@ The editor is designed so that raw text editing remains available even when the 
 1. Open a case and select a file from the file list.
 2. Load the raw text into the bottom editor immediately.
 3. Parse the text and update the tree when parsing succeeds.
-4. Use the tree for structure browsing and simple value editing.
+4. Use the tree for structure browsing and simple value editing. Selecting a row highlights its source lines in the editor (see [Editor sync](#editor-sync-auto-scroll-editor)).
 5. Use the lower text editor for direct manual editing.
-6. Press **Apply Text to Tree** when you want to parse the edited text back into the tree.
+6. Press **Apply Text to Tree** when you want to parse the edited text back into the tree. This also restores editor sync if the source lines had become stale.
 7. Press **Reload from Tree** when you want to regenerate the text from the current parsed tree.
 8. Press **Save File** to save the current raw text to disk, or **Save Case** to save all modified files at once.
 
@@ -693,9 +980,15 @@ For ordinary nodes, the pane also shows Key, Type, and an editable Value field. 
 
 OpenFOAM does not strictly distinguish between integer and floating-point values in most contexts. When you enter a fractional value (for example `0.5`) for a node whose current type is `int`, the editor automatically promotes the node to `scalar` without an error or confirmation prompt. The Type column updates immediately to reflect the new type. Entering an integer value in a `scalar` node keeps the type as `scalar`.
 
+### Edit validation
+
+If the value you enter is not valid for the node's current type — for example, a non-numeric string for a `scalar` node, or a word other than `true`/`false`/`on`/`off`/`yes`/`no` for a `bool` node — the edit is rejected silently and a message is shown in the status bar describing the problem. The node value is left unchanged.
+
 ## Behavior on parse failure
 
 If parsing fails after loading or after editing, the application shows a warning and keeps the raw text editor usable. In this state, the last successfully parsed tree remains available until a later parse succeeds.
+
+When parsing succeeds but some entries could not be fully interpreted, those entries are preserved as `unknown_raw_entry` nodes in the tree and a warning is shown in the status bar reporting how many unrecognized entries were found (for example, "Parsed: system/controlDict — 2 unrecognized entries"). The file is still usable; the raw text is preserved verbatim for those entries.
 
 ## Editor behavior
 
@@ -715,14 +1008,17 @@ FoDE targets common OpenFOAM dictionary syntax with practical, tolerant handling
 | `bool` | A boolean value (`true`/`false`/`yes`/`no`/`on`/`off`) |
 | `vector` | A parenthesised three-component value, e.g. `(0 0 9.81)` |
 | `list` | A parenthesised list of values |
+| `nonuniform_list` | A `nonuniform List<T> N (…)` field value (e.g. `internalField` in `0/U`); shown as a count summary in the tree and stored as raw text — not editable inline |
 | `dictionary` | A sub-dictionary block |
 | `field_value_block` | A block with `internalField`/`boundaryField` structure (field files such as `0/U`) |
 | `field_value` | An individual field value entry within a `field_value_block` |
 | `region_block` | A named region block (used in `setFieldsDict`) |
 | `region_entry` | An entry within a `region_block` |
+| `boundary_block` | A `boundary ( … );` block in `blockMeshDict`; each patch is a `boundary_entry` child |
+| `boundary_entry` | A named patch entry within a `boundary_block` |
 | `directive_entry` | A `#include`, `#inputMode`, or other pre-processor directive |
 | `macro_entry` | A `$variable` macro expansion |
-| `unknown_raw_entry` | Any entry the parser could not fully interpret; stored and written back as raw text |
+| `unknown_raw_entry` | Any entry the parser could not fully interpret; stored and written back as raw text. Displayed in **amber** in the tree to distinguish it from normal entries |
 
 Unrecognised syntax is preserved as `unknown_raw_entry` nodes and written back verbatim, so partially-parsed files are not corrupted.
 
@@ -741,10 +1037,13 @@ This offering is not approved or endorsed by OpenCFD Limited, producer and distr
 ## Acknowledgements
 
 - [PySide6 (Qt for Python)](https://doc.qt.io/qtforpython/) — GUI framework (LGPL v3).
+- [pyVista](https://pyvista.org/) / [VTK](https://vtk.org/) — 3-D viewer for `blockMeshDict` (BSD-3-Clause, optional).
 - [xterm.js](https://xtermjs.org/) — Terminal emulator used in the Terminal panel (MIT).
   Files are downloaded automatically from jsDelivr on first launch and cached in `ui/xterm/`.
 - [pytest](https://pytest.org/) / [pytest-qt](https://pytest-qt.readthedocs.io/) — Test framework (development only).
 - [PyInstaller](https://pyinstaller.org/) — Used to build standalone executables.
+
+Special thanks to the [OpenFOAM Foundation](https://openfoam.org/) and [OpenCFD / ESI Group](https://www.openfoam.com/) and all contributors for developing and maintaining OpenFOAM as free, open-source CFD software.
 
 ---
 

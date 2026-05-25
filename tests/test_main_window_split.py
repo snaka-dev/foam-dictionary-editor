@@ -34,6 +34,7 @@ def test_boundary_ops_importable():
 
 CASE_OPS_METHODS = [
     "open_case",
+    "reload_case",
     "duplicate_case",
     "open_from_library",
     "duplicate_from_library",
@@ -51,6 +52,7 @@ CASE_OPS_METHODS = [
 FILE_OPS_METHODS = [
     "_load_case_dir",
     "_reload_file_list",
+    "_parse_and_update",
     "load_selected_file",
     "save_file",
     "save_all_files",
@@ -62,6 +64,7 @@ FILE_OPS_METHODS = [
     "_on_manage_extra_files",
     "_on_remove_extra_file",
     "_on_delete_file_requested",
+    "_on_delete_dir_requested",
     "_on_duplicate_file_requested",
     "_on_duplicate_dir_requested",
     "_on_clean_backups",
@@ -81,12 +84,15 @@ TREE_OPS_METHODS = [
     "_node_indent",
     "_mark_parent_modified",
     "_is_commented_out_node",
+    "_sync_tree_to_editor_line",
+    "_find_deepest",
     "on_tree_selection",
     "_on_value_apply",
     "_on_field_value_apply",
     "apply_text_to_tree",
     "reload_text_from_tree",
     "_on_user_text_changed",
+    "_on_blockmesh_vertices_changed",
 ]
 
 BOUNDARY_OPS_METHODS = [
@@ -99,6 +105,9 @@ BOUNDARY_OPS_METHODS = [
     "_on_patch_delete_requested",
     "_on_patch_delete_all_requested",
     "_on_patch_add_all_requested",
+    "_on_rename_boundary_by_name",
+    "_on_patch_selected",
+    "_apply_boundary_root_change",
 ]
 
 
@@ -190,6 +199,12 @@ def test_main_window_mixins_before_qmainwindow(qapp):
 CORE_METHODS = [
     "__init__",
     "_build_ui",
+    "_build_top_bar",
+    "_build_tree_area",
+    "_build_feature_panels",
+    "_build_splitters",
+    "_connect_signals",
+    "_build_menu_bar",
     "_save_current_buffer",
     "_after_model_edit",
     "_load_tree",
@@ -199,15 +214,19 @@ CORE_METHODS = [
     "_confirm_discard_if_needed",
     "_connect_tree_selection",
     "_current_primary_index",
+    "_to_source",
+    "_to_proxy",
     "_on_toggle_type_column",
     "_resize_tree_columns",
     "_collapse_foam_file",
     "_update_case_label",
     "_update_file_label",
     "_update_window_title",
+    "_update_sync_checkbox",
     "closeEvent",
     "open_schema_manager",
     "show_about",
+    "show_keyboard_shortcuts",
     "show_openfoam_resources",
 ]
 

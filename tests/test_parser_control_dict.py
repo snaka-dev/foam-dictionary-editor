@@ -24,7 +24,7 @@ def test_parse_control_dict_basic(control_dict_text):
     assert delta_t.value == 0.005
 
     run_time_modifiable = find_child(root, "runTimeModifiable")
-    assert run_time_modifiable.node_type == "word"
+    assert run_time_modifiable.node_type == "bool"
     assert run_time_modifiable.value == "true"
 
 def test_parse_control_dict_foamfile_header(control_dict_text):

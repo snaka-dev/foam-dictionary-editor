@@ -124,6 +124,73 @@ class TestCaseFilesConfigReset:
         cfg.delete_config_file()  # must not raise
 
 
+class TestCaseFilesConfigDirs:
+    def test_add_dir_non_recursive(self, tmp_path):
+        cfg = CaseFilesConfig(str(tmp_path))
+        cfg.add_dir("validation")
+        assert cfg.get_extra_dirs() == [("validation", False)]
+
+    def test_add_dir_recursive(self, tmp_path):
+        cfg = CaseFilesConfig(str(tmp_path))
+        cfg.add_dir("validation", recursive=True)
+        assert cfg.get_extra_dirs() == [("validation", True)]
+
+    def test_add_dir_no_duplicate(self, tmp_path):
+        cfg = CaseFilesConfig(str(tmp_path))
+        cfg.add_dir("validation")
+        cfg.add_dir("validation")
+        assert len(cfg.get_extra_dirs()) == 1
+
+    def test_add_dir_updates_recursive_flag(self, tmp_path):
+        cfg = CaseFilesConfig(str(tmp_path))
+        cfg.add_dir("validation", recursive=False)
+        cfg.add_dir("validation", recursive=True)
+        assert cfg.get_extra_dirs() == [("validation", True)]
+
+    def test_remove_dir(self, tmp_path):
+        cfg = CaseFilesConfig(str(tmp_path))
+        cfg.add_dir("validation")
+        cfg.remove_dir("validation")
+        assert cfg.get_extra_dirs() == []
+
+    def test_remove_nonexistent_dir_is_silent(self, tmp_path):
+        cfg = CaseFilesConfig(str(tmp_path))
+        cfg.remove_dir("nonexistent")  # must not raise
+
+    def test_save_and_reload_preserves_recursive_flag(self, tmp_path):
+        cfg = CaseFilesConfig(str(tmp_path))
+        cfg.add_dir("validation", recursive=True)
+        cfg.add_dir("postProcessing", recursive=False)
+        cfg.save()
+        cfg2 = CaseFilesConfig(str(tmp_path))
+        assert ("validation", True) in cfg2.get_extra_dirs()
+        assert ("postProcessing", False) in cfg2.get_extra_dirs()
+
+    def test_backward_compat_plain_string(self, tmp_path):
+        """Old JSON with plain-string extra_dirs loads as non-recursive."""
+        import json
+        data = {"extra_files": [], "extra_dirs": ["validation", "postProcessing"]}
+        (tmp_path / ".foam-editor-files.json").write_text(
+            json.dumps(data), encoding="utf-8"
+        )
+        cfg = CaseFilesConfig(str(tmp_path))
+        assert ("validation", False) in cfg.get_extra_dirs()
+        assert ("postProcessing", False) in cfg.get_extra_dirs()
+
+    def test_get_extra_dirs_returns_copy(self, tmp_path):
+        cfg = CaseFilesConfig(str(tmp_path))
+        cfg.add_dir("validation")
+        result = cfg.get_extra_dirs()
+        result.clear()
+        assert cfg.get_extra_dirs() == [("validation", False)]
+
+    def test_reset_clears_dirs(self, tmp_path):
+        cfg = CaseFilesConfig(str(tmp_path))
+        cfg.add_dir("validation")
+        cfg.reset()
+        assert cfg.get_extra_dirs() == []
+
+
 class TestCaseFilesConfigProperties:
     def test_config_filename(self, tmp_path):
         """config_filename returns the expected file name"""

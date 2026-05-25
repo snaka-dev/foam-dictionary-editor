@@ -262,6 +262,297 @@ class TestSchemaRegistryLookup:
         assert registry.schema_note_text("/case/system/controlDict", "writeFormat") == ""
 
 
+class TestSchemaRegistryContextLookup:
+    """parent_key-aware lookup for snappyHexMeshDict and fallback behaviour."""
+
+    _SNAPPY = "/case/system/snappyHexMeshDict"
+
+    def test_context_key_found_with_parent(self, registry):
+        schema = registry.schema_for_file_key(
+            self._SNAPPY, "nRelaxIter", parent_key="snapControls"
+        )
+        assert schema is not None
+        assert "snap" in schema.label.lower() or "Snap" in schema.label
+
+    def test_context_key_disambiguation(self, registry):
+        snap_schema = registry.schema_for_file_key(
+            self._SNAPPY, "nRelaxIter", parent_key="snapControls"
+        )
+        layer_schema = registry.schema_for_file_key(
+            self._SNAPPY, "nRelaxIter", parent_key="addLayersControls"
+        )
+        assert snap_schema is not None
+        assert layer_schema is not None
+        assert snap_schema.label != layer_schema.label
+
+    def test_flat_root_key_found_without_parent(self, registry):
+        schema = registry.schema_for_file_key(self._SNAPPY, "castellatedMesh")
+        assert schema is not None
+
+    def test_flat_root_key_found_with_irrelevant_parent(self, registry):
+        schema = registry.schema_for_file_key(
+            self._SNAPPY, "castellatedMesh", parent_key="someBlock"
+        )
+        assert schema is not None
+
+    def test_context_key_falls_back_when_no_parent(self, registry):
+        # castellatedMeshControls.maxLocalCells has no plain fallback — returns None
+        schema = registry.schema_for_file_key(self._SNAPPY, "maxLocalCells")
+        assert schema is None
+
+    def test_context_key_found_with_correct_parent(self, registry):
+        schema = registry.schema_for_file_key(
+            self._SNAPPY, "maxLocalCells", parent_key="castellatedMeshControls"
+        )
+        assert schema is not None
+
+    def test_wrong_parent_falls_back_to_flat(self, registry):
+        # nRelaxIter has no plain flat entry — wrong parent yields None
+        schema = registry.schema_for_file_key(
+            self._SNAPPY, "nRelaxIter", parent_key="unknownBlock"
+        )
+        assert schema is None
+
+    def test_choices_resolved_with_parent(self, registry):
+        choices = registry.choices_for_file_key(
+            self._SNAPPY, "implicitFeatureSnap", parent_key="snapControls"
+        )
+        assert "true" in choices
+        assert "false" in choices
+
+    def test_switch_choices_on_root_key(self, registry):
+        choices = registry.choices_for_file_key(self._SNAPPY, "snap")
+        assert "true" in choices
+
+    def test_meshquality_key_found_with_parent(self, registry):
+        schema = registry.schema_for_file_key(
+            self._SNAPPY, "maxNonOrtho", parent_key="meshQualityControls"
+        )
+        assert schema is not None
+
+    def test_parent_key_none_equivalent_to_omitted(self, registry):
+        a = registry.schema_for_file_key(self._SNAPPY, "snap", parent_key=None)
+        b = registry.schema_for_file_key(self._SNAPPY, "snap")
+        assert a == b
+
+
+class TestGrandparentContextLookup:
+    """grandparent_key fallback for blocks with user-defined parent names."""
+
+    _SNAPPY = "/case/system/snappyHexMeshDict"
+
+    # refinementSurfaces — parent is user-defined surface name
+    def test_surface_level_via_grandparent(self, registry):
+        schema = registry.schema_for_file_key(
+            self._SNAPPY, "level",
+            parent_key="motorBike",
+            grandparent_key="refinementSurfaces",
+        )
+        assert schema is not None
+        assert "Surface" in schema.label
+
+    def test_surface_face_zone_via_grandparent(self, registry):
+        schema = registry.schema_for_file_key(
+            self._SNAPPY, "faceZone",
+            parent_key="sphere1",
+            grandparent_key="refinementSurfaces",
+        )
+        assert schema is not None
+
+    def test_surface_cell_zone_inside_choices(self, registry):
+        choices = registry.choices_for_file_key(
+            self._SNAPPY, "cellZoneInside",
+            parent_key="anyName",
+            grandparent_key="refinementSurfaces",
+        )
+        assert set(choices) == {"inside", "outside", "insidePoint"}
+
+    def test_surface_face_type_choices(self, registry):
+        choices = registry.choices_for_file_key(
+            self._SNAPPY, "faceType",
+            parent_key="anyName",
+            grandparent_key="refinementSurfaces",
+        )
+        assert "internal" in choices
+        assert "baffle" in choices
+        assert "boundary" in choices
+
+    # refinementRegions — parent is user-defined region name
+    def test_region_mode_via_grandparent(self, registry):
+        schema = registry.schema_for_file_key(
+            self._SNAPPY, "mode",
+            parent_key="box1",
+            grandparent_key="refinementRegions",
+        )
+        assert schema is not None
+
+    def test_region_mode_choices(self, registry):
+        choices = registry.choices_for_file_key(
+            self._SNAPPY, "mode",
+            parent_key="box1",
+            grandparent_key="refinementRegions",
+        )
+        assert set(choices) == {"inside", "outside", "distance"}
+
+    def test_region_levels_via_grandparent(self, registry):
+        schema = registry.schema_for_file_key(
+            self._SNAPPY, "levels",
+            parent_key="sphere1",
+            grandparent_key="refinementRegions",
+        )
+        assert schema is not None
+
+    # layers — parent is user-defined patch name
+    def test_n_surface_layers_via_grandparent(self, registry):
+        schema = registry.schema_for_file_key(
+            self._SNAPPY, "nSurfaceLayers",
+            parent_key="motorBike_.*",
+            grandparent_key="layers",
+        )
+        assert schema is not None
+
+    # fallback behaviour
+    def test_grandparent_not_used_when_parent_matches(self, registry):
+        # patchInfo.type matches at parent level; grandparent should not interfere
+        schema_parent = registry.schema_for_file_key(
+            self._SNAPPY, "type",
+            parent_key="patchInfo",
+            grandparent_key="refinementSurfaces",
+        )
+        schema_no_grand = registry.schema_for_file_key(
+            self._SNAPPY, "type",
+            parent_key="patchInfo",
+        )
+        assert schema_parent is schema_no_grand
+
+    def test_unknown_grandparent_falls_through_to_flat(self, registry):
+        # snap has a flat entry; unknown grandparent should still return it
+        schema = registry.schema_for_file_key(
+            self._SNAPPY, "snap",
+            parent_key="unknownParent",
+            grandparent_key="unknownGrandparent",
+        )
+        assert schema is not None
+
+    def test_no_match_at_any_level_returns_none(self, registry):
+        schema = registry.schema_for_file_key(
+            self._SNAPPY, "nonExistentKey",
+            parent_key="anyParent",
+            grandparent_key="anyGrandparent",
+        )
+        assert schema is None
+
+    def test_grandparent_none_equivalent_to_omitted(self, registry):
+        a = registry.schema_for_file_key(
+            self._SNAPPY, "snap",
+            grandparent_key=None,
+        )
+        b = registry.schema_for_file_key(self._SNAPPY, "snap")
+        assert a == b
+
+
+class TestSnappyHexMeshDictSchema:
+    """Coverage for all major additions to the snappyHexMeshDict schema."""
+
+    _SNAPPY = "/case/system/snappyHexMeshDict"
+
+    # top-level new keys
+    def test_merge_tolerance(self, registry):
+        assert registry.schema_for_file_key(self._SNAPPY, "mergeTolerance") is not None
+
+    def test_debug(self, registry):
+        assert registry.schema_for_file_key(self._SNAPPY, "debug") is not None
+
+    # castellatedMeshControls additions
+    def test_planar_angle(self, registry):
+        schema = registry.schema_for_file_key(
+            self._SNAPPY, "planarAngle", parent_key="castellatedMeshControls"
+        )
+        assert schema is not None
+
+    # snapControls addition
+    def test_detect_near_surfaces_snap(self, registry):
+        schema = registry.schema_for_file_key(
+            self._SNAPPY, "detectNearSurfacesSnap", parent_key="snapControls"
+        )
+        assert schema is not None
+
+    # addLayersControls additions
+    @pytest.mark.parametrize("key", [
+        "nSmoothSurfaceNormals",
+        "nSmoothNormals",
+        "nSmoothThickness",
+        "maxFaceThicknessRatio",
+        "maxThicknessToMedialRatio",
+        "minMedianAxisAngle",
+        "nMedialAxisIter",
+        "nBufferCellsNoExtrude",
+        "nRelaxedIter",
+        "slipFeatureAngle",
+    ])
+    def test_add_layers_key(self, registry, key):
+        schema = registry.schema_for_file_key(
+            self._SNAPPY, key, parent_key="addLayersControls"
+        )
+        assert schema is not None, f"missing schema for addLayersControls.{key}"
+
+    def test_n_relax_iter_layers_differs_from_snap(self, registry):
+        snap = registry.schema_for_file_key(
+            self._SNAPPY, "nRelaxIter", parent_key="snapControls"
+        )
+        layers = registry.schema_for_file_key(
+            self._SNAPPY, "nRelaxIter", parent_key="addLayersControls"
+        )
+        assert snap is not None and layers is not None
+        assert snap.label != layers.label
+
+    def test_n_relaxed_iter_differs_from_n_relax_iter(self, registry):
+        relax = registry.schema_for_file_key(
+            self._SNAPPY, "nRelaxIter", parent_key="addLayersControls"
+        )
+        relaxed = registry.schema_for_file_key(
+            self._SNAPPY, "nRelaxedIter", parent_key="addLayersControls"
+        )
+        assert relax is not None and relaxed is not None
+        assert relax.label != relaxed.label
+
+    # meshQualityControls.relaxed sub-dict
+    @pytest.mark.parametrize("key", [
+        "maxNonOrtho",
+        "maxBoundarySkewness",
+        "maxInternalSkewness",
+        "minTwist",
+    ])
+    def test_relaxed_quality_key(self, registry, key):
+        schema = registry.schema_for_file_key(self._SNAPPY, key, parent_key="relaxed")
+        assert schema is not None, f"missing schema for relaxed.{key}"
+
+    def test_relaxed_label_distinguished_from_standard(self, registry):
+        standard = registry.schema_for_file_key(
+            self._SNAPPY, "maxNonOrtho", parent_key="meshQualityControls"
+        )
+        relaxed = registry.schema_for_file_key(
+            self._SNAPPY, "maxNonOrtho", parent_key="relaxed"
+        )
+        assert standard is not None and relaxed is not None
+        assert standard.label != relaxed.label
+
+    # patchInfo.type choices
+    def test_patch_info_type_has_choices(self, registry):
+        choices = registry.choices_for_file_key(
+            self._SNAPPY, "type", parent_key="patchInfo"
+        )
+        assert "wall" in choices
+        assert "patch" in choices
+        assert "symmetry" in choices
+
+    def test_patch_info_type_choice_has_description(self, registry):
+        desc = registry.choice_description_for_value(
+            self._SNAPPY, "type", "wall", parent_key="patchInfo"
+        )
+        assert len(desc) > 0
+
+
 class TestSchemaRegistryModules:
     def test_default_modules_loaded(self, registry):
         modules = registry.get_schema_modules()

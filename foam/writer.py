@@ -124,6 +124,9 @@ def _format_value(node: FoamNode) -> str:
     if node.node_type in STRING_TYPES:
         return str(node.value)
 
+    if node.node_type in {"bool", "nonuniform_list"}:
+        return str(node.value)
+
     if node.node_type == "int":
         return str(node.value)
 

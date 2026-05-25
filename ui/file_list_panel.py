@@ -45,8 +45,21 @@ _SYMLINK_MARKER = " ⇢"
 _TIME_DIRS_ROLE = Qt.UserRole + 4
 # True on group-header items that correspond to a user-added extra directory.
 _EXTRA_DIR_HEADER_ROLE = Qt.UserRole + 5
+_DIFF_COUNT_ROLE = Qt.UserRole + 6   # int count or None (not yet visited)
+_DIRTY_ROLE = Qt.UserRole + 7        # bool dirty state
 
 _EXTRA_DIR_HEADER_COLOR = QColor("#6644AA")
+_DIFF_NONE_FG = QColor("#888888")    # gray  — visited, no diffs
+_DIFF_HAS_FG  = QColor("#BB7700")    # amber — visited, has diffs
+_DIFF_CAP = 50
+
+
+def _diff_suffix(count: int | None) -> str:
+    if count is None:
+        return ""
+    if count > _DIFF_CAP:
+        return f"  ≠{_DIFF_CAP}+"
+    return f"  ≠{count}"
 
 
 def display_file_name(path: str) -> str:
@@ -91,6 +104,8 @@ class FileListPanel(QWidget):
     duplicate_dir_requested = Signal(str, str, str)
     # Emitted when the user requests to delete a file from disk: absolute path
     delete_file_requested = Signal(str)
+    # Emitted when the user requests to delete a directory: (case_dir, group_name)
+    delete_dir_requested = Signal(str, str)
     save_file_requested = Signal()
 
     def __init__(self, parent=None):
@@ -189,13 +204,44 @@ class FileListPanel(QWidget):
         item = self._find_item_by_path(path)
         if item is None:
             return
-        base = f"  {display_file_name(path)}"
+        item.setData(_DIRTY_ROLE, dirty)
+        self._refresh_item(item, path)
+
+    def mark_diff(self, path: str, count: int) -> None:
+        item = self._find_item_by_path(path)
+        if item is None:
+            return
+        item.setData(_DIFF_COUNT_ROLE, count)
+        self._refresh_item(item, path)
+
+    def clear_diff_marks(self) -> None:
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            path = item.data(Qt.UserRole)
+            if path and item.data(_DIFF_COUNT_ROLE) is not None:
+                item.setData(_DIFF_COUNT_ROLE, None)
+                self._refresh_item(item, path)
+
+    def _refresh_item(self, item: "QListWidgetItem", path: str) -> None:
+        dirty = bool(item.data(_DIRTY_ROLE))
+        diff_count = item.data(_DIFF_COUNT_ROLE)
+        is_extra = bool(item.data(_EXTRA_FILE_ROLE))
+
+        label = f"  {display_file_name(path)}"
         if item.data(_SYMLINK_ROLE):
-            base += _SYMLINK_MARKER
-        item.setText(base + (" *" if dirty else ""))
+            label += _SYMLINK_MARKER
+        if dirty:
+            label += " *"
+        label += _diff_suffix(diff_count)
+        item.setText(label)
+
         if dirty:
             color = QColor("#CC6600")
-        elif item.data(_EXTRA_FILE_ROLE):
+        elif diff_count is not None and diff_count > 0:
+            color = _DIFF_HAS_FG
+        elif diff_count == 0:
+            color = _DIFF_NONE_FG
+        elif is_extra:
             color = _EXTRA_FILE_COLOR
         else:
             color = None
@@ -238,7 +284,7 @@ class FileListPanel(QWidget):
         if time_dirs is not None:
             if self._case_dir is None:
                 return
-            menu = QMenu(self)
+            menu = QMenu(self.window())
             action_map: dict = {}
             for d in time_dirs:
                 action = menu.addAction(f"Add '{d}' to file list")
@@ -255,7 +301,7 @@ class FileListPanel(QWidget):
             # Header row: offer to create or add files in this directory.
             if self._case_dir is None:
                 return
-            menu = QMenu(self)
+            menu = QMenu(self.window())
             new_action = menu.addAction(f"New file in '{group}'...")
             add_action = menu.addAction(f"Add files from '{group}'...")
 
@@ -273,6 +319,11 @@ class FileListPanel(QWidget):
                         f"Duplicate '{group}' → '{counterpart}'..."
                     )
 
+            delete_0_action = None
+            if group == "0" and (Path(self._case_dir) / "0.orig").exists():
+                menu.addSeparator()
+                delete_0_action = menu.addAction("Delete '0' directory...")
+
             chosen = menu.exec(self._list.viewport().mapToGlobal(pos))
             if chosen == new_action:
                 self.create_file_requested.emit(self._case_dir, group)
@@ -282,12 +333,14 @@ class FileListPanel(QWidget):
                 self.remove_extra_dir_requested.emit(group)
             elif dup_dir_action is not None and chosen == dup_dir_action:
                 self.duplicate_dir_requested.emit(self._case_dir, group, counterpart)
+            elif delete_0_action is not None and chosen == delete_0_action:
+                self.delete_dir_requested.emit(self._case_dir, group)
             return
 
         path = item.data(Qt.UserRole)
         if path:
             is_extra = bool(item.data(_EXTRA_FILE_ROLE))
-            menu = QMenu(self)
+            menu = QMenu(self.window())
             save_action = menu.addAction("Save File\tCtrl+S")
             menu.addSeparator()
             remove_action = None
@@ -388,6 +441,7 @@ def _make_item(path: str, is_extra: bool = False, is_symlink: bool = False) -> Q
     item.setData(Qt.UserRole, path)
     item.setData(_EXTRA_FILE_ROLE, is_extra)
     item.setData(_SYMLINK_ROLE, is_symlink)
+    item.setData(_DIRTY_ROLE, False)
 
     tooltip = path
     if is_symlink:

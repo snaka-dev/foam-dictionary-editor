@@ -22,8 +22,12 @@ _LICENSE = (
 )
 
 _ACKNOWLEDGEMENTS = (
-    "Built with PySide6 (Qt for Python, LGPL v3).\n"
-    "Terminal panel uses xterm.js (MIT), loaded automatically on first launch."
+    "Built with PySide6 (Qt for Python, LGPL v3), "
+    "pyVista / VTK (BSD-3-Clause), "
+    "and xterm.js (MIT), loaded automatically on first launch.\n\n"
+    "Special thanks to the OpenFOAM Foundation and OpenCFD / ESI Group "
+    "and all contributors for developing and maintaining OpenFOAM "
+    "as free, open-source CFD software."
 )
 
 DISCLAIMER = (

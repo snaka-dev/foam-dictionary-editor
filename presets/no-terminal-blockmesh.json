@@ -1,0 +1,6 @@
+{
+  "features": {
+    "terminal": false,
+    "blockmesh": true
+  }
+}

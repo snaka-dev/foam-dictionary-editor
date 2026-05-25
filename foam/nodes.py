@@ -9,6 +9,9 @@ NON_KEY_EDITABLE = frozenset({"field_value", "macro_entry", "directive_entry", "
 # Node types whose value is a plain string (word/macro/compound/string).
 STRING_TYPES = frozenset({"compound", "macro", "string", "word"})
 
+# Lowercase token strings that classify as bool node_type.
+BOOL_WORDS = frozenset({"true", "false", "on", "off", "yes", "no"})
+
 
 @dataclass
 class FoamNode:
@@ -23,6 +26,13 @@ class FoamNode:
     leading_trivia: list[str] = field(default_factory=list)
     inline_comment: str = ""
     raw_text: str = ""
+
+    # 1-based line numbers in the original source (0 = unknown / not yet set).
+    source_line: int = 0
+    source_end_line: int = 0
+
+    # Use object identity for hashing so FoamNode can be a dict key.
+    __hash__ = object.__hash__
 
     def add_child(self, child: FoamNode) -> None:
         child.parent = self

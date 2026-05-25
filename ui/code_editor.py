@@ -7,6 +7,10 @@ from PySide6.QtGui import QColor, QPainter, QTextFormat, QTextCursor
 from PySide6.QtWidgets import QWidget, QPlainTextEdit, QTextEdit
 
 
+_COLOR_SPAN_HIGHLIGHT    = QColor(255, 251, 190)  # amber — node source span
+_COLOR_CURRENT_LINE      = QColor(232, 242, 254)  # blue  — cursor line
+
+
 class LineNumberArea(QWidget):
     def __init__(self, editor: "CodeEditor"):
         super().__init__(editor)
@@ -22,6 +26,9 @@ class LineNumberArea(QWidget):
 class CodeEditor(QPlainTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        self._span_start_line = 0
+        self._span_end_line = 0
 
         self.line_number_area = LineNumberArea(self)
 
@@ -92,12 +99,35 @@ class CodeEditor(QPlainTextEdit):
             bottom = top + int(self.blockBoundingRect(block).height())
             block_number += 1
 
+    def set_span_highlight(self, start_line: int, end_line: int) -> None:
+        self._span_start_line = start_line
+        self._span_end_line = max(end_line, start_line)
+        self.highlight_current_line()
+
+    def clear_span_highlight(self) -> None:
+        self._span_start_line = 0
+        self._span_end_line = 0
+        self.highlight_current_line()
+
     def highlight_current_line(self):
         extra_selections = []
 
+        if self._span_start_line > 0:
+            start_block = self.document().findBlockByLineNumber(self._span_start_line - 1)
+            end_block = self.document().findBlockByLineNumber(self._span_end_line - 1)
+            if not end_block.isValid():
+                end_block = self.document().lastBlock()
+            if start_block.isValid():
+                sel = QTextEdit.ExtraSelection()
+                sel.format.setBackground(_COLOR_SPAN_HIGHLIGHT)
+                sel.format.setProperty(QTextFormat.FullWidthSelection, True)
+                cur = QTextCursor(start_block)
+                cur.setPosition(end_block.position() + max(end_block.length() - 1, 0), QTextCursor.KeepAnchor)
+                sel.cursor = cur
+                extra_selections.append(sel)
+
         selection = QTextEdit.ExtraSelection()
-        line_color = QColor(232, 242, 254)
-        selection.format.setBackground(line_color)
+        selection.format.setBackground(_COLOR_CURRENT_LINE)
         selection.format.setProperty(QTextFormat.FullWidthSelection, True)
         selection.cursor = self.textCursor()
         selection.cursor.clearSelection()

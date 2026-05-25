@@ -13,10 +13,12 @@ from PySide6.QtWidgets import (
 )
 
 from foam.parser import OpenFoamParser, ParseError
+from foam.utils import read_foam_file
 from services.case_files_config import CaseFilesConfig
 from services.case_loader import FIELD_DIRS, list_case_files
 from ui.file_list_panel import display_file_name
 from ui.layout_constants import (
+    BLOCKMESH_DICT_NAME as _BLOCKMESH_DICT_NAME,
     STATUS_NORMAL as _STATUS_NORMAL,
     STATUS_WARNING as _STATUS_WARNING,
     STATUS_SHORT as _STATUS_SHORT,
@@ -36,15 +38,17 @@ class _FileOpsMixin:
         extra = self._case_files_config.get_extra_files() or None
         extra_dirs = self._case_files_config.get_extra_dirs() or None
         paths = list_case_files(directory, extra, extra_dirs)
+        extra_dir_paths = [p for p, _ in extra_dirs] if extra_dirs else None
         self.file_list_panel.load_files(
-            paths, case_dir=directory, extra_files=extra, extra_dirs=extra_dirs
+            paths, case_dir=directory, extra_files=extra, extra_dirs=extra_dir_paths
         )
 
         self.file_buffers.clear()
         self.file_dirty.clear()
         self._parsed_roots.clear()
         self._clear_current_file()
-        self.terminal_panel.set_working_directory(directory)
+        if self.terminal_panel is not None:
+            self.terminal_panel.set_working_directory(directory)
         self._reload_boundary_panel()
 
     def _reload_file_list(self) -> None:
@@ -53,11 +57,12 @@ class _FileOpsMixin:
         extra = self._case_files_config.get_extra_files() or None
         extra_dirs = self._case_files_config.get_extra_dirs() or None
         paths = list_case_files(self.current_case_dir, extra, extra_dirs)
+        extra_dir_paths = [p for p, _ in extra_dirs] if extra_dirs else None
         self.file_list_panel.load_files(
             paths,
             case_dir=self.current_case_dir,
             extra_files=extra,
-            extra_dirs=extra_dirs,
+            extra_dirs=extra_dir_paths,
         )
         for path, dirty in self.file_dirty.items():
             if dirty:
@@ -66,6 +71,17 @@ class _FileOpsMixin:
             self.file_list_panel.select_file(self.current_file)
 
     # ── load / save ───────────────────────────────────────────────────────────
+
+    def _parse_and_update(self, path: str, text: str) -> OpenFoamParser:
+        """Parse text, update the tree and side panels. Returns parser (check .errors). Raises ParseError."""
+        _parser = OpenFoamParser(text)
+        root = _parser.parse()
+        self._parsed_roots[path] = root
+        self._load_tree(root)
+        self.boundary_panel.update_field(path, root)
+        if self.block_mesh_panel is not None and Path(path).name == _BLOCKMESH_DICT_NAME:
+            self.block_mesh_panel.update_block_mesh(path, root)
+        return _parser
 
     def load_selected_file(self, path: str) -> None:
         if path == self.current_file:
@@ -77,7 +93,7 @@ class _FileOpsMixin:
             text = self.file_buffers[path]
         else:
             try:
-                text = Path(path).read_text(encoding="utf-8")
+                text = read_foam_file(path)
             except Exception as e:
                 QMessageBox.critical(self, "Error", str(e))
                 return
@@ -94,12 +110,16 @@ class _FileOpsMixin:
             self.statusBar().showMessage(f"Loaded: {path}", _STATUS_NORMAL)
 
             try:
-                root = OpenFoamParser(text).parse()
-                self._parsed_roots[path] = root
-                self._load_tree(root)
-                self.boundary_panel.update_field(path, root)
+                _parser = self._parse_and_update(path, text)
                 self.detail_panel.show_empty()
-                self.statusBar().showMessage(f"Parsed successfully: {path}", _STATUS_NORMAL)
+                if _parser.errors:
+                    n = len(_parser.errors)
+                    self.statusBar().showMessage(
+                        f"Parsed: {path} — {n} unrecognized entr{'y' if n == 1 else 'ies'}",
+                        _STATUS_WARNING,
+                    )
+                else:
+                    self.statusBar().showMessage(f"Parsed successfully: {path}", _STATUS_NORMAL)
             except ParseError as e:
                 self.statusBar().showMessage(f"Parse warning: {e}", _STATUS_WARNING)
                 QMessageBox.warning(
@@ -129,11 +149,15 @@ class _FileOpsMixin:
             self.statusBar().showMessage(f"Saved: {self.current_file}", _STATUS_NORMAL)
 
             try:
-                root = OpenFoamParser(text).parse()
-                self._parsed_roots[self.current_file] = root
-                self._load_tree(root)
-                self.boundary_panel.update_field(self.current_file, root)
-                self.statusBar().showMessage(f"Saved and parsed: {self.current_file}", _STATUS_NORMAL)
+                _parser = self._parse_and_update(self.current_file, text)
+                if _parser.errors:
+                    n = len(_parser.errors)
+                    self.statusBar().showMessage(
+                        f"Saved: {self.current_file} — {n} unrecognized entr{'y' if n == 1 else 'ies'}",
+                        _STATUS_WARNING,
+                    )
+                else:
+                    self.statusBar().showMessage(f"Saved and parsed: {self.current_file}", _STATUS_NORMAL)
             except ParseError as e:
                 self.statusBar().showMessage(f"Saved, but parse failed: {e}", _STATUS_WARNING)
                 QMessageBox.warning(
@@ -255,7 +279,7 @@ class _FileOpsMixin:
         cfg = CaseFilesConfig(case_dir)
         extra = cfg.get_extra_files() or None
         extra_dirs = cfg.get_extra_dirs() or None
-        loaded_set = set(list_case_files(case_dir, extra, extra_dirs))
+        loaded_set = set(list_case_files(case_dir, extra, extra_dirs or None))
 
         dialog = AddFilesDialog(case_dir, group, loaded_set, self)
         if dialog.exec() != QDialog.Accepted:
@@ -292,7 +316,7 @@ class _FileOpsMixin:
             has_unsaved = self.file_dirty.get(path, False)
         else:
             try:
-                content = p.read_text(encoding="utf-8")
+                content = read_foam_file(p)
             except Exception as e:
                 QMessageBox.critical(self, "Backup Error", f"Could not read file:\n{e}")
                 return False
@@ -317,9 +341,10 @@ class _FileOpsMixin:
             return
         from ui.manage_extra_files_dialog import ManageExtraFilesDialog
 
+        old_dirs = self._case_files_config.get_extra_dirs()
         dlg = ManageExtraFilesDialog(
             self._case_files_config.get_extra_files(),
-            extra_dirs=self._case_files_config.get_extra_dirs(),
+            extra_dirs=old_dirs,
             case_dir=self.current_case_dir,
             parent=self,
         )
@@ -329,12 +354,18 @@ class _FileOpsMixin:
         for rel_path in dlg.removed_files:
             self._case_files_config.remove_file(rel_path)
             changed = True
-        for rel_dir in dlg.removed_dirs:
-            self._case_files_config.remove_dir(rel_dir)
+
+        new_dirs = dlg.result_dirs
+        old_dir_map = dict(old_dirs)
+        old_paths = set(old_dir_map)
+        new_paths = {p for p, _ in new_dirs}
+        for p in old_paths - new_paths:
+            self._case_files_config.remove_dir(p)
             changed = True
-        for rel_dir in dlg.added_dirs:
-            self._case_files_config.add_dir(rel_dir)
-            changed = True
+        for p, r in new_dirs:
+            if p not in old_paths or old_dir_map.get(p) != r:
+                self._case_files_config.add_dir(p, r)
+                changed = True
 
         if changed:
             self._case_files_config.save()
@@ -342,10 +373,18 @@ class _FileOpsMixin:
             parts = []
             if dlg.removed_files:
                 parts.append(f"{len(dlg.removed_files)} file(s) removed")
-            if dlg.removed_dirs:
-                parts.append(f"{len(dlg.removed_dirs)} directory(s) removed")
-            if dlg.added_dirs:
-                parts.append(f"{len(dlg.added_dirs)} directory(s) added")
+            removed_n = len(old_paths - new_paths)
+            added_n = len(new_paths - old_paths)
+            toggled_n = sum(
+                1 for p, r in new_dirs
+                if p in old_paths and old_dir_map.get(p) != r
+            )
+            if removed_n:
+                parts.append(f"{removed_n} directory(s) removed")
+            if added_n:
+                parts.append(f"{added_n} directory(s) added")
+            if toggled_n:
+                parts.append(f"{toggled_n} directory(s) updated")
             self.statusBar().showMessage(", ".join(parts) + ".", _STATUS_SHORT)
 
     def _on_remove_extra_file(self, abs_path: str) -> None:
@@ -380,12 +419,17 @@ class _FileOpsMixin:
             f"Removed directory from file list: {rel_dir}/", _STATUS_SHORT
         )
 
+    def _purge_file_caches(self, path: str) -> None:
+        self.file_buffers.pop(path, None)
+        self.file_dirty.pop(path, None)
+        self._parsed_roots.pop(path, None)
+
     def _is_auto_scan_group(self, group: str) -> bool:
         """Return True if group is fully scanned (FIELD_DIRS or extra dirs)."""
         if group.split("/")[0] in FIELD_DIRS:
             return True
         if self._case_files_config:
-            return group in set(self._case_files_config.get_extra_dirs())
+            return group in {p for p, _ in self._case_files_config.get_extra_dirs()}
         return False
 
     def _on_delete_file_requested(self, path: str) -> None:
@@ -423,9 +467,6 @@ class _FileOpsMixin:
             QMessageBox.critical(self, "Delete Error", f"Could not delete file:\n{e}")
             return
 
-        self.file_buffers.pop(path, None)
-        self.file_dirty.pop(path, None)
-
         if self._case_files_config and self.current_case_dir:
             try:
                 rel = str(Path(path).relative_to(Path(self.current_case_dir)))
@@ -437,7 +478,7 @@ class _FileOpsMixin:
         if path == self.current_file:
             self._clear_current_file()
 
-        self._parsed_roots.pop(path, None)
+        self._purge_file_caches(path)
         self._reload_file_list()
         self._reload_boundary_panel()
         self.statusBar().showMessage(f"Deleted: {display_file_name(path)}", _STATUS_SHORT)
@@ -485,7 +526,7 @@ class _FileOpsMixin:
         content = self.file_buffers.get(path)
         if content is None:
             try:
-                content = p.read_text(encoding="utf-8")
+                content = read_foam_file(p)
             except Exception as e:
                 QMessageBox.critical(self, "Duplicate Error", f"Could not read file:\n{e}")
                 return
@@ -532,6 +573,46 @@ class _FileOpsMixin:
         self._reload_file_list()
         self.statusBar().showMessage(f"Duplicated: {src}/ → {dst}/", _STATUS_SHORT)
 
+    def _on_delete_dir_requested(self, case_dir: str, group: str) -> None:
+        dir_path = Path(case_dir) / group
+        orig_path = Path(case_dir) / "0.orig"
+
+        if not orig_path.exists():
+            QMessageBox.warning(
+                self,
+                "Cannot Delete",
+                "The '0.orig' directory does not exist.\n\nDeletion aborted to prevent data loss.",
+            )
+            return
+
+        reply = QMessageBox.warning(
+            self,
+            "Delete Directory",
+            f"Delete the '{group}/' directory and all its contents?\n\n"
+            f"{dir_path}\n\n"
+            "This cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        affected = [p for p in list(self.file_buffers) if Path(p).is_relative_to(dir_path)]
+        for path in affected:
+            if path == self.current_file:
+                self._clear_current_file()
+            self._purge_file_caches(path)
+
+        try:
+            shutil.rmtree(str(dir_path))
+        except OSError as e:
+            QMessageBox.critical(self, "Delete Error", f"Could not delete directory:\n{e}")
+            return
+
+        self._reload_file_list()
+        self._reload_boundary_panel()
+        self.statusBar().showMessage(f"Deleted: {group}/", _STATUS_SHORT)
+
     def _on_clean_backups(self) -> None:
         if not self.current_case_dir:
             return
@@ -556,9 +637,7 @@ class _FileOpsMixin:
                 errors.append(f"{Path(path).name}: {e}")
 
         for path in paths:
-            self.file_buffers.pop(path, None)
-            self.file_dirty.pop(path, None)
-            self._parsed_roots.pop(path, None)
+            self._purge_file_caches(path)
             if self._case_files_config and self.current_case_dir:
                 try:
                     rel = str(Path(path).relative_to(Path(self.current_case_dir)))

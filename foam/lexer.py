@@ -107,6 +107,9 @@ class OpenFoamLexer:
         return Token("STRING", self.text[start:self.pos], start)
 
     def _read_word(self) -> Token:
+        # Per OpenFOAM syntax, // and /* always start a comment — even mid-word.
+        # Quoted strings (handled by _read_string) are the only context where
+        # // does not start a comment.
         start = self.pos
         while self.pos < self.length:
             ch = self.text[self.pos]

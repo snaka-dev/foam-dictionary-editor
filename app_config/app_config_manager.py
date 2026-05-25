@@ -21,6 +21,7 @@ class AppConfigManager:
         self._default_case_dir: Optional[str] = None
         self._case_library_dirs: list[str] = []
         self._user_links: list[dict] = []
+        self._features: dict[str, bool] = {}
         self._load()
 
     def _load(self) -> None:
@@ -32,12 +33,14 @@ class AppConfigManager:
             self._default_case_dir = data.get("default_case_dir", None)
             self._case_library_dirs = data.get("case_library_dirs", [])
             self._user_links = data.get("user_links", [])
+            self._features = data.get("features", {})
         except (json.JSONDecodeError, IOError) as e:
             print(f"Warning: Failed to load config file: {e}")
             self._window_size = None
             self._default_case_dir = None
             self._case_library_dirs = []
             self._user_links = []
+            self._features = {}
 
     def save(self) -> None:
         try:
@@ -48,6 +51,8 @@ class AppConfigManager:
                 "case_library_dirs": self._case_library_dirs,
                 "user_links": self._user_links,
             }
+            if self._features:
+                data["features"] = self._features
             self._config_path.write_text(
                 json.dumps(data, indent=JSON_INDENT, ensure_ascii=False),
                 encoding="utf-8",
@@ -60,6 +65,7 @@ class AppConfigManager:
         self._default_case_dir = None
         self._case_library_dirs = []
         self._user_links = []
+        self._features = {}
 
     def delete_config_file(self) -> None:
         try:
@@ -135,3 +141,9 @@ class AppConfigManager:
 
     def set_user_links(self, links: list[dict]) -> None:
         self._user_links = list(links)
+
+    # ── feature flags ─────────────────────────────────────────────────────────
+
+    def get_feature(self, name: str, default: bool = True) -> bool:
+        """Return the value of a feature flag; defaults to True when absent."""
+        return bool(self._features.get(name, default))

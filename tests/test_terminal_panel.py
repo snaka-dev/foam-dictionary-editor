@@ -147,26 +147,9 @@ class TestSimpleTerminalWidgetHistory:
 # ── TerminalPanel: tab_label ──────────────────────────────────────────────────
 
 class TestTerminalPanelTabLabel:
-    def test_tab_label_starts_with_terminal(self, terminal_panel):
-        """tab_label always begins with the string 'Terminal'"""
-        assert terminal_panel.tab_label.startswith("Terminal")
-
-    def test_tab_label_simple_when_no_xterm(self, terminal_panel):
-        """tab_label is 'Terminal (Simple)' when xterm is unavailable"""
-        if not _XTERM_AVAILABLE:
-            assert terminal_panel.tab_label == "Terminal (Simple)"
-
-    def test_tab_label_terminal_when_xterm_available(self, terminal_panel):
-        """tab_label is 'Terminal' when xterm is available"""
-        if _XTERM_AVAILABLE:
-            assert terminal_panel.tab_label == "Terminal"
-
-    def test_tab_label_matches_use_xterm(self, terminal_panel):
-        """tab_label is consistent with xterm availability"""
-        if _XTERM_AVAILABLE:
-            assert terminal_panel.tab_label == "Terminal"
-        else:
-            assert "Simple" in terminal_panel.tab_label
+    def test_tab_label_is_terminal(self, terminal_panel):
+        """tab_label is always 'Terminal' regardless of backend"""
+        assert terminal_panel.tab_label == "Terminal"
 
 
 # ── TerminalPanel: set_working_directory delegation ──────────────────────────

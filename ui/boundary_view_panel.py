@@ -48,6 +48,11 @@ def _extract_boundary(root: FoamNode) -> dict[str, FoamNode]:
     return {}
 
 
+def _is_printable(text: str) -> bool:
+    """Return False if text contains non-printable control characters (binary data)."""
+    return not any(c < "\x09" for c in text)
+
+
 def _extra_patch_lines(patch_node: FoamNode, max_lines: int) -> list[str]:
     """Return up to max_lines additional key-value lines from a patch node (type excluded)."""
     lines: list[str] = []
@@ -57,7 +62,7 @@ def _extra_patch_lines(patch_node: FoamNode, max_lines: int) -> list[str]:
         val = child.value
         if isinstance(val, (str, int, float)) and str(val).strip():
             display = str(val).split("\n")[0].strip()
-            lines.append(f"{child.name}  {display}")
+            lines.append(f"{child.name}  {display if _is_printable(display) else '(binary)'}")
         else:
             lines.append(f"{child.name}  ...")
         if len(lines) >= max_lines:
@@ -120,6 +125,8 @@ class BoundaryViewPanel(QWidget):
     patch_paste_requested       = Signal(str, str, str)     # (path, patch_name, content)
     patch_delete_all_requested  = Signal(str)               # (patch_name) — all field files
     patch_add_all_requested     = Signal(str)               # (patch_name) — all field files
+    patch_rename_requested      = Signal(str)               # (patch_name) — rename across all files
+    patch_selected              = Signal(str, str)          # (path, patch_name) — single-click navigation
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -143,11 +150,20 @@ class BoundaryViewPanel(QWidget):
         self._transpose_chk.setToolTip("Swap rows (fields) and columns (patches)")
         self._transpose_chk.toggled.connect(self._on_transpose_toggled)
 
+        self._autoscroll_chk = QCheckBox("Auto-scroll editor")
+        self._autoscroll_chk.setChecked(True)
+        self._autoscroll_chk.setToolTip(
+            "When checked, clicking a cell opens its file in the editor\n"
+            "and scrolls to the patch entry."
+        )
+
         dir_row = QHBoxLayout()
         dir_row.addWidget(QLabel("Directory:"))
         dir_row.addWidget(self._dir_combo)
         dir_row.addStretch()
         dir_row.addWidget(self._transpose_chk)
+        dir_row.addSpacing(12)
+        dir_row.addWidget(self._autoscroll_chk)
         dir_row.addSpacing(12)
         dir_row.addWidget(QLabel("Lines per cell:"))
         dir_row.addWidget(self._lines_spin)
@@ -155,6 +171,7 @@ class BoundaryViewPanel(QWidget):
         self._table = QTableWidget()
         self._table.setEditTriggers(QTableWidget.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectItems)
+        self._table.itemClicked.connect(self._on_cell_clicked)
         self._table.itemDoubleClicked.connect(self._on_cell_double_clicked)
         self._table.setContextMenuPolicy(Qt.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self._on_table_context_menu)
@@ -311,6 +328,17 @@ class BoundaryViewPanel(QWidget):
         self._table.resizeColumnsToContents()
         self._table.resizeRowsToContents()
 
+    def _on_cell_clicked(self, item: QTableWidgetItem) -> None:
+        if not self._autoscroll_chk.isChecked():
+            return
+        if item is None:
+            return
+        path = item.data(_PATH_ROLE)
+        patch_name = item.data(_PATCH_NAME_ROLE)
+        if path is None or patch_name is None:
+            return
+        self.patch_selected.emit(path, patch_name)
+
     def _on_cell_double_clicked(self, item: QTableWidgetItem) -> None:
         if item is None:
             return
@@ -349,6 +377,9 @@ class BoundaryViewPanel(QWidget):
         paste_action = menu.addAction("Paste")
         paste_action.setEnabled(self._clipboard is not None)
 
+        menu.addSeparator()
+        rename_action = menu.addAction("Rename Boundary...")
+
         action = menu.exec(self._table.viewport().mapToGlobal(pos))
         if action == edit_action:
             self.patch_edit_requested.emit(path, patch_name, patch_node)
@@ -360,6 +391,8 @@ class BoundaryViewPanel(QWidget):
             self._clipboard = _patch_inner_text(patch_node)
         elif action == paste_action and self._clipboard is not None:
             self.patch_paste_requested.emit(path, patch_name, self._clipboard)
+        elif action == rename_action:
+            self.patch_rename_requested.emit(patch_name)
 
     def _on_horizontal_header_context_menu(self, pos) -> None:
         # Non-transposed: horizontal header = patch names.
@@ -391,12 +424,18 @@ class BoundaryViewPanel(QWidget):
             f"Delete BoundaryField  '{patch_name}'" if patch_name else "Delete BoundaryField"
         )
         delete_action.setEnabled(patch_name is not None)
+        rename_action = menu.addAction(
+            f"Rename Boundary  '{patch_name}'..." if patch_name else "Rename Boundary..."
+        )
+        rename_action.setEnabled(patch_name is not None)
         menu.addSeparator()
         add_action = menu.addAction("Add BoundaryField...")
 
         action = menu.exec(global_pos)
         if action == delete_action and patch_name:
             self.patch_delete_all_requested.emit(patch_name)
+        elif action == rename_action and patch_name:
+            self.patch_rename_requested.emit(patch_name)
         elif action == add_action:
             self._prompt_add_boundary_field()
 

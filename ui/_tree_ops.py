@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QModelIndex, Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox
 
@@ -13,6 +13,7 @@ from foam.parser import OpenFoamParser, ParseError
 from foam.writer import write_node, write_root
 from model.tree_model import FoamTreeModel
 from ui.layout_constants import (
+    BLOCKMESH_DICT_NAME as _BLOCKMESH_DICT_NAME,
     STATUS_NORMAL as _STATUS_NORMAL,
     STATUS_WARNING as _STATUS_WARNING,
     STATUS_SHORT as _STATUS_SHORT,
@@ -41,11 +42,12 @@ class _TreeOpsMixin:
         if not index.isValid():
             return
 
-        node = self.current_model.index(index.row(), 0, index.parent()).internalPointer()
+        src = self._to_source(index)
+        node = src.internalPointer()
         parent_node = node.parent if node.parent is not None else self.current_model.root
 
         value_index = self.current_model.index(
-            index.row(), FoamTreeModel.COL_VALUE, index.parent()
+            src.row(), FoamTreeModel.COL_VALUE, src.parent()
         )
         can_paste = bool(self.current_model.flags(value_index) & Qt.ItemIsEditable)
         can_add_sibling = (
@@ -68,6 +70,18 @@ class _TreeOpsMixin:
         dup_action.setEnabled(can_add_sibling)
 
         is_commented_out = self._is_commented_out_node(node)
+        is_boundary_entry = node.node_type == "boundary_entry"
+        is_boundary_field_patch = (
+            node.node_type == "dictionary"
+            and node.parent is not None
+            and node.parent.name == "boundaryField"
+        )
+        is_renameable_boundary = is_boundary_entry or is_boundary_field_patch
+
+        rename_boundary_action = None
+        if is_renameable_boundary:
+            menu.addSeparator()
+            rename_boundary_action = menu.addAction("Rename Boundary...")
 
         menu.addSeparator()
         comment_action = menu.addAction("Comment Out")
@@ -94,6 +108,8 @@ class _TreeOpsMixin:
             self._tree_restore_comment(node)
         elif action == delete_action:
             self._tree_delete(node)
+        elif action is not None and action == rename_boundary_action:
+            self._on_rename_boundary_by_name(node.name)
 
     def _tree_copy_value(self) -> None:
         index = self._current_primary_index()
@@ -131,7 +147,8 @@ class _TreeOpsMixin:
         parent_node = node.parent if node.parent is not None else self.current_model.root
         position = parent_node.children.index(node) + 1
         new_node = FoamNode(name="newKey", node_type="word", value="newValue", modified=True)
-        new_index = self.current_model.insert_node(parent_node, position, new_node)
+        src_index = self.current_model.insert_node(parent_node, position, new_node)
+        new_index = self._to_proxy(src_index)
         self.tree.setCurrentIndex(new_index)
         self.tree.scrollTo(new_index)
         self.tree.edit(new_index)
@@ -140,9 +157,10 @@ class _TreeOpsMixin:
     def _tree_add_child_entry(self, node: FoamNode) -> None:
         position = len(node.children)
         new_node = FoamNode(name="newKey", node_type="word", value="newValue", modified=True)
-        parent_idx = self.current_model._index_of_node(node)
-        self.tree.expand(parent_idx)
-        new_index = self.current_model.insert_node(node, position, new_node)
+        parent_src_idx = self.current_model._index_of_node(node)
+        self.tree.expand(self._to_proxy(parent_src_idx))
+        src_index = self.current_model.insert_node(node, position, new_node)
+        new_index = self._to_proxy(src_index)
         self.tree.setCurrentIndex(new_index)
         self.tree.scrollTo(new_index)
         self.tree.edit(new_index)
@@ -157,7 +175,8 @@ class _TreeOpsMixin:
         node.parent = orig_parent
         self.current_model._attach_parents(new_node, None)
         new_node.modified = True
-        new_index = self.current_model.insert_node(parent_node, position, new_node)
+        src_index = self.current_model.insert_node(parent_node, position, new_node)
+        new_index = self._to_proxy(src_index)
         self.tree.setCurrentIndex(new_index)
         self.tree.scrollTo(new_index)
         self._after_model_edit()
@@ -178,8 +197,8 @@ class _TreeOpsMixin:
         new_node.raw_text = commented
         self._mark_parent_modified(parent_node)
         self.current_model.remove_node(node)
-        inserted = self.current_model.insert_node(parent_node, position, new_node)
-        self.tree.setCurrentIndex(inserted)
+        src_index = self.current_model.insert_node(parent_node, position, new_node)
+        self.tree.setCurrentIndex(self._to_proxy(src_index))
         self._after_model_edit()
 
     def _tree_delete(self, node: FoamNode) -> None:
@@ -230,8 +249,9 @@ class _TreeOpsMixin:
             restored.modified = True
             last_index = self.current_model.insert_node(parent_node, position + offset, restored)
         if last_index is not None:
-            self.tree.setCurrentIndex(last_index)
-            self.tree.scrollTo(last_index)
+            proxy_index = self._to_proxy(last_index)
+            self.tree.setCurrentIndex(proxy_index)
+            self.tree.scrollTo(proxy_index)
         self._after_model_edit()
 
     # ── helpers ───────────────────────────────────────────────────────────────
@@ -255,6 +275,57 @@ class _TreeOpsMixin:
         non_blank = [l for l in raw.split("\n") if l.strip()]
         return bool(non_blank) and all(l.lstrip().startswith("//") for l in non_blank)
 
+    # ── editor → tree sync ────────────────────────────────────────────────────
+
+    def _sync_tree_to_editor_line(self) -> None:
+        if not self._source_lines_valid:
+            self.statusBar().showMessage(
+                "Apply Text to Tree to enable editor-to-tree sync", _STATUS_SHORT
+            )
+            return
+
+        line = self.editor_panel.current_line_number()
+        node = self._find_deepest(self.current_root, line)
+
+        if node is None:
+            self.statusBar().showMessage(
+                f"No tree entry found for line {line}", _STATUS_SHORT
+            )
+            return
+
+        # Walk up to the nearest ancestor visible in the proxy (not filtered out).
+        proxy_index = QModelIndex()
+        current = node
+        while current is not None and current is not self.current_root:
+            src_index = self.current_model._index_of_node(current)
+            proxy_index = self._to_proxy(src_index)
+            if proxy_index.isValid():
+                break
+            current = current.parent
+
+        if not proxy_index.isValid():
+            self.statusBar().showMessage(
+                "Entry is hidden by the current filter", _STATUS_SHORT
+            )
+            return
+
+        self._syncing = True
+        self.tree.setCurrentIndex(proxy_index)
+        self.tree.scrollTo(proxy_index)
+        self._syncing = False
+
+    def _find_deepest(self, node: FoamNode, line: int) -> FoamNode | None:
+        children = (
+            node.value
+            if node.node_type == "field_value_block" and isinstance(node.value, list)
+            else node.children
+        )
+        for child in children:
+            if child.source_line > 0 and child.source_line <= line <= child.source_end_line:
+                deeper = self._find_deepest(child, line)
+                return deeper if deeper is not None else child
+        return None
+
     # ── tree selection + detail panel ─────────────────────────────────────────
 
     def on_tree_selection(self) -> None:
@@ -272,6 +343,23 @@ class _TreeOpsMixin:
             self.detail_panel.show_field_value_for_node(node, self.current_model)
         else:
             self.detail_panel.show_for_node(node, self.current_model, self.current_file)
+
+        if self._syncing:
+            return
+
+        if node.source_line > 0 and self._source_lines_valid:
+            self.editor_panel.jump_to_node(
+                node.source_line, node.source_end_line,
+                scroll=self.editor_autoscroll_checkbox.isChecked(),
+            )
+        elif not self._source_lines_valid:
+            self.statusBar().showMessage(
+                "Apply Text to Tree to re-enable jump-to-line", _STATUS_SHORT
+            )
+        elif node.source_line == 0:
+            self.statusBar().showMessage(
+                "No source location — entry was added or modified in the tree", _STATUS_SHORT
+            )
 
     def _on_value_apply(self, new_value: str) -> None:
         index = self._current_primary_index()
@@ -314,15 +402,27 @@ class _TreeOpsMixin:
     # ── editor ↔ tree sync ────────────────────────────────────────────────────
 
     def apply_text_to_tree(self) -> None:
+        from pathlib import Path
+
         text = self.editor_panel.get_text()
         try:
-            root = OpenFoamParser(text).parse()
+            _parser = OpenFoamParser(text)
+            root = _parser.parse()
             if self.current_file:
                 self._parsed_roots[self.current_file] = root
                 self.boundary_panel.update_field(self.current_file, root)
+                if self.block_mesh_panel is not None and Path(self.current_file).name == _BLOCKMESH_DICT_NAME:
+                    self.block_mesh_panel.update_block_mesh(self.current_file, root)
             self._load_tree(root)
             self._mark_dirty()
-            self.statusBar().showMessage("Parsed successfully and tree updated", _STATUS_NORMAL)
+            if _parser.errors:
+                n = len(_parser.errors)
+                self.statusBar().showMessage(
+                    f"Parsed and tree updated — {n} unrecognized entr{'y' if n == 1 else 'ies'}",
+                    _STATUS_WARNING,
+                )
+            else:
+                self.statusBar().showMessage("Parsed successfully and tree updated", _STATUS_NORMAL)
         except ParseError as e:
             self.statusBar().showMessage(f"Parse failed: {e}", _STATUS_WARNING)
             QMessageBox.warning(
@@ -341,7 +441,37 @@ class _TreeOpsMixin:
             self.file_list_panel.mark_dirty(self.current_file, self.text_dirty)
         self.statusBar().showMessage("Reloaded text from current tree", _STATUS_SHORT)
 
+    def _on_blockmesh_vertices_changed(self, idx: int, xyz: list) -> None:
+        if self.current_root is None:
+            return
+        vtx_node = next(
+            (c for c in self.current_root.children
+             if c.name == "vertices" and c.node_type == "raw_list"),
+            None,
+        )
+        if vtx_node is None:
+            return
+        from foam.block_mesh_extractor import parse_vertices
+        from foam.utils import format_scalar
+        verts = parse_vertices(str(vtx_node.value))
+        if idx < 0 or idx >= len(verts):
+            return
+        verts[idx] = xyz
+        vtx_node.value = "\n" + "".join(
+            f"    ({format_scalar(v[0])} {format_scalar(v[1])} {format_scalar(v[2])})\n"
+            for v in verts
+        )
+        vtx_node.modified = True
+        self.editor_panel.set_text(write_root(self.current_root))
+        self._mark_dirty()
+        self._resize_tree_columns()
+        self.on_tree_selection()
+        self.statusBar().showMessage("Vertex coordinates updated", _STATUS_SHORT)
+
     def _on_user_text_changed(self) -> None:
         if not self.current_file:
             return
         self._mark_dirty()
+        self._source_lines_valid = False
+        self._update_sync_checkbox()
+        self.editor_panel.clear_node_highlight()

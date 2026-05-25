@@ -269,6 +269,58 @@ class TestExtraFiles:
         assert str(tmp_path / "system" / "dictB") in files
 
 
+# ── extra_dirs: user-specified additional directories ─────────────────────────
+
+class TestExtraDirs:
+    def test_flat_scan_includes_direct_files(self, tmp_path):
+        """Non-recursive extra dir includes files directly inside it."""
+        d = tmp_path / "validation"
+        d.mkdir()
+        (d / "myFile").write_text("", encoding="utf-8")
+        files = list_case_files(str(tmp_path), extra_dirs=[("validation", False)])
+        assert str(d / "myFile") in files
+
+    def test_flat_scan_excludes_subdir_files(self, tmp_path):
+        """Non-recursive extra dir does not include files in subdirectories."""
+        d = tmp_path / "validation"
+        (d / "sub").mkdir(parents=True)
+        (d / "sub" / "deep").write_text("", encoding="utf-8")
+        files = list_case_files(str(tmp_path), extra_dirs=[("validation", False)])
+        assert str(d / "sub" / "deep") not in files
+
+    def test_recursive_scan_includes_subdir_files(self, tmp_path):
+        """Recursive extra dir includes files in subdirectories."""
+        d = tmp_path / "validation"
+        (d / "sub").mkdir(parents=True)
+        (d / "sub" / "deep").write_text("", encoding="utf-8")
+        files = list_case_files(str(tmp_path), extra_dirs=[("validation", True)])
+        assert str(d / "sub" / "deep") in files
+
+    def test_recursive_scan_includes_direct_files_too(self, tmp_path):
+        """Recursive extra dir also includes files directly inside it."""
+        d = tmp_path / "validation"
+        d.mkdir()
+        (d / "top").write_text("", encoding="utf-8")
+        files = list_case_files(str(tmp_path), extra_dirs=[("validation", True)])
+        assert str(d / "top") in files
+
+    def test_missing_extra_dir_is_skipped(self, tmp_path):
+        """A non-existent extra dir entry does not raise."""
+        files = list_case_files(str(tmp_path), extra_dirs=[("nonexistent", True)])
+        assert files == []
+
+    def test_no_duplicates_across_dirs(self, tmp_path):
+        """Files are not duplicated when the same path appears in multiple sources."""
+        d = tmp_path / "validation"
+        d.mkdir()
+        (d / "f").write_text("", encoding="utf-8")
+        files = list_case_files(
+            str(tmp_path),
+            extra_dirs=[("validation", False), ("validation", True)],
+        )
+        assert files.count(str(d / "f")) == 1
+
+
 # ── list_directory_files ──────────────────────────────────────────────────────
 
 class TestListDirectoryFiles:

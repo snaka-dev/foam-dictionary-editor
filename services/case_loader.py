@@ -132,7 +132,7 @@ def is_openfoam_case(directory: str) -> bool:
 def list_case_files(
     case_dir: str,
     extra_files: list[str] | None = None,
-    extra_dirs: list[str] | None = None,
+    extra_dirs: list[tuple[str, bool]] | None = None,
 ) -> list[str]:
     base = Path(case_dir)
     result: list[str] = []
@@ -163,14 +163,19 @@ def list_case_files(
             if path.is_file():
                 _add(str(path))
 
-    # Extra directories: scan all files (non-recursive), same as FIELD_DIRS
-    for rel_dir in (extra_dirs or []):
+    # Extra directories: flat or recursive scan depending on the flag.
+    for rel_dir, recursive in (extra_dirs or []):
         d = base / rel_dir
         if not d.is_dir():
             continue
-        for path in sorted(d.iterdir(), key=lambda p: p.name.lower()):
-            if path.is_file():
-                _add(str(path))
+        if recursive:
+            for path in sorted(d.rglob("*"), key=lambda p: (str(p.parent), p.name.lower())):
+                if path.is_file():
+                    _add(str(path))
+        else:
+            for path in sorted(d.iterdir(), key=lambda p: p.name.lower()):
+                if path.is_file():
+                    _add(str(path))
 
     # MultiRegion: region target files and their phase variants
     regions = detect_regions(case_dir)

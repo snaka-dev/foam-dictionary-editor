@@ -283,6 +283,15 @@ class TestManageAndRemoveSignals:
         panel.remove_extra_file_requested.emit(path)
         assert received == [path]
 
+    def test_delete_dir_requested_signal_defined(self, panel):
+        assert hasattr(panel, "delete_dir_requested")
+
+    def test_delete_dir_requested_emitted(self, panel, tmp_path):
+        received: list[tuple] = []
+        panel.delete_dir_requested.connect(lambda c, g: received.append((c, g)))
+        panel.delete_dir_requested.emit(str(tmp_path), "0")
+        assert received == [(str(tmp_path), "0")]
+
 
 # ── _group_name with case_dir ─────────────────────────────────────────────────
 

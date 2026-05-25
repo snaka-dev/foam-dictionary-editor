@@ -14,6 +14,7 @@ from PySide6.QtCore import QEvent, QObject, QProcess, Qt, Signal, Slot
 from PySide6.QtGui import QColor, QFont, QPalette
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -41,9 +42,7 @@ if sys.platform != "win32":
     except ImportError:
         pass
 
-# Version stamp written to ui/xterm/version.txt; triggers re-download when changed.
 _XTERM_VERSION = "6.0.0"
-
 _LOCAL_CSS = '<link rel="stylesheet" href="xterm/xterm.css">'
 _LOCAL_JS = (
     '<script src="xterm/xterm.js"></script>\n'
@@ -74,7 +73,6 @@ if _XTERM_AVAILABLE:
 
             pid = os.fork()
             if pid == 0:
-                # child: set up PTY as controlling terminal, then exec shell
                 os.close(master_fd)
                 os.setsid()
                 fcntl.ioctl(slave_fd, termios.TIOCSCTTY, 0)
@@ -96,7 +94,6 @@ if _XTERM_AVAILABLE:
                     pass
                 os._exit(1)
             else:
-                # parent: watch master fd for output
                 os.close(slave_fd)
                 self._pid = pid
                 self._notifier = QSocketNotifier(
@@ -161,7 +158,6 @@ if _XTERM_AVAILABLE:
 if _XTERM_AVAILABLE:
 
     class TerminalBridge(QObject):
-        # Emitted to push PTY output into the xterm.js terminal.
         send_to_terminal = Signal(str)
 
         def __init__(
@@ -177,18 +173,15 @@ if _XTERM_AVAILABLE:
 
         @Slot()
         def terminal_ready(self) -> None:
-            """Called by JS once QWebChannel is established."""
             self._backend.start_shell(self._pending_cwd)
             self._pending_cwd = None
 
         @Slot(str)
         def on_input(self, text: str) -> None:
-            """Called by JS when the user types into xterm."""
             self._backend.write(text.encode("utf-8"))
 
         @Slot(int, int)
         def on_resize(self, cols: int, rows: int) -> None:
-            """Called by JS when the xterm viewport is resized."""
             self._backend.resize(cols, rows)
 
 
@@ -230,9 +223,6 @@ if _XTERM_AVAILABLE:
             ui_dir = Path(__file__).parent
             xterm_dir = ui_dir / "xterm"
 
-            # Download when files are absent or the version stamp is stale.
-            # _download_xterm_files uses a temp dir so existing files are never
-            # removed unless the new download succeeds.
             version_file = xterm_dir / "version.txt"
             needs_download = (
                 not (xterm_dir / "xterm.js").exists()
@@ -279,7 +269,6 @@ if _XTERM_AVAILABLE:
                     "https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.11.0/lib/addon-fit.js",
                 ),
             ]
-            # Download into a temp directory so existing files survive a failure.
             tmp_dir = Path(tempfile.mkdtemp())
             try:
                 for name, url in downloads:
@@ -287,10 +276,12 @@ if _XTERM_AVAILABLE:
             except Exception:
                 shutil.rmtree(tmp_dir, ignore_errors=True)
                 return
-            # All downloads succeeded — atomically replace the cache directory.
             shutil.rmtree(xterm_dir, ignore_errors=True)
             shutil.move(str(tmp_dir), str(xterm_dir))
             (xterm_dir / "version.txt").write_text(_XTERM_VERSION, encoding="utf-8")
+
+        def cleanup(self) -> None:
+            self._backend.stop()
 
         def _on_shell_stopped(self) -> None:
             self._bridge.send_to_terminal.emit(
@@ -298,10 +289,10 @@ if _XTERM_AVAILABLE:
             )
 
 
-# ── SimpleTerminalWidget (fallback: Windows or missing WebEngine) ─────────────
+# ── SimpleTerminalWidget (QProcess-based, no WebEngine) ───────────────────────
 
 class SimpleTerminalWidget(QWidget):
-    """QProcess-based terminal fallback used on Windows or when WebEngine is absent."""
+    """QProcess-based terminal: plain text I/O, no WebEngine, no GPU dependency."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -352,6 +343,9 @@ class SimpleTerminalWidget(QWidget):
         if app is not None:
             app.aboutToQuit.connect(self._cleanup)
 
+    def cleanup(self) -> None:
+        self._cleanup()
+
     def _cleanup(self) -> None:
         self._closing = True
         if self._process.state() != QProcess.NotRunning:
@@ -363,8 +357,6 @@ class SimpleTerminalWidget(QWidget):
         self._cwd = path
         if self._process.state() == QProcess.Running:
             self._execute(f"cd {shlex.quote(path)}")
-
-    # ── private ───────────────────────────────────────────────────────────────
 
     def _apply_dark_theme(self) -> None:
         palette = self._output.palette()
@@ -430,30 +422,115 @@ class SimpleTerminalWidget(QWidget):
 # ── TerminalPanel ─────────────────────────────────────────────────────────────
 
 class TerminalPanel(QWidget):
-    """Bottom-panel terminal tab.
+    """Bottom-panel terminal.
 
-    Uses XtermTerminalWidget (xterm.js + PTY) on Linux/macOS when QtWebEngine
-    is available.  Falls back to SimpleTerminalWidget on Windows or when
-    QtWebEngine is absent.
+    Starts in Simple mode (QProcess, no GPU dependency).  On Linux/macOS with
+    QtWebEngine available the user can switch to the full xterm.js terminal at
+    runtime; this hides the BlockMesh 3-D panel (and vice versa) to avoid the
+    WebEngine / VTK OpenGL context conflict.
+
+    Switch-to-xterm sequence (order matters for OpenGL safety):
+      1. mode_changed(True) fires → main_window shuts down VTK synchronously.
+      2. 400 ms timer fires → XtermTerminalWidget is created (WebEngine starts).
+    Switch-to-simple sequence:
+      1. XtermTerminalWidget is cleaned up and deleted.
+      2. SimpleTerminalWidget takes its place.
+      3. mode_changed(False) fires → main_window re-inits VTK after 300 ms.
     """
+
+    # True = switched to xterm (BlockMesh should hide); False = back to Simple
+    mode_changed = Signal(bool)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._cwd: str | None = None
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        self._xterm_chk = QCheckBox("xterm terminal  (hides BlockMesh 3-D panel)")
+        self._xterm_chk.setEnabled(_XTERM_AVAILABLE)
+        if not _XTERM_AVAILABLE:
+            self._xterm_chk.setToolTip("Not available: QtWebEngine / PTY not installed")
 
+        self._body = QVBoxLayout()
+        self._body.setContentsMargins(0, 0, 0, 0)
+
+        # Default to xterm when available; bypass the timer-delayed toggle path
+        # by constructing the widget directly and setting the checkbox silently.
         if _XTERM_AVAILABLE:
+            self._use_xterm = True
+            self._xterm_chk.blockSignals(True)
+            self._xterm_chk.setChecked(True)
+            self._xterm_chk.blockSignals(False)
             self._widget: QWidget = XtermTerminalWidget(self)
         else:
+            self._use_xterm = False
             self._widget = SimpleTerminalWidget(self)
+        self._body.addWidget(self._widget)
 
-        layout.addWidget(self._widget)
+        self._xterm_chk.toggled.connect(self._on_toggle)
+
+        header = QHBoxLayout()
+        header.setContentsMargins(4, 2, 4, 0)
+        header.addWidget(self._xterm_chk)
+        header.addStretch()
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+        root.addLayout(header)
+        root.addLayout(self._body, 1)
+
+    @property
+    def use_xterm(self) -> bool:
+        return self._use_xterm
 
     @property
     def tab_label(self) -> str:
-        return "Terminal" if _XTERM_AVAILABLE else "Terminal (Simple)"
+        return "Terminal"
+
+    def cleanup(self) -> None:
+        cleanup = getattr(self._widget, "cleanup", None)
+        if callable(cleanup):
+            cleanup()
 
     def set_working_directory(self, path: str) -> None:
-        """Change the terminal's working directory to path."""
+        self._cwd = path
         self._widget.set_working_directory(path)  # type: ignore[union-attr]
+
+    # ── private ───────────────────────────────────────────────────────────────
+
+    def _on_toggle(self, checked: bool) -> None:
+        from PySide6.QtCore import QTimer
+        if checked:
+            # Disable checkbox during transition to prevent double-clicks.
+            self._xterm_chk.setEnabled(False)
+            # Step 1: tell main_window to shut down VTK (synchronous signal).
+            self.mode_changed.emit(True)
+            # Step 2: wait for VTK's OpenGL context to fully release, then
+            # create WebEngine.  400 ms is conservative; one event-loop tick
+            # would suffice if deleteLater fires cleanly, but GPU teardown
+            # can be slower.
+            QTimer.singleShot(400, self._finish_switch_to_xterm)
+        else:
+            self._switch_to_simple()
+
+    def _finish_switch_to_xterm(self) -> None:
+        self._replace_widget(XtermTerminalWidget(self))
+        self._use_xterm = True
+        self._xterm_chk.setEnabled(True)
+
+    def _replace_widget(self, new_widget: QWidget) -> None:
+        self._body.removeWidget(self._widget)
+        cleanup = getattr(self._widget, "cleanup", None)
+        if callable(cleanup):
+            cleanup()
+        self._widget.deleteLater()
+        self._widget = new_widget
+        self._body.addWidget(self._widget)
+        if self._cwd:
+            self._widget.set_working_directory(self._cwd)  # type: ignore[union-attr]
+
+    def _switch_to_simple(self) -> None:
+        self._replace_widget(SimpleTerminalWidget(self))
+        self._use_xterm = False
+        # Tell main_window to re-add the BlockMesh tab and re-init VTK.
+        self.mode_changed.emit(False)
