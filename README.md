@@ -4,6 +4,8 @@ FoDE — Foam Dictionary Editor (pronounced "foh-dee")
 
 A GUI editor for OpenFOAM dictionary files, built with Python and PySide6.
 
+[Demo movie link at YouTube](https://youtu.be/L22fQW3NSUk)
+
 ## What is FoDE?
 
 FoDE is a graphical editor for OpenFOAM case dictionary files. It lets you browse, edit, and manage dictionaries through a structured tree view or a plain-text editor — whichever suits the task. It is aimed at engineers and researchers who run OpenFOAM simulations and want a more convenient way to set up and modify case files.
