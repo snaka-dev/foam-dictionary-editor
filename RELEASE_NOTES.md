@@ -1,6 +1,6 @@
 # Release Notes
 
-## v1.2.0 — 2026-05-30
+## Unreleased
 
 ### New features
 
@@ -11,28 +11,18 @@
   - **Copy as CSV** — RFC 4180-compliant CSV; multi-line cell content is preserved inside quoted fields for correct display in Excel and LibreOffice Calc.
 - Both formats include the row-header column and respect the current transposed orientation.
 
-**Case comparison — Side-by-side view**
-
-- **Side by side** toggle in the diff bar splits the centre panel horizontally: the left pane shows the editable current-case tree and a new **Reference** pane opens on the right with the corresponding file in read-only form.
-- Reference tree uses **light green** for keys that exist only in the reference case.
-- Right-click any leaf node in the reference pane and select **Use this value** to apply that value to the matching node in the current case instantly. Diff highlighting updates automatically after the change.
-- **Changed files only** checkbox in the file list: hides files with zero differences, leaving only files that differ from the reference case.
-- Diff markers (`≠N` / `≠0`) are now computed immediately for all files when comparison starts, rather than lazily as each file is opened.
-
 ### Improvements
 
 **BlockMesh panel**
 
-- Toolbar compacted into a single row.
-- Load and overlay OBJ geometry files in addition to STL (`Load STL / OBJ…` / `Clear STL`).
+- Toolbar compacted into a single row; 
+- Load and overlay OBJ geometry files (`Load STL…` / `Clear STL`).
 
 **File list**
-
-- Extra-files button is now always visible (shows the count of registered extras when any are active).
+- Extra-files button is now always visible.
 
 **Case comparison**
-
-- The diff bar now shows a **Side by side** toggle and a colour legend alongside the reference path.
+- side-by-side comparison.
 
 ---
 

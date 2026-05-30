@@ -25,10 +25,7 @@ class _BoundaryOpsMixin:
     def _available_field_dirs(self) -> list[str]:
         if not self.current_case_dir:
             return []
-        candidates = list(FIELD_DIRS)
-        if self._case_files_config:
-            candidates.extend(p for p, _ in self._case_files_config.get_extra_dirs())
-        return [d for d in candidates if (Path(self.current_case_dir) / d).is_dir()]
+        return [d for d in FIELD_DIRS if (Path(self.current_case_dir) / d).is_dir()]
 
     def _cache_parsed_root(self, path: str) -> FoamNode | None:
         text = self.file_buffers.get(path)

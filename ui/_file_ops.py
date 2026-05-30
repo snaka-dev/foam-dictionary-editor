@@ -6,6 +6,7 @@ import re
 import shutil
 from pathlib import Path
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QDialog,
     QInputDialog,
@@ -49,7 +50,7 @@ class _FileOpsMixin:
         self._clear_current_file()
         if self.terminal_panel is not None:
             self.terminal_panel.set_working_directory(directory)
-        self._reload_boundary_panel()
+        QTimer.singleShot(0, self._reload_boundary_panel)
 
     def _reload_file_list(self) -> None:
         if not self.current_case_dir or not self._case_files_config:
