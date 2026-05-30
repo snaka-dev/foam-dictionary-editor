@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
-from foam.diff import diff_trees
+from foam.diff import diff_trees, diff_trees_reverse
 from foam.nodes import FoamNode
 
 
@@ -160,3 +160,48 @@ def test_field_value_block_only_here():
     b = _dict("root", [b_block])
     result = diff_trees(a, b)
     assert result[fv_a] == ("only_here", None)
+
+
+# ── diff_trees_reverse ────────────────────────────────────────────────────────
+
+def test_reverse_identical_trees_empty():
+    a = _dict("root", [_leaf("k", "scalar", 1.0)])
+    b = _dict("root", [_leaf("k", "scalar", 1.0)])
+    assert diff_trees_reverse(b, a) == {}
+
+
+def test_reverse_annotates_nodes_in_b():
+    """Keys only in b (not in a) appear as 'only_here' on b's nodes."""
+    b_k = _leaf("extra", "word", "yes")
+    a = _dict("root", [])
+    b = _dict("root", [b_k])
+    result = diff_trees_reverse(b, a)
+    assert b_k in result
+    assert result[b_k] == ("only_here", None)
+
+
+def test_reverse_changed_values_annotated_on_b():
+    a_k = _leaf("k", "scalar", 1.0)
+    b_k = _leaf("k", "scalar", 2.0)
+    a = _dict("root", [a_k])
+    b = _dict("root", [b_k])
+    result = diff_trees_reverse(b, a)
+    assert result[b_k] == ("changed", a_k)
+
+
+def test_reverse_key_only_in_a_not_annotated():
+    """Keys only in a do not appear in the reverse diff (b is the subject)."""
+    a_k = _leaf("extra", "word", "yes")
+    a = _dict("root", [a_k])
+    b = _dict("root", [])
+    result = diff_trees_reverse(b, a)
+    assert a_k not in result
+    assert result == {}
+
+
+def test_reverse_is_equivalent_to_swapped_diff_trees():
+    a_k = _leaf("x", "scalar", 1.0)
+    b_k = _leaf("x", "scalar", 2.0)
+    a = _dict("root", [a_k, _leaf("only_a", "word", "v")])
+    b = _dict("root", [b_k, _leaf("only_b", "word", "v")])
+    assert diff_trees_reverse(b, a) == diff_trees(b, a)

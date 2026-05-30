@@ -450,3 +450,65 @@ defaultFieldValues
     assert "alpha.water" in tooltip
     assert "volScalarFieldValue" in tooltip
     assert "0" in tooltip
+
+
+# ── set_diff(reverse=True) ────────────────────────────────────────────────────
+
+def _make_diff_model():
+    """Return a FoamTreeModel with one scalar leaf and one helper for building diffs."""
+    from foam.nodes import FoamNode
+    node = FoamNode(name="k", node_type="scalar", value=1.0)
+    root = FoamNode(name="root", node_type="dictionary")
+    root.children.append(node)
+    node.parent = root
+    model = FoamTreeModel(root)
+    return model, node, root
+
+
+def test_set_diff_reverse_remaps_only_here_to_only_in_ref():
+    """reverse=True turns 'only_here' into 'only_in_ref' in the stored diff."""
+    from foam.nodes import FoamNode
+    model, node, _ = _make_diff_model()
+    diff = {node: ("only_here", None)}
+    model.set_diff(diff, reverse=True)
+    assert model._diff[node][0] == "only_in_ref"
+
+
+def test_set_diff_reverse_leaves_changed_unchanged():
+    """reverse=True does not alter 'changed' entries."""
+    from foam.nodes import FoamNode
+    model, node, _ = _make_diff_model()
+    ref_node = FoamNode(name="k", node_type="scalar", value=2.0)
+    diff = {node: ("changed", ref_node)}
+    model.set_diff(diff, reverse=True)
+    assert model._diff[node] == ("changed", ref_node)
+
+
+def test_set_diff_reverse_background_green_for_only_in_ref():
+    """BackgroundRole returns the light-green colour for 'only_in_ref' nodes."""
+    from PySide6.QtGui import QColor
+    model, node, _ = _make_diff_model()
+    diff = {node: ("only_here", None)}
+    model.set_diff(diff, reverse=True)
+    idx = model.index(0, 0)
+    brush = model.data(idx, Qt.BackgroundRole)
+    assert brush is not None
+    assert brush.color() == QColor("#E8F5E9")
+
+
+def test_set_diff_no_reverse_keeps_only_here():
+    """Without reverse=True, 'only_here' is stored unchanged."""
+    model, node, _ = _make_diff_model()
+    diff = {node: ("only_here", None)}
+    model.set_diff(diff)
+    assert model._diff[node][0] == "only_here"
+
+
+def test_set_diff_reverse_tooltip_only_in_ref():
+    """ToolTipRole includes '(only in reference case)' for only_in_ref nodes."""
+    model, node, _ = _make_diff_model()
+    diff = {node: ("only_here", None)}
+    model.set_diff(diff, reverse=True)
+    idx = model.index(0, 0)
+    tip = model.data(idx, Qt.ToolTipRole)
+    assert "only in reference case" in tip

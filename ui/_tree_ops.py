@@ -254,6 +254,71 @@ class _TreeOpsMixin:
             self.tree.scrollTo(proxy_index)
         self._after_model_edit()
 
+    # ── comparison panel ─────────────────────────────────────────────────────
+
+    def _apply_comparison_value(self, b_node: FoamNode) -> None:
+        """Apply a leaf value from the reference case tree to the current tree."""
+        # Build key path: walk b_node up to root (parent is None).
+        path: list[str] = []
+        current = b_node
+        while current is not None and current.parent is not None:
+            if current.name:
+                path.append(current.name)
+            current = current.parent
+        path.reverse()
+
+        if not path:
+            return
+
+        parent_path, leaf_key = path[:-1], path[-1]
+
+        # Walk to the parent dictionary in the current tree.
+        parent_node = self.current_root
+        for key in parent_path:
+            found = next((c for c in parent_node.children if c.name == key), None)
+            if found is None:
+                self.statusBar().showMessage(
+                    f"Cannot apply: '{'/'.join(parent_path)}' not found in current case",
+                    _STATUS_WARNING,
+                )
+                return
+            parent_node = found
+
+        existing = next((c for c in parent_node.children if c.name == leaf_key), None)
+
+        if existing is not None:
+            # Overwrite type and value directly to handle cross-type changes.
+            existing.node_type = b_node.node_type
+            existing.value = (
+                copy.deepcopy(b_node.value)
+                if isinstance(b_node.value, (list, dict))
+                else b_node.value
+            )
+            existing.modified = True
+            src_idx = self.current_model._index_of_node(existing)
+            row_start = self.current_model.index(src_idx.row(), 0, src_idx.parent())
+            row_end = self.current_model.index(
+                src_idx.row(), FoamTreeModel.COL_VALUE, src_idx.parent()
+            )
+            self.current_model.dataChanged.emit(
+                row_start, row_end, [Qt.DisplayRole, Qt.EditRole]
+            )
+            msg = f"Applied '{leaf_key}' from reference case"
+        else:
+            new_node = copy.deepcopy(b_node)
+            new_node.modified = True
+            self._mark_parent_modified(parent_node)
+            position = len(parent_node.children)
+            src_idx = self.current_model.insert_node(parent_node, position, new_node)
+            proxy_idx = self._to_proxy(src_idx)
+            self.tree.setCurrentIndex(proxy_idx)
+            self.tree.scrollTo(proxy_idx)
+            msg = f"Inserted '{leaf_key}' from reference case"
+
+        self._after_model_edit()
+        self._recompute_diff()
+        self.statusBar().showMessage(msg, _STATUS_SHORT)
+
     # ── helpers ───────────────────────────────────────────────────────────────
 
     def _node_indent(self, node: FoamNode) -> int:

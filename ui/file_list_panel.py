@@ -7,6 +7,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
+    QCheckBox,
     QListWidget,
     QListWidgetItem,
     QMenu,
@@ -112,6 +113,7 @@ class FileListPanel(QWidget):
         super().__init__(parent)
         self._case_dir: str | None = None
         self._extra_dir_set: set[str] = set()
+        self._show_changed_only = False
 
         self._extra_btn = QPushButton()
         self._extra_btn.setFlat(True)
@@ -124,6 +126,10 @@ class FileListPanel(QWidget):
         self._extra_btn.setVisible(False)
         self._extra_btn.clicked.connect(self.manage_extra_files_requested)
 
+        self._changed_only_cb = QCheckBox("Changed files only")
+        self._changed_only_cb.setVisible(False)
+        self._changed_only_cb.toggled.connect(self._on_filter_changed)
+
         self._list = QListWidget()
         self._list.setAlternatingRowColors(False)
         self._list.setUniformItemSizes(True)
@@ -135,6 +141,7 @@ class FileListPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self._extra_btn)
+        layout.addWidget(self._changed_only_cb)
         layout.addWidget(self._list)
 
     def load_files(
@@ -190,6 +197,7 @@ class FileListPanel(QWidget):
 
     def clear(self) -> None:
         self._list.clear()
+        self._case_dir = None
         self._extra_dir_set = set()
         self._update_extra_indicator(0, 0)
 
@@ -213,6 +221,8 @@ class FileListPanel(QWidget):
             return
         item.setData(_DIFF_COUNT_ROLE, count)
         self._refresh_item(item, path)
+        if self._show_changed_only:
+            item.setHidden(count == 0)
 
     def clear_diff_marks(self) -> None:
         for i in range(self._list.count()):
@@ -221,6 +231,33 @@ class FileListPanel(QWidget):
             if path and item.data(_DIFF_COUNT_ROLE) is not None:
                 item.setData(_DIFF_COUNT_ROLE, None)
                 self._refresh_item(item, path)
+
+    def set_diff_filter_enabled(self, enabled: bool) -> None:
+        self._changed_only_cb.setVisible(enabled)
+        if not enabled:
+            self._changed_only_cb.setChecked(False)
+            self._show_changed_only = False
+            self._apply_diff_filter()
+
+    def _on_filter_changed(self, checked: bool) -> None:
+        self._show_changed_only = checked
+        self._apply_diff_filter()
+
+    def _apply_diff_filter(self) -> None:
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            if not self._show_changed_only:
+                item.setHidden(False)
+                continue
+            # Headers and non-file items are always shown.
+            if item.data(_HEADER_GROUP_ROLE) is not None:
+                item.setHidden(False)
+                continue
+            if item.data(Qt.UserRole) is None:
+                item.setHidden(False)
+                continue
+            count = item.data(_DIFF_COUNT_ROLE)
+            item.setHidden(count is None or count == 0)
 
     def _refresh_item(self, item: "QListWidgetItem", path: str) -> None:
         dirty = bool(item.data(_DIRTY_ROLE))
@@ -256,14 +293,17 @@ class FileListPanel(QWidget):
 
     def _update_extra_indicator(self, file_count: int, dir_count: int) -> None:
         if file_count == 0 and dir_count == 0:
-            self._extra_btn.setVisible(False)
-            return
-        parts = []
-        if file_count:
-            parts.append(f"files: {file_count}")
-        if dir_count:
-            parts.append(f"directories: {dir_count}")
-        self._extra_btn.setText("Extra " + ", ".join(parts) + "  —  Manage…")
+            if self._case_dir is None:
+                self._extra_btn.setVisible(False)
+                return
+            self._extra_btn.setText("Manage extra files…")
+        else:
+            parts = []
+            if file_count:
+                parts.append(f"files: {file_count}")
+            if dir_count:
+                parts.append(f"directories: {dir_count}")
+            self._extra_btn.setText("Extra " + ", ".join(parts) + "  —  Manage…")
         self._extra_btn.setVisible(True)
 
     def _on_selection_changed(self) -> None:

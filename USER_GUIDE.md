@@ -79,6 +79,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
   - [Creating a patch entry](#creating-a-patch-entry)
   - [Deleting a patch entry](#deleting-a-patch-entry)
   - [Copy and paste](#copy-and-paste)
+  - [Copy Table](#copy-table)
   - [Renaming a boundary patch](#renaming-a-boundary-patch)
   - [Deleting a boundary condition across all field files](#deleting-a-boundary-condition-across-all-field-files)
   - [Adding a boundary condition across all field files](#adding-a-boundary-condition-across-all-field-files)
@@ -128,7 +129,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 - Duplicate any file in the file list via right-click; a dialog prompts for a new name and the `object` field in the FoamFile header is updated automatically to the new name. If the source file has unsaved changes, the application asks whether to save first or duplicate with the unsaved state.
 - Duplicate the `0/` or `0.orig/` directory to create the missing counterpart via right-click on the group header (shown only when exactly one of the two directories exists).
 - Delete the `0/` directory from disk via right-click on the `0` group header. Shown only when `0.orig` exists. A confirmation dialog shows the full path; any open files inside `0/` are closed and the deletion cannot be undone.
-- View all boundary conditions across field variables at a glance in the **Boundary** tab. Rows are field files and columns are patches by default; a **Transpose** checkbox swaps the orientation. Double-click a cell to edit its content, or to create a new entry for a `–` cell. Right-click any cell to edit, create, delete, copy, paste, or rename a boundary condition. Right-click a patch column/row header to rename, delete, or add a boundary condition across all field files.
+- View all boundary conditions across field variables at a glance in the **Boundary** tab. Rows are field files and columns are patches by default; a **Transpose** checkbox swaps the orientation. Double-click a cell to edit its content, or to create a new entry for a `–` cell. Right-click any cell to edit, create, delete, copy, paste, or rename a boundary condition. Right-click a patch column/row header to rename, delete, or add a boundary condition across all field files. Use the **Copy Table** button to copy the entire table to the clipboard as Markdown or CSV.
 - Show the parsed dictionary structure in a tree view. Filter visible keys by typing in the **filter bar** above the tree; matching is case-insensitive and recursive (parent nodes remain visible when a descendant matches).
 - Highlight `unknown_raw_entry` nodes (entries the parser could not fully interpret) in amber so they stand out from normal entries.
 - Indicate the presence of numeric time directories (OpenFOAM calculation results such as `0.5`, `1`, `10`) with a bold **Results: …** row at the bottom of the file list. The indicator shows up to six directory names and notes the total count when more exist. Hovering shows the full count and range. Right-clicking the indicator offers a submenu to add any listed directory to the file list as an extra directory.
@@ -351,12 +352,12 @@ Files created or duplicated inside an extra directory are not added to the extra
 
 ### Extra files and directories indicator
 
-When extra files or directories are registered for the current case, a button appears at the top of the file list panel showing the count (e.g. **Extra files: 2, directories: 1 — Manage…**). Clicking it opens the **Manage Extra Files & Directories** dialog, which has two tabs.
+A **Manage extra files…** button is always shown at the top of the file list panel when a case is loaded. When extra files or directories are registered it shows the count instead (e.g. **Extra files: 2, directories: 1 — Manage…**). Clicking it opens the **Manage Extra Files & Directories** dialog, which has two tabs.
 
 - **Extra Files** — lists all individually registered extra files. Select one or more and click **Remove Selected** to remove them.
 - **Extra Directories** — lists all registered extra directories. Entries with recursive scanning enabled are shown as `<dir>  [recursive]`. Click **Add Directory…** to add a new one (flat by default). Check one or more entries and click **Toggle Recursive** to flip their scan mode, or **Remove Selected** to remove them.
 
-Changes take effect immediately when the dialog is closed. When neither extra files nor extra directories are registered the indicator is hidden.
+Changes take effect immediately when the dialog is closed.
 
 ### Removing extra files and directories
 
@@ -497,6 +498,15 @@ Right-click a cell with a defined patch and select **Delete Entry** to remove th
 
 Right-click any cell with a defined patch and select **Copy** to store that patch's full content in an internal clipboard. Then right-click any other cell (including `–` cells) and select **Paste** to apply the copied content. Pasting into a `–` cell creates the entry; pasting into an existing cell replaces its content. The clipboard persists within the application session.
 
+### Copy Table
+
+Click the **Copy Table** button in the panel toolbar to copy the entire boundary condition table to the system clipboard. A drop-down menu offers two formats:
+
+- **Copy as Markdown** — produces a pipe-delimited Markdown table with field variable names as row headers and patch names as column headers (or the transposed equivalent). Multi-line cells (when **Lines per cell** is above 1) use `<br>` tags, which render as real line breaks in GitHub-Flavored Markdown.
+- **Copy as CSV** — produces an RFC 4180-compliant CSV. Multi-line cell content is preserved inside quoted fields and displays correctly in spreadsheet applications (Excel, LibreOffice Calc).
+
+Both formats include the row header column (field variable names or patch names, depending on the current orientation). The `–` marker is preserved as-is.
+
 ### Renaming a boundary patch
 
 Right-click a cell, a patch column header (non-transposed view), or a patch row header (transposed view) and select **Rename Boundary...**. The same action is available by right-clicking a `boundary_entry` node or a patch `dictionary` node inside `boundaryField` in the tree view.
@@ -537,17 +547,11 @@ The panel is updated automatically whenever `blockMeshDict` is loaded or edited.
 
 | Control | Description |
 |---|---|
-| **Vertices** | Show mesh vertices as red spheres. |
-| **Vertex labels** | Overlay vertex index numbers. |
-| **Block edges** | Show hex block edges as a wireframe. |
-| **Block labels** | Overlay the block index number at the centroid of each hex block. |
-| **Color blocks** | Color each hex block with a distinct colour from a qualitative palette (tab10). Applies to both wireframe edges and solid faces. |
-| **Solid blocks** | Render semi-transparent solid hex block faces (opacity 0.25) in addition to the wireframe. Shares the color setting with **Color blocks**. |
+| **Vertices ▾** | Drop-down menu with three checkable items: **Vertices** (show vertices as red spheres), **Vertex labels** (overlay vertex index numbers), **Vertices table** (show or hide the vertex coordinate table on the right). |
+| **Blocks ▾** | Drop-down menu with four checkable items: **Block edges** (wireframe), **Block labels** (index at centroid), **Color blocks** (distinct colour per block from the tab10 palette), **Solid blocks** (semi-transparent solid faces at opacity 0.25, shares colour with Color blocks). |
 | **Boundary faces** | Show boundary patch faces, colour-coded by type. |
-| **Vertices table** | Show or hide the vertices coordinate table on the right of the panel. |
 | **Refresh** | Re-extract geometry from the current tree and redraw. |
-| **Load STL…** | Load an STL file and display it as a translucent grey overlay. Multiple files can be loaded. |
-| **Clear STL** | Remove all loaded STL overlays. |
+| **STL ▾** | Drop-down menu: **Load STL / OBJ…** loads an STL or OBJ file and displays it as a translucent grey overlay (multiple files can be loaded); **Clear STL** removes all loaded overlays (greyed out when none are loaded). |
 
 ### Boundary face colours
 
@@ -571,15 +575,13 @@ A scrollable table on the right side of the panel lists every vertex from the `v
 - **Double-click an X, Y, or Z cell** to edit the coordinate value inline. Entering a non-numeric value cancels the edit and restores the previous value. After a valid commit the FoamNode tree and text editor are updated immediately and the file is marked dirty. Click **Refresh** to update the 3-D view with the new coordinates.
 - The **#** index column is read-only. Reordering vertices would silently break all `hex` and `faces` index references.
 - For meshes with more than 500 vertices only the first 500 rows are shown, with a truncation notice at the bottom.
-- The **Vertices table** checkbox in the first toolbar row collapses the table pane entirely, giving more space to the 3-D view.
+- The **Vertices table** item in the **Vertices ▾** menu collapses the table pane entirely, giving more space to the 3-D view.
 
-### Scale info and label controls (second toolbar row)
+### Scale and label controls (second toolbar row)
 
 | Control | Description |
 |---|---|
-| **Axes** | Corner XYZ orientation arrows widget. |
-| **Grid** | Coordinate grid with tick labels at model coordinates. |
-| **Dimensions** | Wireframe bounding box and an overlay showing X/Y/Z extents and, when `convertToMeters` or `scale` is not 1, the scale factor. |
+| **Scale ▾** | Drop-down menu with three checkable items: **Axes** (corner XYZ orientation arrows), **Grid** (coordinate grid with tick labels), **Dimensions** (wireframe bounding box and X/Y/Z extents overlay; also shows the scale factor when `convertToMeters` or `scale` is not 1). |
 | **Label size** | Spin box (range 6–32, default 10) that sets the font size for both vertex labels and block labels simultaneously. |
 | **View: +X −X +Y −Y +Z −Z Iso** | Snap the camera to a standard direction. **+X** looks from the +X side toward the origin (shows the YZ plane), **−X** from the opposite side, and so on for Y and Z. **Iso** uses an isometric view. |
 
@@ -905,21 +907,44 @@ To duplicate a case from a reference directory rather than the currently open ca
 
 Select **Case > Compare with Case...** to pick a reference case directory and compare it against the currently open case.
 
-Once a reference is selected, a diff bar appears below the action bar. It shows a colour legend, the reference case name and full path, and a **Clear** button to exit compare mode.
+Once a reference is selected, a diff bar appears below the action bar. It shows a colour legend, the reference case name and full path, a **Side by side** toggle, and a **Clear** button to exit compare mode.
+
+### Side-by-side view
+
+When a reference case is selected the centre panel splits horizontally: the left pane shows the current case's editable tree as usual, and a new **Reference** pane opens on the right showing the corresponding file from the reference case in a read-only tree. A green header bar at the top of the reference pane displays the reference case name.
+
+Both trees are annotated with the same colour scheme (see [Tree overlay](#tree-overlay) below). The reference pane additionally uses **light green** for keys that exist only in the reference case but are absent from the current file.
+
+**Applying a value from the reference case:**  
+Right-click any leaf node in the reference pane and select **Use this value**. The value is applied to the matching node in the current case's tree immediately (or inserted if the key is absent). The diff highlighting updates automatically after the change.
+
+**Toggling side-by-side:**  
+Check or uncheck **Side by side** in the diff bar to show or hide the reference pane without leaving compare mode. The current case's tree always remains visible and editable.
 
 ### Tree overlay
 
-While compare mode is active, the tree view annotates rows with a background colour showing how the open file differs from the corresponding file in the reference case (`<relative path>` is resolved relative to each case root).
+While compare mode is active, both the main tree and the reference tree annotate rows with background colours.
+
+**Current case tree (left):**
 
 | Background | Meaning |
 |---|---|
 | Light yellow | Key exists in both cases; value or type differs. |
 | Light blue | Key exists in this case but is absent in the reference. |
-| No colour | Key is identical, or the node type is not compared (see below). |
+| No colour | Key is identical, or the node type is not compared. |
 
-Hovering over a highlighted row shows the reference value appended to the tooltip:
-- **Changed** rows end with `Ref: <value>`, where `<value>` is formatted exactly like the Value column of the reference node.
-- **Only here** rows end with `(not in reference case)`.
+**Reference tree (right):**
+
+| Background | Meaning |
+|---|---|
+| Light yellow | Key exists in both cases; value or type differs. |
+| Light green | Key exists in the reference but is absent from the current file. |
+| No colour | Key is identical. |
+
+Hovering over a highlighted row shows a tooltip with additional context:
+- **Changed** rows: `Ref: <value>` showing the reference value (left pane), or the current-case value (right pane).
+- **Only in current** rows end with `(not in reference case)`.
+- **Only in reference** rows end with `(only in reference case)`.
 
 Comparison recurses into structural blocks (`dictionary`, `boundary_block`, `boundary_entry`, `region_block`, `region_entry`, `field_value_block`), matching children by key name. Positional list items (e.g. `vertices`, `blocks`) and anonymous nodes (`#include`, `$macro`) are not annotated.
 
@@ -927,18 +952,21 @@ If the corresponding file does not exist in the reference case, no overlay is ap
 
 ### File list markers
 
-The `≠` suffix is added to a file in the file list the first time it is opened while compare mode is active (lazy evaluation — no background scan). The marker updates automatically every time the file is reloaded or re-parsed.
+When a reference case is selected, diff counts are computed for all files immediately. The `≠` suffix and **Changed files only** filter are available right away without opening each file first.
 
 | Suffix | Colour | Meaning |
 |---|---|---|
-| *(none)* | — | Not yet visited in compare mode. |
-| `≠0` | Gray | Checked and identical to the reference. |
+| *(none)* | — | Not yet computed (only if file could not be parsed). |
+| `≠0` | Gray | Identical to the reference. |
 | `≠N` | Amber | N differences found. |
 | `≠50+` | Amber | More than 50 differences (display cap). |
 
+**Changed files only filter:**  
+A **Changed files only** checkbox appears in the file list panel while compare mode is active. When checked, files with zero differences are hidden, leaving only files that differ from the reference case. Uncheck to restore the full list. The filter is reset automatically when compare mode is cleared.
+
 ### Clearing compare mode
 
-Click **Clear** in the diff bar to exit compare mode. This removes all `≠` markers from the file list and all background highlights from the tree. Selecting **Case > Compare with Case...** again replaces the current reference with a new one.
+Click **Clear** in the diff bar to exit compare mode. This removes all `≠` markers from the file list, all background highlights from both trees, closes the reference pane, and hides the **Changed files only** filter. Selecting **Case > Compare with Case...** again replaces the current reference with a new one.
 
 ## Reloading a case
 

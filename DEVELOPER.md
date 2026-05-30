@@ -32,7 +32,7 @@ foam-dictionary-editor/
 │   └── defaults.py
 ├── foam/
 │   ├── block_mesh_extractor.py  # extracts vertices/blocks/boundary from blockMeshDict FoamNode tree; parse_vertices() is public
-│   ├── diff.py                  # diff_trees(a, b) — compares two FoamNode trees by key name; returns dict[FoamNode, tuple[str, FoamNode | None]]
+│   ├── diff.py                  # diff_trees(a, b) and diff_trees_reverse(b, a) — compare two FoamNode trees by key name; return dict[FoamNode, DiffEntry]
 │   ├── lexer.py
 │   ├── nodes.py
 │   ├── parser.py
@@ -59,7 +59,7 @@ foam-dictionary-editor/
 │   ├── _boundary_ops.py        # mixin: boundary view patch operations
 │   ├── _case_ops.py            # mixin: open/reload/duplicate/save-as case, settings
 │   ├── _file_ops.py            # mixin: per-file load/save/create/delete
-│   ├── _tree_ops.py            # mixin: tree mutations and editor↔tree sync
+│   ├── _tree_ops.py            # mixin: tree mutations, editor↔tree sync, and _apply_comparison_value
 │   ├── block_mesh_panel.py     # 3-D viewer for blockMeshDict (pyVista/VTK, lazy init)
 │   ├── add_files_dialog.py
 │   ├── case_library_dialog.py
@@ -68,10 +68,11 @@ foam-dictionary-editor/
 │   ├── detail_panel.py
 │   ├── duplicate_case_dialog.py
 │   ├── editor_panel.py
+│   ├── comparison_tree_panel.py  # read-only reference-case tree; emits use_value_requested(FoamNode)
 │   ├── file_list_panel.py
 │   ├── layout_constants.py
 │   ├── keyboard_shortcuts_dialog.py
-│   ├── main_window.py          # core: __init__, _build_ui and sub-builders, shared helpers
+│   ├── main_window.py          # core: __init__, _build_ui and sub-builders, shared helpers, diff/compare logic
 │   ├── manage_extra_files_dialog.py
 │   ├── rename_boundary_dialog.py  # Rename Boundary dialog + find_rename_targets() scanner
 │   ├── reset_settings_dialog.py
@@ -99,13 +100,14 @@ foam-dictionary-editor/
     ├── test_tree_color_lexer_dispatch.py
     ├── test_tree_copy_paste.py
     ├── test_rename_boundary.py
+    ├── test_comparison_tree_panel.py
     ├── test_diff.py
     ├── test_tree_model.py
     ├── test_utils.py
     └── test_writer_roundtrip.py
 ```
 
-`test_diff.py` covers `diff_trees` — identical trees, changed values, keys only in one tree, nested dictionaries, anonymous node skipping, and `field_value_block` entries. `FoamNode` carries `__hash__ = object.__hash__` so instances can be used as dict keys in the diff map. `test_case_loader.py` covers `detect_time_dirs` and `TestExtraDirs` — flat and recursive extra-directory scanning, missing-directory tolerance, and duplicate suppression. `test_case_files_config.py` covers `TestCaseFilesConfigDirs` — `DirEntry` add/remove/update-in-place, backward-compatible loading of plain-string JSON, and config reset. `test_file_list_panel.py` covers `_make_time_dirs_indicator` and the panel's time-dirs display; `test_main_window_split.py` verifies the mixin structure — that each mixin owns the right methods (including `_on_patch_selected` in `_BoundaryOpsMixin`), there are no cross-mixin duplicates, and `MainWindow` inherits from all four mixins; `test_bool_nonuniform.py` covers bool/nonuniform_list parsing and parser error collection; `test_tree_color_lexer_dispatch.py` covers `unknown_raw_entry` amber colouring, lexer `//` behaviour, and the parser `_PAREN_DISPATCH` table; `test_source_lines.py` covers `source_line` and `source_end_line` population for all node types; `test_parser_block_mesh_dict.py` covers `boundary_block`/`boundary_entry` structured parsing, round-trip writing, and `extract_block_mesh_data` output for `blockMeshDict`; `test_rename_boundary.py` covers `find_rename_targets()` — detection of `boundary_entry` nodes in `blockMeshDict`, `dictionary` patch nodes in `boundaryField` blocks, absence of false positives for unrelated dictionaries, and the empty-input edge cases.
+`test_diff.py` covers `diff_trees` and `diff_trees_reverse` — identical trees, changed values, keys only in one tree, nested dictionaries, anonymous node skipping, `field_value_block` entries, and symmetry between the two functions. `FoamNode` carries `__hash__ = object.__hash__` so instances can be used as dict keys in the diff map. `test_comparison_tree_panel.py` covers `ComparisonTreePanel` — `load` sets the header label, populates the proxy, collapses the FoamFile node, and re-applies the Type column visibility; `clear` resets model and header; `set_type_column_visible` hides/shows the Type column and persists across `load` calls; `use_value_requested` signal is connectable. `test_tree_model.py` covers `set_diff(reverse=True)` — remaps `"only_here"` to `"only_in_ref"`, leaves `"changed"` unchanged, returns the light-green `BackgroundRole` colour, and includes `"only in reference case"` in the tooltip. `test_file_list_panel.py` covers the diff filter: `set_diff_filter_enabled` shows/hides and unchecks the checkbox; the filter hides zero-diff file items while always showing headers; `mark_diff` updates item visibility immediately when the filter is active. `test_case_loader.py` covers `detect_time_dirs` and `TestExtraDirs` — flat and recursive extra-directory scanning, missing-directory tolerance, and duplicate suppression. `test_case_files_config.py` covers `TestCaseFilesConfigDirs` — `DirEntry` add/remove/update-in-place, backward-compatible loading of plain-string JSON, and config reset. `test_main_window_split.py` verifies the mixin structure — that each mixin owns the right methods (including `_on_patch_selected` in `_BoundaryOpsMixin` and `_apply_comparison_value` in `_TreeOpsMixin`), there are no cross-mixin duplicates, and `MainWindow` inherits from all four mixins; `test_bool_nonuniform.py` covers bool/nonuniform_list parsing and parser error collection; `test_tree_color_lexer_dispatch.py` covers `unknown_raw_entry` amber colouring, lexer `//` behaviour, and the parser `_PAREN_DISPATCH` table; `test_source_lines.py` covers `source_line` and `source_end_line` population for all node types; `test_parser_block_mesh_dict.py` covers `boundary_block`/`boundary_entry` structured parsing, round-trip writing, and `extract_block_mesh_data` output for `blockMeshDict`; `test_rename_boundary.py` covers `find_rename_targets()` — detection of `boundary_entry` nodes in `blockMeshDict`, `dictionary` patch nodes in `boundaryField` blocks, absence of false positives for unrelated dictionaries, and the empty-input edge cases.
 
 ## Extra directories
 
@@ -140,6 +142,8 @@ Clicking a cell in the Boundary panel emits `patch_selected(path, patch_name)`, 
 If the clicked cell's file differs from `current_file`, `_on_patch_selected` calls `load_selected_file(path)` first (which sets `current_file`), then `file_list_panel.select_file(path)` to sync the file-list highlight. The re-entrant `load_selected_file` triggered by the resulting `file_selected` signal is a no-op because `current_file` is already set.
 
 The **Auto-scroll editor** checkbox in the Boundary panel toolbar gates the `patch_selected` emission in `_on_cell_clicked`; when unchecked, single-click has no editor effect.
+
+`BoundaryViewPanel._table_data()` extracts `(col_headers, row_headers, rows)` from the current `QTableWidget` state. `_copy_as_markdown()` builds a GitHub-Flavored Markdown pipe table from this data and writes it to the system clipboard; `\n` in cell text becomes `<br>`. `_copy_as_csv()` writes RFC 4180 CSV; multiline cell content is preserved inside quoted fields. Both methods respect the current transposed orientation because they read from the already-rendered table.
 
 ## Setup
 

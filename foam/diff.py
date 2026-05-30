@@ -14,6 +14,15 @@ _RECURSE_TYPES = frozenset({
 DiffEntry = tuple[str, "FoamNode | None"]
 
 
+def diff_trees_reverse(b: FoamNode, a: FoamNode) -> dict[FoamNode, DiffEntry]:
+    """Like diff_trees but annotates nodes in *b* relative to *a*.
+
+    Used to colour the reference-case pane: nodes in *b* absent from *a* are
+    ``"only_here"`` (shown green); nodes with differing values are ``"changed"``.
+    """
+    return diff_trees(b, a)
+
+
 def diff_trees(a: FoamNode, b: FoamNode) -> dict[FoamNode, DiffEntry]:
     """Compare tree *a* against reference tree *b*.
 

@@ -6,6 +6,9 @@
 # foam dictionary editor settings for user
 app_config.json
 
+#Python environment
+venv/
+
 # Python interpreter to store compiled bytecode files (.pyc files)
 __pycache__/
 *.pyc

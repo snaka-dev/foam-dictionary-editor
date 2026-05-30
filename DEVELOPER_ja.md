@@ -32,7 +32,7 @@ foam-dictionary-editor/
 │   └── defaults.py
 ├── foam/
 │   ├── block_mesh_extractor.py  # blockMeshDict の FoamNode ツリーから頂点・ブロック・境界を抽出。parse_vertices() はパブリック API
-│   ├── diff.py                  # diff_trees(a, b) — キー名で 2 つの FoamNode ツリーを比較し dict[FoamNode, tuple[str, FoamNode | None]] を返す
+│   ├── diff.py                  # diff_trees(a, b) と diff_trees_reverse(b, a) — キー名で 2 つの FoamNode ツリーを比較し dict[FoamNode, DiffEntry] を返す
 │   ├── lexer.py
 │   ├── nodes.py
 │   ├── parser.py
@@ -59,7 +59,7 @@ foam-dictionary-editor/
 │   ├── _boundary_ops.py        # Mixin: バウンダリビューのパッチ操作
 │   ├── _case_ops.py            # Mixin: ケースの開く・再読み込み・複製・名前を付けて保存・設定
 │   ├── _file_ops.py            # Mixin: ファイルの読み込み・保存・作成・削除
-│   ├── _tree_ops.py            # Mixin: ツリー編集とエディタ↔ツリー同期
+│   ├── _tree_ops.py            # Mixin: ツリー編集、エディタ↔ツリー同期、_apply_comparison_value
 │   ├── block_mesh_panel.py     # blockMeshDict 用 3D ビューア（pyVista/VTK、遅延初期化）
 │   ├── add_files_dialog.py
 │   ├── case_library_dialog.py
@@ -67,11 +67,12 @@ foam-dictionary-editor/
 │   ├── code_editor.py
 │   ├── detail_panel.py
 │   ├── duplicate_case_dialog.py
+│   ├── comparison_tree_panel.py  # 読み取り専用の参照ケースツリー。use_value_requested(FoamNode) シグナルを発行
 │   ├── editor_panel.py
 │   ├── file_list_panel.py
 │   ├── layout_constants.py
 │   ├── keyboard_shortcuts_dialog.py
-│   ├── main_window.py          # コア: __init__、_build_ui とサブビルダー、共通ヘルパー
+│   ├── main_window.py          # コア: __init__、_build_ui とサブビルダー、共通ヘルパー、diff/compare ロジック
 │   ├── manage_extra_files_dialog.py
 │   ├── rename_boundary_dialog.py  # Rename Boundary ダイアログ + find_rename_targets() スキャナ
 │   ├── reset_settings_dialog.py
@@ -99,13 +100,14 @@ foam-dictionary-editor/
     ├── test_tree_color_lexer_dispatch.py
     ├── test_tree_copy_paste.py
     ├── test_rename_boundary.py
+    ├── test_comparison_tree_panel.py
     ├── test_diff.py
     ├── test_tree_model.py
     ├── test_utils.py
     └── test_writer_roundtrip.py
 ```
 
-`test_diff.py` は `diff_trees` を検証します（同一ツリー、値の変更、片方のみに存在するキー、ネストした辞書、匿名ノードのスキップ、`field_value_block` エントリを含む）。`FoamNode` は `__hash__ = object.__hash__` を持ち、差分マップのキーとして使用可能です。`test_case_loader.py` は `detect_time_dirs` と `TestExtraDirs`（フラット・再帰スキャン、存在しないディレクトリの許容、重複排除）を検証します。`test_case_files_config.py` は `TestCaseFilesConfigDirs`（`DirEntry` の追加・削除・インプレース更新、プレーン文字列 JSON の後方互換ロード、設定リセット）を検証します。`test_file_list_panel.py` は `_make_time_dirs_indicator` とパネルの時刻ディレクトリ表示を検証します。`test_main_window_split.py` は Mixin 構造を検証します（各 Mixin が正しいメソッドを保有し（`_BoundaryOpsMixin` の `_on_patch_selected` を含む）、Mixin 間の重複がなく、`MainWindow` が 4 つすべての Mixin を継承していることを確認します）。`test_bool_nonuniform.py` は bool/nonuniform_list のパースとパースエラー収集を検証します。`test_tree_color_lexer_dispatch.py` は `unknown_raw_entry` の琥珀色表示、レキサーの `//` 挙動、パーサの `_PAREN_DISPATCH` テーブルを検証します。`test_source_lines.py` はすべてのノード型に対する `source_line` および `source_end_line` の設定を検証します。`test_parser_block_mesh_dict.py` は `boundary_block`/`boundary_entry` の構造的パース、ライタの round-trip、および `blockMeshDict` に対する `extract_block_mesh_data` の出力を検証します。`test_rename_boundary.py` は `find_rename_targets()` を検証します（`blockMeshDict` 内の `boundary_entry` ノードおよび `boundaryField` ブロック内のパッチ `dictionary` ノードの検出、無関係な辞書への誤検出なし、空入力のエッジケースを含む）。
+`test_diff.py` は `diff_trees` と `diff_trees_reverse` を検証します（同一ツリー、値の変更、片方のみに存在するキー、ネストした辞書、匿名ノードのスキップ、`field_value_block` エントリ、両関数の対称性を含む）。`FoamNode` は `__hash__ = object.__hash__` を持ち、差分マップのキーとして使用可能です。`test_comparison_tree_panel.py` は `ComparisonTreePanel` を検証します（`load` でヘッダーラベルを設定しプロキシを更新して FoamFile ノードを折りたたみ Type 列の表示を再適用すること、`clear` でモデルとヘッダーをリセットすること、`set_type_column_visible` で Type 列の表示を切り替え `load` をまたいで状態が維持されること、`use_value_requested` シグナルが接続可能なことを含む）。`test_tree_model.py` は `set_diff(reverse=True)` を検証します（`"only_here"` を `"only_in_ref"` にリマップし `"changed"` は変更しないこと、淡緑色の `BackgroundRole` を返すこと、`"only in reference case"` をツールチップに含むことを含む）。`test_file_list_panel.py` は差分フィルターを検証します（`set_diff_filter_enabled` でチェックボックスの表示・非表示・チェック解除、フィルターが差分件数 0 のファイルアイテムを非表示にしヘッダーは常に表示、`mark_diff` がフィルター有効時に即座にアイテムの表示を更新することを含む）。`test_case_loader.py` は `detect_time_dirs` と `TestExtraDirs`（フラット・再帰スキャン、存在しないディレクトリの許容、重複排除）を検証します。`test_case_files_config.py` は `TestCaseFilesConfigDirs`（`DirEntry` の追加・削除・インプレース更新、プレーン文字列 JSON の後方互換ロード、設定リセット）を検証します。`test_main_window_split.py` は Mixin 構造を検証します（各 Mixin が正しいメソッドを保有し（`_BoundaryOpsMixin` の `_on_patch_selected`、`_TreeOpsMixin` の `_apply_comparison_value` を含む）、Mixin 間の重複がなく、`MainWindow` が 4 つすべての Mixin を継承していることを確認します）。`test_bool_nonuniform.py` は bool/nonuniform_list のパースとパースエラー収集を検証します。`test_tree_color_lexer_dispatch.py` は `unknown_raw_entry` の琥珀色表示、レキサーの `//` 挙動、パーサの `_PAREN_DISPATCH` テーブルを検証します。`test_source_lines.py` はすべてのノード型に対する `source_line` および `source_end_line` の設定を検証します。`test_parser_block_mesh_dict.py` は `boundary_block`/`boundary_entry` の構造的パース、ライタの round-trip、および `blockMeshDict` に対する `extract_block_mesh_data` の出力を検証します。`test_rename_boundary.py` は `find_rename_targets()` を検証します（`blockMeshDict` 内の `boundary_entry` ノードおよび `boundaryField` ブロック内のパッチ `dictionary` ノードの検出、無関係な辞書への誤検出なし、空入力のエッジケースを含む）。
 
 ## 追加ディレクトリ
 
@@ -182,6 +184,8 @@ Boundary パネルのセルをクリックすると `patch_selected(path, patch_
 クリックしたセルのファイルが `current_file` と異なる場合、`_on_patch_selected` はまず `load_selected_file(path)` を呼び出して（`current_file` を設定）、続いて `file_list_panel.select_file(path)` でファイルリストのハイライトを同期します。その結果発行される `file_selected` シグナルによって再入する `load_selected_file` は、`current_file` が既に設定済みのため no-op になります。
 
 Boundary パネルツールバーの **Auto-scroll editor** チェックボックスは `_on_cell_clicked` 内での `patch_selected` 発行を制御します。オフの場合、シングルクリックはエディタに影響しません。
+
+`BoundaryViewPanel._table_data()` は現在の `QTableWidget` の状態から `(col_headers, row_headers, rows)` を取り出します。`_copy_as_markdown()` はこのデータから GitHub Flavored Markdown のパイプテーブルを構築し、システムクリップボードへ書き込みます（セルテキスト内の `\n` は `<br>` に変換）。`_copy_as_csv()` は RFC 4180 準拠の CSV を書き込み、複数行のセル内容は引用符付きフィールドとして保持されます。どちらのメソッドも既にレンダリング済みのテーブルから読み取るため、転置状態に自動的に対応します。
 
 ## テスト
 

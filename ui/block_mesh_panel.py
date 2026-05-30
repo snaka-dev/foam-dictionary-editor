@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QCheckBox,
     QFileDialog,
@@ -10,12 +11,14 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QMenu,
     QMessageBox,
     QPushButton,
     QSpinBox,
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -107,46 +110,73 @@ class BlockMeshPanel(QWidget):
     # ── UI construction ───────────────────────────────────────────────────────
 
     def _build_controls(self) -> None:
-        # ── geometry visibility ───────────────────────────────────────────────
-        self._show_vertices = QCheckBox("Vertices")
-        self._show_vertices.setChecked(True)
-        self._show_labels = QCheckBox("Vertex labels")
-        self._show_labels.setChecked(False)
-        self._show_edges = QCheckBox("Block edges")
-        self._show_edges.setChecked(True)
-        self._show_block_labels = QCheckBox("Block labels")
-        self._show_block_labels.setChecked(False)
-        self._color_blocks = QCheckBox("Color blocks")
-        self._color_blocks.setChecked(False)
-        self._solid_blocks = QCheckBox("Solid blocks")
-        self._solid_blocks.setChecked(False)
+        # ── geometry visibility — vertices (menu) ────────────────────────────
+        vtx_menu = QMenu(self)
+        self._show_vertices  = QAction("Vertices",       vtx_menu, checkable=True, checked=True)
+        self._show_labels    = QAction("Vertex labels",  vtx_menu, checkable=True, checked=False)
+        self._act_vtx_table  = QAction("Vertices table", vtx_menu, checkable=True, checked=True)
+        vtx_menu.addAction(self._show_vertices)
+        vtx_menu.addAction(self._show_labels)
+        vtx_menu.addAction(self._act_vtx_table)
+
+        vtx_btn = QToolButton()
+        vtx_btn.setText("Vertices ▾")
+        vtx_btn.setPopupMode(QToolButton.InstantPopup)
+        vtx_btn.setMenu(vtx_menu)
+
+        # ── geometry visibility — blocks (menu) ──────────────────────────────
+        blk_menu = QMenu(self)
+        self._show_edges       = QAction("Block edges",  blk_menu, checkable=True, checked=True)
+        self._show_block_labels= QAction("Block labels", blk_menu, checkable=True, checked=False)
+        self._color_blocks     = QAction("Color blocks", blk_menu, checkable=True, checked=False)
+        self._solid_blocks     = QAction("Solid blocks", blk_menu, checkable=True, checked=False)
+        blk_menu.addAction(self._show_edges)
+        blk_menu.addAction(self._show_block_labels)
+        blk_menu.addAction(self._color_blocks)
+        blk_menu.addAction(self._solid_blocks)
+
+        blk_btn = QToolButton()
+        blk_btn.setText("Blocks ▾")
+        blk_btn.setPopupMode(QToolButton.InstantPopup)
+        blk_btn.setMenu(blk_menu)
+
         self._show_boundary = QCheckBox("Boundary faces")
         self._show_boundary.setChecked(True)
-        self._show_vtx_table = QCheckBox("Vertices table")
-        self._show_vtx_table.setChecked(True)
 
-        # ── scale / orientation indicators ───────────────────────────────────
-        self._show_axes = QCheckBox("Axes")
-        self._show_axes.setChecked(True)
-        self._show_grid = QCheckBox("Grid")
-        self._show_grid.setChecked(True)
-        self._show_bounds = QCheckBox("Dimensions")
-        self._show_bounds.setChecked(True)
+        # ── scale / orientation indicators (menu) ────────────────────────────
+        scale_menu = QMenu(self)
+        self._act_axes   = QAction("Axes",       scale_menu, checkable=True, checked=True)
+        self._act_grid   = QAction("Grid",       scale_menu, checkable=True, checked=True)
+        self._act_bounds = QAction("Dimensions", scale_menu, checkable=True, checked=True)
+        scale_menu.addAction(self._act_axes)
+        scale_menu.addAction(self._act_grid)
+        scale_menu.addAction(self._act_bounds)
 
-        refresh_btn   = QPushButton("Refresh")
-        load_stl_btn  = QPushButton("Load STL…")
-        clear_stl_btn = QPushButton("Clear STL")
+        scale_btn = QToolButton()
+        scale_btn.setText("Scale ▾")
+        scale_btn.setPopupMode(QToolButton.InstantPopup)
+        scale_btn.setMenu(scale_menu)
+
+        # ── STL menu ──────────────────────────────────────────────────────────
+        stl_menu = QMenu(self)
+        load_stl_act = stl_menu.addAction("Load STL / OBJ…")
+        self._clear_stl_act = stl_menu.addAction("Clear STL")
+        self._clear_stl_act.setEnabled(False)
+
+        stl_btn = QToolButton()
+        stl_btn.setText("STL ▾")
+        stl_btn.setPopupMode(QToolButton.InstantPopup)
+        stl_btn.setMenu(stl_menu)
+
+        refresh_btn = QPushButton("Refresh")
 
         row1 = QHBoxLayout()
-        for w in (self._show_vertices, self._show_labels,
-                  self._show_edges, self._show_block_labels,
-                  self._color_blocks, self._solid_blocks,
-                  self._show_boundary, self._show_vtx_table):
-            row1.addWidget(w)
+        row1.addWidget(vtx_btn)
+        row1.addWidget(blk_btn)
+        row1.addWidget(self._show_boundary)
         row1.addSpacing(12)
         row1.addWidget(refresh_btn)
-        row1.addWidget(load_stl_btn)
-        row1.addWidget(clear_stl_btn)
+        row1.addWidget(stl_btn)
         row1.addStretch()
 
         self._label_font_size = QSpinBox()
@@ -156,9 +186,7 @@ class BlockMeshPanel(QWidget):
         self._label_font_size.setFixedWidth(52)
 
         row2 = QHBoxLayout()
-        row2.addWidget(QLabel("Scale info:"))
-        for w in (self._show_axes, self._show_grid, self._show_bounds):
-            row2.addWidget(w)
+        row2.addWidget(scale_btn)
         row2.addSpacing(16)
         row2.addWidget(QLabel("Label size:"))
         row2.addWidget(self._label_font_size)
@@ -227,17 +255,17 @@ class BlockMeshPanel(QWidget):
 
         # ── connections ───────────────────────────────────────────────────────
         refresh_btn.clicked.connect(self._render)
-        load_stl_btn.clicked.connect(self._load_stl)
-        clear_stl_btn.clicked.connect(self._clear_stl)
-        self._show_vtx_table.toggled.connect(vtx_group.setVisible)
+        load_stl_act.triggered.connect(self._load_stl)
+        self._clear_stl_act.triggered.connect(self._clear_stl)
+        self._act_vtx_table.triggered.connect(lambda checked: vtx_group.setVisible(checked))
         self._vtx_table.itemSelectionChanged.connect(self._on_vertex_selected)
         self._vtx_table.cellChanged.connect(self._on_cell_changed)
-        for chk in (self._show_vertices, self._show_labels,
+        self._show_boundary.toggled.connect(self._render)
+        for act in (self._show_vertices, self._show_labels,
                     self._show_edges, self._show_block_labels,
                     self._color_blocks, self._solid_blocks,
-                    self._show_boundary,
-                    self._show_axes, self._show_grid, self._show_bounds):
-            chk.toggled.connect(self._render)
+                    self._act_axes, self._act_grid, self._act_bounds):
+            act.triggered.connect(self._render)
         self._label_font_size.valueChanged.connect(self._render)
 
     def _init_plotter(self) -> None:
@@ -460,15 +488,15 @@ class BlockMeshPanel(QWidget):
             self._plotter.add_mesh(stl, color="lightgray", opacity=0.4)
 
         # ── scale / orientation indicators ───────────────────────────────────
-        if self._show_axes.isChecked():
+        if self._act_axes.isChecked():
             self._plotter.show_axes()
         else:
             self._plotter.hide_axes()
 
-        if self._show_grid.isChecked():
+        if self._act_grid.isChecked():
             self._plotter.show_grid(color="gray", font_size=8)
 
-        if self._show_bounds.isChecked():
+        if self._act_bounds.isChecked():
             self._plotter.add_bounding_box(color="gray", line_width=1)
             mins = pts.min(axis=0)
             maxs = pts.max(axis=0)
@@ -501,17 +529,19 @@ class BlockMeshPanel(QWidget):
         if not _PYVISTA_OK:
             return
         path, _ = QFileDialog.getOpenFileName(
-            self, "Load STL", "",
-            "STL files (*.stl *.STL);;All files (*)",
+            self, "Load STL / OBJ", "",
+            "STL / OBJ files (*.stl *.STL *.obj *.OBJ);;All files (*)",
         )
         if not path:
             return
         try:
             self._stl_meshes.append(pv.read(path))
+            self._clear_stl_act.setEnabled(True)
             self._render()
         except Exception as e:
             QMessageBox.warning(self, "STL Load Error", str(e))
 
     def _clear_stl(self) -> None:
         self._stl_meshes.clear()
+        self._clear_stl_act.setEnabled(False)
         self._render()

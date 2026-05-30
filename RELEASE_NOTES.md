@@ -1,5 +1,41 @@
 # Release Notes
 
+## v1.2.0 — 2026-05-30
+
+### New features
+
+**Boundary view — Copy Table**
+
+- New **Copy Table** button in the Boundary panel toolbar. A drop-down menu offers two clipboard formats:
+  - **Copy as Markdown** — GitHub-Flavored Markdown pipe table; multi-line cells (Lines per cell > 1) use `<br>` tags so they render as real line breaks on GitHub.
+  - **Copy as CSV** — RFC 4180-compliant CSV; multi-line cell content is preserved inside quoted fields for correct display in Excel and LibreOffice Calc.
+- Both formats include the row-header column and respect the current transposed orientation.
+
+**Case comparison — Side-by-side view**
+
+- **Side by side** toggle in the diff bar splits the centre panel horizontally: the left pane shows the editable current-case tree and a new **Reference** pane opens on the right with the corresponding file in read-only form.
+- Reference tree uses **light green** for keys that exist only in the reference case.
+- Right-click any leaf node in the reference pane and select **Use this value** to apply that value to the matching node in the current case instantly. Diff highlighting updates automatically after the change.
+- **Changed files only** checkbox in the file list: hides files with zero differences, leaving only files that differ from the reference case.
+- Diff markers (`≠N` / `≠0`) are now computed immediately for all files when comparison starts, rather than lazily as each file is opened.
+
+### Improvements
+
+**BlockMesh panel**
+
+- Toolbar compacted into a single row.
+- Load and overlay OBJ geometry files in addition to STL (`Load STL / OBJ…` / `Clear STL`).
+
+**File list**
+
+- Extra-files button is now always visible (shows the count of registered extras when any are active).
+
+**Case comparison**
+
+- The diff bar now shows a **Side by side** toggle and a colour legend alongside the reference path.
+
+---
+
 ## v1.1.0 — 2026-05-23
 
 This release adds several major features: an interactive BlockMesh 3-D viewer, case comparison with a diff overlay, case-wide boundary rename, Boundary-to-editor navigation, and tree ↔ editor source synchronisation. It also adds application variants for Windows-friendly use (no-terminal), recursive directory scanning for extra directories, expanded snappyHexMeshDict schema coverage, and various editor and usability improvements.

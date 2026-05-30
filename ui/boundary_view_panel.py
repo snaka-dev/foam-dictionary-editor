@@ -2,11 +2,14 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+import csv
+import io
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QHBoxLayout,
@@ -14,6 +17,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMenu,
     QMessageBox,
+    QPushButton,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
@@ -157,6 +161,12 @@ class BoundaryViewPanel(QWidget):
             "and scrolls to the patch entry."
         )
 
+        self._copy_btn = QPushButton("Copy Table")
+        copy_menu = QMenu(self)
+        copy_menu.addAction("Copy as Markdown", self._copy_as_markdown)
+        copy_menu.addAction("Copy as CSV", self._copy_as_csv)
+        self._copy_btn.setMenu(copy_menu)
+
         dir_row = QHBoxLayout()
         dir_row.addWidget(QLabel("Directory:"))
         dir_row.addWidget(self._dir_combo)
@@ -167,6 +177,8 @@ class BoundaryViewPanel(QWidget):
         dir_row.addSpacing(12)
         dir_row.addWidget(QLabel("Lines per cell:"))
         dir_row.addWidget(self._lines_spin)
+        dir_row.addSpacing(12)
+        dir_row.addWidget(self._copy_btn)
 
         self._table = QTableWidget()
         self._table.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -327,6 +339,45 @@ class BoundaryViewPanel(QWidget):
         self._table.blockSignals(False)
         self._table.resizeColumnsToContents()
         self._table.resizeRowsToContents()
+
+    def _table_data(self) -> tuple[list[str], list[str], list[list[str]]]:
+        """Return (col_headers, row_headers, rows_of_cell_text) from the current table."""
+        t = self._table
+        col_headers = [
+            (t.horizontalHeaderItem(c).text() if t.horizontalHeaderItem(c) else "")
+            for c in range(t.columnCount())
+        ]
+        row_headers = [
+            (t.verticalHeaderItem(r).text() if t.verticalHeaderItem(r) else "")
+            for r in range(t.rowCount())
+        ]
+        rows = [
+            [
+                (t.item(r, c).text() if t.item(r, c) else "–")
+                for c in range(t.columnCount())
+            ]
+            for r in range(t.rowCount())
+        ]
+        return col_headers, row_headers, rows
+
+    def _copy_as_markdown(self) -> None:
+        col_headers, row_headers, rows = self._table_data()
+        all_cols = [""] + col_headers
+        sep = "|" + "|".join("---" for _ in all_cols) + "|"
+        lines = ["| " + " | ".join(all_cols) + " |", sep]
+        for rh, cells in zip(row_headers, rows):
+            escaped = [c.replace("\n", "<br>") for c in cells]
+            lines.append("| " + " | ".join([rh] + escaped) + " |")
+        QApplication.clipboard().setText("\n".join(lines))
+
+    def _copy_as_csv(self) -> None:
+        col_headers, row_headers, rows = self._table_data()
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow([""] + col_headers)
+        for rh, cells in zip(row_headers, rows):
+            writer.writerow([rh] + cells)
+        QApplication.clipboard().setText(buf.getvalue())
 
     def _on_cell_clicked(self, item: QTableWidgetItem) -> None:
         if not self._autoscroll_chk.isChecked():

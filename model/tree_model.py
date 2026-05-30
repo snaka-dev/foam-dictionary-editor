@@ -17,8 +17,9 @@ class FoamTreeModel(QAbstractItemModel):
     edit_rejected = Signal(str)
 
     _DIFF_BG: dict[str, QColor] = {
-        "changed":   QColor("#FFFACD"),  # light yellow
-        "only_here": QColor("#E3F2FD"),  # light blue
+        "changed":      QColor("#FFFACD"),  # light yellow  — value differs
+        "only_here":    QColor("#E3F2FD"),  # light blue    — only in current file
+        "only_in_ref":  QColor("#E8F5E9"),  # light green   — only in reference case
     }
 
     def __init__(self, root: FoamNode, parent=None):
@@ -87,6 +88,8 @@ class FoamTreeModel(QAbstractItemModel):
                     status, ref_node = entry
                     if status == "only_here":
                         tip += "\n(not in reference case)"
+                    elif status == "only_in_ref":
+                        tip += "\n(only in reference case)"
                     elif ref_node is not None:
                         tip += f"\nRef: {self._display_value(ref_node)}"
             return tip
@@ -181,8 +184,19 @@ class FoamTreeModel(QAbstractItemModel):
         node.parent = None
         self.endRemoveRows()
 
-    def set_diff(self, diff: "dict[FoamNode, tuple[str, FoamNode | None]]") -> None:
-        self._diff = diff
+    def set_diff(
+        self,
+        diff: "dict[FoamNode, tuple[str, FoamNode | None]]",
+        *,
+        reverse: bool = False,
+    ) -> None:
+        if reverse:
+            self._diff = {
+                node: ("only_in_ref" if status == "only_here" else status, ref)
+                for node, (status, ref) in diff.items()
+            }
+        else:
+            self._diff = diff
         self._emit_datachanged_recursive(QModelIndex())
 
     def clear_diff(self) -> None:

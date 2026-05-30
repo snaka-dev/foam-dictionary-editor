@@ -96,7 +96,7 @@ Without these packages the BlockMesh tab shows an install prompt and the 3-D vie
 **BlockMesh 3-D viewer** *(requires pyvista / pyvistaqt)*
 - Interactive 3-D preview of `blockMeshDict` geometry (vertices, block edges, boundary faces)
 - Boundary faces colour-coded by patch type (wall, inlet, outlet, symmetry, …)
-- Load and overlay STL geometry files
+- Load and overlay STL / OBJ geometry files
 - Toggle visibility of vertices, vertex labels, block edges, block labels, boundary faces, axes, grid, and dimension text
 - Color blocks: each hex block rendered in a distinct colour from a qualitative palette; Solid blocks: semi-transparent solid block faces (opacity 0.25)
 - Adjustable label font size (spin box) shared between vertex labels and block labels
@@ -114,9 +114,12 @@ Without these packages the BlockMesh tab shows an install prompt and the 3-D vie
 
 **Case comparison**
 - **Case > Compare with Case...** — select a reference case directory to compare against the currently open case
-- A diff bar below the action bar shows the reference path and a colour legend; click **Clear** to exit compare mode
-- Tree overlay: light yellow = value changed, light blue = key only in this file; hover a highlighted row to see the reference value in the tooltip
-- File list markers: `≠N` (amber) for files with differences, `≠0` (gray) for checked-and-identical, nothing for unvisited; capped at `≠50+`. Markers are updated lazily as each file is opened
+- A diff bar below the action bar shows the reference path, a colour legend, and a **Side by side** toggle; click **Clear** to exit compare mode
+- **Side-by-side view**: a reference-case tree panel opens to the right of the main tree; right-click any entry in it to **Use this value** and apply it directly to the current case
+- Tree overlay — current case (left pane): light yellow = value changed, light blue = key only in current file; reference pane (right): light yellow = value changed, light green = key only in reference
+- Hover a highlighted row in either pane to see the counterpart value in the tooltip
+- File list markers: `≠N` (amber) for files with differences, `≠0` (gray) for checked-and-identical, nothing for unvisited; capped at `≠50+`. Markers are computed immediately for all files when comparison starts
+- **Changed files only** filter checkbox in the file list: hides files with no differences
 
 **Reference links**
 - **Help > Resources...** provides links to official OpenFOAM documentation

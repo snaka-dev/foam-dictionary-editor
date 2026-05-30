@@ -15,6 +15,7 @@ SPLITTER_UPPER_HEIGHT = 400
 SPLITTER_LOWER_HEIGHT = 400
 
 SPLITTER_HANDLE_WIDTH = 7
+SPLITTER_COMPARISON_WIDTH = 400
 
 # ── Well-known file names ───────────────────────────────────────────────────
 BLOCKMESH_DICT_NAME = "blockMeshDict"

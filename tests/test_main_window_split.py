@@ -93,6 +93,7 @@ TREE_OPS_METHODS = [
     "reload_text_from_tree",
     "_on_user_text_changed",
     "_on_blockmesh_vertices_changed",
+    "_apply_comparison_value",
 ]
 
 BOUNDARY_OPS_METHODS = [
@@ -228,6 +229,14 @@ CORE_METHODS = [
     "show_about",
     "show_keyboard_shortcuts",
     "show_openfoam_resources",
+    "_build_diff_bar",
+    "_compare_with_case",
+    "_clear_diff",
+    "_recompute_diff",
+    "_precompute_all_diff_counts",
+    "_on_side_by_side_toggled",
+    "_on_terminal_mode_changed",
+    "_on_toggle_blockmesh_panel",
 ]
 
 

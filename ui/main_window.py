@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from app_config import get_app_config
-from foam.diff import diff_trees
+from foam.diff import diff_trees, diff_trees_reverse
 from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser
 from foam.utils import read_foam_file
@@ -35,12 +35,14 @@ from ui._boundary_ops import _BoundaryOpsMixin
 from ui._case_ops import _CaseOpsMixin
 from ui._file_ops import _FileOpsMixin
 from ui._tree_ops import _TreeOpsMixin
+from ui.comparison_tree_panel import ComparisonTreePanel
 from ui.detail_panel import DetailPanel
 from ui.editor_panel import EditorPanel
 from ui.file_list_panel import FileListPanel, display_file_name
 from ui.terminal_panel import TerminalPanel
 from ui.layout_constants import (
     BLOCKMESH_DICT_NAME as _BLOCKMESH_DICT_NAME,
+    SPLITTER_COMPARISON_WIDTH,
     SPLITTER_DETAIL_WIDTH,
     SPLITTER_FILE_LIST_WIDTH,
     SPLITTER_HANDLE_WIDTH,
@@ -52,6 +54,15 @@ from ui.layout_constants import (
 )
 
 _TREE_EXPAND_DEPTH = 2
+
+
+class _TreeView(QTreeView):
+    """QTreeView that preserves the horizontal scroll position on selection."""
+
+    def scrollTo(self, index, hint=QTreeView.EnsureVisible):
+        h = self.horizontalScrollBar().value()
+        super().scrollTo(index, hint)
+        self.horizontalScrollBar().setValue(h)
 
 
 def _act(menu, label: str, shortcut: str, slot) -> None:
@@ -87,8 +98,10 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
     def _build_ui(self) -> None:
         self.setStatusBar(QStatusBar(self))
         self.file_list_panel = FileListPanel()
+        self.comparison_panel = ComparisonTreePanel()
         self.detail_panel = DetailPanel()
         self.editor_panel = EditorPanel()
+        self.right_upper_splitter: QSplitter | None = None
         top_bar = self._build_top_bar()
         tree_container = self._build_tree_area()
         self._build_feature_panels()
@@ -145,7 +158,7 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         self.editor_autoscroll_checkbox.setChecked(True)
         self._update_sync_checkbox()
 
-        self.tree = QTreeView()
+        self.tree = _TreeView()
         self.tree.setModel(self.proxy_model)
         self.tree.setAlternatingRowColors(True)
         self.tree.setUniformRowHeights(True)
@@ -192,14 +205,18 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
             )
 
     def _build_splitters(self, tree_container: QWidget, top_bar: QHBoxLayout) -> None:
-        right_upper_splitter = QSplitter(Qt.Horizontal)
+        self.right_upper_splitter = QSplitter(Qt.Horizontal)
+        right_upper_splitter = self.right_upper_splitter
         right_upper_splitter.addWidget(tree_container)
+        right_upper_splitter.addWidget(self.comparison_panel)
         right_upper_splitter.addWidget(self.detail_panel)
-        right_upper_splitter.setSizes([SPLITTER_TREE_WIDTH, SPLITTER_DETAIL_WIDTH])
+        right_upper_splitter.setSizes([SPLITTER_TREE_WIDTH, 0, SPLITTER_DETAIL_WIDTH])
+        right_upper_splitter.setCollapsible(1, True)
 
         # Allow all panes to shrink freely regardless of child minimum hints.
         tree_container.setMinimumSize(0, 0)
         self.tree.setMinimumSize(0, 0)
+        self.comparison_panel.setMinimumSize(0, 0)
         self.detail_panel.setMinimumSize(0, 0)
         right_upper_splitter.setMinimumSize(0, 0)
 
@@ -277,6 +294,7 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         if self.terminal_panel is not None:
             self.terminal_panel.mode_changed.connect(self._on_terminal_mode_changed)
 
+        self.comparison_panel.use_value_requested.connect(self._apply_comparison_value)
         self._connect_tree_selection()
         self._setup_tree_copy_paste()
         self.tree.setColumnHidden(FoamTreeModel.COL_TYPE, True)
@@ -500,6 +518,7 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         self.tree.setColumnHidden(FoamTreeModel.COL_TYPE, not checked)
         if checked:
             self.tree.resizeColumnToContents(FoamTreeModel.COL_TYPE)
+        self.comparison_panel.set_type_column_visible(checked)
 
     def _resize_tree_columns(self) -> None:
         for col in range(3):
@@ -566,10 +585,15 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
             '<span style="background:#FFFACD;padding:0 4px;border:1px solid #ccc;">&#160;</span>'
             " changed &nbsp;"
             '<span style="background:#E3F2FD;padding:0 4px;border:1px solid #ccc;">&#160;</span>'
-            " only in this file &nbsp;|&nbsp;"
+            " only in current &nbsp;"
+            '<span style="background:#E8F5E9;padding:0 4px;border:1px solid #ccc;">&#160;</span>'
+            " only in reference &nbsp;|&nbsp;"
         )
         legend.setTextFormat(Qt.RichText)
         self._diff_path_label = QLabel()
+        self._side_by_side_cb = QCheckBox("Side by side")
+        self._side_by_side_cb.setChecked(True)
+        self._side_by_side_cb.toggled.connect(self._on_side_by_side_toggled)
         clear_btn = QPushButton("Clear")
         clear_btn.setFixedWidth(60)
         clear_btn.clicked.connect(self._clear_diff)
@@ -577,8 +601,21 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         bar_layout.setContentsMargins(8, 2, 8, 2)
         bar_layout.addWidget(legend)
         bar_layout.addWidget(self._diff_path_label, 1)
+        bar_layout.addWidget(self._side_by_side_cb)
         bar_layout.addWidget(clear_btn)
         self._diff_bar.hide()
+
+    def _on_side_by_side_toggled(self, checked: bool) -> None:
+        if self.right_upper_splitter is None:
+            return
+        if checked:
+            self.right_upper_splitter.setSizes(
+                [SPLITTER_TREE_WIDTH // 2, SPLITTER_COMPARISON_WIDTH, SPLITTER_DETAIL_WIDTH]
+            )
+        else:
+            self.right_upper_splitter.setSizes(
+                [SPLITTER_TREE_WIDTH, 0, SPLITTER_DETAIL_WIDTH]
+            )
 
     def _compare_with_case(self) -> None:
         directory = QFileDialog.getExistingDirectory(
@@ -594,13 +631,21 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         self._diff_path_label.setTextFormat(Qt.RichText)
         self._diff_bar.show()
         self._recompute_diff()
+        self._precompute_all_diff_counts()
+        self._side_by_side_cb.setChecked(True)
 
     def _clear_diff(self) -> None:
         self._diff_case_dir = None
         self._diff_parsed_roots.clear()
         self._diff_bar.hide()
         self.current_model.clear_diff()
+        self.comparison_panel.clear()
         self.file_list_panel.clear_diff_marks()
+        self.file_list_panel.set_diff_filter_enabled(False)
+        if self.right_upper_splitter is not None:
+            self.right_upper_splitter.setSizes(
+                [SPLITTER_TREE_WIDTH, 0, SPLITTER_DETAIL_WIDTH]
+            )
         self.statusBar().showMessage("Diff cleared.", _STATUS_SHORT)
 
     def _recompute_diff(self) -> None:
@@ -615,6 +660,7 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         if other_key not in self._diff_parsed_roots:
             if not other_path.exists():
                 self.current_model.clear_diff()
+                self.comparison_panel.clear()
                 self.statusBar().showMessage(
                     f"Diff: {rel} not found in reference case.", _STATUS_SHORT
                 )
@@ -625,15 +671,62 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
                 ).parse()
             except Exception:
                 self.current_model.clear_diff()
+                self.comparison_panel.clear()
                 return
         other_root = self._diff_parsed_roots[other_key]
         diff_map = diff_trees(self.current_root, other_root)
+        rev_diff_map = diff_trees_reverse(other_root, self.current_root)
         self.current_model.set_diff(diff_map)
+        case_name = Path(self._diff_case_dir).name or self._diff_case_dir
+        self.comparison_panel.load(other_root, rev_diff_map, case_name)
         n = len(diff_map)
         self.file_list_panel.mark_diff(self.current_file, n)
         self.statusBar().showMessage(
             f"Diff: {n} difference{'s' if n != 1 else ''} in {rel}.", _STATUS_SHORT
         )
+
+    def _precompute_all_diff_counts(self) -> None:
+        """Compute diff counts for all files in the current case (for the filter)."""
+        if not self._diff_case_dir or not self.current_case_dir:
+            return
+        case_path = Path(self.current_case_dir)
+        diff_path = Path(self._diff_case_dir)
+        for i in range(self.file_list_panel._list.count()):
+            item = self.file_list_panel._list.item(i)
+            from PySide6.QtCore import Qt as _Qt
+            path = item.data(_Qt.UserRole)
+            if not path:
+                continue
+            try:
+                rel = Path(path).relative_to(case_path)
+            except ValueError:
+                continue
+            other_path = diff_path / rel
+            other_key = str(other_path)
+            if other_key not in self._diff_parsed_roots:
+                if not other_path.exists():
+                    self.file_list_panel.mark_diff(path, 0)
+                    continue
+                try:
+                    self._diff_parsed_roots[other_key] = OpenFoamParser(
+                        read_foam_file(other_key)
+                    ).parse()
+                except Exception:
+                    continue
+            other_root = self._diff_parsed_roots[other_key]
+            if path == self.current_file:
+                a_root = self.current_root
+            elif path in self._parsed_roots:
+                a_root = self._parsed_roots[path]
+            else:
+                try:
+                    a_root = OpenFoamParser(read_foam_file(path)).parse()
+                    self._parsed_roots[path] = a_root
+                except Exception:
+                    continue
+            d = diff_trees(a_root, other_root)
+            self.file_list_panel.mark_diff(path, len(d))
+        self.file_list_panel.set_diff_filter_enabled(True)
 
     # ── terminal mode switch ──────────────────────────────────────────────────
 
