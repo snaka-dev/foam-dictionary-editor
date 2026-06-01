@@ -27,6 +27,7 @@ from schemas import (
     schema_note_text,
     schema_supported_in_text,
 )
+from i18n import tr
 
 _PAGE_EMPTY = 0
 _PAGE_NORMAL = 1
@@ -82,7 +83,7 @@ class DetailPanel(QWidget):
     def _build_empty_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.addWidget(QLabel("No item selected"))
+        layout.addWidget(QLabel(tr("No item selected")))
         layout.addStretch(1)
         return page
 
@@ -129,20 +130,20 @@ class DetailPanel(QWidget):
         self._choice_note_label.setWordWrap(True)
         self._choice_note_label.setVisible(False)
 
-        self._apply_button = QPushButton("Apply Value")
+        self._apply_button = QPushButton(tr("Apply Value"))
         self._apply_button.clicked.connect(self._on_apply_value)
 
         form = QFormLayout()
-        form.addRow("Key", self._key_label)
-        form.addRow("Type", self._type_label)
-        form.addRow("Key Help", self._key_description_label)
-        form.addRow("Key Supported In", self._key_supported_in_label)
-        form.addRow("Key Note", self._key_note_label)
-        form.addRow("Value", self._value_edit)
-        form.addRow("Choices", self._value_combo)
-        form.addRow("Choice Help", self._choice_description_label)
-        form.addRow("Choice Supported In", self._choice_supported_in_label)
-        form.addRow("Choice Note", self._choice_note_label)
+        form.addRow(tr("Key"), self._key_label)
+        form.addRow(tr("Type"), self._type_label)
+        form.addRow(tr("Key Help"), self._key_description_label)
+        form.addRow(tr("Key Supported In"), self._key_supported_in_label)
+        form.addRow(tr("Key Note"), self._key_note_label)
+        form.addRow(tr("Value"), self._value_edit)
+        form.addRow(tr("Choices"), self._value_combo)
+        form.addRow(tr("Choice Help"), self._choice_description_label)
+        form.addRow(tr("Choice Supported In"), self._choice_supported_in_label)
+        form.addRow(tr("Choice Note"), self._choice_note_label)
         form.addRow("", self._choice_hint_label)
         form.addRow("", self._apply_button)
 
@@ -157,13 +158,13 @@ class DetailPanel(QWidget):
         self._fv_type_edit = QLineEdit()
         self._fv_name_label = QLabel("-")
         self._fv_value_edit = QLineEdit()
-        self._fv_apply_button = QPushButton("Apply Field Value")
+        self._fv_apply_button = QPushButton(tr("Apply Field Value"))
         self._fv_apply_button.clicked.connect(self._on_apply_field_value)
 
         form = QFormLayout()
-        form.addRow("Field Type", self._fv_type_edit)
-        form.addRow("Field Name", self._fv_name_label)
-        form.addRow("Value", self._fv_value_edit)
+        form.addRow(tr("Field Type"), self._fv_type_edit)
+        form.addRow(tr("Field Name"), self._fv_name_label)
+        form.addRow(tr("Value"), self._fv_value_edit)
         form.addRow("", self._fv_apply_button)
 
         layout.addLayout(form)
@@ -237,7 +238,7 @@ class DetailPanel(QWidget):
         self._value_edit.setEnabled(False)
         self._value_combo.setVisible(True)
         self._value_combo.setEnabled(editable)
-        self._choice_hint_label.setText("Select a suggested value or type a custom value.")
+        self._choice_hint_label.setText(tr("Select a suggested value or type a custom value."))
         self._choice_hint_label.setVisible(True)
         self._update_choice_help(node_name, self._value_combo.currentText())
 

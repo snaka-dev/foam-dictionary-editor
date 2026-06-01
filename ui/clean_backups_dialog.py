@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from i18n import tr
 
 _BAK_RE = re.compile(r"\.bak_\d{8}_\d{6}$")
 _DIALOG_WIDTH = 560
@@ -51,7 +52,7 @@ class CleanBackupsDialog(QDialog):
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
-        self.setWindowTitle("Clean Backup Files")
+        self.setWindowTitle(tr("Clean Backup Files"))
         self.resize(_DIALOG_WIDTH, _DIALOG_HEIGHT)
 
         self._paths_to_delete: list[str] = []
@@ -59,8 +60,8 @@ class CleanBackupsDialog(QDialog):
         layout = QVBoxLayout(self)
 
         if not backups:
-            layout.addWidget(QLabel("No backup files found in this case."))
-            close_btn = QPushButton("Close")
+            layout.addWidget(QLabel(tr("No backup files found in this case.")))
+            close_btn = QPushButton(tr("Close"))
             close_btn.clicked.connect(self.reject)
             bottom = QHBoxLayout()
             bottom.addStretch()
@@ -68,11 +69,11 @@ class CleanBackupsDialog(QDialog):
             layout.addLayout(bottom)
             return
 
-        layout.addWidget(QLabel(f"{len(backups)} backup file(s) found in this case:"))
+        layout.addWidget(QLabel(tr("{n} backup file(s) found in this case:").format(n=len(backups))))
 
         sel_row = QHBoxLayout()
-        select_all_btn = QPushButton("Select All")
-        deselect_all_btn = QPushButton("Deselect All")
+        select_all_btn = QPushButton(tr("Select All"))
+        deselect_all_btn = QPushButton(tr("Deselect All"))
         sel_row.addWidget(select_all_btn)
         sel_row.addWidget(deselect_all_btn)
         sel_row.addStretch()
@@ -90,7 +91,7 @@ class CleanBackupsDialog(QDialog):
         bottom = QHBoxLayout()
         bottom.addStretch()
         self._delete_btn = QPushButton()
-        cancel_btn = QPushButton("Cancel")
+        cancel_btn = QPushButton(tr("Cancel"))
         bottom.addWidget(self._delete_btn)
         bottom.addWidget(cancel_btn)
         layout.addLayout(bottom)
@@ -116,7 +117,7 @@ class CleanBackupsDialog(QDialog):
 
     def _update_delete_btn(self) -> None:
         n = len(self._checked_items())
-        self._delete_btn.setText(f"Delete Selected ({n})")
+        self._delete_btn.setText(tr("Delete Selected ({n})").format(n=n))
         self._delete_btn.setEnabled(n > 0)
 
     def _select_all(self) -> None:

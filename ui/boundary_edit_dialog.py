@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from foam.nodes import FoamNode
+from i18n import tr
 
 # Thresholds for deciding whether a patch value is too large/complex
 # to display in the edit dialog — edit in Text Editor instead.
@@ -93,14 +94,14 @@ class BoundaryEditDialog(QDialog):
     ):
         super().__init__(parent)
         self._is_complex = _value_complexity(patch_node) != ""
-        self.setWindowTitle(f"Edit boundary: {field_name} / {patch_name}")
+        self.setWindowTitle(tr("Edit boundary: {field} / {patch}").format(field=field_name, patch=patch_name))
 
         layout = QVBoxLayout(self)
 
         # Read-only info header
         info = QFormLayout()
         info.setRowWrapPolicy(QFormLayout.DontWrapRows)
-        for label_text, value in (("Variable:", field_name), ("Patch:", patch_name)):
+        for label_text, value in ((tr("Variable:"), field_name), (tr("Patch:"), patch_name)):
             key = QLabel(label_text)
             key.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
             val = QLabel(f"<b>{value}</b>")
@@ -116,7 +117,7 @@ class BoundaryEditDialog(QDialog):
         if not self._is_complex:
             # Normal mode: edit the full patch content directly.
             # The type line is part of the content — no separate Type field needed.
-            layout.addWidget(QLabel("Content:"))
+            layout.addWidget(QLabel(tr("Content:")))
             self._content_edit = QPlainTextEdit(_patch_inner_text(patch_node))
             font = QFont("Monospace")
             font.setStyleHint(QFont.TypeWriter)
@@ -127,15 +128,13 @@ class BoundaryEditDialog(QDialog):
         else:
             # Complex mode: only the type is editable here.
             type_row = QHBoxLayout()
-            type_row.addWidget(QLabel("Type:"))
+            type_row.addWidget(QLabel(tr("Type:")))
             self._type_edit = QLineEdit(_get_patch_type(patch_node))
             type_row.addWidget(self._type_edit)
             layout.addLayout(type_row)
 
             warn = QLabel(
-                "⚠ This patch contains large or binary data.\n"
-                "The full value cannot be displayed here.\n"
-                "Use the Text Editor tab to edit the complete content."
+                tr("⚠ This patch contains large or binary data.\nThe full value cannot be displayed here.\nUse the Text Editor tab to edit the complete content.")
             )
             warn.setWordWrap(True)
             layout.addWidget(warn)
@@ -143,8 +142,8 @@ class BoundaryEditDialog(QDialog):
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        ok_btn = QPushButton("OK")
-        cancel_btn = QPushButton("Cancel")
+        ok_btn = QPushButton(tr("OK"))
+        cancel_btn = QPushButton(tr("Cancel"))
         btn_row.addWidget(ok_btn)
         btn_row.addWidget(cancel_btn)
         layout.addLayout(btn_row)

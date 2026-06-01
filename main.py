@@ -26,6 +26,7 @@ from app_config.defaults import (
     DEFAULT_WINDOW_HEIGHT,
     DEFAULT_WINDOW_WIDTH,
 )
+from i18n import set_language
 from ui.main_window import MainWindow
 
 
@@ -57,6 +58,8 @@ def main():
 
     if args.variant:
         _apply_variant(args.variant)
+
+    set_language(get_app_config().get_language())
 
     width, height = get_app_config().get_window_size_or_default(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
 

@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from i18n import tr
 
 _APP_NAME = "Foam Dictionary Editor (FoDE)"
 _DESCRIPTION = "A PySide6-based GUI editor for OpenFOAM dictionary files.\nSupports tree view and raw text editing."
@@ -43,7 +44,7 @@ _DIALOG_WIDTH = 480
 class AboutDialog(QDialog):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self.setWindowTitle("About Foam Dictionary Editor (FoDE)")
+        self.setWindowTitle(tr("About Foam Dictionary Editor (FoDE)"))
         self.setFixedWidth(_DIALOG_WIDTH)
 
         layout = QVBoxLayout(self)
@@ -94,7 +95,7 @@ class AboutDialog(QDialog):
         # ── close button ──────────────────────────────────────────────────────
         bottom = QHBoxLayout()
         bottom.addStretch()
-        close_btn = QPushButton("Close")
+        close_btn = QPushButton(tr("Close"))
         close_btn.setDefault(True)
         close_btn.clicked.connect(self.accept)
         bottom.addWidget(close_btn)

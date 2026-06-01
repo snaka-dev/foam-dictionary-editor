@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from services.case_files_config import DirEntry
+from i18n import tr
 
 _DIALOG_WIDTH = 520
 _DIALOG_HEIGHT = 380
@@ -34,7 +35,7 @@ class ManageExtraFilesDialog(QDialog):
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
-        self.setWindowTitle("Manage Extra Files & Directories")
+        self.setWindowTitle(tr("Manage Extra Files & Directories"))
         self.resize(_DIALOG_WIDTH, _DIALOG_HEIGHT)
 
         self._files = list(extra_files)
@@ -43,15 +44,15 @@ class ManageExtraFilesDialog(QDialog):
         self._removed_files: list[str] = []
 
         tabs = QTabWidget()
-        tabs.addTab(self._build_files_tab(), "Extra Files")
-        tabs.addTab(self._build_dirs_tab(), "Extra Directories")
+        tabs.addTab(self._build_files_tab(), tr("Extra Files"))
+        tabs.addTab(self._build_dirs_tab(), tr("Extra Directories"))
 
         layout = QVBoxLayout(self)
         layout.addWidget(tabs)
 
         close_row = QHBoxLayout()
         close_row.addStretch()
-        close_btn = QPushButton("Close")
+        close_btn = QPushButton(tr("Close"))
         close_btn.clicked.connect(self.accept)
         close_row.addWidget(close_btn)
         layout.addLayout(close_row)
@@ -61,11 +62,11 @@ class ManageExtraFilesDialog(QDialog):
     def _build_files_tab(self) -> QWidget:
         w = QWidget()
         layout = QVBoxLayout(w)
-        layout.addWidget(QLabel("Extra files registered for this case:"))
+        layout.addWidget(QLabel(tr("Extra files registered for this case:")))
 
         sel_row = QHBoxLayout()
-        select_all_btn = QPushButton("Select All")
-        deselect_all_btn = QPushButton("Deselect All")
+        select_all_btn = QPushButton(tr("Select All"))
+        deselect_all_btn = QPushButton(tr("Deselect All"))
         sel_row.addWidget(select_all_btn)
         sel_row.addWidget(deselect_all_btn)
         sel_row.addStretch()
@@ -116,7 +117,7 @@ class ManageExtraFilesDialog(QDialog):
 
     def _update_remove_files_btn(self) -> None:
         n = len(self._checked_file_items())
-        self._remove_files_btn.setText(f"Remove Selected ({n})")
+        self._remove_files_btn.setText(tr("Remove Selected ({n})").format(n=n))
         self._remove_files_btn.setEnabled(n > 0)
 
     def _select_all_files(self) -> None:
@@ -130,7 +131,7 @@ class ManageExtraFilesDialog(QDialog):
     def _remove_checked_files(self) -> None:
         checked = self._checked_file_items()
         if not checked:
-            QMessageBox.warning(self, "No Selection", "Please select a file to remove.")
+            QMessageBox.warning(self, tr("No Selection"), tr("Please select a file to remove."))
             return
         for item in checked:
             rel_path = item.text()
@@ -146,14 +147,13 @@ class ManageExtraFilesDialog(QDialog):
         layout = QVBoxLayout(w)
         layout.addWidget(
             QLabel(
-                "Directories scanned in full (all files loaded, like 0/).\n"
-                "Check items and click Toggle Recursive to enable/disable recursive scan."
+                tr("Directories scanned in full (all files loaded, like 0/).\nCheck items and click Toggle Recursive to enable/disable recursive scan.")
             )
         )
 
         sel_row = QHBoxLayout()
-        select_all_btn = QPushButton("Select All")
-        deselect_all_btn = QPushButton("Deselect All")
+        select_all_btn = QPushButton(tr("Select All"))
+        deselect_all_btn = QPushButton(tr("Deselect All"))
         sel_row.addWidget(select_all_btn)
         sel_row.addWidget(deselect_all_btn)
         sel_row.addStretch()
@@ -164,9 +164,9 @@ class ManageExtraFilesDialog(QDialog):
         layout.addWidget(self._dirs_list)
 
         btn_row = QHBoxLayout()
-        add_dir_btn = QPushButton("Add Directory…")
+        add_dir_btn = QPushButton(tr("Add Directory…"))
         btn_row.addWidget(add_dir_btn)
-        self._toggle_recursive_btn = QPushButton("Toggle Recursive")
+        self._toggle_recursive_btn = QPushButton(tr("Toggle Recursive"))
         btn_row.addWidget(self._toggle_recursive_btn)
         btn_row.addStretch()
         self._remove_dirs_btn = QPushButton()
@@ -184,7 +184,7 @@ class ManageExtraFilesDialog(QDialog):
 
         if not self._case_dir:
             add_dir_btn.setEnabled(False)
-            add_dir_btn.setToolTip("No case directory open")
+            add_dir_btn.setToolTip(tr("No case directory open"))
 
         return w
 
@@ -209,7 +209,7 @@ class ManageExtraFilesDialog(QDialog):
 
     def _update_dirs_btns(self) -> None:
         n = len(self._checked_dir_paths())
-        self._remove_dirs_btn.setText(f"Remove Selected ({n})")
+        self._remove_dirs_btn.setText(tr("Remove Selected ({n})").format(n=n))
         self._remove_dirs_btn.setEnabled(n > 0)
         self._toggle_recursive_btn.setEnabled(n > 0)
 
@@ -226,7 +226,7 @@ class ManageExtraFilesDialog(QDialog):
             return
         chosen = QFileDialog.getExistingDirectory(
             self,
-            "Select Directory to Add",
+            tr("Select Directory to Add"),
             self._case_dir,
         )
         if not chosen:
@@ -234,16 +234,10 @@ class ManageExtraFilesDialog(QDialog):
         try:
             rel = str(Path(chosen).relative_to(Path(self._case_dir)))
         except ValueError:
-            QMessageBox.warning(
-                self,
-                "Invalid Directory",
-                "Please select a directory inside the case folder.",
-            )
+            QMessageBox.warning(self, tr("Invalid Directory"), tr("Please select a directory inside the case folder."))
             return
         if any(p == rel for p, _ in self._dirs):
-            QMessageBox.information(
-                self, "Already Added", f"'{rel}' is already in the directory list."
-            )
+            QMessageBox.information(self, tr("Already Added"), tr("'{rel}' is already in the directory list.").format(rel=rel))
             return
         self._dirs.append((rel, False))
         self._rebuild_dirs_list()
@@ -263,9 +257,7 @@ class ManageExtraFilesDialog(QDialog):
     def _remove_checked_dirs(self) -> None:
         checked = set(self._checked_dir_paths())
         if not checked:
-            QMessageBox.warning(
-                self, "No Selection", "Please select a directory to remove."
-            )
+            QMessageBox.warning(self, tr("No Selection"), tr("Please select a directory to remove."))
             return
         self._dirs = [(p, r) for p, r in self._dirs if p not in checked]
         self._rebuild_dirs_list()

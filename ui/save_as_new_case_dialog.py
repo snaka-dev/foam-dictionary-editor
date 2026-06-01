@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QRadioButton,
     QVBoxLayout,
 )
+from i18n import tr
 
 
 class SaveAsNewCaseDialog(QDialog):
@@ -31,7 +32,7 @@ class SaveAsNewCaseDialog(QDialog):
 
     def __init__(self, source_case_dir: str, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Save as New Case")
+        self.setWindowTitle(tr("Save as New Case"))
         self.setMinimumWidth(500)
 
         self._source = Path(source_case_dir)
@@ -42,7 +43,7 @@ class SaveAsNewCaseDialog(QDialog):
         source_label.setStyleSheet("color: #555;")
 
         self._dest_parent_edit = QLineEdit(str(self._source.parent))
-        browse_btn = QPushButton("Browse...")
+        browse_btn = QPushButton(tr("Browse..."))
         browse_btn.clicked.connect(self._browse_parent)
         parent_row = QHBoxLayout()
         parent_row.addWidget(self._dest_parent_edit)
@@ -59,33 +60,31 @@ class SaveAsNewCaseDialog(QDialog):
 
         # Copy mode
         self._radio_visible = QRadioButton(
-            "Copy app-visible files only\n"
-            "(system/controlDict, fvSchemes, fvSolution, …, constant/g, 0/, 0.orig/)"
+            tr("Copy app-visible files only\n(system/controlDict, fvSchemes, fvSolution, …, constant/g, 0/, 0.orig/)")
         )
-        self._radio_all = QRadioButton("Copy all files (full directory copy)")
+        self._radio_all = QRadioButton(tr("Copy all files (full directory copy)"))
         self._radio_visible.setChecked(True)
 
         self._copy_mode_group = QButtonGroup(self)
         self._copy_mode_group.addButton(self._radio_visible)
         self._copy_mode_group.addButton(self._radio_all)
 
-        copy_mode_box = QGroupBox("Copy mode")
+        copy_mode_box = QGroupBox(tr("Copy mode"))
         copy_mode_layout = QVBoxLayout(copy_mode_box)
         copy_mode_layout.addWidget(self._radio_visible)
         copy_mode_layout.addWidget(self._radio_all)
 
         note = QLabel(
-            "Unsaved edits in the current session are written into the new case.\n"
-            "The original case is not modified."
+            tr("Unsaved edits in the current session are written into the new case.\nThe original case is not modified.")
         )
         note.setStyleSheet("color: #555; font-style: italic;")
         note.setWordWrap(True)
 
         form = QFormLayout()
-        form.addRow("Source case:", source_label)
-        form.addRow("Save in:", parent_row)
-        form.addRow("New case name:", self._name_edit)
-        form.addRow("Destination:", self._preview_label)
+        form.addRow(tr("Source case:"), source_label)
+        form.addRow(tr("Save in:"), parent_row)
+        form.addRow(tr("New case name:"), self._name_edit)
+        form.addRow(tr("Destination:"), self._preview_label)
 
         self._buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self._buttons.accepted.connect(self._on_accept)
@@ -102,7 +101,7 @@ class SaveAsNewCaseDialog(QDialog):
     def _browse_parent(self) -> None:
         directory = QFileDialog.getExistingDirectory(
             self,
-            "Select Destination Directory",
+            tr("Select Destination Directory"),
             self._dest_parent_edit.text(),
         )
         if directory:
@@ -117,7 +116,7 @@ class SaveAsNewCaseDialog(QDialog):
             if ok_btn:
                 ok_btn.setEnabled(True)
         else:
-            self._preview_label.setText("(incomplete)")
+            self._preview_label.setText(tr("(incomplete)"))
             if ok_btn:
                 ok_btn.setEnabled(False)
 

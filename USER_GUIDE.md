@@ -223,6 +223,7 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, and
 - Settings > Manage Schema Modules.
 - Settings > Reset Window Size.
 - Settings > Reset All Settings…
+- Settings > Language — select the UI language (English / 日本語). Takes effect after restarting the application.
 
 **Help menu:**
 
@@ -349,6 +350,9 @@ By default a directory is scanned flat — only files directly inside it are lis
 Right-click the (purple) directory header in the file list and select **Remove '\<dir\>' from file list**, or use the **Extra Directories** tab in the management dialog (check the entry, then click **Remove Selected**).
 
 Files created or duplicated inside an extra directory are not added to the extra-files list — they are already visible because the whole directory is scanned.
+
+**Large non-dictionary files in extra directories:**  
+If a directory contains large files that are not OpenFOAM dictionaries (e.g. `log.simpleFoam`, solver output files), those files appear in the file list but are skipped during case comparison diff computation — no `≠` marker is shown for them. Opening such a file manually shows a confirmation dialog warning that the tree view will be unavailable and the application may not respond during loading.
 
 ### Extra files and directories indicator
 
@@ -952,11 +956,11 @@ If the corresponding file does not exist in the reference case, no overlay is ap
 
 ### File list markers
 
-When a reference case is selected, diff counts are computed for all files immediately. The `≠` suffix and **Changed files only** filter are available right away without opening each file first.
+When a reference case is selected, diff counts are computed progressively in the background — markers appear in the file list as each file is processed. Large files without a `FoamFile` header (e.g. log files, residual outputs) are skipped and will show no marker.
 
 | Suffix | Colour | Meaning |
 |---|---|---|
-| *(none)* | — | Not yet computed (only if file could not be parsed). |
+| *(none)* | — | Not yet computed, or skipped (large non-dictionary file). |
 | `≠0` | Gray | Identical to the reference. |
 | `≠N` | Amber | N differences found. |
 | `≠50+` | Amber | More than 50 differences (display cap). |

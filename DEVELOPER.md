@@ -55,6 +55,9 @@ foam-dictionary-editor/
 │   ├── case_copier.py
 │   ├── case_files_config.py
 │   └── case_loader.py
+├── i18n/
+│   ├── __init__.py             # tr(), set_language(), get_language(), available_languages()
+│   └── ja.py                   # Japanese translations (LANGUAGE_NAME + TRANSLATIONS dict)
 ├── ui/
 │   ├── _boundary_ops.py        # mixin: boundary view patch operations
 │   ├── _case_ops.py            # mixin: open/reload/duplicate/save-as case, settings
@@ -107,7 +110,34 @@ foam-dictionary-editor/
     └── test_writer_roundtrip.py
 ```
 
-`test_diff.py` covers `diff_trees` and `diff_trees_reverse` — identical trees, changed values, keys only in one tree, nested dictionaries, anonymous node skipping, `field_value_block` entries, and symmetry between the two functions. `FoamNode` carries `__hash__ = object.__hash__` so instances can be used as dict keys in the diff map. `test_comparison_tree_panel.py` covers `ComparisonTreePanel` — `load` sets the header label, populates the proxy, collapses the FoamFile node, and re-applies the Type column visibility; `clear` resets model and header; `set_type_column_visible` hides/shows the Type column and persists across `load` calls; `use_value_requested` signal is connectable. `test_tree_model.py` covers `set_diff(reverse=True)` — remaps `"only_here"` to `"only_in_ref"`, leaves `"changed"` unchanged, returns the light-green `BackgroundRole` colour, and includes `"only in reference case"` in the tooltip. `test_file_list_panel.py` covers the diff filter: `set_diff_filter_enabled` shows/hides and unchecks the checkbox; the filter hides zero-diff file items while always showing headers; `mark_diff` updates item visibility immediately when the filter is active. `test_case_loader.py` covers `detect_time_dirs` and `TestExtraDirs` — flat and recursive extra-directory scanning, missing-directory tolerance, and duplicate suppression. `test_case_files_config.py` covers `TestCaseFilesConfigDirs` — `DirEntry` add/remove/update-in-place, backward-compatible loading of plain-string JSON, and config reset. `test_main_window_split.py` verifies the mixin structure — that each mixin owns the right methods (including `_on_patch_selected` in `_BoundaryOpsMixin` and `_apply_comparison_value` in `_TreeOpsMixin`), there are no cross-mixin duplicates, and `MainWindow` inherits from all four mixins; `test_bool_nonuniform.py` covers bool/nonuniform_list parsing and parser error collection; `test_tree_color_lexer_dispatch.py` covers `unknown_raw_entry` amber colouring, lexer `//` behaviour, and the parser `_PAREN_DISPATCH` table; `test_source_lines.py` covers `source_line` and `source_end_line` population for all node types; `test_parser_block_mesh_dict.py` covers `boundary_block`/`boundary_entry` structured parsing, round-trip writing, and `extract_block_mesh_data` output for `blockMeshDict`; `test_rename_boundary.py` covers `find_rename_targets()` — detection of `boundary_entry` nodes in `blockMeshDict`, `dictionary` patch nodes in `boundaryField` blocks, absence of false positives for unrelated dictionaries, and the empty-input edge cases.
+`test_utils.py` covers `is_large_non_foam_file` — small files are never flagged regardless of header, large files with a `FoamFile` token in the first 512 bytes are not flagged, large files without it are flagged, missing files return `(False, 0)`, and a header preceded by a comment is still detected. `test_diff.py` covers `diff_trees` and `diff_trees_reverse` — identical trees, changed values, keys only in one tree, nested dictionaries, anonymous node skipping, `field_value_block` entries, and symmetry between the two functions. `FoamNode` carries `__hash__ = object.__hash__` so instances can be used as dict keys in the diff map. `test_comparison_tree_panel.py` covers `ComparisonTreePanel` — `load` sets the header label, populates the proxy, collapses the FoamFile node, and re-applies the Type column visibility; `clear` resets model and header; `set_type_column_visible` hides/shows the Type column and persists across `load` calls; `use_value_requested` signal is connectable. `test_tree_model.py` covers `set_diff(reverse=True)` — remaps `"only_here"` to `"only_in_ref"`, leaves `"changed"` unchanged, returns the light-green `BackgroundRole` colour, and includes `"only in reference case"` in the tooltip. `test_file_list_panel.py` covers the diff filter: `set_diff_filter_enabled` shows/hides and unchecks the checkbox; the filter hides zero-diff file items while always showing headers; `mark_diff` updates item visibility immediately when the filter is active. `test_case_loader.py` covers `detect_time_dirs` and `TestExtraDirs` — flat and recursive extra-directory scanning, missing-directory tolerance, and duplicate suppression. `test_case_files_config.py` covers `TestCaseFilesConfigDirs` — `DirEntry` add/remove/update-in-place, backward-compatible loading of plain-string JSON, and config reset. `test_main_window_split.py` verifies the mixin structure — that each mixin owns the right methods (including `_on_patch_selected` in `_BoundaryOpsMixin` and `_apply_comparison_value` in `_TreeOpsMixin`), there are no cross-mixin duplicates, and `MainWindow` inherits from all four mixins; `test_bool_nonuniform.py` covers bool/nonuniform_list parsing and parser error collection; `test_tree_color_lexer_dispatch.py` covers `unknown_raw_entry` amber colouring, lexer `//` behaviour, and the parser `_PAREN_DISPATCH` table; `test_source_lines.py` covers `source_line` and `source_end_line` population for all node types; `test_parser_block_mesh_dict.py` covers `boundary_block`/`boundary_entry` structured parsing, round-trip writing, and `extract_block_mesh_data` output for `blockMeshDict`; `test_rename_boundary.py` covers `find_rename_targets()` — detection of `boundary_entry` nodes in `blockMeshDict`, `dictionary` patch nodes in `boundaryField` blocks, absence of false positives for unrelated dictionaries, and the empty-input edge cases.
+
+## Internationalisation (i18n)
+
+All user-visible strings in `ui/` are wrapped with `tr()` from `i18n/__init__.py`. English strings serve as their own keys; translations fall back to the key when a mapping is absent.
+
+**Runtime flow**
+1. `main.py` calls `set_language(get_app_config().get_language())` before the window is created.
+2. Every widget constructor calls `tr("some string")` at instantiation time, so the selected language is applied to the whole UI on startup.
+3. Language changes take effect after a restart (no live retranslation).
+
+**Adding a new language**
+
+Create `i18n/<code>.py` — no other files need changing:
+
+```python
+LANGUAGE_NAME = "Italiano"          # shown in Settings > Language menu
+
+TRANSLATIONS: dict[str, str] = {
+    "Open Case": "Apri caso",
+    "Save File": "Salva file",
+    # ... add as many as needed; missing keys fall back to English
+}
+```
+
+`available_languages()` in `i18n/__init__.py` auto-discovers all `.py` files in the `i18n/` directory, so the new language appears in the Settings menu without any further changes.
+
+**Storage** — the selected language code is stored in `app_config.json` under the key `"language"`. The key is omitted entirely when the language is `"en"` (the default), keeping the config file clean.
 
 ## Extra directories
 

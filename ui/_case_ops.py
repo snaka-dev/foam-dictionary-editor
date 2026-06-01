@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 
 from app_config import get_app_config
 from app_config.defaults import DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH
+from i18n import tr
 from services.case_copier import copy_visible_files
 from services.case_loader import is_openfoam_case
 from ui.layout_constants import (
@@ -34,7 +35,7 @@ class _CaseOpsMixin:
         app_config = get_app_config()
         directory = QFileDialog.getExistingDirectory(
             self,
-            "Open OpenFOAM Case",
+            tr("Open OpenFOAM Case"),
             app_config.get_default_case_dir() or "",
         )
         if not directory:
@@ -48,15 +49,17 @@ class _CaseOpsMixin:
 
     def reload_case(self) -> None:
         if not self.current_case_dir:
-            QMessageBox.information(self, "No Case Open", "Please open a case first.")
+            QMessageBox.information(self, tr("No Case Open"), tr("Please open a case first."))
             return
 
         dirty_count = sum(1 for d in self.file_dirty.values() if d)
         if dirty_count > 0:
             reply = QMessageBox.question(
                 self,
-                "Reload Case",
-                f"Reloading will discard unsaved changes in {dirty_count} file(s).\n\nReload from disk?",
+                tr("Reload Case"),
+                tr("Reloading will discard unsaved changes in {count} file(s).\n\nReload from disk?").format(
+                    count=dirty_count
+                ),
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No,
             )
@@ -64,12 +67,14 @@ class _CaseOpsMixin:
                 return
 
         self._load_case_dir(self.current_case_dir)
-        self.statusBar().showMessage(f"Case reloaded: {self.current_case_dir}", _STATUS_NORMAL)
+        self.statusBar().showMessage(
+            tr("Case reloaded: {path}").format(path=self.current_case_dir), _STATUS_NORMAL
+        )
 
     def open_from_library(self) -> None:
         if not self._confirm_discard_if_needed():
             return
-        directory = self._pick_case_from_library("Open OpenFOAM Case from Library")
+        directory = self._pick_case_from_library(tr("Open OpenFOAM Case from Library"))
         if not directory:
             return
         if not self._confirm_open_dir(directory):
@@ -80,7 +85,7 @@ class _CaseOpsMixin:
 
     def duplicate_case(self) -> None:
         if not self.current_case_dir:
-            QMessageBox.information(self, "No Case Open", "Please open a case first.")
+            QMessageBox.information(self, tr("No Case Open"), tr("Please open a case first."))
             return
 
         dirty_paths = [p for p, dirty in self.file_dirty.items() if dirty]
@@ -90,8 +95,8 @@ class _CaseOpsMixin:
         if dirty_paths:
             reply = QMessageBox.question(
                 self,
-                "Unsaved Changes",
-                "There are unsaved changes. Save all files before duplicating?",
+                tr("Unsaved Changes"),
+                tr("There are unsaved changes. Save all files before duplicating?"),
                 QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
                 QMessageBox.Yes,
             )
@@ -113,8 +118,8 @@ class _CaseOpsMixin:
         if dest.exists():
             reply = QMessageBox.question(
                 self,
-                "Destination Already Exists",
-                f"The following directory already exists:\n{dest}\n\nOverwrite?",
+                tr("Destination Already Exists"),
+                tr("The following directory already exists:\n{dest}\n\nOverwrite?").format(dest=dest),
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No,
             )
@@ -123,13 +128,16 @@ class _CaseOpsMixin:
             try:
                 shutil.rmtree(dest)
             except Exception as e:
-                QMessageBox.critical(self, "Duplicate Error", f"Could not remove existing directory:\n{e}")
+                QMessageBox.critical(
+                    self, tr("Duplicate Error"),
+                    tr("Could not remove existing directory:\n{e}").format(e=e)
+                )
                 return
 
         self._run_duplicate(self.current_case_dir, dest, dialog.copy_all_files)
 
     def duplicate_from_library(self) -> None:
-        source = self._pick_case_from_library("Select Source Case from Library")
+        source = self._pick_case_from_library(tr("Select Source Case from Library"))
         if not source:
             return
         cfg = get_app_config()
@@ -148,16 +156,18 @@ class _CaseOpsMixin:
         if not dirs:
             QMessageBox.information(
                 self,
-                "Case Library Empty",
-                "No directories are registered in the Case Library.\n\n"
-                "Add directories via Settings > Manage Case Library...",
+                tr("Case Library Empty"),
+                tr(
+                    "No directories are registered in the Case Library.\n\n"
+                    "Add directories via Settings > Manage Case Library..."
+                ),
             )
             return None
         if len(dirs) == 1:
             start_dir = dirs[0]
         else:
             item, ok = QInputDialog.getItem(
-                self, "Select Library", "Choose a library to browse:", dirs, 0, False
+                self, tr("Select Library"), tr("Choose a library to browse:"), dirs, 0, False
             )
             if not ok:
                 return None
@@ -169,8 +179,8 @@ class _CaseOpsMixin:
         if dest.exists():
             reply = QMessageBox.question(
                 self,
-                "Destination Already Exists",
-                f"The following directory already exists:\n{dest}\n\nOverwrite?",
+                tr("Destination Already Exists"),
+                tr("The following directory already exists:\n{dest}\n\nOverwrite?").format(dest=dest),
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No,
             )
@@ -179,7 +189,10 @@ class _CaseOpsMixin:
             try:
                 shutil.rmtree(dest)
             except Exception as e:
-                QMessageBox.critical(self, "Duplicate Error", f"Could not remove existing directory:\n{e}")
+                QMessageBox.critical(
+                    self, tr("Duplicate Error"),
+                    tr("Could not remove existing directory:\n{e}").format(e=e)
+                )
                 return
 
         try:
@@ -188,13 +201,16 @@ class _CaseOpsMixin:
             else:
                 self._copy_visible_files(source_dir, dest)
         except Exception as e:
-            QMessageBox.critical(self, "Duplicate Error", f"Failed to duplicate case:\n{e}")
+            QMessageBox.critical(
+                self, tr("Duplicate Error"),
+                tr("Failed to duplicate case:\n{e}").format(e=e)
+            )
             return
 
         reply = QMessageBox.question(
             self,
-            "Duplicate Complete",
-            f"Case duplicated to:\n{dest}\n\nOpen the duplicated case now?",
+            tr("Duplicate Complete"),
+            tr("Case duplicated to:\n{dest}\n\nOpen the duplicated case now?").format(dest=dest),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -204,13 +220,15 @@ class _CaseOpsMixin:
             cfg.save()
             self._load_case_dir(str(dest))
         else:
-            self.statusBar().showMessage(f"Duplicated to: {dest}", _STATUS_NORMAL)
+            self.statusBar().showMessage(
+                tr("Duplicated to: {dest}").format(dest=dest), _STATUS_NORMAL
+            )
 
     # ── save as new case ──────────────────────────────────────────────────────
 
     def save_as_new_case(self) -> None:
         if not self.current_case_dir:
-            QMessageBox.information(self, "No Case Open", "Please open a case first.")
+            QMessageBox.information(self, tr("No Case Open"), tr("Please open a case first."))
             return
 
         if self.current_file is not None:
@@ -230,8 +248,8 @@ class _CaseOpsMixin:
         if dest.exists():
             reply = QMessageBox.question(
                 self,
-                "Destination Already Exists",
-                f"The following directory already exists:\n{dest}\n\nOverwrite?",
+                tr("Destination Already Exists"),
+                tr("The following directory already exists:\n{dest}\n\nOverwrite?").format(dest=dest),
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No,
             )
@@ -240,7 +258,10 @@ class _CaseOpsMixin:
             try:
                 shutil.rmtree(dest)
             except Exception as e:
-                QMessageBox.critical(self, "Save As Error", f"Could not remove existing directory:\n{e}")
+                QMessageBox.critical(
+                    self, tr("Save As Error"),
+                    tr("Could not remove existing directory:\n{e}").format(e=e)
+                )
                 return
 
         try:
@@ -249,7 +270,10 @@ class _CaseOpsMixin:
             else:
                 self._copy_visible_files(self.current_case_dir, dest)
         except Exception as e:
-            QMessageBox.critical(self, "Save As Error", f"Could not copy case files:\n{e}")
+            QMessageBox.critical(
+                self, tr("Save As Error"),
+                tr("Could not copy case files:\n{e}").format(e=e)
+            )
             return
 
         source = Path(self.current_case_dir)
@@ -271,15 +295,19 @@ class _CaseOpsMixin:
         if errors:
             QMessageBox.warning(
                 self,
-                "Save As — Partial Failure",
-                "Some edited files could not be written:\n" + "\n".join(errors),
+                tr("Save As — Partial Failure"),
+                tr("Some edited files could not be written:\n{errors}").format(
+                    errors="\n".join(errors)
+                ),
             )
 
         cfg = get_app_config()
         cfg.set_default_case_dir(str(dest.parent))
         cfg.save()
         self._load_case_dir(str(dest))
-        self.statusBar().showMessage(f"Saved as new case: {dest}", _STATUS_NORMAL)
+        self.statusBar().showMessage(
+            tr("Saved as new case: {dest}").format(dest=dest), _STATUS_NORMAL
+        )
 
     # ── helpers ───────────────────────────────────────────────────────────────
 
@@ -289,11 +317,12 @@ class _CaseOpsMixin:
             return True
         reply = QMessageBox.warning(
             self,
-            "Possibly Not an OpenFOAM Case",
-            f"The selected directory does not contain 'system' or 'constant':\n\n"
-            f"{directory}\n\n"
-            "This may not be a valid OpenFOAM case.\n"
-            "Open anyway?",
+            tr("Possibly Not an OpenFOAM Case"),
+            tr(
+                "The selected directory does not contain 'system' or 'constant':\n\n"
+                "{directory}\n\n"
+                "This may not be a valid OpenFOAM case.\nOpen anyway?"
+            ).format(directory=directory),
             QMessageBox.Open | QMessageBox.Cancel,
             QMessageBox.Cancel,
         )
@@ -308,7 +337,7 @@ class _CaseOpsMixin:
         app_config = get_app_config()
         directory = QFileDialog.getExistingDirectory(
             self,
-            "Select Default Case Directory",
+            tr("Select Default Case Directory"),
             app_config.get_default_case_dir() or "",
         )
         if directory:
@@ -316,9 +345,11 @@ class _CaseOpsMixin:
             app_config.save()
             QMessageBox.information(
                 self,
-                "Directory Saved",
-                f"Default case directory set to:\n{directory}\n\n"
-                "This directory will be used as the initial location when opening cases.",
+                tr("Directory Saved"),
+                tr(
+                    "Default case directory set to:\n{directory}\n\n"
+                    "This directory will be used as the initial location when opening cases."
+                ).format(directory=directory),
             )
 
     def manage_case_library(self) -> None:
@@ -338,8 +369,10 @@ class _CaseOpsMixin:
     def reset_window_size(self) -> None:
         reply = QMessageBox.question(
             self,
-            "Reset Window Size",
-            f"Reset window size to default ({DEFAULT_WINDOW_WIDTH}x{DEFAULT_WINDOW_HEIGHT})?",
+            tr("Reset Window Size"),
+            tr("Reset window size to default ({w}x{h})?").format(
+                w=DEFAULT_WINDOW_WIDTH, h=DEFAULT_WINDOW_HEIGHT
+            ),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -350,8 +383,10 @@ class _CaseOpsMixin:
             cfg.save()
             QMessageBox.information(
                 self,
-                "Size Reset",
-                f"Window size has been reset to default ({DEFAULT_WINDOW_WIDTH}x{DEFAULT_WINDOW_HEIGHT}).",
+                tr("Size Reset"),
+                tr("Window size has been reset to default ({w}x{h}).").format(
+                    w=DEFAULT_WINDOW_WIDTH, h=DEFAULT_WINDOW_HEIGHT
+                ),
             )
 
     def reset_all_settings(self) -> None:

@@ -22,6 +22,7 @@ class AppConfigManager:
         self._case_library_dirs: list[str] = []
         self._user_links: list[dict] = []
         self._features: dict[str, bool] = {}
+        self._language: str = "en"
         self._load()
 
     def _load(self) -> None:
@@ -34,6 +35,7 @@ class AppConfigManager:
             self._case_library_dirs = data.get("case_library_dirs", [])
             self._user_links = data.get("user_links", [])
             self._features = data.get("features", {})
+            self._language = data.get("language", "en")
         except (json.JSONDecodeError, IOError) as e:
             print(f"Warning: Failed to load config file: {e}")
             self._window_size = None
@@ -53,6 +55,8 @@ class AppConfigManager:
             }
             if self._features:
                 data["features"] = self._features
+            if self._language != "en":
+                data["language"] = self._language
             self._config_path.write_text(
                 json.dumps(data, indent=JSON_INDENT, ensure_ascii=False),
                 encoding="utf-8",
@@ -66,6 +70,7 @@ class AppConfigManager:
         self._case_library_dirs = []
         self._user_links = []
         self._features = {}
+        self._language = "en"
 
     def delete_config_file(self) -> None:
         try:
@@ -147,3 +152,11 @@ class AppConfigManager:
     def get_feature(self, name: str, default: bool = True) -> bool:
         """Return the value of a feature flag; defaults to True when absent."""
         return bool(self._features.get(name, default))
+
+    # ── language ──────────────────────────────────────────────────────────────
+
+    def get_language(self) -> str:
+        return self._language
+
+    def set_language(self, lang: str) -> None:
+        self._language = lang

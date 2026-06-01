@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QSortFilterProxyModel
-from PySide6.QtGui import QAction, QKeySequence, QShortcut
+from PySide6.QtCore import Qt, QSortFilterProxyModel, QTimer
+from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QFileDialog,
@@ -25,10 +25,11 @@ from PySide6.QtWidgets import (
 )
 
 from app_config import get_app_config
+from i18n import available_languages, get_language, tr
 from foam.diff import diff_trees, diff_trees_reverse
 from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser
-from foam.utils import read_foam_file
+from foam.utils import read_foam_file, is_large_non_foam_file
 from foam.writer import write_root
 from model.tree_model import FoamTreeModel
 from ui._boundary_ops import _BoundaryOpsMixin
@@ -74,7 +75,7 @@ def _act(menu, label: str, shortcut: str, slot) -> None:
 class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin, QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("foam dictionary editor")
+        self.setWindowTitle(tr("foam dictionary editor"))
 
         self.current_case_dir: str | None = None
         self.current_file: str | None = None
@@ -113,16 +114,16 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
     def _build_top_bar(self) -> QHBoxLayout:
         self.current_case_label = QLabel("-")
         self.current_case_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.current_case_label.setToolTip("Current case name")
+        self.current_case_label.setToolTip(tr("Current case name"))
 
         self.current_file_label = QLabel("-")
         self.current_file_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.current_file_label.setToolTip("Current file name")
+        self.current_file_label.setToolTip(tr("Current file name"))
 
-        save_btn = QPushButton("Save File")
-        save_all_btn = QPushButton("Save All Files")
-        apply_btn = QPushButton("Apply Text to Tree")
-        reload_btn = QPushButton("Reload from Tree")
+        save_btn = QPushButton(tr("Save File"))
+        save_all_btn = QPushButton(tr("Save All Files"))
+        apply_btn = QPushButton(tr("Apply Text to Tree"))
+        reload_btn = QPushButton(tr("Reload from Tree"))
         save_btn.clicked.connect(self.save_file)
         save_all_btn.clicked.connect(self.save_all_files)
         apply_btn.clicked.connect(self.apply_text_to_tree)
@@ -134,10 +135,10 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         layout.addWidget(save_all_btn)
         layout.addWidget(apply_btn)
         layout.addWidget(reload_btn)
-        layout.addWidget(QLabel("Case:"))
+        layout.addWidget(QLabel(tr("Case:")))
         layout.addWidget(self.current_case_label)
         layout.addSpacing(16)
-        layout.addWidget(QLabel("File:"))
+        layout.addWidget(QLabel(tr("File:")))
         layout.addWidget(self.current_file_label)
         layout.addStretch(1)
         return layout
@@ -150,11 +151,11 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         self.proxy_model.setFilterKeyColumn(FoamTreeModel.COL_KEY)
 
         self.tree_filter_input = QLineEdit()
-        self.tree_filter_input.setPlaceholderText("Filter keys…")
+        self.tree_filter_input.setPlaceholderText(tr("Filter keys…"))
         self.tree_filter_input.setClearButtonEnabled(True)
         self.tree_filter_input.textChanged.connect(self.proxy_model.setFilterFixedString)
 
-        self.editor_autoscroll_checkbox = QCheckBox("Auto-scroll editor")
+        self.editor_autoscroll_checkbox = QCheckBox(tr("Auto-scroll editor"))
         self.editor_autoscroll_checkbox.setChecked(True)
         self._update_sync_checkbox()
 
@@ -189,7 +190,7 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
             self.terminal_panel = TerminalPanel()
 
         self.bottom_tabs = QTabWidget()
-        self.bottom_tabs.addTab(self.editor_panel, "Editor")
+        self.bottom_tabs.addTab(self.editor_panel, tr("Editor"))
         if self.terminal_panel is not None:
             self.bottom_tabs.addTab(self.terminal_panel, self.terminal_panel.tab_label)
 
@@ -221,15 +222,15 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         right_upper_splitter.setMinimumSize(0, 0)
 
         self.upper_tabs = QTabWidget()
-        self.upper_tabs.addTab(right_upper_splitter, "Tree")
-        self.upper_tabs.addTab(self.boundary_panel, "Boundary")
+        self.upper_tabs.addTab(right_upper_splitter, tr("Tree"))
+        self.upper_tabs.addTab(self.boundary_panel, tr("Boundary"))
         if self.block_mesh_panel is not None:
             # When terminal is present, BlockMesh tab visibility depends on
             # whether xterm is active (xterm and VTK share the OpenGL context).
             # When there is no terminal, show BlockMesh unconditionally.
             show_bm = (self.terminal_panel is None) or (not self.terminal_panel.use_xterm)
             if show_bm:
-                self.upper_tabs.addTab(self.block_mesh_panel, "BlockMesh")
+                self.upper_tabs.addTab(self.block_mesh_panel, tr("BlockMesh"))
         self.upper_tabs.setMinimumSize(0, 0)
 
         right_splitter = QSplitter(Qt.Vertical)
@@ -305,38 +306,40 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
     def _build_menu_bar(self) -> None:
         menubar = self.menuBar()
 
-        case_menu = menubar.addMenu("Case")
-        _act(case_menu, "Open Case",              "Ctrl+O",       self.open_case)
-        case_menu.addAction("Open from Case Library...").triggered.connect(self.open_from_library)
-        case_menu.addAction("Reload Case").triggered.connect(self.reload_case)
+        case_menu = menubar.addMenu(tr("Case"))
+        _act(case_menu, tr("Open Case"),              "Ctrl+O",       self.open_case)
+        case_menu.addAction(tr("Open from Case Library...")).triggered.connect(self.open_from_library)
+        case_menu.addAction(tr("Reload Case")).triggered.connect(self.reload_case)
         case_menu.addSeparator()
-        _act(case_menu, "Save Case",              "Ctrl+Shift+S", self.save_all_files)
-        case_menu.addAction("Save as New Case...").triggered.connect(self.save_as_new_case)
+        _act(case_menu, tr("Save Case"),              "Ctrl+Shift+S", self.save_all_files)
+        case_menu.addAction(tr("Save as New Case...")).triggered.connect(self.save_as_new_case)
         case_menu.addSeparator()
-        case_menu.addAction("Duplicate Case...").triggered.connect(self.duplicate_case)
-        case_menu.addAction("Duplicate from Case Library...").triggered.connect(self.duplicate_from_library)
+        case_menu.addAction(tr("Duplicate Case...")).triggered.connect(self.duplicate_case)
+        case_menu.addAction(tr("Duplicate from Case Library...")).triggered.connect(self.duplicate_from_library)
         case_menu.addSeparator()
-        case_menu.addAction("Clean Backup Files...").triggered.connect(self._on_clean_backups)
+        case_menu.addAction(tr("Clean Backup Files...")).triggered.connect(self._on_clean_backups)
         case_menu.addSeparator()
-        case_menu.addAction("Compare with Case...").triggered.connect(self._compare_with_case)
+        case_menu.addAction(tr("Compare with Case...")).triggered.connect(self._compare_with_case)
         case_menu.addSeparator()
-        _act(case_menu, "Exit",                   "Ctrl+Q",       self.close)
+        _act(case_menu, tr("Exit"),                   "Ctrl+Q",       self.close)
 
         QShortcut(QKeySequence("Ctrl+S"), self).activated.connect(self.save_file)
 
-        settings_menu = menubar.addMenu("Settings")
-        settings_menu.addAction("Set Default Case Directory").triggered.connect(self.set_default_case_directory)
-        settings_menu.addAction("Manage Case Library…").triggered.connect(self.manage_case_library)
-        settings_menu.addAction("Manage Extra Files & Directories…").triggered.connect(self._on_manage_extra_files)
-        settings_menu.addAction("Reset File List").triggered.connect(self.reset_file_list)
+        settings_menu = menubar.addMenu(tr("Settings"))
+        settings_menu.addAction(tr("Set Default Case Directory")).triggered.connect(self.set_default_case_directory)
+        settings_menu.addAction(tr("Manage Case Library…")).triggered.connect(self.manage_case_library)
+        settings_menu.addAction(tr("Manage Extra Files & Directories…")).triggered.connect(self._on_manage_extra_files)
+        settings_menu.addAction(tr("Reset File List")).triggered.connect(self.reset_file_list)
         settings_menu.addSeparator()
-        settings_menu.addAction("Manage Schema Modules").triggered.connect(self.open_schema_manager)
-        settings_menu.addAction("Reset Window Size").triggered.connect(self.reset_window_size)
+        settings_menu.addAction(tr("Manage Schema Modules")).triggered.connect(self.open_schema_manager)
+        settings_menu.addAction(tr("Reset Window Size")).triggered.connect(self.reset_window_size)
         settings_menu.addSeparator()
-        settings_menu.addAction("Reset All Settings…").triggered.connect(self.reset_all_settings)
+        settings_menu.addAction(tr("Reset All Settings…")).triggered.connect(self.reset_all_settings)
+        settings_menu.addSeparator()
+        self._build_language_menu(settings_menu)
 
-        view_menu = menubar.addMenu("View")
-        self._show_type_action = QAction("Show Type Column", self)
+        view_menu = menubar.addMenu(tr("View"))
+        self._show_type_action = QAction(tr("Show Type Column"), self)
         self._show_type_action.setCheckable(True)
         self._show_type_action.setChecked(False)
         self._show_type_action.toggled.connect(self._on_toggle_type_column)
@@ -345,7 +348,7 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         self._blockmesh_action: QAction | None = None
         if self.block_mesh_panel is not None:
             view_menu.addSeparator()
-            self._blockmesh_action = QAction("BlockMesh 3-D Panel", self)
+            self._blockmesh_action = QAction(tr("BlockMesh 3-D Panel"), self)
             self._blockmesh_action.setCheckable(True)
             xterm_active = (
                 self.terminal_panel is not None and self.terminal_panel.use_xterm
@@ -354,16 +357,16 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
             self._blockmesh_action.setEnabled(not xterm_active)
             if xterm_active:
                 self._blockmesh_action.setText(
-                    "BlockMesh 3-D Panel  (unavailable: xterm active)"
+                    tr("BlockMesh 3-D Panel  (unavailable: xterm active)")
                 )
             self._blockmesh_action.toggled.connect(self._on_toggle_blockmesh_panel)
             view_menu.addAction(self._blockmesh_action)
 
-        help_menu = menubar.addMenu("Help")
-        help_menu.addAction("About Foam Dictionary Editor (FoDE)...").triggered.connect(self.show_about)
+        help_menu = menubar.addMenu(tr("Help"))
+        help_menu.addAction(tr("About Foam Dictionary Editor (FoDE)...")).triggered.connect(self.show_about)
         help_menu.addSeparator()
-        help_menu.addAction("Keyboard Shortcuts...").triggered.connect(self.show_keyboard_shortcuts)
-        help_menu.addAction("Resources...").triggered.connect(self.show_openfoam_resources)
+        help_menu.addAction(tr("Keyboard Shortcuts...")).triggered.connect(self.show_keyboard_shortcuts)
+        help_menu.addAction(tr("Resources...")).triggered.connect(self.show_openfoam_resources)
 
     # ── window lifecycle ──────────────────────────────────────────────────────
 
@@ -381,6 +384,29 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         event.accept()
 
     # ── schema / help ─────────────────────────────────────────────────────────
+
+    def _build_language_menu(self, parent_menu) -> None:
+        lang_menu = parent_menu.addMenu(tr("Language"))
+        group = QActionGroup(self)
+        group.setExclusive(True)
+        for code, name in available_languages():
+            action = lang_menu.addAction(name)
+            action.setCheckable(True)
+            action.setChecked(code == get_language())
+            action.setData(code)
+            group.addAction(action)
+        group.triggered.connect(self._on_language_changed)
+
+    def _on_language_changed(self, action: QAction) -> None:
+        code = action.data()
+        cfg = get_app_config()
+        cfg.set_language(code)
+        cfg.save()
+        QMessageBox.information(
+            self,
+            tr("Language Changed"),
+            tr("The language will change after restarting the application."),
+        )
 
     def open_schema_manager(self) -> None:
         from ui.schema_manager_dialog import SchemaManagerDialog
@@ -420,7 +446,7 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
                 self.block_mesh_panel.update_block_mesh(self.current_file, self.current_root)
         self._resize_tree_columns()
         self.on_tree_selection()
-        self.statusBar().showMessage("Tree changes applied to text editor", _STATUS_SHORT)
+        self.statusBar().showMessage(tr("Tree changes applied to text editor"), _STATUS_SHORT)
 
     def _load_tree(self, root: FoamNode) -> None:
         self.current_root = root
@@ -471,8 +497,8 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
             return True
         reply = QMessageBox.question(
             self,
-            "Unsaved Changes",
-            "Text editor has unsaved changes. Discard them?",
+            tr("Unsaved Changes"),
+            tr("Text editor has unsaved changes. Discard them?"),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -506,7 +532,7 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         if checked:
             idx = self.upper_tabs.indexOf(self.block_mesh_panel)
             if idx < 0:
-                self.upper_tabs.addTab(self.block_mesh_panel, "BlockMesh")
+                self.upper_tabs.addTab(self.block_mesh_panel, tr("BlockMesh"))
             QTimer.singleShot(0, self.block_mesh_panel._init_plotter)
         else:
             self.block_mesh_panel.shutdown()
@@ -542,7 +568,7 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
             self.current_case_label.setToolTip(self.current_case_dir)
         else:
             self.current_case_label.setText("-")
-            self.current_case_label.setToolTip("No case opened")
+            self.current_case_label.setToolTip(tr("No case opened"))
 
     def _update_file_label(self) -> None:
         if self.current_file:
@@ -551,27 +577,31 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
             self.current_file_label.setToolTip(self.current_file)
         else:
             self.current_file_label.setText("-")
-            self.current_file_label.setToolTip("No file loaded")
+            self.current_file_label.setToolTip(tr("No file loaded"))
 
     def _update_window_title(self) -> None:
         mark = "*" if self.text_dirty else ""
-        self.setWindowTitle(f"foam dictionary editor{mark}")
+        self.setWindowTitle(f"{tr('foam dictionary editor')}{mark}")
 
     def _update_sync_checkbox(self) -> None:
         stale = self.current_file is not None and not self._source_lines_valid
         if stale:
-            self.editor_autoscroll_checkbox.setText("Auto-scroll editor (stale)")
+            self.editor_autoscroll_checkbox.setText(tr("Auto-scroll editor (stale)"))
             self.editor_autoscroll_checkbox.setStyleSheet("color: gray;")
             self.editor_autoscroll_checkbox.setToolTip(
-                "Source lines are stale — the editor text has changed since the last parse.\n"
-                "Apply Text to Tree to re-enable jump-to-line and span highlight."
+                tr(
+                    "Source lines are stale — the editor text has changed since the last parse.\n"
+                    "Apply Text to Tree to re-enable jump-to-line and span highlight."
+                )
             )
         else:
-            self.editor_autoscroll_checkbox.setText("Auto-scroll editor")
+            self.editor_autoscroll_checkbox.setText(tr("Auto-scroll editor"))
             self.editor_autoscroll_checkbox.setStyleSheet("")
             self.editor_autoscroll_checkbox.setToolTip(
-                "When checked, the editor scrolls to the selected tree entry.\n"
-                "The span highlight is always shown regardless of this setting."
+                tr(
+                    "When checked, the editor scrolls to the selected tree entry.\n"
+                    "The span highlight is always shown regardless of this setting."
+                )
             )
 
     # ── diff overlay ─────────────────────────────────────────────────────────
@@ -591,10 +621,10 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         )
         legend.setTextFormat(Qt.RichText)
         self._diff_path_label = QLabel()
-        self._side_by_side_cb = QCheckBox("Side by side")
+        self._side_by_side_cb = QCheckBox(tr("Side by side"))
         self._side_by_side_cb.setChecked(True)
         self._side_by_side_cb.toggled.connect(self._on_side_by_side_toggled)
-        clear_btn = QPushButton("Clear")
+        clear_btn = QPushButton(tr("Clear"))
         clear_btn.setFixedWidth(60)
         clear_btn.clicked.connect(self._clear_diff)
         bar_layout = QHBoxLayout(self._diff_bar)
@@ -620,18 +650,20 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
     def _compare_with_case(self) -> None:
         directory = QFileDialog.getExistingDirectory(
             self,
-            "Select Reference Case Directory",
+            tr("Select Reference Case Directory"),
             self.current_case_dir or "",
         )
         if not directory:
             return
         self._diff_case_dir = directory
         name = Path(directory).name or directory
-        self._diff_path_label.setText(f"Comparing with: <b>{name}</b>  ({directory})")
+        self._diff_path_label.setText(
+            tr("Comparing with: <b>{name}</b>  ({directory})").format(name=name, directory=directory)
+        )
         self._diff_path_label.setTextFormat(Qt.RichText)
         self._diff_bar.show()
         self._recompute_diff()
-        self._precompute_all_diff_counts()
+        QTimer.singleShot(0, self._precompute_all_diff_counts)
         self._side_by_side_cb.setChecked(True)
 
     def _clear_diff(self) -> None:
@@ -646,7 +678,7 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
             self.right_upper_splitter.setSizes(
                 [SPLITTER_TREE_WIDTH, 0, SPLITTER_DETAIL_WIDTH]
             )
-        self.statusBar().showMessage("Diff cleared.", _STATUS_SHORT)
+        self.statusBar().showMessage(tr("Diff cleared."), _STATUS_SHORT)
 
     def _recompute_diff(self) -> None:
         if not self._diff_case_dir or not self.current_file or not self.current_case_dir:
@@ -662,7 +694,7 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
                 self.current_model.clear_diff()
                 self.comparison_panel.clear()
                 self.statusBar().showMessage(
-                    f"Diff: {rel} not found in reference case.", _STATUS_SHORT
+                    tr("Diff: {rel} not found in reference case.").format(rel=rel), _STATUS_SHORT
                 )
                 return
             try:
@@ -682,51 +714,77 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         n = len(diff_map)
         self.file_list_panel.mark_diff(self.current_file, n)
         self.statusBar().showMessage(
-            f"Diff: {n} difference{'s' if n != 1 else ''} in {rel}.", _STATUS_SHORT
+            tr("Diff: {n} difference{s} in {rel}.").format(n=n, s="s" if n != 1 else "", rel=rel),
+            _STATUS_SHORT,
         )
 
     def _precompute_all_diff_counts(self) -> None:
-        """Compute diff counts for all files in the current case (for the filter)."""
         if not self._diff_case_dir or not self.current_case_dir:
             return
         case_path = Path(self.current_case_dir)
         diff_path = Path(self._diff_case_dir)
-        for i in range(self.file_list_panel._list.count()):
-            item = self.file_list_panel._list.item(i)
-            from PySide6.QtCore import Qt as _Qt
-            path = item.data(_Qt.UserRole)
-            if not path:
-                continue
+        paths = [
+            item.data(Qt.UserRole)
+            for item in (
+                self.file_list_panel._list.item(i)
+                for i in range(self.file_list_panel._list.count())
+            )
+            if item.data(Qt.UserRole)
+        ]
+        self._precompute_diff_step(paths, 0, case_path, diff_path)
+
+    def _precompute_diff_step(
+        self, paths: list, idx: int, case_path: Path, diff_path: Path
+    ) -> None:
+        if not self._diff_case_dir:
+            return
+        if idx >= len(paths):
+            self.file_list_panel.set_diff_filter_enabled(True)
+            return
+        path = paths[idx]
+        advance = lambda: QTimer.singleShot(  # noqa: E731
+            0, lambda: self._precompute_diff_step(paths, idx + 1, case_path, diff_path)
+        )
+        try:
+            rel = Path(path).relative_to(case_path)
+        except ValueError:
+            advance()
+            return
+        other_path = diff_path / rel
+        other_key = str(other_path)
+        if other_key not in self._diff_parsed_roots:
+            if not other_path.exists():
+                self.file_list_panel.mark_diff(path, 0)
+                advance()
+                return
+            if is_large_non_foam_file(str(other_path))[0]:
+                advance()
+                return
             try:
-                rel = Path(path).relative_to(case_path)
-            except ValueError:
-                continue
-            other_path = diff_path / rel
-            other_key = str(other_path)
-            if other_key not in self._diff_parsed_roots:
-                if not other_path.exists():
-                    self.file_list_panel.mark_diff(path, 0)
-                    continue
-                try:
-                    self._diff_parsed_roots[other_key] = OpenFoamParser(
-                        read_foam_file(other_key)
-                    ).parse()
-                except Exception:
-                    continue
-            other_root = self._diff_parsed_roots[other_key]
-            if path == self.current_file:
-                a_root = self.current_root
-            elif path in self._parsed_roots:
-                a_root = self._parsed_roots[path]
-            else:
-                try:
-                    a_root = OpenFoamParser(read_foam_file(path)).parse()
-                    self._parsed_roots[path] = a_root
-                except Exception:
-                    continue
-            d = diff_trees(a_root, other_root)
-            self.file_list_panel.mark_diff(path, len(d))
-        self.file_list_panel.set_diff_filter_enabled(True)
+                self._diff_parsed_roots[other_key] = OpenFoamParser(
+                    read_foam_file(other_key)
+                ).parse()
+            except Exception:
+                advance()
+                return
+        other_root = self._diff_parsed_roots[other_key]
+        if path == self.current_file:
+            a_root = self.current_root
+        elif path in self._parsed_roots:
+            a_root = self._parsed_roots[path]
+        else:
+            if is_large_non_foam_file(path)[0]:
+                advance()
+                return
+            try:
+                a_root = OpenFoamParser(read_foam_file(path)).parse()
+                self._parsed_roots[path] = a_root
+            except Exception:
+                advance()
+                return
+        d = diff_trees(a_root, other_root)
+        self.file_list_panel.mark_diff(path, len(d))
+        advance()
 
     # ── terminal mode switch ──────────────────────────────────────────────────
 
@@ -743,20 +801,20 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
             if self._blockmesh_action is not None:
                 self._blockmesh_action.setEnabled(False)
                 self._blockmesh_action.setText(
-                    "BlockMesh 3-D Panel  (unavailable: xterm active)"
+                    tr("BlockMesh 3-D Panel  (unavailable: xterm active)")
                 )
         else:
             # Simple terminal is GPU-free — restore BlockMesh tab if user wants it.
             if self._blockmesh_action is not None:
                 self._blockmesh_action.setEnabled(True)
-                self._blockmesh_action.setText("BlockMesh 3-D Panel")
+                self._blockmesh_action.setText(tr("BlockMesh 3-D Panel"))
             user_wants_bm = (
                 self._blockmesh_action is None or self._blockmesh_action.isChecked()
             )
             if user_wants_bm:
                 idx = self.upper_tabs.indexOf(self.block_mesh_panel)
                 if idx < 0:
-                    self.upper_tabs.addTab(self.block_mesh_panel, "BlockMesh")
+                    self.upper_tabs.addTab(self.block_mesh_panel, tr("BlockMesh"))
                 # Brief delay lets the WebEngine GPU process finish cleaning up
                 # before VTK claims the OpenGL context.
                 QTimer.singleShot(300, self.block_mesh_panel._init_plotter)

@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QRadioButton,
     QVBoxLayout,
 )
+from i18n import tr
 
 
 class DuplicateCaseDialog(QDialog):
@@ -29,7 +30,7 @@ class DuplicateCaseDialog(QDialog):
         parent=None,
     ):
         super().__init__(parent)
-        self.setWindowTitle("Duplicate Case")
+        self.setWindowTitle(tr("Duplicate Case"))
         self.setMinimumWidth(500)
 
         self._source = Path(source_case_dir)
@@ -41,7 +42,7 @@ class DuplicateCaseDialog(QDialog):
 
         dest_default = default_dest_parent if default_dest_parent else str(self._source.parent)
         self._dest_parent_edit = QLineEdit(dest_default)
-        browse_btn = QPushButton("Browse...")
+        browse_btn = QPushButton(tr("Browse..."))
         browse_btn.clicked.connect(self._browse_parent)
         parent_row = QHBoxLayout()
         parent_row.addWidget(self._dest_parent_edit)
@@ -57,10 +58,9 @@ class DuplicateCaseDialog(QDialog):
         self._name_edit.textChanged.connect(self._update_preview)
 
         # Copy mode radio buttons
-        self._radio_all = QRadioButton("Copy all files (full directory copy)")
+        self._radio_all = QRadioButton(tr("Copy all files (full directory copy)"))
         self._radio_visible = QRadioButton(
-            "Copy app-visible files only\n"
-            "(system/controlDict, fvSchemes, fvSolution, …, constant/g, 0/, 0.orig/)"
+            tr("Copy app-visible files only\n(system/controlDict, fvSchemes, fvSolution, …, constant/g, 0/, 0.orig/)")
         )
         self._radio_all.setChecked(True)
 
@@ -68,16 +68,16 @@ class DuplicateCaseDialog(QDialog):
         self._copy_mode_group.addButton(self._radio_all)
         self._copy_mode_group.addButton(self._radio_visible)
 
-        copy_mode_box = QGroupBox("Copy mode")
+        copy_mode_box = QGroupBox(tr("Copy mode"))
         copy_mode_layout = QVBoxLayout(copy_mode_box)
         copy_mode_layout.addWidget(self._radio_all)
         copy_mode_layout.addWidget(self._radio_visible)
 
         form = QFormLayout()
-        form.addRow("Source case:", source_label)
-        form.addRow("Save in:", parent_row)
-        form.addRow("New case name:", self._name_edit)
-        form.addRow("Destination:", self._preview_label)
+        form.addRow(tr("Source case:"), source_label)
+        form.addRow(tr("Save in:"), parent_row)
+        form.addRow(tr("New case name:"), self._name_edit)
+        form.addRow(tr("Destination:"), self._preview_label)
 
         self._buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self._buttons.accepted.connect(self._on_accept)
@@ -93,7 +93,7 @@ class DuplicateCaseDialog(QDialog):
     def _browse_parent(self) -> None:
         directory = QFileDialog.getExistingDirectory(
             self,
-            "Select Destination Directory",
+            tr("Select Destination Directory"),
             self._dest_parent_edit.text(),
         )
         if directory:
@@ -109,7 +109,7 @@ class DuplicateCaseDialog(QDialog):
             if ok_btn:
                 ok_btn.setEnabled(True)
         else:
-            self._preview_label.setText("(incomplete)")
+            self._preview_label.setText(tr("(incomplete)"))
             if ok_btn:
                 ok_btn.setEnabled(False)
 

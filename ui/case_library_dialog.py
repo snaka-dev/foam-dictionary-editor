@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from app_config.app_config_manager import AppConfigManager
+from i18n import tr
 
 _DIALOG_WIDTH = 580
 _DIALOG_HEIGHT = 420
@@ -31,7 +32,7 @@ class CaseLibraryDialog(QDialog):
 
     def __init__(self, user_dirs: list[str], parent: QWidget | None = None):
         super().__init__(parent)
-        self.setWindowTitle("Manage Case Library")
+        self.setWindowTitle(tr("Manage Case Library"))
         self.resize(_DIALOG_WIDTH, _DIALOG_HEIGHT)
 
         self._dirs = list(user_dirs)
@@ -40,25 +41,25 @@ class CaseLibraryDialog(QDialog):
         layout = QVBoxLayout(self)
 
         # ── auto-detected section ─────────────────────────────────────────────
-        auto_box = QGroupBox("Auto-detected (read-only)")
+        auto_box = QGroupBox(tr("Auto-detected (read-only)"))
         auto_layout = QVBoxLayout(auto_box)
         if foam:
             auto_label = QLabel(f"{foam}   <i>[$FOAM_TUTORIALS]</i>")
             auto_label.setTextFormat(Qt.RichText)
         else:
-            auto_label = QLabel("<i>$FOAM_TUTORIALS is not set or does not exist.</i>")
+            auto_label = QLabel(f"<i>{tr("$FOAM_TUTORIALS is not set or does not exist.")}</i>")
             auto_label.setTextFormat(Qt.RichText)
             auto_label.setEnabled(False)
         auto_layout.addWidget(auto_label)
         layout.addWidget(auto_box)
 
         # ── user-added section ────────────────────────────────────────────────
-        user_box = QGroupBox("User-added directories")
+        user_box = QGroupBox(tr("User-added directories"))
         user_layout = QVBoxLayout(user_box)
 
         sel_row = QHBoxLayout()
-        select_all_btn = QPushButton("Select All")
-        deselect_all_btn = QPushButton("Deselect All")
+        select_all_btn = QPushButton(tr("Select All"))
+        deselect_all_btn = QPushButton(tr("Deselect All"))
         sel_row.addWidget(select_all_btn)
         sel_row.addWidget(deselect_all_btn)
         sel_row.addStretch()
@@ -72,11 +73,11 @@ class CaseLibraryDialog(QDialog):
 
         # ── bottom buttons ────────────────────────────────────────────────────
         bottom = QHBoxLayout()
-        add_btn = QPushButton("Add Directory...")
+        add_btn = QPushButton(tr("Add Directory..."))
         bottom.addWidget(add_btn)
         bottom.addStretch()
         self._remove_btn = QPushButton()
-        close_btn = QPushButton("Close")
+        close_btn = QPushButton(tr("Close"))
         bottom.addWidget(self._remove_btn)
         bottom.addWidget(close_btn)
         layout.addLayout(bottom)
@@ -114,7 +115,7 @@ class CaseLibraryDialog(QDialog):
 
     def _update_remove_btn(self) -> None:
         n = len(self._checked_items())
-        self._remove_btn.setText(f"Remove Selected ({n})")
+        self._remove_btn.setText(tr("Remove Selected ({n})").format(n=n))
         self._remove_btn.setEnabled(n > 0)
 
     def _select_all(self) -> None:
@@ -133,7 +134,7 @@ class CaseLibraryDialog(QDialog):
 
     def _add_directory(self) -> None:
         start = self._dirs[-1] if self._dirs else ""
-        directory = QFileDialog.getExistingDirectory(self, "Add Directory to Case Library", start)
+        directory = QFileDialog.getExistingDirectory(self, tr("Add Directory to Case Library"), start)
         if not directory or directory in self._dirs:
             return
         self._dirs.append(directory)

@@ -11,6 +11,7 @@ from foam.parser import OpenFoamParser
 from foam.utils import read_foam_file
 from foam.writer import write_root
 from services.case_loader import FIELD_DIRS
+from i18n import tr
 from ui.layout_constants import (
     STATUS_NORMAL as _STATUS_NORMAL,
     STATUS_SHORT as _STATUS_SHORT,
@@ -86,8 +87,8 @@ class _BoundaryOpsMixin:
         live_patch = _extract_boundary(root).get(patch_name)
         if live_patch is None:
             QMessageBox.warning(
-                self, "Boundary Not Found",
-                f"Patch '{patch_name}' not found in {Path(path).name}.",
+                self, tr("Boundary Not Found"),
+                tr("Patch '{name}' not found in {file}.").format(name=patch_name, file=Path(path).name),
             )
             return
 
@@ -114,7 +115,7 @@ class _BoundaryOpsMixin:
             try:
                 new_children = _parse_patch_content(dlg.new_dict_text)
             except Exception as e:
-                QMessageBox.warning(self, "Parse Error", f"Could not parse patch content:\n{e}")
+                QMessageBox.warning(self, tr("Parse Error"), tr("Could not parse patch content:\n{e}").format(e=e))
                 return
             live_patch.children = new_children
             for child in new_children:
@@ -123,9 +124,7 @@ class _BoundaryOpsMixin:
             live_patch.raw_text = ""
 
         self._apply_boundary_root_change(path, root)
-        self.statusBar().showMessage(
-            f"Boundary updated: {Path(path).name} / {patch_name}", _STATUS_SHORT
-        )
+        self.statusBar().showMessage(tr("Boundary updated: {file} / {patch}").format(file=Path(path).name, patch=patch_name), _STATUS_SHORT)
 
     def _on_patch_create_requested(self, path: str, patch_name: str) -> None:
         from ui.boundary_edit_dialog import BoundaryEditDialog, _parse_patch_content
@@ -147,7 +146,7 @@ class _BoundaryOpsMixin:
         try:
             new_children = _parse_patch_content(content)
         except Exception as e:
-            QMessageBox.warning(self, "Parse Error", f"Could not parse patch content:\n{e}")
+            QMessageBox.warning(self, tr("Parse Error"), tr("Could not parse patch content:\n{e}").format(e=e))
             return
 
         boundary_field = next(
@@ -155,7 +154,7 @@ class _BoundaryOpsMixin:
             None,
         )
         if boundary_field is None:
-            QMessageBox.warning(self, "Error", f"No boundaryField found in {field_name}.")
+            QMessageBox.warning(self, tr("Error"), tr("No boundaryField found in {field}.").format(field=field_name))
             return
 
         new_patch = FoamNode(name=patch_name, node_type="dictionary", modified=True)
@@ -168,7 +167,7 @@ class _BoundaryOpsMixin:
         boundary_field.modified = True
 
         self._apply_boundary_root_change(path, root)
-        self.statusBar().showMessage(f"Created boundary: {field_name} / {patch_name}", _STATUS_SHORT)
+        self.statusBar().showMessage(tr("Created boundary: {field} / {patch}").format(field=field_name, patch=patch_name), _STATUS_SHORT)
 
     def _on_patch_paste_requested(self, path: str, patch_name: str, content: str) -> None:
         from ui.boundary_edit_dialog import _parse_patch_content
@@ -180,7 +179,7 @@ class _BoundaryOpsMixin:
         try:
             new_children = _parse_patch_content(content)
         except Exception as e:
-            QMessageBox.warning(self, "Paste Error", f"Could not parse copied content:\n{e}")
+            QMessageBox.warning(self, tr("Paste Error"), tr("Could not parse copied content:\n{e}").format(e=e))
             return
 
         live_patch = _extract_boundary(root).get(patch_name)
@@ -190,7 +189,7 @@ class _BoundaryOpsMixin:
                 None,
             )
             if boundary_field is None:
-                QMessageBox.warning(self, "Paste Error", f"No boundaryField in {Path(path).name}.")
+                QMessageBox.warning(self, tr("Paste Error"), tr("No boundaryField in {file}.").format(file=Path(path).name))
                 return
             live_patch = FoamNode(name=patch_name, node_type="dictionary", modified=True)
             live_patch.leading_trivia = ["\n"]
@@ -205,9 +204,7 @@ class _BoundaryOpsMixin:
         live_patch.raw_text = ""
 
         self._apply_boundary_root_change(path, root)
-        self.statusBar().showMessage(
-            f"Pasted to {Path(path).name} / {patch_name}", _STATUS_SHORT
-        )
+        self.statusBar().showMessage(tr("Pasted to {file} / {patch}").format(file=Path(path).name, patch=patch_name), _STATUS_SHORT)
 
     def _on_patch_delete_requested(self, path: str, patch_name: str) -> None:
         from ui.boundary_view_panel import _extract_boundary
@@ -230,9 +227,7 @@ class _BoundaryOpsMixin:
 
         self._apply_boundary_root_change(path, root)
         self.boundary_panel.refresh()
-        self.statusBar().showMessage(
-            f"Deleted boundary: {Path(path).name} / {patch_name}", _STATUS_SHORT
-        )
+        self.statusBar().showMessage(tr("Deleted boundary: {file} / {patch}").format(file=Path(path).name, patch=patch_name), _STATUS_SHORT)
 
     def _on_rename_boundary_by_name(self, old_name: str) -> None:
         from ui.rename_boundary_dialog import RenameBoundaryDialog, find_rename_targets
@@ -267,7 +262,7 @@ class _BoundaryOpsMixin:
 
         self.boundary_panel.refresh()
         self.statusBar().showMessage(
-            f"Renamed '{old_name}' → '{new_name}' in {len(selected)} file(s).",
+            tr("Renamed '{old}' → '{new}' in {n} file(s).").format(old=old_name, new=new_name, n=len(selected)),
             _STATUS_NORMAL,
         )
 
@@ -299,8 +294,8 @@ class _BoundaryOpsMixin:
         file_list = "\n".join(f"  • {Path(p).name}" for p in sorted(affected, key=lambda p: Path(p).name))
         reply = QMessageBox.question(
             self,
-            "Delete BoundaryField",
-            f"Delete '{patch_name}' from {len(affected)} file(s)?\n\n{file_list}",
+            tr("Delete BoundaryField"),
+            tr("Delete '{patch}' from {n} file(s)?\n\n{files}").format(patch=patch_name, n=len(affected), files=file_list),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -323,9 +318,7 @@ class _BoundaryOpsMixin:
             self._apply_boundary_root_change(path, root)
 
         self.boundary_panel.refresh()
-        self.statusBar().showMessage(
-            f"Deleted BoundaryField '{patch_name}' from {len(affected)} file(s).", _STATUS_SHORT
-        )
+        self.statusBar().showMessage(tr("Deleted BoundaryField '{patch}' from {n} file(s).").format(patch=patch_name, n=len(affected)), _STATUS_SHORT)
 
     def _on_patch_add_all_requested(self, patch_name: str) -> None:
         from ui.boundary_view_panel import _extract_boundary
@@ -343,10 +336,8 @@ class _BoundaryOpsMixin:
 
         reply = QMessageBox.question(
             self,
-            "Add BoundaryField",
-            f"An empty entry will be added to {len(targets)} field file(s).\n"
-            "Edit each cell to add boundary condition content.\n\n"
-            "Proceed?",
+            tr("Add BoundaryField"),
+            tr("An empty entry will be added to {n} field file(s).\nEdit each cell to add boundary condition content.\n\nProceed?").format(n=len(targets)),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -374,7 +365,6 @@ class _BoundaryOpsMixin:
         if added:
             self.boundary_panel.refresh()
             self.statusBar().showMessage(
-                f"Added BoundaryField '{patch_name}' to {len(added)} file(s). "
-                "Edit each cell to add boundary condition content.",
+                tr("Added BoundaryField '{patch}' to {n} file(s). Edit each cell to add boundary condition content.").format(patch=patch_name, n=len(added)),
                 _STATUS_NORMAL,
             )

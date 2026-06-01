@@ -12,6 +12,7 @@ from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser, ParseError
 from foam.writer import write_node, write_root
 from model.tree_model import FoamTreeModel
+from i18n import tr
 from ui.layout_constants import (
     BLOCKMESH_DICT_NAME as _BLOCKMESH_DICT_NAME,
     STATUS_NORMAL as _STATUS_NORMAL,
@@ -57,16 +58,16 @@ class _TreeOpsMixin:
         can_add_child = node.node_type == "dictionary"
 
         menu = QMenu(self)
-        copy_action = menu.addAction("Copy Value\tCtrl+C")
-        paste_action = menu.addAction("Paste Value\tCtrl+V")
+        copy_action = menu.addAction(tr("Copy Value\tCtrl+C"))
+        paste_action = menu.addAction(tr("Paste Value\tCtrl+V"))
         paste_action.setEnabled(can_paste)
 
         menu.addSeparator()
-        add_after_action = menu.addAction("Add Entry After")
+        add_after_action = menu.addAction(tr("Add Entry After"))
         add_after_action.setEnabled(can_add_sibling)
-        add_child_action = menu.addAction("Add Child Entry")
+        add_child_action = menu.addAction(tr("Add Child Entry"))
         add_child_action.setEnabled(can_add_child)
-        dup_action = menu.addAction("Duplicate")
+        dup_action = menu.addAction(tr("Duplicate"))
         dup_action.setEnabled(can_add_sibling)
 
         is_commented_out = self._is_commented_out_node(node)
@@ -81,14 +82,14 @@ class _TreeOpsMixin:
         rename_boundary_action = None
         if is_renameable_boundary:
             menu.addSeparator()
-            rename_boundary_action = menu.addAction("Rename Boundary...")
+            rename_boundary_action = menu.addAction(tr("Rename Boundary..."))
 
         menu.addSeparator()
-        comment_action = menu.addAction("Comment Out")
+        comment_action = menu.addAction(tr("Comment Out"))
         comment_action.setEnabled(can_add_sibling and not is_commented_out)
-        restore_action = menu.addAction("Restore from Comment")
+        restore_action = menu.addAction(tr("Restore from Comment"))
         restore_action.setEnabled(is_commented_out)
-        delete_action = menu.addAction("Delete")
+        delete_action = menu.addAction(tr("Delete"))
         delete_action.setEnabled(can_add_sibling)
 
         action = menu.exec(self.tree.viewport().mapToGlobal(pos))
@@ -121,7 +122,7 @@ class _TreeOpsMixin:
         text = self.current_model.data(value_index, Qt.DisplayRole) or ""
         if text:
             QApplication.clipboard().setText(text)
-            self.statusBar().showMessage(f"Copied: {text}", _STATUS_SHORT)
+            self.statusBar().showMessage(tr("Copied: {text}").format(text=text), _STATUS_SHORT)
 
     def _tree_paste_value(self) -> None:
         index = self._current_primary_index()
@@ -139,7 +140,7 @@ class _TreeOpsMixin:
         if ok:
             self._after_model_edit()
         else:
-            self.statusBar().showMessage("Paste failed: value format not accepted", _STATUS_WARNING)
+            self.statusBar().showMessage(tr("Paste failed: value format not accepted"), _STATUS_WARNING)
 
     # ── tree mutations ────────────────────────────────────────────────────────
 
@@ -203,8 +204,8 @@ class _TreeOpsMixin:
 
     def _tree_delete(self, node: FoamNode) -> None:
         reply = QMessageBox.question(
-            self, "Delete Entry",
-            f"Delete '{node.name}'? This cannot be undone.",
+            self, tr("Delete Entry"),
+            tr("Delete '{node_name}'? This cannot be undone.").format(node_name=node.name),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -233,11 +234,11 @@ class _TreeOpsMixin:
         try:
             parsed_root = OpenFoamParser(uncommented).parse()
         except ParseError as e:
-            QMessageBox.warning(self, "Restore Failed", f"Could not parse the uncommented text:\n\n{e}")
+            QMessageBox.warning(self, tr("Restore Failed"), tr("Could not parse the uncommented text:\n\n{e}").format(e=e))
             return
 
         if not parsed_root.children:
-            QMessageBox.warning(self, "Restore Failed", "No entries found after removing comment markers.")
+            QMessageBox.warning(self, tr("Restore Failed"), tr("No entries found after removing comment markers."))
             return
 
         parent_node = node.parent if node.parent is not None else self.current_model.root
@@ -278,7 +279,9 @@ class _TreeOpsMixin:
             found = next((c for c in parent_node.children if c.name == key), None)
             if found is None:
                 self.statusBar().showMessage(
-                    f"Cannot apply: '{'/'.join(parent_path)}' not found in current case",
+                    tr("Cannot apply: '{path}' not found in current case").format(
+                        path='/'.join(parent_path)
+                    ),
                     _STATUS_WARNING,
                 )
                 return
@@ -303,7 +306,7 @@ class _TreeOpsMixin:
             self.current_model.dataChanged.emit(
                 row_start, row_end, [Qt.DisplayRole, Qt.EditRole]
             )
-            msg = f"Applied '{leaf_key}' from reference case"
+            msg = tr("Applied '{key}' from reference case").format(key=leaf_key)
         else:
             new_node = copy.deepcopy(b_node)
             new_node.modified = True
@@ -313,7 +316,7 @@ class _TreeOpsMixin:
             proxy_idx = self._to_proxy(src_idx)
             self.tree.setCurrentIndex(proxy_idx)
             self.tree.scrollTo(proxy_idx)
-            msg = f"Inserted '{leaf_key}' from reference case"
+            msg = tr("Inserted '{key}' from reference case").format(key=leaf_key)
 
         self._after_model_edit()
         self._recompute_diff()
@@ -344,18 +347,14 @@ class _TreeOpsMixin:
 
     def _sync_tree_to_editor_line(self) -> None:
         if not self._source_lines_valid:
-            self.statusBar().showMessage(
-                "Apply Text to Tree to enable editor-to-tree sync", _STATUS_SHORT
-            )
+            self.statusBar().showMessage(tr("Apply Text to Tree to enable editor-to-tree sync"), _STATUS_SHORT)
             return
 
         line = self.editor_panel.current_line_number()
         node = self._find_deepest(self.current_root, line)
 
         if node is None:
-            self.statusBar().showMessage(
-                f"No tree entry found for line {line}", _STATUS_SHORT
-            )
+            self.statusBar().showMessage(tr("No tree entry found for line {line}").format(line=line), _STATUS_SHORT)
             return
 
         # Walk up to the nearest ancestor visible in the proxy (not filtered out).
@@ -369,9 +368,7 @@ class _TreeOpsMixin:
             current = current.parent
 
         if not proxy_index.isValid():
-            self.statusBar().showMessage(
-                "Entry is hidden by the current filter", _STATUS_SHORT
-            )
+            self.statusBar().showMessage(tr("Entry is hidden by the current filter"), _STATUS_SHORT)
             return
 
         self._syncing = True
@@ -418,13 +415,9 @@ class _TreeOpsMixin:
                 scroll=self.editor_autoscroll_checkbox.isChecked(),
             )
         elif not self._source_lines_valid:
-            self.statusBar().showMessage(
-                "Apply Text to Tree to re-enable jump-to-line", _STATUS_SHORT
-            )
+            self.statusBar().showMessage(tr("Apply Text to Tree to re-enable jump-to-line"), _STATUS_SHORT)
         elif node.source_line == 0:
-            self.statusBar().showMessage(
-                "No source location — entry was added or modified in the tree", _STATUS_SHORT
-            )
+            self.statusBar().showMessage(tr("No source location — entry was added or modified in the tree"), _STATUS_SHORT)
 
     def _on_value_apply(self, new_value: str) -> None:
         index = self._current_primary_index()
@@ -434,7 +427,7 @@ class _TreeOpsMixin:
         value_index = self.current_model.index(index.row(), 2, index.parent())
         ok = self.current_model.setData(value_index, new_value, Qt.EditRole)
         if not ok:
-            QMessageBox.warning(self, "Edit Error", "Could not apply the value to the selected node.")
+            QMessageBox.warning(self, tr("Edit Error"), tr("Could not apply the value to the selected node."))
             return
         self._after_model_edit()
 
@@ -448,7 +441,7 @@ class _TreeOpsMixin:
             return
 
         if not field_type:
-            QMessageBox.warning(self, "Edit Error", "Field Type must not be empty.")
+            QMessageBox.warning(self, tr("Edit Error"), tr("Field Type must not be empty."))
             return
 
         node.value["field_type"] = field_type
@@ -487,9 +480,9 @@ class _TreeOpsMixin:
                     _STATUS_WARNING,
                 )
             else:
-                self.statusBar().showMessage("Parsed successfully and tree updated", _STATUS_NORMAL)
+                self.statusBar().showMessage(tr("Parsed successfully and tree updated"), _STATUS_NORMAL)
         except ParseError as e:
-            self.statusBar().showMessage(f"Parse failed: {e}", _STATUS_WARNING)
+            self.statusBar().showMessage(tr("Parse failed: {e}").format(e=e), _STATUS_WARNING)
             QMessageBox.warning(
                 self,
                 "Parse Error",
@@ -504,7 +497,7 @@ class _TreeOpsMixin:
         self._update_file_label()
         if self.current_file:
             self.file_list_panel.mark_dirty(self.current_file, self.text_dirty)
-        self.statusBar().showMessage("Reloaded text from current tree", _STATUS_SHORT)
+        self.statusBar().showMessage(tr("Reloaded text from current tree"), _STATUS_SHORT)
 
     def _on_blockmesh_vertices_changed(self, idx: int, xyz: list) -> None:
         if self.current_root is None:
@@ -531,7 +524,7 @@ class _TreeOpsMixin:
         self._mark_dirty()
         self._resize_tree_columns()
         self.on_tree_selection()
-        self.statusBar().showMessage("Vertex coordinates updated", _STATUS_SHORT)
+        self.statusBar().showMessage(tr("Vertex coordinates updated"), _STATUS_SHORT)
 
     def _on_user_text_changed(self) -> None:
         if not self.current_file:

@@ -5,9 +5,48 @@ from foam.utils import (
     format_embedded_value,
     format_scalar,
     is_int,
+    is_large_non_foam_file,
     is_number,
     parse_box_pair,
 )
+
+
+class TestIsLargeNonFoamFile:
+    def test_small_file_no_header_not_flagged(self, tmp_path):
+        f = tmp_path / "custom_dict"
+        f.write_bytes(b"someKey 1;\n")
+        flag, size = is_large_non_foam_file(f)
+        assert flag is False
+        assert size == f.stat().st_size
+
+    def test_large_file_with_foam_header_not_flagged(self, tmp_path):
+        f = tmp_path / "U"
+        content = b"FoamFile\n{\n    version 2.0;\n}\n" + b"x " * 60_000
+        f.write_bytes(content)
+        flag, size = is_large_non_foam_file(f)
+        assert flag is False
+        assert size == len(content)
+
+    def test_large_file_without_foam_header_flagged(self, tmp_path):
+        f = tmp_path / "log.simpleFoam"
+        content = b"Starting simpleFoam\n" + b"residual 0.001\n" * 8_000
+        f.write_bytes(content)
+        assert len(content) > 100 * 1024
+        flag, size = is_large_non_foam_file(f)
+        assert flag is True
+        assert size == len(content)
+
+    def test_missing_file_returns_false_zero(self, tmp_path):
+        flag, size = is_large_non_foam_file(tmp_path / "nonexistent")
+        assert flag is False
+        assert size == 0
+
+    def test_foam_header_anywhere_in_sniff_window_not_flagged(self, tmp_path):
+        f = tmp_path / "dict_with_comment"
+        content = b"// comment\nFoamFile\n{\n}\n" + b"y " * 60_000
+        f.write_bytes(content)
+        flag, _ = is_large_non_foam_file(f)
+        assert flag is False
 
 
 class TestIsInt:

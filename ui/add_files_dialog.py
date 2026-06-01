@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from services.case_loader import list_directory_files
+from i18n import tr
 
 _DIALOG_WIDTH = 400
 _DIALOG_HEIGHT = 300
@@ -32,7 +33,7 @@ class AddFilesDialog(QDialog):
         parent=None,
     ):
         super().__init__(parent)
-        self.setWindowTitle(f"Add files from '{group}'")
+        self.setWindowTitle(tr("Add files from '{group}'").format(group=group))
         self.resize(_DIALOG_WIDTH, _DIALOG_HEIGHT)
 
         all_files = list_directory_files(case_dir, group)
@@ -41,11 +42,11 @@ class AddFilesDialog(QDialog):
         layout = QVBoxLayout(self)
 
         if unloaded:
-            layout.addWidget(QLabel(f"Select files to add from '{group}':"))
+            layout.addWidget(QLabel(tr("Select files to add from '{group}':").format(group=group)))
 
             sel_row = QHBoxLayout()
-            select_all_btn = QPushButton("Select All")
-            deselect_all_btn = QPushButton("Deselect All")
+            select_all_btn = QPushButton(tr("Select All"))
+            deselect_all_btn = QPushButton(tr("Deselect All"))
             sel_row.addWidget(select_all_btn)
             sel_row.addWidget(deselect_all_btn)
             sel_row.addStretch()
@@ -64,7 +65,7 @@ class AddFilesDialog(QDialog):
             bottom = QHBoxLayout()
             bottom.addStretch()
             self._add_btn = QPushButton()
-            cancel_btn = QPushButton("Cancel")
+            cancel_btn = QPushButton(tr("Cancel"))
             bottom.addWidget(self._add_btn)
             bottom.addWidget(cancel_btn)
             layout.addLayout(bottom)
@@ -77,10 +78,10 @@ class AddFilesDialog(QDialog):
             self._add_btn.clicked.connect(self.accept)
             cancel_btn.clicked.connect(self.reject)
         else:
-            layout.addWidget(QLabel(f"All files in '{group}' are already in the file list."))
+            layout.addWidget(QLabel(tr("All files in '{group}' are already in the file list.").format(group=group)))
             bottom = QHBoxLayout()
             bottom.addStretch()
-            close_btn = QPushButton("Close")
+            close_btn = QPushButton(tr("Close"))
             close_btn.clicked.connect(self.reject)
             bottom.addWidget(close_btn)
             layout.addLayout(bottom)
@@ -94,7 +95,7 @@ class AddFilesDialog(QDialog):
 
     def _update_add_btn(self) -> None:
         n = len(self._checked_items())
-        self._add_btn.setText(f"Add Selected ({n})")
+        self._add_btn.setText(tr("Add Selected ({n})").format(n=n))
         self._add_btn.setEnabled(n > 0)
 
     def _select_all(self) -> None:

@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from services.case_loader import FIELD_DIRS, detect_time_dirs, list_directory_files
+from i18n import tr
 
 _PARENT_ORDER = {
     "system": 0,
@@ -126,7 +127,7 @@ class FileListPanel(QWidget):
         self._extra_btn.setVisible(False)
         self._extra_btn.clicked.connect(self.manage_extra_files_requested)
 
-        self._changed_only_cb = QCheckBox("Changed files only")
+        self._changed_only_cb = QCheckBox(tr("Changed files only"))
         self._changed_only_cb.setVisible(False)
         self._changed_only_cb.toggled.connect(self._on_filter_changed)
 
@@ -296,14 +297,14 @@ class FileListPanel(QWidget):
             if self._case_dir is None:
                 self._extra_btn.setVisible(False)
                 return
-            self._extra_btn.setText("Manage extra files…")
+            self._extra_btn.setText(tr("Manage extra files…"))
         else:
             parts = []
             if file_count:
                 parts.append(f"files: {file_count}")
             if dir_count:
                 parts.append(f"directories: {dir_count}")
-            self._extra_btn.setText("Extra " + ", ".join(parts) + "  —  Manage…")
+            self._extra_btn.setText(tr("Extra") + " " + ", ".join(parts) + "  —  " + tr("Manage…"))
         self._extra_btn.setVisible(True)
 
     def _on_selection_changed(self) -> None:
@@ -327,7 +328,7 @@ class FileListPanel(QWidget):
             menu = QMenu(self.window())
             action_map: dict = {}
             for d in time_dirs:
-                action = menu.addAction(f"Add '{d}' to file list")
+                action = menu.addAction(tr("Add '{d}' to file list").format(d=d))
                 if d in self._extra_dir_set:
                     action.setEnabled(False)
                 action_map[action] = d
@@ -342,13 +343,13 @@ class FileListPanel(QWidget):
             if self._case_dir is None:
                 return
             menu = QMenu(self.window())
-            new_action = menu.addAction(f"New file in '{group}'...")
-            add_action = menu.addAction(f"Add files from '{group}'...")
+            new_action = menu.addAction(tr("New file in '{group}'...").format(group=group))
+            add_action = menu.addAction(tr("Add files from '{group}'...").format(group=group))
 
             remove_dir_action = None
             if item.data(_EXTRA_DIR_HEADER_ROLE):
                 menu.addSeparator()
-                remove_dir_action = menu.addAction(f"Remove '{group}' from file list")
+                remove_dir_action = menu.addAction(tr("Remove '{group}' from file list").format(group=group))
 
             dup_dir_action = None
             counterpart = None
@@ -356,13 +357,13 @@ class FileListPanel(QWidget):
                 counterpart = "0.orig" if group == "0" else "0"
                 if not (Path(self._case_dir) / counterpart).exists():
                     dup_dir_action = menu.addAction(
-                        f"Duplicate '{group}' → '{counterpart}'..."
+                        tr("Duplicate '{src}' → '{dst}'...").format(src=group, dst=counterpart)
                     )
 
             delete_0_action = None
             if group == "0" and (Path(self._case_dir) / "0.orig").exists():
                 menu.addSeparator()
-                delete_0_action = menu.addAction("Delete '0' directory...")
+                delete_0_action = menu.addAction(tr("Delete '0' directory..."))
 
             chosen = menu.exec(self._list.viewport().mapToGlobal(pos))
             if chosen == new_action:
@@ -381,17 +382,17 @@ class FileListPanel(QWidget):
         if path:
             is_extra = bool(item.data(_EXTRA_FILE_ROLE))
             menu = QMenu(self.window())
-            save_action = menu.addAction("Save File\tCtrl+S")
+            save_action = menu.addAction(tr("Save File\tCtrl+S"))
             menu.addSeparator()
             remove_action = None
             if is_extra:
-                remove_action = menu.addAction("Remove from extra files")
+                remove_action = menu.addAction(tr("Remove from extra files"))
                 menu.addSeparator()
-            duplicate_action = menu.addAction("Duplicate...")
+            duplicate_action = menu.addAction(tr("Duplicate..."))
             menu.addSeparator()
-            backup_action = menu.addAction("Create Backup")
+            backup_action = menu.addAction(tr("Create Backup"))
             menu.addSeparator()
-            delete_action = menu.addAction("Delete file...")
+            delete_action = menu.addAction(tr("Delete file..."))
             action = menu.exec(self._list.viewport().mapToGlobal(pos))
             if action == save_action:
                 self.save_file_requested.emit()

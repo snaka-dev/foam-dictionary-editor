@@ -1,6 +1,27 @@
 # Release Notes
 
-## Unreleased
+## v1.3.0 — 2026-06-01
+
+### Improvements
+
+**Faster, non-blocking case comparison**
+
+- Diff counts for the file list are now computed incrementally — one file per event-loop tick — so the UI stays responsive and `≠` markers appear progressively instead of blocking until all files are parsed.
+- Large files without a `FoamFile` header (e.g. `log.simpleFoam`, residual outputs) are automatically skipped during diff computation and boundary panel loading. Files under 100 KB are always attempted so small custom solver dictionaries without a `FoamFile` block continue to work.
+- Opening a large non-dictionary file now shows a confirmation dialog warning that the tree view will be unavailable and the application may not respond during loading. A status bar message appears immediately after confirmation.
+
+### New features
+
+**UI language selection (English / Japanese)**
+
+- New **Settings > Language** submenu. Select **English** or **日本語**; the application restarts in the chosen language.
+- Language is stored in `app_config.json` and applied at startup. English remains the default.
+- New `i18n/` module: `tr()` looks up the active language dict; missing keys fall back to the English string automatically.
+- Adding further languages (e.g. Italian) requires only a single `i18n/<code>.py` translation file — no other code changes.
+
+---
+
+## v1.2.0 — 2026-05-30
 
 ### New features
 
@@ -11,18 +32,28 @@
   - **Copy as CSV** — RFC 4180-compliant CSV; multi-line cell content is preserved inside quoted fields for correct display in Excel and LibreOffice Calc.
 - Both formats include the row-header column and respect the current transposed orientation.
 
+**Case comparison — Side-by-side view**
+
+- **Side by side** toggle in the diff bar splits the centre panel horizontally: the left pane shows the editable current-case tree and a new **Reference** pane opens on the right with the corresponding file in read-only form.
+- Reference tree uses **light green** for keys that exist only in the reference case.
+- Right-click any leaf node in the reference pane and select **Use this value** to apply that value to the matching node in the current case instantly. Diff highlighting updates automatically after the change.
+- **Changed files only** checkbox in the file list: hides files with zero differences, leaving only files that differ from the reference case.
+- Diff markers (`≠N` / `≠0`) are now computed immediately for all files when comparison starts, rather than lazily as each file is opened.
+
 ### Improvements
 
 **BlockMesh panel**
 
-- Toolbar compacted into a single row; 
-- Load and overlay OBJ geometry files (`Load STL…` / `Clear STL`).
+- Toolbar compacted into a single row.
+- Load and overlay OBJ geometry files in addition to STL (`Load STL / OBJ…` / `Clear STL`).
 
 **File list**
-- Extra-files button is now always visible.
+
+- Extra-files button is now always visible (shows the count of registered extras when any are active).
 
 **Case comparison**
-- side-by-side comparison.
+
+- The diff bar now shows a **Side by side** toggle and a colour legend alongside the reference path.
 
 ---
 

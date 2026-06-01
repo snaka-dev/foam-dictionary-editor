@@ -14,7 +14,8 @@ from PySide6.QtWidgets import (
 )
 
 from foam.parser import OpenFoamParser, ParseError
-from foam.utils import read_foam_file
+from i18n import tr
+from foam.utils import read_foam_file, is_large_non_foam_file
 from services.case_files_config import CaseFilesConfig
 from services.case_loader import FIELD_DIRS, list_case_files
 from ui.file_list_panel import display_file_name
@@ -93,10 +94,31 @@ class _FileOpsMixin:
         if path in self.file_buffers:
             text = self.file_buffers[path]
         else:
+            large_non_foam, size_bytes = is_large_non_foam_file(path)
+            if large_non_foam:
+                size_kb = size_bytes // 1024
+                reply = QMessageBox.question(
+                    self,
+                    tr("Large Non-Dictionary File"),
+                    tr(
+                        "'{name}' does not appear to be an OpenFOAM dictionary ({size} KB).\n"
+                        "The tree view will not be available.\n"
+                        "Loading may take a while — the application will not respond during this time.\n\n"
+                        "Open anyway?"
+                    ).format(name=Path(path).name, size=size_kb),
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No,
+                )
+                if reply != QMessageBox.Yes:
+                    return
+                self.statusBar().showMessage(
+                    tr("Loading large file: {name} — please wait…").format(name=Path(path).name),
+                    _STATUS_SHORT,
+                )
             try:
                 text = read_foam_file(path)
             except Exception as e:
-                QMessageBox.critical(self, "Error", str(e))
+                QMessageBox.critical(self, tr("Error"), str(e))
                 return
             self.file_buffers[path] = text
             self.file_dirty[path] = False
@@ -108,7 +130,7 @@ class _FileOpsMixin:
             self._update_window_title()
             self._update_file_label()
             self.file_list_panel.mark_dirty(path, self.text_dirty)
-            self.statusBar().showMessage(f"Loaded: {path}", _STATUS_NORMAL)
+            self.statusBar().showMessage(tr("Loaded: {path}").format(path=path), _STATUS_NORMAL)
 
             try:
                 _parser = self._parse_and_update(path, text)
@@ -116,23 +138,21 @@ class _FileOpsMixin:
                 if _parser.errors:
                     n = len(_parser.errors)
                     self.statusBar().showMessage(
-                        f"Parsed: {path} — {n} unrecognized entr{'y' if n == 1 else 'ies'}",
+                        tr("Parsed: {path} — {n} unrecognized {entries}").format(path=path, n=n, entries=("entry" if n == 1 else "entries")),
                         _STATUS_WARNING,
                     )
                 else:
-                    self.statusBar().showMessage(f"Parsed successfully: {path}", _STATUS_NORMAL)
+                    self.statusBar().showMessage(tr("Parsed successfully: {path}").format(path=path), _STATUS_NORMAL)
             except ParseError as e:
-                self.statusBar().showMessage(f"Parse warning: {e}", _STATUS_WARNING)
+                self.statusBar().showMessage(tr("Parse warning: {e}").format(e=e), _STATUS_WARNING)
                 QMessageBox.warning(
                     self,
-                    "Parse Warning",
-                    "Text was loaded, but tree update failed.\n\n"
-                    f"{e}\n\n"
-                    "You can continue editing in the text editor.",
+                    tr("Parse Warning"),
+                    tr("Text was loaded, but tree update failed.\n\n{e}\n\nYou can continue editing in the text editor.").format(e=e),
                 )
 
         except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
+            QMessageBox.critical(self, tr("Error"), str(e))
 
     def save_file(self) -> None:
         if not self.current_file:
@@ -147,28 +167,28 @@ class _FileOpsMixin:
             self._update_window_title()
             self._update_file_label()
             self.file_list_panel.mark_dirty(self.current_file, False)
-            self.statusBar().showMessage(f"Saved: {self.current_file}", _STATUS_NORMAL)
+            self.statusBar().showMessage(tr("Saved: {path}").format(path=self.current_file), _STATUS_NORMAL)
 
             try:
                 _parser = self._parse_and_update(self.current_file, text)
                 if _parser.errors:
                     n = len(_parser.errors)
                     self.statusBar().showMessage(
-                        f"Saved: {self.current_file} — {n} unrecognized entr{'y' if n == 1 else 'ies'}",
+                        tr("Saved: {path} — {n} unrecognized {entries}").format(path=self.current_file, n=n, entries=("entry" if n == 1 else "entries")),
                         _STATUS_WARNING,
                     )
                 else:
-                    self.statusBar().showMessage(f"Saved and parsed: {self.current_file}", _STATUS_NORMAL)
+                    self.statusBar().showMessage(tr("Saved and parsed: {path}").format(path=self.current_file), _STATUS_NORMAL)
             except ParseError as e:
-                self.statusBar().showMessage(f"Saved, but parse failed: {e}", _STATUS_WARNING)
+                self.statusBar().showMessage(tr("Saved, but parse failed: {e}").format(e=e), _STATUS_WARNING)
                 QMessageBox.warning(
                     self,
-                    "Saved with Parse Warning",
-                    f"File was saved as text, but tree refresh failed.\n\n{e}",
+                    tr("Saved with Parse Warning"),
+                    tr("File was saved as text, but tree refresh failed.\n\n{e}").format(e=e),
                 )
 
         except Exception as e:
-            QMessageBox.critical(self, "Save Error", str(e))
+            QMessageBox.critical(self, tr("Save Error"), str(e))
 
     def save_all_files(self) -> None:
         if self.current_file is not None:
@@ -177,7 +197,7 @@ class _FileOpsMixin:
 
         dirty_paths = [p for p, dirty in self.file_dirty.items() if dirty]
         if not dirty_paths:
-            self.statusBar().showMessage("No unsaved files.", _STATUS_SHORT)
+            self.statusBar().showMessage(tr("No unsaved files."), _STATUS_SHORT)
             return
 
         saved = []
@@ -202,27 +222,29 @@ class _FileOpsMixin:
             failed_names = ", ".join(display_file_name(p) for p, _ in failed)
             QMessageBox.warning(
                 self,
-                "Save All - Partial Failure",
-                f"Failed to save the following files:\n{failed_names}",
+                tr("Save All - Partial Failure"),
+                tr("Failed to save the following files:\n{files}").format(files=failed_names),
             )
         else:
-            self.statusBar().showMessage(f"Saved {len(saved)} file(s).", _STATUS_NORMAL)
+            self.statusBar().showMessage(tr("Saved {n} file(s).").format(n=len(saved)), _STATUS_NORMAL)
 
     # ── file list settings ────────────────────────────────────────────────────
 
     def reset_file_list(self) -> None:
         if not self.current_case_dir:
-            QMessageBox.information(self, "No Case Open", "Please open a case first.")
+            QMessageBox.information(self, tr("No Case Open"), tr("Please open a case first."))
             return
         config = CaseFilesConfig(self.current_case_dir)
         if not config.exists:
-            self.statusBar().showMessage("No extra files configured for this case.", _STATUS_SHORT)
+            self.statusBar().showMessage(tr("No extra files configured for this case."), _STATUS_SHORT)
             return
         reply = QMessageBox.question(
             self,
-            "Reset File List",
-            "Remove all user-added files and directories from the file list for this case?\n"
-            "The .foam-editor-files.json file will be deleted.",
+            tr("Reset File List"),
+            tr(
+                "Remove all user-added files and directories from the file list for this case?\n"
+                "The .foam-editor-files.json file will be deleted."
+            ),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -230,40 +252,36 @@ class _FileOpsMixin:
             return
         config.delete_config_file()
         self._load_case_dir(self.current_case_dir)
-        self.statusBar().showMessage("File list reset to default.", _STATUS_SHORT)
+        self.statusBar().showMessage(tr("File list reset to default."), _STATUS_SHORT)
 
     # ── file list panel signals ───────────────────────────────────────────────
 
     def _on_create_file_requested(self, case_dir: str, group: str) -> None:
         filename, ok = QInputDialog.getText(
             self,
-            "New File",
-            f"File name (will be created in {group}/):",
+            tr("New File"),
+            tr("File name (will be created in {group}/):").format(group=group),
         )
         if not ok:
             return
         filename = filename.strip()
         if not filename:
-            self.statusBar().showMessage("File name must not be empty.", _STATUS_WARNING)
+            self.statusBar().showMessage(tr("File name must not be empty."), _STATUS_WARNING)
             return
         if "/" in filename or "\\" in filename:
-            self.statusBar().showMessage(
-                "File name must not contain path separators.", _STATUS_WARNING
-            )
+            self.statusBar().showMessage(tr("File name must not contain path separators."), _STATUS_WARNING)
             return
 
         target = Path(case_dir) / group / filename
         if target.exists():
-            self.statusBar().showMessage(
-                f"File already exists: {target.name}", _STATUS_WARNING
-            )
+            self.statusBar().showMessage(tr("File already exists: {name}").format(name=target.name), _STATUS_WARNING)
             return
 
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(_foamfile_template(group, filename), encoding="utf-8")
         except OSError as e:
-            QMessageBox.critical(self, "Create File Error", f"Could not create file:\n{e}")
+            QMessageBox.critical(self, tr("Create File Error"), tr("Could not create file:\n{e}").format(e=e))
             return
 
         if not self._is_auto_scan_group(group) and self._case_files_config:
@@ -271,7 +289,7 @@ class _FileOpsMixin:
             self._case_files_config.save()
 
         self._reload_file_list()
-        self.statusBar().showMessage(f"Created: {group}/{filename}", _STATUS_SHORT)
+        self.statusBar().showMessage(tr("Created: {group}/{filename}").format(group=group, filename=filename), _STATUS_SHORT)
         self.file_list_panel.select_file(str(target))
 
     def _on_add_file_requested(self, case_dir: str, group: str) -> None:
@@ -300,9 +318,7 @@ class _FileOpsMixin:
                 pass
         config.save()
         self._load_case_dir(case_dir)
-        self.statusBar().showMessage(
-            f"Added {len(selected)} file(s) to the file list.", _STATUS_SHORT
-        )
+        self.statusBar().showMessage(tr("Added {n} file(s) to the file list.").format(n=len(selected)), _STATUS_SHORT)
 
     def _create_backup(self, path: str) -> bool:
         """Write a .bak_<timestamp> copy. Returns True on success."""
@@ -319,19 +335,19 @@ class _FileOpsMixin:
             try:
                 content = read_foam_file(p)
             except Exception as e:
-                QMessageBox.critical(self, "Backup Error", f"Could not read file:\n{e}")
+                QMessageBox.critical(self, tr("Backup Error"), tr("Could not read file:\n{e}").format(e=e))
                 return False
             has_unsaved = False
 
         try:
             backup_path.write_text(content, encoding="utf-8")
         except Exception as e:
-            QMessageBox.critical(self, "Backup Error", f"Could not write backup:\n{e}")
+            QMessageBox.critical(self, tr("Backup Error"), tr("Could not write backup:\n{e}").format(e=e))
             return False
 
         rel = display_file_name(str(backup_path))
-        suffix = " (includes unsaved edits)" if has_unsaved else ""
-        self.statusBar().showMessage(f"Backup created: {rel}{suffix}", _STATUS_NORMAL)
+        suffix = tr(" (includes unsaved edits)") if has_unsaved else ""
+        self.statusBar().showMessage(tr("Backup created: {rel}{suffix}").format(rel=rel, suffix=suffix), _STATUS_NORMAL)
         return True
 
     def _on_backup_file_requested(self, path: str) -> None:
@@ -398,9 +414,7 @@ class _FileOpsMixin:
         self._case_files_config.remove_file(rel)
         self._case_files_config.save()
         self._reload_file_list()
-        self.statusBar().showMessage(
-            f"Removed from extra files: {display_file_name(abs_path)}", _STATUS_SHORT
-        )
+        self.statusBar().showMessage(tr("Removed from extra files: {name}").format(name=display_file_name(abs_path)), _STATUS_SHORT)
 
     def _on_add_time_dir(self, dir_name: str) -> None:
         if not self._case_files_config or not self.current_case_dir:
@@ -408,7 +422,7 @@ class _FileOpsMixin:
         self._case_files_config.add_dir(dir_name)
         self._case_files_config.save()
         self._reload_file_list()
-        self.statusBar().showMessage(f"Added directory: {dir_name}/", _STATUS_SHORT)
+        self.statusBar().showMessage(tr("Added directory: {dir}/").format(dir=dir_name), _STATUS_SHORT)
 
     def _on_remove_extra_dir(self, rel_dir: str) -> None:
         if not self._case_files_config:
@@ -416,9 +430,7 @@ class _FileOpsMixin:
         self._case_files_config.remove_dir(rel_dir)
         self._case_files_config.save()
         self._reload_file_list()
-        self.statusBar().showMessage(
-            f"Removed directory from file list: {rel_dir}/", _STATUS_SHORT
-        )
+        self.statusBar().showMessage(tr("Removed directory from file list: {dir}/").format(dir=rel_dir), _STATUS_SHORT)
 
     def _purge_file_caches(self, path: str) -> None:
         self.file_buffers.pop(path, None)
@@ -440,15 +452,15 @@ class _FileOpsMixin:
 
         msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Warning)
-        msg.setWindowTitle("Delete File")
+        msg.setWindowTitle(tr("Delete File"))
         msg.setText(f"Delete <b>{display_file_name(path)}</b> from disk?")
-        info = "This action cannot be undone."
+        info = tr("This action cannot be undone.")
         if is_dirty:
-            info = "This file has unsaved changes.\n" + info
+            info = tr("This file has unsaved changes.\nThis action cannot be undone.")
         msg.setInformativeText(info)
 
-        backup_btn = msg.addButton("Backup && Delete", QMessageBox.ActionRole)
-        delete_btn = msg.addButton("Delete", QMessageBox.DestructiveRole)
+        backup_btn = msg.addButton(tr("Backup && Delete"), QMessageBox.ActionRole)
+        delete_btn = msg.addButton(tr("Delete"), QMessageBox.DestructiveRole)
         cancel_btn = msg.addButton(QMessageBox.Cancel)
         msg.setDefaultButton(cancel_btn)
         msg.setEscapeButton(cancel_btn)
@@ -465,7 +477,7 @@ class _FileOpsMixin:
         try:
             Path(path).unlink()
         except OSError as e:
-            QMessageBox.critical(self, "Delete Error", f"Could not delete file:\n{e}")
+            QMessageBox.critical(self, tr("Delete Error"), tr("Could not delete file:\n{e}").format(e=e))
             return
 
         if self._case_files_config and self.current_case_dir:
@@ -482,40 +494,40 @@ class _FileOpsMixin:
         self._purge_file_caches(path)
         self._reload_file_list()
         self._reload_boundary_panel()
-        self.statusBar().showMessage(f"Deleted: {display_file_name(path)}", _STATUS_SHORT)
+        self.statusBar().showMessage(tr("Deleted: {name}").format(name=display_file_name(path)), _STATUS_SHORT)
 
     def _on_duplicate_file_requested(self, path: str) -> None:
         p = Path(path)
         new_name, ok = QInputDialog.getText(
             self,
-            "Duplicate File",
-            f"New file name (in {p.parent.name}/):",
+            tr("Duplicate File"),
+            tr("New file name (in {dir}/):)").format(dir=p.parent.name),
             text=p.name,
         )
         if not ok:
             return
         new_name = new_name.strip()
         if not new_name:
-            self.statusBar().showMessage("File name must not be empty.", _STATUS_WARNING)
+            self.statusBar().showMessage(tr("File name must not be empty."), _STATUS_WARNING)
             return
         if "/" in new_name or "\\" in new_name:
             self.statusBar().showMessage(
-                "File name must not contain path separators.", _STATUS_WARNING
+                tr("File name must not contain path separators."), _STATUS_WARNING
             )
             return
 
         dest = p.parent / new_name
         if dest.exists():
-            self.statusBar().showMessage(f"File already exists: {new_name}", _STATUS_WARNING)
+            self.statusBar().showMessage(tr("File already exists: {name}").format(name=new_name), _STATUS_WARNING)
             return
 
         if self.file_dirty.get(path, False):
             msg = QMessageBox(self)
-            msg.setWindowTitle("Unsaved Changes")
-            msg.setText(f"{display_file_name(path)} has unsaved changes.")
-            msg.setInformativeText("How would you like to duplicate this file?")
-            save_btn = msg.addButton("Save and Duplicate", QMessageBox.AcceptRole)
-            msg.addButton("Duplicate with Unsaved Changes", QMessageBox.ActionRole)
+            msg.setWindowTitle(tr("Unsaved Changes"))
+            msg.setText(tr("{name} has unsaved changes.").format(name=display_file_name(path)))
+            msg.setInformativeText(tr("How would you like to duplicate this file?"))
+            save_btn = msg.addButton(tr("Save and Duplicate"), QMessageBox.AcceptRole)
+            msg.addButton(tr("Duplicate with Unsaved Changes"), QMessageBox.ActionRole)
             msg.addButton(QMessageBox.Cancel)
             msg.exec()
             clicked = msg.clickedButton()
@@ -529,7 +541,7 @@ class _FileOpsMixin:
             try:
                 content = read_foam_file(p)
             except Exception as e:
-                QMessageBox.critical(self, "Duplicate Error", f"Could not read file:\n{e}")
+                QMessageBox.critical(self, tr("Duplicate Error"), tr("Could not read file:\n{e}").format(e=e))
                 return
 
         content = re.sub(r'(object\s+)\S+;', rf'\g<1>{new_name};', content, count=1)
@@ -537,7 +549,7 @@ class _FileOpsMixin:
         try:
             dest.write_text(content, encoding="utf-8")
         except OSError as e:
-            QMessageBox.critical(self, "Duplicate Error", f"Could not write file:\n{e}")
+            QMessageBox.critical(self, tr("Duplicate Error"), tr("Could not write file:\n{e}").format(e=e))
             return
 
         if self.current_case_dir and self._case_files_config:
@@ -551,7 +563,7 @@ class _FileOpsMixin:
                 pass
 
         self._reload_file_list()
-        self.statusBar().showMessage(f"Duplicated: {p.name} → {new_name}", _STATUS_SHORT)
+        self.statusBar().showMessage(tr("Duplicated: {src} → {dst}").format(src=p.name, dst=new_name), _STATUS_SHORT)
         self.file_list_panel.select_file(str(dest))
 
     def _on_duplicate_dir_requested(self, case_dir: str, src: str, dst: str) -> None:
@@ -559,8 +571,8 @@ class _FileOpsMixin:
         dst_path = Path(case_dir) / dst
         reply = QMessageBox.question(
             self,
-            "Duplicate Directory",
-            f"Duplicate '{src}/' to '{dst}/'?\n\nSource:      {src_path}\nDestination: {dst_path}",
+            tr("Duplicate Directory"),
+            tr("Duplicate '{src}/' to '{dst}/'?\n\nSource:      {src_path}\nDestination: {dst_path}").format(src=src, dst=dst, src_path=src_path, dst_path=dst_path),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -569,10 +581,10 @@ class _FileOpsMixin:
         try:
             shutil.copytree(str(src_path), str(dst_path))
         except Exception as e:
-            QMessageBox.critical(self, "Duplicate Error", f"Failed to duplicate directory:\n{e}")
+            QMessageBox.critical(self, tr("Duplicate Error"), tr("Failed to duplicate directory:\n{e}").format(e=e))
             return
         self._reload_file_list()
-        self.statusBar().showMessage(f"Duplicated: {src}/ → {dst}/", _STATUS_SHORT)
+        self.statusBar().showMessage(tr("Duplicated: {src} → {dst}").format(src=src+"/", dst=dst+"/"), _STATUS_SHORT)
 
     def _on_delete_dir_requested(self, case_dir: str, group: str) -> None:
         dir_path = Path(case_dir) / group
@@ -581,17 +593,15 @@ class _FileOpsMixin:
         if not orig_path.exists():
             QMessageBox.warning(
                 self,
-                "Cannot Delete",
-                "The '0.orig' directory does not exist.\n\nDeletion aborted to prevent data loss.",
+                tr("Cannot Delete"),
+                tr("The '0.orig' directory does not exist.\n\nDeletion aborted to prevent data loss."),
             )
             return
 
         reply = QMessageBox.warning(
             self,
-            "Delete Directory",
-            f"Delete the '{group}/' directory and all its contents?\n\n"
-            f"{dir_path}\n\n"
-            "This cannot be undone.",
+            tr("Delete Directory"),
+            tr("Delete the '{group}/' directory and all its contents?\n\n{path}\n\nThis cannot be undone.").format(group=group, path=dir_path),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -607,12 +617,12 @@ class _FileOpsMixin:
         try:
             shutil.rmtree(str(dir_path))
         except OSError as e:
-            QMessageBox.critical(self, "Delete Error", f"Could not delete directory:\n{e}")
+            QMessageBox.critical(self, tr("Delete Error"), tr("Could not delete directory:\n{e}").format(e=e))
             return
 
         self._reload_file_list()
         self._reload_boundary_panel()
-        self.statusBar().showMessage(f"Deleted: {group}/", _STATUS_SHORT)
+        self.statusBar().showMessage(tr("Deleted: {name}").format(name=group+"/"), _STATUS_SHORT)
 
     def _on_clean_backups(self) -> None:
         if not self.current_case_dir:
@@ -657,13 +667,11 @@ class _FileOpsMixin:
         if errors:
             QMessageBox.warning(
                 self,
-                "Delete Errors",
-                "Some files could not be deleted:\n" + "\n".join(errors),
+                tr("Delete Errors"),
+                tr("Some files could not be deleted:\n{errors}").format(errors="\n".join(errors)),
             )
 
-        self.statusBar().showMessage(
-            f"Deleted {deleted_count} backup file(s).", _STATUS_SHORT
-        )
+        self.statusBar().showMessage(tr("Deleted {n} backup file(s).").format(n=deleted_count), _STATUS_SHORT)
 
 
 def _foamfile_template(group: str, filename: str) -> str:

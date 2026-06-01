@@ -11,8 +11,10 @@ from PySide6.QtWidgets import (
     QLabel,
     QVBoxLayout,
 )
+from i18n import tr
 
-_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
+# Sections defined as (i18n_key, [(action_key, shortcut), ...])
+_SECTIONS_DATA: list[tuple[str, list[tuple[str, str]]]] = [
     ("Editor", [
         ("Find",               "Ctrl+F"),
         ("Find Next",          "F3"),
@@ -47,17 +49,17 @@ _SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
 class KeyboardShortcutsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Keyboard Shortcuts")
+        self.setWindowTitle(tr("Keyboard Shortcuts"))
         self.setMinimumWidth(340)
 
         layout = QVBoxLayout(self)
 
-        for section_name, shortcuts in _SECTIONS:
-            group = QGroupBox(section_name)
+        for section_name, shortcuts in _SECTIONS_DATA:
+            group = QGroupBox(tr(section_name))
             grid = QGridLayout(group)
             grid.setColumnStretch(0, 1)
             for row, (action, key) in enumerate(shortcuts):
-                action_lbl = QLabel(action)
+                action_lbl = QLabel(tr(action))
                 key_lbl = QLabel(key)
                 key_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 key_lbl.setStyleSheet("font-family: monospace; color: #555;")

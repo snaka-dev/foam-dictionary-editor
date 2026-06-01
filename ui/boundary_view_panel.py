@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 
 from foam.nodes import FoamNode
 from ui.boundary_edit_dialog import _get_patch_type, _patch_inner_text, _value_complexity
+from i18n import tr
 
 _PATH_ROLE = Qt.UserRole
 _PATCH_NAME_ROLE = Qt.UserRole + 1
@@ -147,35 +148,35 @@ class BoundaryViewPanel(QWidget):
         self._lines_spin.setMinimum(1)
         self._lines_spin.setMaximum(10)
         self._lines_spin.setValue(1)
-        self._lines_spin.setToolTip("Number of lines to display per cell")
+        self._lines_spin.setToolTip(tr("Number of lines to display per cell"))
         self._lines_spin.valueChanged.connect(self._refresh_table)
 
-        self._transpose_chk = QCheckBox("Transpose")
-        self._transpose_chk.setToolTip("Swap rows (fields) and columns (patches)")
+        self._transpose_chk = QCheckBox(tr("Transpose"))
+        self._transpose_chk.setToolTip(tr("Swap rows (fields) and columns (patches)"))
         self._transpose_chk.toggled.connect(self._on_transpose_toggled)
 
-        self._autoscroll_chk = QCheckBox("Auto-scroll editor")
+        self._autoscroll_chk = QCheckBox(tr("Auto-scroll editor"))
         self._autoscroll_chk.setChecked(True)
         self._autoscroll_chk.setToolTip(
             "When checked, clicking a cell opens its file in the editor\n"
             "and scrolls to the patch entry."
         )
 
-        self._copy_btn = QPushButton("Copy Table")
+        self._copy_btn = QPushButton(tr("Copy Table"))
         copy_menu = QMenu(self)
-        copy_menu.addAction("Copy as Markdown", self._copy_as_markdown)
-        copy_menu.addAction("Copy as CSV", self._copy_as_csv)
+        copy_menu.addAction(tr("Copy as Markdown"), self._copy_as_markdown)
+        copy_menu.addAction(tr("Copy as CSV"), self._copy_as_csv)
         self._copy_btn.setMenu(copy_menu)
 
         dir_row = QHBoxLayout()
-        dir_row.addWidget(QLabel("Directory:"))
+        dir_row.addWidget(QLabel(tr("Directory:")))
         dir_row.addWidget(self._dir_combo)
         dir_row.addStretch()
         dir_row.addWidget(self._transpose_chk)
         dir_row.addSpacing(12)
         dir_row.addWidget(self._autoscroll_chk)
         dir_row.addSpacing(12)
-        dir_row.addWidget(QLabel("Lines per cell:"))
+        dir_row.addWidget(QLabel(tr("Lines per cell:")))
         dir_row.addWidget(self._lines_spin)
         dir_row.addSpacing(12)
         dir_row.addWidget(self._copy_btn)
@@ -415,21 +416,21 @@ class BoundaryViewPanel(QWidget):
         patch_node = item.data(_PATCH_NODE_ROLE)
 
         menu = QMenu(self)
-        edit_action = menu.addAction("Edit")
+        edit_action = menu.addAction(tr("Edit"))
         edit_action.setEnabled(patch_node is not None)
-        create_action = menu.addAction("Create Entry")
+        create_action = menu.addAction(tr("Create Entry"))
         create_action.setEnabled(patch_node is None)
-        delete_action = menu.addAction("Delete Entry")
+        delete_action = menu.addAction(tr("Delete Entry"))
         delete_action.setEnabled(patch_node is not None)
 
         menu.addSeparator()
-        copy_action = menu.addAction("Copy")
+        copy_action = menu.addAction(tr("Copy"))
         copy_action.setEnabled(patch_node is not None)
-        paste_action = menu.addAction("Paste")
+        paste_action = menu.addAction(tr("Paste"))
         paste_action.setEnabled(self._clipboard is not None)
 
         menu.addSeparator()
-        rename_action = menu.addAction("Rename Boundary...")
+        rename_action = menu.addAction(tr("Rename Boundary..."))
 
         action = menu.exec(self._table.viewport().mapToGlobal(pos))
         if action == edit_action:
@@ -472,15 +473,15 @@ class BoundaryViewPanel(QWidget):
     def _show_patch_header_menu(self, patch_name: str | None, global_pos) -> None:
         menu = QMenu(self)
         delete_action = menu.addAction(
-            f"Delete BoundaryField  '{patch_name}'" if patch_name else "Delete BoundaryField"
+            tr("Delete BoundaryField  '{patch}'").format(patch=patch_name) if patch_name else tr("Delete BoundaryField")
         )
         delete_action.setEnabled(patch_name is not None)
         rename_action = menu.addAction(
-            f"Rename Boundary  '{patch_name}'..." if patch_name else "Rename Boundary..."
+            tr("Rename Boundary  '{patch}'...").format(patch=patch_name) if patch_name else tr("Rename Boundary...")
         )
         rename_action.setEnabled(patch_name is not None)
         menu.addSeparator()
-        add_action = menu.addAction("Add BoundaryField...")
+        add_action = menu.addAction(tr("Add BoundaryField..."))
 
         action = menu.exec(global_pos)
         if action == delete_action and patch_name:
@@ -495,7 +496,7 @@ class BoundaryViewPanel(QWidget):
         for root in self._all_field_roots.values():
             existing.update(_extract_boundary(root).keys())
 
-        name, ok = QInputDialog.getText(self, "Add BoundaryField", "New patch name:")
+        name, ok = QInputDialog.getText(self, tr("Add BoundaryField"), tr("New patch name:"))
         if not ok:
             return
         name = name.strip()
@@ -503,7 +504,7 @@ class BoundaryViewPanel(QWidget):
             return
         if name in existing:
             QMessageBox.warning(
-                self, "Add BoundaryField", f"Patch '{name}' already exists in the boundary view."
+                self, tr("Add BoundaryField"), tr("Patch '{name}' already exists in the boundary view.").format(name=name)
             )
             return
         self.patch_add_all_requested.emit(name)

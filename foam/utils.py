@@ -7,6 +7,32 @@ from pathlib import Path
 
 SCALAR_FORMAT_PRECISION = 12
 
+_LARGE_FILE_BYTES = 100 * 1024  # 100 KB
+_FOAM_SNIFF_BYTES = 512
+
+
+def is_large_non_foam_file(path: str | Path) -> tuple[bool, int]:
+    """Return (True, size_bytes) when a file is too large to be a custom dict
+    without a FoamFile header — i.e. it is probably a log or output file.
+
+    Small files (< 100 KB) always return (False, size) so that custom solver
+    dictionaries without a FoamFile block are still parsed normally.
+    Large files without a 'FoamFile' token in the first 512 bytes are skipped.
+    """
+    p = Path(path)
+    try:
+        size = p.stat().st_size
+    except OSError:
+        return False, 0
+    if size < _LARGE_FILE_BYTES:
+        return False, size
+    try:
+        with open(p, "rb") as f:
+            header = f.read(_FOAM_SNIFF_BYTES)
+        return b"FoamFile" not in header, size
+    except OSError:
+        return False, size
+
 
 def read_foam_file(path: str | Path) -> str:
     """Read a file as text, trying UTF-8 then falling back to latin-1.

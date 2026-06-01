@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from schemas import apply_schema_modules, get_schema_modules, save_current_config
+from i18n import tr
 
 _DIALOG_WIDTH = 600
 _DIALOG_HEIGHT = 450
@@ -25,21 +26,21 @@ _DIALOG_HEIGHT = 450
 class SchemaManagerDialog(QDialog):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self.setWindowTitle("Schema Module Manager")
+        self.setWindowTitle(tr("Schema Module Manager"))
         self.resize(_DIALOG_WIDTH, _DIALOG_HEIGHT)
 
         self._modules = get_schema_modules()
 
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Currently loaded schema modules:"))
+        layout.addWidget(QLabel(tr("Currently loaded schema modules:")))
 
         self._list = QListWidget()
         self._list.addItems(self._modules)
         layout.addWidget(self._list)
 
         op_layout = QHBoxLayout()
-        add_btn = QPushButton("Add Module from File")
-        remove_btn = QPushButton("Remove Selected")
+        add_btn = QPushButton(tr("Add Module from File"))
+        remove_btn = QPushButton(tr("Remove Selected"))
         op_layout.addWidget(add_btn)
         op_layout.addWidget(remove_btn)
         op_layout.addStretch()
@@ -47,8 +48,8 @@ class SchemaManagerDialog(QDialog):
 
         bottom_layout = QHBoxLayout()
         bottom_layout.addStretch()
-        cancel_btn = QPushButton("Cancel")
-        save_btn = QPushButton("Save & Close")
+        cancel_btn = QPushButton(tr("Cancel"))
+        save_btn = QPushButton(tr("Save & Close"))
         bottom_layout.addWidget(cancel_btn)
         bottom_layout.addWidget(save_btn)
         layout.addLayout(bottom_layout)
@@ -65,7 +66,7 @@ class SchemaManagerDialog(QDialog):
     def _add_module(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Select Schema Module File",
+            tr("Select Schema Module File"),
             "schemas/",
             "Python Files (*.py);;All Files (*)",
         )

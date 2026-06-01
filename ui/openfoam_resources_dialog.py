@@ -28,6 +28,8 @@ from ui.about_dialog import DISCLAIMER
 
 _DIALOG_WIDTH = 540
 
+from i18n import tr
+
 _FOUNDATION_DESC = (
     "Free, open-source CFD toolbox maintained by the OpenFOAM Foundation. "
     "Releases follow integer version numbers (v11, v12, v13 …)."
@@ -75,16 +77,16 @@ def _make_resource_group(title: str, description: str, links: list[tuple[str, st
 class _LinkEditDialog(QDialog):
     def __init__(self, parent: QWidget | None = None, label: str = "", url: str = ""):
         super().__init__(parent)
-        self.setWindowTitle("Link")
+        self.setWindowTitle(tr("Link"))
         self.setMinimumWidth(400)
 
         layout = QVBoxLayout(self)
 
-        layout.addWidget(QLabel("Label:"))
+        layout.addWidget(QLabel(tr("Label:")))
         self._label_edit = QLineEdit(label)
         layout.addWidget(self._label_edit)
 
-        layout.addWidget(QLabel("URL:"))
+        layout.addWidget(QLabel(tr("URL:")))
         self._url_edit = QLineEdit(url)
         self._url_edit.setPlaceholderText("https://")
         layout.addWidget(self._url_edit)
@@ -96,7 +98,7 @@ class _LinkEditDialog(QDialog):
 
     def _on_accept(self) -> None:
         if not self._url_edit.text().strip():
-            QMessageBox.warning(self, "Missing URL", "Please enter a URL.")
+            QMessageBox.warning(self, tr("Missing URL"), tr("Please enter a URL."))
             return
         self.accept()
 
@@ -117,7 +119,7 @@ class _MyLinksTab(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
 
-        hint = QLabel("Double-click a link to open it in your browser.")
+        hint = QLabel(tr("Double-click a link to open it in your browser."))
         hint.setStyleSheet("color: #666;")
         layout.addWidget(hint)
 
@@ -126,11 +128,11 @@ class _MyLinksTab(QWidget):
         layout.addWidget(self._list)
 
         btn_row = QHBoxLayout()
-        self._add_btn = QPushButton("Add")
-        self._edit_btn = QPushButton("Edit")
-        self._remove_btn = QPushButton("Remove")
-        self._up_btn = QPushButton("Move Up")
-        self._down_btn = QPushButton("Move Down")
+        self._add_btn = QPushButton(tr("Add"))
+        self._edit_btn = QPushButton(tr("Edit"))
+        self._remove_btn = QPushButton(tr("Remove"))
+        self._up_btn = QPushButton(tr("Move Up"))
+        self._down_btn = QPushButton(tr("Move Down"))
 
         for btn in (self._add_btn, self._edit_btn, self._remove_btn):
             btn_row.addWidget(btn)
@@ -243,7 +245,7 @@ class _MyLinksTab(QWidget):
 class OpenFOAMResourcesDialog(QDialog):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self.setWindowTitle("Resources")
+        self.setWindowTitle(tr("Resources"))
         self.setFixedWidth(_DIALOG_WIDTH)
 
         layout = QVBoxLayout(self)
@@ -252,14 +254,14 @@ class OpenFOAMResourcesDialog(QDialog):
         tabs = QTabWidget()
         layout.addWidget(tabs)
 
-        tabs.addTab(self._make_openfoam_tab(), "OpenFOAM")
+        tabs.addTab(self._make_openfoam_tab(), tr("OpenFOAM"))
 
         self._my_links_tab = _MyLinksTab()
-        tabs.addTab(self._my_links_tab, "My Links")
+        tabs.addTab(self._my_links_tab, tr("My Links"))
 
         bottom = QHBoxLayout()
         bottom.addStretch()
-        close_btn = QPushButton("Close")
+        close_btn = QPushButton(tr("Close"))
         close_btn.setDefault(True)
         close_btn.clicked.connect(self.accept)
         bottom.addWidget(close_btn)
@@ -271,19 +273,18 @@ class OpenFOAMResourcesDialog(QDialog):
         layout.setSpacing(10)
 
         intro = QLabel(
-            "OpenFOAM has two main distributions maintained by separate organizations. "
-            "This application is not affiliated with either."
+            tr("OpenFOAM has two main distributions maintained by separate organizations. This application is not affiliated with either.")
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)
 
         layout.addWidget(_make_resource_group(
-            "OpenCFD / ESI Group  (openfoam.com)",
+            tr("OpenCFD / ESI Group  (openfoam.com)"),
             _OPENCFD_DESC,
             _OPENCFD_LINKS,
         ))
         layout.addWidget(_make_resource_group(
-            "OpenFOAM Foundation  (openfoam.org)",
+            tr("OpenFOAM Foundation  (openfoam.org)"),
             _FOUNDATION_DESC,
             _FOUNDATION_LINKS,
         ))

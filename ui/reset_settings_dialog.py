@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from app_config.defaults import DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH
 from app_config import get_app_config
+from i18n import tr
 
 _DIALOG_WIDTH = 500
 _DIALOG_HEIGHT = 300
@@ -30,35 +31,31 @@ class ResetSettingsDialog(QDialog):
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self.setWindowTitle("Reset Settings")
+        self.setWindowTitle(tr("Reset Settings"))
         self.resize(_DIALOG_WIDTH, _DIALOG_HEIGHT)
         self.app_settings_reset = False
 
         layout = QVBoxLayout(self)
 
         info = QLabel(
-            "Select which settings to reset to default values.\n"
-            "This action cannot be undone."
+            tr("Select which settings to reset to default values.\nThis action cannot be undone.")
         )
         info.setWordWrap(True)
         layout.addWidget(info)
 
-        group = QGroupBox("Reset Options")
+        group = QGroupBox(tr("Reset Options"))
         group_layout = QVBoxLayout()
-        self._app_cb = QCheckBox("Application Settings (app_config.json)")
-        self._app_cb.setToolTip("Reset case directory, window size, and recent cases")
-        self._schema_cb = QCheckBox("Schema Module Settings (schema_config.json)")
-        self._schema_cb.setToolTip(
-            "Reset schema modules to default (controlDict, fvSchemes, fvSolution)"
-        )
+        self._app_cb = QCheckBox(tr("Application Settings (app_config.json)"))
+        self._app_cb.setToolTip(tr("Reset case directory, window size, and recent cases"))
+        self._schema_cb = QCheckBox(tr("Schema Module Settings (schema_config.json)"))
+        self._schema_cb.setToolTip(tr("Reset schema modules to default (controlDict, fvSchemes, fvSolution)"))
         group_layout.addWidget(self._app_cb)
         group_layout.addWidget(self._schema_cb)
         group.setLayout(group_layout)
         layout.addWidget(group)
 
         warning = QLabel(
-            "⚠️ Warning: This will delete the selected configuration files "
-            "and restore default settings."
+            tr("⚠️ Warning: This will delete the selected configuration files and restore default settings.")
         )
         warning.setWordWrap(True)
         warning.setStyleSheet("color: #ff6600; font-weight: bold;")
@@ -68,8 +65,8 @@ class ResetSettingsDialog(QDialog):
 
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
-        cancel_btn = QPushButton("Cancel")
-        reset_btn = QPushButton("Reset Selected")
+        cancel_btn = QPushButton(tr("Cancel"))
+        reset_btn = QPushButton(tr("Reset Selected"))
         reset_btn.setStyleSheet("background-color: #ff6600; color: white;")
         btn_layout.addWidget(cancel_btn)
         btn_layout.addWidget(reset_btn)
@@ -80,11 +77,7 @@ class ResetSettingsDialog(QDialog):
 
     def _perform_reset(self) -> None:
         if not self._app_cb.isChecked() and not self._schema_cb.isChecked():
-            QMessageBox.warning(
-                self,
-                "No Selection",
-                "Please select at least one option to reset.",
-            )
+            QMessageBox.warning(self, tr("No Selection"), tr("Please select at least one option to reset."))
             return
 
         confirm_msg = "Are you sure you want to reset:\n\n"
@@ -96,7 +89,7 @@ class ResetSettingsDialog(QDialog):
 
         reply = QMessageBox.question(
             self,
-            "Confirm Reset",
+            tr("Confirm Reset"),
             confirm_msg,
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
@@ -128,8 +121,8 @@ class ResetSettingsDialog(QDialog):
 
         QMessageBox.information(
             self,
-            "Reset Complete",
+            tr("Reset Complete"),
             "\n".join(messages)
-            + "\n\nPlease restart the application for all changes to take effect.",
+            + tr("\n\nPlease restart the application for all changes to take effect."),
         )
         self.accept()

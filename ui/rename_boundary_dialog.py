@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from foam.nodes import FoamNode
+from i18n import tr
 
 _DIALOG_WIDTH = 520
 _DIALOG_HEIGHT = 360
@@ -60,7 +61,7 @@ class RenameBoundaryDialog(QDialog):
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
-        self.setWindowTitle("Rename Boundary")
+        self.setWindowTitle(tr("Rename Boundary"))
         self.resize(_DIALOG_WIDTH, _DIALOG_HEIGHT)
 
         self._old_name = old_name
@@ -70,15 +71,15 @@ class RenameBoundaryDialog(QDialog):
         layout = QVBoxLayout(self)
 
         name_row = QHBoxLayout()
-        name_row.addWidget(QLabel(f'Rename "{old_name}" to:'))
+        name_row.addWidget(QLabel(tr('Rename "{name}" to:').format(name=old_name)))
         self._name_edit = QLineEdit(old_name)
         self._name_edit.selectAll()
         name_row.addWidget(self._name_edit)
         layout.addLayout(name_row)
 
         if not targets:
-            layout.addWidget(QLabel("No matching boundary entries found in loaded files."))
-            close_btn = QPushButton("Close")
+            layout.addWidget(QLabel(tr("No matching boundary entries found in loaded files.")))
+            close_btn = QPushButton(tr("Close"))
             close_btn.clicked.connect(self.reject)
             bottom = QHBoxLayout()
             bottom.addStretch()
@@ -87,10 +88,10 @@ class RenameBoundaryDialog(QDialog):
             return
 
         hdr = QHBoxLayout()
-        hdr.addWidget(QLabel("Apply to:"))
+        hdr.addWidget(QLabel(tr("Apply to:")))
         hdr.addStretch()
-        sel_all_btn = QPushButton("Select All")
-        desel_all_btn = QPushButton("Deselect All")
+        sel_all_btn = QPushButton(tr("Select All"))
+        desel_all_btn = QPushButton(tr("Deselect All"))
         hdr.addWidget(sel_all_btn)
         hdr.addWidget(desel_all_btn)
         layout.addLayout(hdr)
@@ -113,7 +114,7 @@ class RenameBoundaryDialog(QDialog):
         bottom = QHBoxLayout()
         bottom.addStretch()
         self._rename_btn = QPushButton()
-        cancel_btn = QPushButton("Cancel")
+        cancel_btn = QPushButton(tr("Cancel"))
         bottom.addWidget(self._rename_btn)
         bottom.addWidget(cancel_btn)
         layout.addLayout(bottom)
@@ -146,7 +147,7 @@ class RenameBoundaryDialog(QDialog):
         new = self._name_edit.text().strip()
         n = len(self._checked_items())
         valid = bool(new) and new != self._old_name and n > 0
-        self._rename_btn.setText(f"Rename ({n} file{'s' if n != 1 else ''})")
+        self._rename_btn.setText(tr("Rename ({n} file{s})").format(n=n, s="s" if n != 1 else ""))
         self._rename_btn.setEnabled(valid)
 
     def _select_all(self) -> None:
