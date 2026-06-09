@@ -237,6 +237,11 @@ CORE_METHODS = [
     "_on_side_by_side_toggled",
     "_on_terminal_mode_changed",
     "_on_toggle_blockmesh_panel",
+    "_on_foam_monitor_clicked",
+    "_stop_foam_monitor",
+    "_on_foam_monitor_poll",
+    "_update_foam_monitor_btn",
+    "_patched_foam_monitor",
 ]
 
 

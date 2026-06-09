@@ -95,7 +95,10 @@ class OpenFoamLexer:
     def _read_directive(self) -> Token:
         start = self.pos
         self.pos += 1
-        while self.pos < self.length and not self.text[self.pos].isspace():
+        # Stop at whitespace OR '{' so that '#eval{...}' is split into
+        # DIRECTIVE '#eval' + LBRACE + body + RBRACE, letting the parser's
+        # depth counter find the correct closing semicolon.
+        while self.pos < self.length and not self.text[self.pos].isspace() and self.text[self.pos] != "{":
             self.pos += 1
         return Token("DIRECTIVE", self.text[start:self.pos], start)
 

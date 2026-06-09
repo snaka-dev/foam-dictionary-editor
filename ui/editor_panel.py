@@ -55,6 +55,10 @@ class EditorPanel(QWidget):
         layout.addLayout(self._build_toolbar())
         layout.addWidget(self._editor)
 
+    @property
+    def editor(self) -> CodeEditor:
+        return self._editor
+
     def set_text(self, text: str) -> None:
         self._updating_programmatically = True
         self._editor.setPlainText(text)

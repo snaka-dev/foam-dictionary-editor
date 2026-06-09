@@ -2,9 +2,13 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+import os
+import signal
+import subprocess
+import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QSortFilterProxyModel, QTimer
+from PySide6.QtCore import QEvent, Qt, QSortFilterProxyModel, QTimer
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -40,6 +44,7 @@ from ui.comparison_tree_panel import ComparisonTreePanel
 from ui.detail_panel import DetailPanel
 from ui.editor_panel import EditorPanel
 from ui.file_list_panel import FileListPanel, display_file_name
+from ui.foam_monitor_dialog import FoamMonitorDialog
 from ui.terminal_panel import TerminalPanel
 from ui.layout_constants import (
     BLOCKMESH_DICT_NAME as _BLOCKMESH_DICT_NAME,
@@ -92,7 +97,14 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         self._diff_case_dir: str | None = None
         self._diff_parsed_roots: dict[str, FoamNode] = {}
 
+        self._foam_monitor_proc: subprocess.Popen | None = None
+        self._foam_monitor_script_tmp: str | None = None
+        self._foam_monitor_last_file: str = ""
+        self._foam_monitor_last_options: dict = {}
+
         self._build_ui()
+        self.setAcceptDrops(True)
+        self.editor_panel.editor.viewport().installEventFilter(self)
 
     # ── UI construction ───────────────────────────────────────────────────────
 
@@ -129,12 +141,26 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         apply_btn.clicked.connect(self.apply_text_to_tree)
         reload_btn.clicked.connect(self.reload_text_from_tree)
 
+        self._foam_monitor_btn = QPushButton(tr("foamMonitor…"))
+        self._foam_monitor_btn.setEnabled(False)
+        self._foam_monitor_btn.clicked.connect(self._on_foam_monitor_clicked)
+
+        self._foam_monitor_timer = QTimer(self)
+        self._foam_monitor_timer.setInterval(2000)
+        self._foam_monitor_timer.timeout.connect(self._on_foam_monitor_poll)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.VLine)
+        sep.setFrameShadow(QFrame.Sunken)
+
         layout = QHBoxLayout()
         layout.setContentsMargins(4, 4, 4, 2)
         layout.addWidget(save_btn)
         layout.addWidget(save_all_btn)
         layout.addWidget(apply_btn)
         layout.addWidget(reload_btn)
+        layout.addWidget(sep)
+        layout.addWidget(self._foam_monitor_btn)
         layout.addWidget(QLabel(tr("Case:")))
         layout.addWidget(self.current_case_label)
         layout.addSpacing(16)
@@ -368,12 +394,49 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         help_menu.addAction(tr("Keyboard Shortcuts...")).triggered.connect(self.show_keyboard_shortcuts)
         help_menu.addAction(tr("Resources...")).triggered.connect(self.show_openfoam_resources)
 
+    # ── drag-and-drop ─────────────────────────────────────────────────────────
+
+    def _dir_from_drop(self, mime_data) -> str | None:
+        urls = mime_data.urls()
+        if len(urls) == 1 and urls[0].isLocalFile():
+            path = urls[0].toLocalFile()
+            if Path(path).is_dir():
+                return path
+        return None
+
+    def dragEnterEvent(self, event) -> None:
+        if self._dir_from_drop(event.mimeData()):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event) -> None:
+        path = self._dir_from_drop(event.mimeData())
+        if path and self._confirm_discard_if_needed():
+            self._load_case_dir(path)
+
+    def eventFilter(self, obj, event):
+        # QPlainTextEdit (the code editor) accepts drops by default; intercept
+        # directory drops before they reach it.
+        if event.type() == QEvent.DragEnter:
+            if self._dir_from_drop(event.mimeData()):
+                event.acceptProposedAction()
+                return True
+        elif event.type() == QEvent.Drop:
+            path = self._dir_from_drop(event.mimeData())
+            if path:
+                if self._confirm_discard_if_needed():
+                    self._load_case_dir(path)
+                return True
+        return False
+
     # ── window lifecycle ──────────────────────────────────────────────────────
 
     def closeEvent(self, event) -> None:
         if not self._confirm_discard_if_needed():
             event.ignore()
             return
+        self._stop_foam_monitor()
         if self.terminal_panel is not None:
             self.terminal_panel.cleanup()
         if self.block_mesh_panel is not None:
@@ -569,6 +632,7 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         else:
             self.current_case_label.setText("-")
             self.current_case_label.setToolTip(tr("No case opened"))
+        self._update_foam_monitor_btn()
 
     def _update_file_label(self) -> None:
         if self.current_file:
@@ -818,3 +882,131 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
                 # Brief delay lets the WebEngine GPU process finish cleaning up
                 # before VTK claims the OpenGL context.
                 QTimer.singleShot(300, self.block_mesh_panel._init_plotter)
+
+    # ── foamMonitor launcher ──────────────────────────────────────────────────
+
+    def _on_foam_monitor_clicked(self) -> None:
+        if self._foam_monitor_proc is not None:
+            self._stop_foam_monitor()
+            return
+        if not self.current_case_dir:
+            return
+        dlg = FoamMonitorDialog(
+            self.current_case_dir,
+            self._foam_monitor_last_file,
+            self._foam_monitor_last_options,
+            self,
+        )
+        if dlg.exec() != FoamMonitorDialog.Accepted:
+            return
+        file_path = dlg.get_file()
+        if not file_path:
+            return
+        if not os.path.isfile(file_path):
+            QMessageBox.warning(
+                self,
+                tr("File not found"),
+                tr("File not found:") + f"\n{file_path}",
+            )
+            return
+        self._foam_monitor_last_file = file_path
+        self._foam_monitor_last_options = dlg.get_options()
+        if sys.platform == "win32":
+            return
+        launcher = self._patched_foam_monitor()
+        if launcher is None:
+            QMessageBox.warning(
+                self,
+                tr("foamMonitor not found"),
+                tr("foamMonitor could not be found on PATH."),
+            )
+            return
+        self._foam_monitor_script_tmp = launcher
+        self._foam_monitor_proc = subprocess.Popen(
+            [launcher] + dlg.get_args() + [file_path],
+            cwd=self.current_case_dir,
+            start_new_session=True,
+            stderr=subprocess.PIPE,
+        )
+        self._foam_monitor_timer.start()
+        self._update_foam_monitor_btn()
+
+    def _stop_foam_monitor(self) -> None:
+        if self._foam_monitor_proc is not None:
+            try:
+                os.killpg(self._foam_monitor_proc.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            self._foam_monitor_proc = None
+        self._foam_monitor_timer.stop()
+        if self._foam_monitor_script_tmp is not None:
+            try:
+                os.unlink(self._foam_monitor_script_tmp)
+            except OSError:
+                pass
+            self._foam_monitor_script_tmp = None
+        self._update_foam_monitor_btn()
+
+    def _on_foam_monitor_poll(self) -> None:
+        proc = self._foam_monitor_proc
+        if proc is None or proc.poll() is None:
+            return
+        stderr_text = ""
+        if proc.stderr is not None:
+            stderr_text = proc.stderr.read().decode("utf-8", errors="replace").strip()
+        self._foam_monitor_proc = None
+        self._foam_monitor_timer.stop()
+        if self._foam_monitor_script_tmp is not None:
+            try:
+                os.unlink(self._foam_monitor_script_tmp)
+            except OSError:
+                pass
+            self._foam_monitor_script_tmp = None
+        self._update_foam_monitor_btn()
+        if stderr_text:
+            QMessageBox.warning(self, tr("foamMonitor error"), stderr_text)
+
+    def _update_foam_monitor_btn(self) -> None:
+        running = self._foam_monitor_proc is not None
+        self._foam_monitor_btn.setText(
+            tr("■ foamMonitor") if running else tr("foamMonitor…")
+        )
+        self._foam_monitor_btn.setToolTip(
+            tr("Click to stop foamMonitor and close the gnuplot window")
+            if running else
+            tr("Launch foamMonitor to plot residuals or other data with gnuplot")
+        )
+        self._foam_monitor_btn.setEnabled(running or self.current_case_dir is not None)
+
+    @staticmethod
+    def _patched_foam_monitor() -> str | None:
+        """Return path to a temp copy of foamMonitor with the gnuplot reread fix.
+
+        Newer gnuplot versions deprecate `reread`.  The fix replaces it with
+        `load ARG0` and changes the invocation to `gnuplot -e "load '$GPFILE'"`
+        so that ARG0 is set to the script path before the loop starts.
+        """
+        import shutil
+        import tempfile
+
+        original = shutil.which("foamMonitor")
+        if original is None:
+            return None
+        try:
+            src = Path(original).read_text(encoding="utf-8")
+        except OSError:
+            return None
+
+        src = src.replace(
+            '$GNUPLOT "$GPFILE" &',
+            '$GNUPLOT -e "load \'$GPFILE\'" &',
+        )
+        src = src.replace("\nreread\n", "\nload ARG0\n")
+
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".sh", delete=False, encoding="utf-8"
+        )
+        tmp.write(src)
+        tmp.close()
+        os.chmod(tmp.name, 0o755)
+        return tmp.name

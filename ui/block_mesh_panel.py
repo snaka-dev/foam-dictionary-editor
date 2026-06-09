@@ -63,11 +63,13 @@ _MOUSE_HINT_TOOLTIP = (
 
 
 def _make_hex_grid(pts: "np.ndarray", hex_blocks: list[list[int]]) -> "pv.UnstructuredGrid":
+    n_verts = len(pts)
+    valid = [b for b in hex_blocks if b and max(b) < n_verts]
     cells = []
-    for block in hex_blocks:
+    for block in valid:
         cells.extend([8] + block)
     cells_np = np.array(cells, dtype=np.int_)
-    cell_types = np.full(len(hex_blocks), pv.CellType.HEXAHEDRON, dtype=np.uint8)
+    cell_types = np.full(len(valid), pv.CellType.HEXAHEDRON, dtype=np.uint8)
     return pv.UnstructuredGrid(cells_np, cell_types, pts)
 
 

@@ -54,6 +54,7 @@ Without these packages the BlockMesh tab shows an install prompt and the 3-D vie
 
 2. **Open a case** — choose one:
    - *Your own case:* **Case > Open Case** → select your case directory
+   - *Drag and drop:* drag a case directory from your file manager onto any part of the application window
    - *Start from a tutorial:* **Case > Duplicate from Case Library** → browse `$FOAM_TUTORIALS` → copy to your working directory
 
 3. **Select a file** from the left panel (e.g. `system/controlDict`, `0/U`)
@@ -111,6 +112,7 @@ Without these packages the BlockMesh tab shows an install prompt and the 3-D vie
 - Toggle between the two modes at runtime with the checkbox in the Terminal tab
 - Automatically switches to the case directory when a case is opened
 - Omitted entirely in the `no-terminal` and `no-terminal-blockmesh` variants (Windows-friendly)
+- **foamMonitor launcher** — **foamMonitor…** button in the top bar opens a dialog to launch `foamMonitor` and plot residuals or postProcessing data with gnuplot; click **■ foamMonitor** to stop
 
 **Case comparison**
 - **Case > Compare with Case...** — select a reference case directory to compare against the currently open case

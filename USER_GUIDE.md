@@ -152,6 +152,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 - Open a case directly from any Case Library directory with **Case > Open from Case Library...**.
 - Duplicate a case from the Case Library into the working directory with **Case > Duplicate from Case Library...**, with the Default Case Directory pre-filled as the destination parent.
 - Show a warning when the selected directory contains neither `system/` nor `constant/`, suggesting it may not be a valid OpenFOAM case, with an option to open it anyway.
+- Open a case by dragging a directory from the file manager and dropping it anywhere on the application window. If there are unsaved changes, a confirmation dialog is shown first.
 - Add, duplicate, comment out, restore, or delete tree nodes via the right-click context menu in the tree view.
 - Copy and paste node values in the tree view via right-click context menu or Ctrl+C / Ctrl+V.
 - Run shell commands in the integrated **Terminal** tab at the bottom of the window. The terminal automatically changes to the case directory when a case is opened.
@@ -199,6 +200,7 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, and
 
 - Case > Open Case `Ctrl+O`.
 - Case > Open from Case Library...
+- *Drag and drop:* drag a case directory from your file manager onto any part of the application window to open it. If there are unsaved changes, a confirmation dialog is shown first.
 - Case > Reload Case.
 - Case > Duplicate Case...
 - Case > Duplicate from Case Library...
@@ -547,6 +549,17 @@ The tab can also be toggled at any time via **View > BlockMesh 3-D Panel** (chec
 
 The panel is updated automatically whenever `blockMeshDict` is loaded or edited. A **Refresh** button forces a manual update.
 
+### Variable resolution
+
+Variable definitions at the top level of `blockMeshDict` are automatically resolved before the geometry is extracted:
+
+- **Direct values** — `xMin -0.5;`, `length 10;` etc. are used as-is.
+- **Macro references** — `nx $nCell;` is resolved one level deep: if `nCell` has a numeric value, `nx` inherits it.
+- **`$varName` and `${varName}`** references inside `vertices` and `blocks` are substituted with the resolved values.
+- **`#eval{ expr }`** — arithmetic expressions are evaluated after variable substitution. Supported operators: `+`, `−`, `*`, `/`, parentheses. Example: `zMax #eval{ $length / $nCell };`.
+
+If a reference cannot be resolved (the variable is defined in an external file, for instance), any vertex or block that contains it is silently skipped.
+
 ### Geometry controls (first toolbar row)
 
 | Control | Description |
@@ -765,6 +778,40 @@ The xterm.js library files are downloaded automatically from jsDelivr on first u
 - Click **Clear** to clear the output area.
 - If the shell process exits unexpectedly, it is restarted automatically.
 - The shell process is terminated cleanly when the application closes.
+
+## foamMonitor launcher
+
+The **foamMonitor…** button in the top bar launches `foamMonitor` to plot residuals or other time-series data with gnuplot — without leaving FoDE.
+
+### Launching
+
+1. Open a case and start a solver in the Terminal tab.
+2. Click **foamMonitor…** in the top bar. A dialog opens with the following options:
+
+| Field | Description |
+|---|---|
+| **File** | Path to the file to monitor. Click **Browse…** to open a file picker rooted at the case directory. Typical paths: `log.icoFoam`, `log.simpleFoam`, `postProcessing/residuals/0/residuals.dat`. |
+| **Log scale (-l)** | Plot the y-axis on a log scale. |
+| **Grid (-g)** | Draw grid lines. |
+| **Refresh (-r)** | How often gnuplot re-reads the file (seconds, default 10). |
+| **Idle timeout (-i)** | foamMonitor stops itself if the file has not changed for this many seconds (default 60). |
+| **Extra** | Any additional `foamMonitor` flags, entered as free text (e.g. `-y [1e-8:1]`). |
+
+3. Click **Launch**. A gnuplot window opens and refreshes automatically as the solver writes new data.
+
+### Stopping
+
+While foamMonitor is running the button in the top bar reads **■ foamMonitor**. Click it to stop foamMonitor and close the gnuplot window.
+
+foamMonitor also stops automatically when its idle timeout expires (the monitored file has not been updated for the configured number of seconds). When that happens the button reverts to **foamMonitor…** on its own.
+
+Opening a different case while foamMonitor is running stops the current instance.
+
+### Notes
+
+- foamMonitor is a Unix shell script (`foamMonitor` must be on `PATH`). The button has no effect on Windows.
+- If the selected file does not exist, or foamMonitor exits with an error (e.g. gnuplot not installed), a warning dialog shows the error message.
+- FoDE automatically patches the `reread` command (deprecated in newer gnuplot versions) so that the gnuplot window refreshes correctly regardless of the installed gnuplot version.
 
 ## Tree key filter and editor sync
 

@@ -52,6 +52,7 @@ pip install pyvista pyvistaqt
 
 2. **ケースを開く** — いずれかを選択:
    - *自分のケース:* **Case > Open Case** → ケースディレクトリを選択
+   - *ドラッグ＆ドロップ:* ファイルマネージャからケースディレクトリをウィンドウ上の任意の場所にドロップ
    - *チュートリアルから始める:* **Case > Duplicate from Case Library** → `$FOAM_TUTORIALS` を参照 → 作業ディレクトリへコピー
 
 3. **ファイルを選択** — 左パネルから対象ファイルを選ぶ（例: `system/controlDict`、`0/U`）
@@ -109,6 +110,7 @@ pip install pyvista pyvistaqt
 - Terminal タブのチェックボックスで実行中に切り替え可能
 - ケースを開くと自動的にそのディレクトリへ移動
 - `no-terminal` および `no-terminal-blockmesh` バリアントでは完全に省略（Windows 向け）
+- **foamMonitor ランチャー** — トップバーの **foamMonitor…** ボタンで `foamMonitor` を起動し、残差や postProcessing データを gnuplot でプロット。**■ foamMonitor** クリックで停止
 
 **ケース比較**
 - **Case > Compare with Case...** — 参照ケースのディレクトリを選択し、現在のケースと比較できます

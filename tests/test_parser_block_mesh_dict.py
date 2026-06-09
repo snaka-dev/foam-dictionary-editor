@@ -275,3 +275,171 @@ def test_vertices_and_blocks_unaffected():
     assert data.vertices[6] == [1.0, 1.0, 1.0]
     assert len(data.hex_blocks) == 1
     assert data.hex_blocks[0] == [0, 1, 2, 3, 4, 5, 6, 7]
+
+
+# ── variable resolution ───────────────────────────────────────────────────────
+
+BLOCK_MESH_DICT_WITH_VARS = """
+FoamFile { version 2.0; format ascii; class dictionary; object blockMeshDict; }
+
+xMin -0.5;
+xMax  0.5;
+yMin -0.5;
+yMax  0.5;
+zMin  0.0;
+zMax  1.0;
+nX 10;
+nY 10;
+nZ 20;
+
+scale 1;
+
+vertices
+(
+    ($xMin $yMin $zMin)
+    ($xMax $yMin $zMin)
+    ($xMax $yMax $zMin)
+    ($xMin $yMax $zMin)
+    ($xMin $yMin $zMax)
+    ($xMax $yMin $zMax)
+    ($xMax $yMax $zMax)
+    ($xMin $yMax $zMax)
+);
+
+blocks
+(
+    hex (0 1 2 3 4 5 6 7) ($nX $nY $nZ) simpleGrading (1 1 1)
+);
+
+boundary ();
+"""
+
+
+def test_variable_vertices_resolved():
+    root = OpenFoamParser(BLOCK_MESH_DICT_WITH_VARS).parse()
+    data = extract_block_mesh_data(root)
+    assert len(data.vertices) == 8
+    assert data.vertices[0] == [-0.5, -0.5, 0.0]
+    assert data.vertices[6] == [0.5, 0.5, 1.0]
+
+
+def test_variable_blocks_resolved():
+    root = OpenFoamParser(BLOCK_MESH_DICT_WITH_VARS).parse()
+    data = extract_block_mesh_data(root)
+    assert len(data.hex_blocks) == 1
+    assert data.hex_blocks[0] == [0, 1, 2, 3, 4, 5, 6, 7]
+
+
+def test_variable_partial_substitution():
+    """Variables that are defined resolve; undefined $refs are left as-is and skipped."""
+    src = """
+    FoamFile { version 2.0; format ascii; class dictionary; object blockMeshDict; }
+    xMin -1.0;
+    xMax  1.0;
+    scale 1;
+    vertices ( ($xMin 0 0) ($xMax 0 0) ($xMax 1 0) ($xMin 1 0)
+               ($xMin 0 $zMax) ($xMax 0 $zMax) ($xMax 1 $zMax) ($xMin 1 $zMax) );
+    blocks ();
+    boundary ();
+    """
+    root = OpenFoamParser(src).parse()
+    data = extract_block_mesh_data(root)
+    # Vertices with unresolved $zMax cannot be parsed as float — silently skipped
+    assert all(v[0] in (-1.0, 1.0) for v in data.vertices)
+    assert all(len(v) == 3 for v in data.vertices)
+
+
+def test_macro_variable_resolved_one_level():
+    """Variables defined as macros (nx $nCell) are resolved via a second pass."""
+    src = """
+    FoamFile { version 2.0; format ascii; class dictionary; object blockMeshDict; }
+    scale 1;
+    length 10;
+    nCell 20;
+    nx $nCell; ny $nCell; nz 1;
+    xMin 0; xMax $length;
+    yMin 0; yMax $length;
+    zMin 0; zMax $length;
+    vertices
+    (
+        ($xMin $yMin $zMin)
+        ($xMax $yMin $zMin)
+        ($xMax $yMax $zMin)
+        ($xMin $yMax $zMin)
+        ($xMin $yMin $zMax)
+        ($xMax $yMin $zMax)
+        ($xMax $yMax $zMax)
+        ($xMin $yMax $zMax)
+    );
+    blocks ( hex (0 1 2 3 4 5 6 7) ($nx $ny $nz) simpleGrading (1 1 1) );
+    boundary ();
+    """
+    root = OpenFoamParser(src).parse()
+    data = extract_block_mesh_data(root)
+    assert len(data.vertices) == 8
+    assert data.vertices[0] == [0.0, 0.0, 0.0]
+    assert data.vertices[6] == [10.0, 10.0, 10.0]
+    assert data.hex_blocks == [[0, 1, 2, 3, 4, 5, 6, 7]]
+
+
+def test_braced_variable_syntax():
+    """${varName} syntax is also resolved."""
+    src = """
+    FoamFile { version 2.0; format ascii; class dictionary; object blockMeshDict; }
+    L 2.0;
+    scale 1;
+    vertices ( (0 0 0) (${L} 0 0) (${L} ${L} 0) (0 ${L} 0)
+               (0 0 ${L}) (${L} 0 ${L}) (${L} ${L} ${L}) (0 ${L} ${L}) );
+    blocks ();
+    boundary ();
+    """
+    root = OpenFoamParser(src).parse()
+    data = extract_block_mesh_data(root)
+    assert len(data.vertices) == 8
+    assert data.vertices[6] == [2.0, 2.0, 2.0]
+
+
+def test_eval_expression_resolved():
+    """#eval{ expr } entries are evaluated and usable in vertices."""
+    src = """
+    FoamFile { version 2.0; format ascii; class dictionary; object blockMeshDict; }
+    scale 1;
+    length 10.0;
+    nCell 5;
+    dz   #eval{ $length / $nCell };
+    vertices
+    (
+        (0 0 0) (1 0 0) (1 1 0) (0 1 0)
+        (0 0 $dz) (1 0 $dz) (1 1 $dz) (0 1 $dz)
+    );
+    blocks ();
+    boundary ();
+    """
+    root = OpenFoamParser(src).parse()
+    data = extract_block_mesh_data(root)
+    assert len(data.vertices) == 8
+    assert data.vertices[4] == pytest.approx([0.0, 0.0, 2.0])
+    assert data.vertices[6] == pytest.approx([1.0, 1.0, 2.0])
+
+
+def test_eval_expression_with_multiplication():
+    """#eval{ expr } with multiplication and subtraction."""
+    src = """
+    FoamFile { version 2.0; format ascii; class dictionary; object blockMeshDict; }
+    scale 1;
+    L 4.0;
+    half   #eval{ $L / 2.0 };
+    neg    #eval{ -0.5 * $L };
+    vertices
+    (
+        ($neg 0 0) ($half 0 0) ($half $half 0) ($neg $half 0)
+        ($neg 0 1) ($half 0 1) ($half $half 1) ($neg $half 1)
+    );
+    blocks ();
+    boundary ();
+    """
+    root = OpenFoamParser(src).parse()
+    data = extract_block_mesh_data(root)
+    assert len(data.vertices) == 8
+    assert data.vertices[0] == pytest.approx([-2.0, 0.0, 0.0])
+    assert data.vertices[2] == pytest.approx([2.0, 2.0, 0.0])

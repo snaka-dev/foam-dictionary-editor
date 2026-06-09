@@ -1,5 +1,32 @@
 # Release Notes
 
+## v1.4.0 — 2026-06-09
+
+### New features
+
+**foamMonitor launcher**
+
+- A **foamMonitor…** button in the top bar opens a dialog to launch `foamMonitor` and plot residuals or other data with gnuplot.
+- The dialog lets you pick any file (solver log or `postProcessing/` output), set options (log scale, grid, refresh interval, idle timeout), and add free-form extra flags.
+- While foamMonitor is running the button changes to **■ foamMonitor**; clicking it stops the process (kills both the foamMonitor shell and the gnuplot window). Opening a new case also stops a running instance.
+- A compatibility patch is applied at launch so that the `reread` command deprecated in newer gnuplot versions is replaced by the modern `load ARG0` equivalent — the gnuplot window refreshes correctly regardless of gnuplot version.
+- If the selected file does not exist, or foamMonitor exits with an error, a warning dialog is shown.
+
+**BlockMesh viewer: variable and `#eval` expression support**
+
+- Variable definitions at the top of `blockMeshDict` (e.g. `xMax 0.5;`, `nCell 20;`) are now substituted in `vertices` and `blocks` before the 3-D geometry is extracted. Both `$varName` and `${varName}` reference styles are recognised.
+- Macro variables that reference other variables (`nx $nCell;`) are resolved one level deep.
+- Arithmetic expressions (`zMax #eval{ $length / $nCell };`) are evaluated after variable substitution. Supported operators: `+`, `−`, `*`, `/`, parentheses.
+- Previously, unresolved `$variable` references caused `float()` conversion to fail, producing missing vertices and, in the worst case, an out-of-bounds vertex index that triggered a VTK crash.
+- **Lexer fix:** `#eval{expr};` written without internal spaces was tokenised as a single directive token that included the semicolon, causing the parser to consume the entire `vertices` block as the value of the preceding variable. The lexer now stops directive token reading at `{`, so depth tracking works correctly.
+
+**Drag-and-drop to open a case**
+
+- Drag a case directory from the file manager and drop it anywhere on the application window to open it — the tree view, editor, file list, and all other panels are valid drop targets.
+- If there are unsaved changes in the currently open file, a confirmation dialog is shown before loading the new case.
+
+---
+
 ## v1.3.0 — 2026-06-01
 
 ### Improvements

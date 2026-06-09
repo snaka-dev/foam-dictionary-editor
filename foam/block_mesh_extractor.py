@@ -7,6 +7,9 @@ from dataclasses import dataclass, field
 
 from foam.nodes import FoamNode
 
+_EVAL_VALUE_RE = re.compile(r'^#eval\s*\{\s*([^}]+)\}')
+_SAFE_EXPR_RE = re.compile(r'^[\d\s\+\-\*/\.\(\)eE]+$')
+
 
 @dataclass
 class BlockMeshData:
@@ -15,6 +18,83 @@ class BlockMeshData:
     # patch_name → (patch_type, list_of_face_vertex_lists)
     boundary_faces: dict[str, tuple[str, list[list[int]]]] = field(default_factory=dict)
     scale: float = 1.0
+
+
+# ── variable resolution ───────────────────────────────────────────────────────
+
+_BLOCKMESH_STRUCTURAL = frozenset({
+    "scale", "convertToMeters", "vertices", "blocks",
+    "edges", "boundary", "mergePatchPairs", "defaultPatch",
+})
+
+
+def _eval_foam_expr(expr: str) -> str | None:
+    """Evaluate a numeric arithmetic expression from #eval{...}.
+
+    Returns the float result as a string, or None if the expression
+    contains non-numeric tokens (e.g. unresolved $var references).
+    """
+    cleaned = expr.strip()
+    if not _SAFE_EXPR_RE.match(cleaned):
+        return None
+    try:
+        result = eval(cleaned, {"__builtins__": {}}, {})  # noqa: S307
+        return str(float(result))
+    except Exception:
+        return None
+
+
+def _build_var_map(root: FoamNode) -> dict[str, str]:
+    """Collect top-level variable definitions as a substitution map.
+
+    First pass: direct scalar/int/word values.
+    Second pass: macro nodes whose value is $otherVar — resolved one level deep.
+    Third pass: unknown_raw_entry nodes containing ``name #eval{ expr };`` —
+    the expression is substituted then evaluated.
+    """
+    var_map: dict[str, str] = {}
+    macro_refs: dict[str, str] = {}  # name -> referenced var name (without $)
+    for child in root.children:
+        if not child.name or child.name in _BLOCKMESH_STRUCTURAL or child.value is None:
+            continue
+        if child.node_type in ("scalar", "int", "word"):
+            var_map[child.name] = str(child.value)
+        elif child.node_type == "macro":
+            macro_refs[child.name] = str(child.value).lstrip("$")
+    for name, ref in macro_refs.items():
+        if ref in var_map:
+            var_map[name] = var_map[ref]
+    # Third pass: nodes whose value is '#eval{expr}' or '#eval{ expr }' —
+    # the lexer splits '#eval' and '{' into separate tokens so the parser
+    # depth-tracks the braces correctly.  With no spaces the value has no
+    # whitespace so it is classified as 'word'; with spaces it is 'compound'.
+    for child in root.children:
+        if not child.name or child.name in _BLOCKMESH_STRUCTURAL:
+            continue
+        if child.node_type not in ("word", "compound"):
+            continue
+        val_str = str(child.value).strip() if child.value is not None else ""
+        m = _EVAL_VALUE_RE.match(val_str)
+        if not m:
+            continue
+        expr_raw = m.group(1)
+        expr_substituted = _substitute_vars(expr_raw, var_map)
+        result = _eval_foam_expr(expr_substituted)
+        if result is not None:
+            var_map[child.name] = result
+    return var_map
+
+
+def _substitute_vars(text: str, var_map: dict[str, str]) -> str:
+    """Replace $name and ${name} references with values from var_map."""
+    if not var_map:
+        return text
+    # Longest names first to avoid $xMin matching before $xMinExtra
+    for name in sorted(var_map, key=len, reverse=True):
+        val = var_map[name]
+        text = re.sub(r'\$\{' + re.escape(name) + r'\}', val, text)
+        text = re.sub(r'\$' + re.escape(name) + r'(?!\w)', val, text)
+    return text
 
 
 # ── raw-string parsers ────────────────────────────────────────────────────────
@@ -166,6 +246,8 @@ def extract_block_mesh_data(root: FoamNode) -> BlockMeshData:
     hex_blocks: list[list[int]] = []
     boundary_faces: dict[str, tuple[str, list[list[int]]]] = {}
 
+    var_map = _build_var_map(root)
+
     children = root.children
     n_children = len(children)
 
@@ -176,10 +258,10 @@ def extract_block_mesh_data(root: FoamNode) -> BlockMeshData:
             scale = float(child.value)
 
         elif name == "vertices" and child.node_type == "raw_list":
-            vertices = parse_vertices(str(child.value))
+            vertices = parse_vertices(_substitute_vars(str(child.value), var_map))
 
         elif name == "blocks" and child.node_type == "raw_list":
-            hex_blocks = _parse_hex_blocks(str(child.value))
+            hex_blocks = _parse_hex_blocks(_substitute_vars(str(child.value), var_map))
 
         elif name == "boundary" and child.node_type == "boundary_block":
             boundary_faces = _extract_boundary_from_tree(child)

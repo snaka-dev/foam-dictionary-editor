@@ -51,6 +51,7 @@ class _FileOpsMixin:
         self._clear_current_file()
         if self.terminal_panel is not None:
             self.terminal_panel.set_working_directory(directory)
+        self._stop_foam_monitor()
         QTimer.singleShot(0, self._reload_boundary_panel)
 
     def _reload_file_list(self) -> None:
