@@ -97,6 +97,12 @@ class BlockMeshPanel(QWidget):
         self._plotter_layout: QVBoxLayout | None = None
         self._vtx_table: QTableWidget | None = None
         self._selected_vertex: int | None = None
+        self._root: FoamNode | None = None
+        self._has_variables: bool = False
+        self._preview_mode: bool = False
+        self._preview_btn: "QPushButton | None" = None
+        self._preview_banner: "QLabel | None" = None
+        self._vtx_info_bar: "QWidget | None" = None
 
         if not _PYVISTA_OK:
             lbl = QLabel(
@@ -112,7 +118,60 @@ class BlockMeshPanel(QWidget):
     # ── UI construction ───────────────────────────────────────────────────────
 
     def _build_controls(self) -> None:
-        # ── geometry visibility — vertices (menu) ────────────────────────────
+        row1, row2, refresh_btn, load_stl_act = self._build_geometry_toolbar()
+        vtx_group = self._build_vertex_table()
+
+        plotter_container = QWidget()
+        self._plotter_layout = QVBoxLayout(plotter_container)
+        self._plotter_layout.setContentsMargins(0, 0, 0, 0)
+
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(plotter_container)
+        splitter.addWidget(vtx_group)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 0)
+        splitter.setSizes([600, 280])
+
+        hint_label = QLabel(_MOUSE_HINT)
+        hint_label.setStyleSheet("color: #888888; font-size: 11px; font-style: italic;")
+        hint_label.setToolTip(_MOUSE_HINT_TOOLTIP)
+
+        self._preview_banner = QLabel(
+            "Preview mode — changes shown in 3-D view only. "
+            "Tree and file are not modified. Click Refresh to reset."
+        )
+        self._preview_banner.setStyleSheet(
+            "background: #FFF3CD; color: #856404; "
+            "padding: 3px 8px; border: 1px solid #FFEEBA; border-radius: 3px;"
+        )
+        self._preview_banner.setVisible(False)
+
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(4, 4, 4, 4)
+        main_layout.setSpacing(2)
+        main_layout.addLayout(row1)
+        main_layout.addLayout(row2)
+        main_layout.addWidget(self._preview_banner)
+        main_layout.addWidget(splitter, 1)
+        main_layout.addWidget(hint_label)
+
+        refresh_btn.clicked.connect(self._on_refresh)
+        self._preview_btn.clicked.connect(self._on_preview_toggled)
+        load_stl_act.triggered.connect(self._load_stl)
+        self._clear_stl_act.triggered.connect(self._clear_stl)
+        self._act_vtx_table.triggered.connect(lambda checked: vtx_group.setVisible(checked))
+        self._vtx_table.itemSelectionChanged.connect(self._on_vertex_selected)
+        self._vtx_table.cellChanged.connect(self._on_cell_changed)
+        self._show_boundary.toggled.connect(self._render)
+        for act in (self._show_vertices, self._show_labels,
+                    self._show_edges, self._show_block_labels,
+                    self._color_blocks, self._solid_blocks,
+                    self._act_axes, self._act_grid, self._act_bounds):
+            act.triggered.connect(self._render)
+        self._label_font_size.valueChanged.connect(self._render)
+
+    def _build_geometry_toolbar(self) -> tuple:
+        """Build the two toolbar rows; set geometry-visibility action attrs."""
         vtx_menu = QMenu(self)
         self._show_vertices  = QAction("Vertices",       vtx_menu, checkable=True, checked=True)
         self._show_labels    = QAction("Vertex labels",  vtx_menu, checkable=True, checked=False)
@@ -126,12 +185,11 @@ class BlockMeshPanel(QWidget):
         vtx_btn.setPopupMode(QToolButton.InstantPopup)
         vtx_btn.setMenu(vtx_menu)
 
-        # ── geometry visibility — blocks (menu) ──────────────────────────────
         blk_menu = QMenu(self)
-        self._show_edges       = QAction("Block edges",  blk_menu, checkable=True, checked=True)
-        self._show_block_labels= QAction("Block labels", blk_menu, checkable=True, checked=False)
-        self._color_blocks     = QAction("Color blocks", blk_menu, checkable=True, checked=False)
-        self._solid_blocks     = QAction("Solid blocks", blk_menu, checkable=True, checked=False)
+        self._show_edges        = QAction("Block edges",  blk_menu, checkable=True, checked=True)
+        self._show_block_labels = QAction("Block labels", blk_menu, checkable=True, checked=False)
+        self._color_blocks      = QAction("Color blocks", blk_menu, checkable=True, checked=False)
+        self._solid_blocks      = QAction("Solid blocks", blk_menu, checkable=True, checked=False)
         blk_menu.addAction(self._show_edges)
         blk_menu.addAction(self._show_block_labels)
         blk_menu.addAction(self._color_blocks)
@@ -145,7 +203,6 @@ class BlockMeshPanel(QWidget):
         self._show_boundary = QCheckBox("Boundary faces")
         self._show_boundary.setChecked(True)
 
-        # ── scale / orientation indicators (menu) ────────────────────────────
         scale_menu = QMenu(self)
         self._act_axes   = QAction("Axes",       scale_menu, checkable=True, checked=True)
         self._act_grid   = QAction("Grid",       scale_menu, checkable=True, checked=True)
@@ -159,7 +216,6 @@ class BlockMeshPanel(QWidget):
         scale_btn.setPopupMode(QToolButton.InstantPopup)
         scale_btn.setMenu(scale_menu)
 
-        # ── STL menu ──────────────────────────────────────────────────────────
         stl_menu = QMenu(self)
         load_stl_act = stl_menu.addAction("Load STL / OBJ…")
         self._clear_stl_act = stl_menu.addAction("Clear STL")
@@ -194,16 +250,15 @@ class BlockMeshPanel(QWidget):
         row2.addWidget(self._label_font_size)
         row2.addSpacing(16)
         row2.addWidget(QLabel("View:"))
-        _view_specs = [
-            ("+X", "view_yz",       {"negative": False}),
-            ("-X", "view_yz",       {"negative": True}),
-            ("+Y", "view_xz",       {"negative": False}),
-            ("-Y", "view_xz",       {"negative": True}),
-            ("+Z", "view_xy",       {"negative": False}),
-            ("-Z", "view_xy",       {"negative": True}),
-            ("Iso","view_isometric", {}),
-        ]
-        for _label, _fn, _kw in _view_specs:
+        for _label, _fn, _kw in [
+            ("+X", "view_yz",        {"negative": False}),
+            ("-X", "view_yz",        {"negative": True}),
+            ("+Y", "view_xz",        {"negative": False}),
+            ("-Y", "view_xz",        {"negative": True}),
+            ("+Z", "view_xy",        {"negative": False}),
+            ("-Z", "view_xy",        {"negative": True}),
+            ("Iso", "view_isometric", {}),
+        ]:
             _btn = QPushButton(_label)
             _btn.setFixedWidth(36)
             _btn.clicked.connect(
@@ -212,7 +267,10 @@ class BlockMeshPanel(QWidget):
             row2.addWidget(_btn)
         row2.addStretch()
 
-        # ── vertices table ────────────────────────────────────────────────────
+        return row1, row2, refresh_btn, load_stl_act
+
+    def _build_vertex_table(self) -> "QGroupBox":
+        """Build the vertex table with the variable-preview info bar; return the group box."""
         self._vtx_table = QTableWidget(0, 4)
         self._vtx_table.setHorizontalHeaderLabels(["#", "X", "Y", "Z"])
         self._vtx_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -224,51 +282,36 @@ class BlockMeshPanel(QWidget):
         for col in (1, 2, 3):
             hdr.setSectionResizeMode(col, QHeaderView.Stretch)
 
+        self._preview_btn = QPushButton("Preview")
+        self._preview_btn.setCheckable(True)
+        self._preview_btn.setToolTip(
+            "Enable Preview mode: edit vertex coordinates in the table.\n"
+            "Changes are shown in the 3-D view only — tree and file are not modified.\n"
+            "Click Refresh to reset to the tree values."
+        )
+
+        vtx_vars_label = QLabel("⚙ Variable-based")
+        vtx_vars_label.setStyleSheet(
+            "color: #6B4F00; background: #FFF0B3; "
+            "padding: 1px 6px; border-radius: 3px; font-size: 11px;"
+        )
+
+        self._vtx_info_bar = QWidget()
+        info_row = QHBoxLayout(self._vtx_info_bar)
+        info_row.setContentsMargins(0, 0, 0, 2)
+        info_row.setSpacing(6)
+        info_row.addWidget(vtx_vars_label)
+        info_row.addWidget(self._preview_btn)
+        info_row.addStretch()
+        self._vtx_info_bar.setVisible(False)
+
         vtx_group = QGroupBox("Vertices")
         vtx_inner = QVBoxLayout(vtx_group)
         vtx_inner.setContentsMargins(2, 4, 2, 2)
+        vtx_inner.setSpacing(2)
+        vtx_inner.addWidget(self._vtx_info_bar)
         vtx_inner.addWidget(self._vtx_table)
-
-        # ── plotter container (holds QtInteractor when initialised) ───────────
-        plotter_container = QWidget()
-        self._plotter_layout = QVBoxLayout(plotter_container)
-        self._plotter_layout.setContentsMargins(0, 0, 0, 0)
-
-        # ── splitter: 3-D view left, vertices table right ────────────────────
-        splitter = QSplitter(Qt.Horizontal)
-        splitter.addWidget(plotter_container)
-        splitter.addWidget(vtx_group)
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 0)
-        splitter.setSizes([600, 280])
-
-        hint_label = QLabel(_MOUSE_HINT)
-        hint_label.setStyleSheet("color: #888888; font-size: 11px; font-style: italic;")
-        hint_label.setToolTip(_MOUSE_HINT_TOOLTIP)
-
-        # ── top-level layout ──────────────────────────────────────────────────
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(4, 4, 4, 4)
-        main_layout.setSpacing(2)
-        main_layout.addLayout(row1)
-        main_layout.addLayout(row2)
-        main_layout.addWidget(splitter, 1)
-        main_layout.addWidget(hint_label)
-
-        # ── connections ───────────────────────────────────────────────────────
-        refresh_btn.clicked.connect(self._render)
-        load_stl_act.triggered.connect(self._load_stl)
-        self._clear_stl_act.triggered.connect(self._clear_stl)
-        self._act_vtx_table.triggered.connect(lambda checked: vtx_group.setVisible(checked))
-        self._vtx_table.itemSelectionChanged.connect(self._on_vertex_selected)
-        self._vtx_table.cellChanged.connect(self._on_cell_changed)
-        self._show_boundary.toggled.connect(self._render)
-        for act in (self._show_vertices, self._show_labels,
-                    self._show_edges, self._show_block_labels,
-                    self._color_blocks, self._solid_blocks,
-                    self._act_axes, self._act_grid, self._act_bounds):
-            act.triggered.connect(self._render)
-        self._label_font_size.valueChanged.connect(self._render)
+        return vtx_group
 
     def _init_plotter(self) -> None:
         if self._plotter is not None or self._plotter_layout is None:
@@ -296,7 +339,11 @@ class BlockMeshPanel(QWidget):
         if not _PYVISTA_OK:
             return
         from foam.block_mesh_extractor import extract_block_mesh_data
+        self._root = root
         self._data = extract_block_mesh_data(root)
+        self._preview_mode = False
+        self._has_variables = self._vertices_have_variables()
+        self._update_preview_ui()
         self._selected_vertex = None
         self._populate_vertex_table()
         if self._plotter is not None:
@@ -334,7 +381,8 @@ class BlockMeshPanel(QWidget):
 
         right = Qt.AlignRight | Qt.AlignVCenter
         ro_flags = Qt.ItemIsEnabled | Qt.ItemIsSelectable
-        rw_flags = Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsEditable
+        editable = not self._has_variables or self._preview_mode
+        rw_flags = (ro_flags | Qt.ItemIsEditable) if editable else ro_flags
 
         self._vtx_table.blockSignals(True)
         self._vtx_table.setRowCount(shown + (1 if truncated else 0))
@@ -393,7 +441,46 @@ class BlockMeshPanel(QWidget):
             self._vtx_table.blockSignals(False)
             return
         self._data.vertices[row][col - 1] = new_val
-        self.vertices_changed.emit(row, list(self._data.vertices[row]))
+        if self._preview_mode:
+            if self._plotter is not None:
+                self._render()
+        else:
+            self.vertices_changed.emit(row, list(self._data.vertices[row]))
+
+    # ── preview mode ─────────────────────────────────────────────────────────
+
+    def _vertices_have_variables(self) -> bool:
+        if self._root is None:
+            return False
+        vtx_node = next(
+            (c for c in self._root.children
+             if c.name == "vertices" and c.node_type == "raw_list"),
+            None,
+        )
+        return vtx_node is not None and "$" in str(vtx_node.value)
+
+    def _update_preview_ui(self) -> None:
+        if self._preview_btn is None:
+            return
+        self._vtx_info_bar.setVisible(self._has_variables)
+        self._preview_btn.setChecked(self._preview_mode)
+        if self._preview_banner is not None:
+            self._preview_banner.setVisible(self._preview_mode)
+
+    def _on_preview_toggled(self) -> None:
+        self._preview_mode = self._preview_btn.isChecked()
+        self._update_preview_ui()
+        self._populate_vertex_table()
+
+    def _on_refresh(self) -> None:
+        if self._preview_mode and self._root is not None:
+            from foam.block_mesh_extractor import extract_block_mesh_data
+            self._data = extract_block_mesh_data(self._root)
+            self._preview_mode = False
+            self._update_preview_ui()
+            self._selected_vertex = None
+            self._populate_vertex_table()
+        self._render()
 
     # ── rendering ─────────────────────────────────────────────────────────────
 

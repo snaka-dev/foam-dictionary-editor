@@ -170,7 +170,7 @@ The main window is divided into two top-level columns separated by a horizontal 
 - **Left column** — file list for the selected OpenFOAM case (full window height).
 - **Right column** — a vertical splitter with two rows:
   - **Upper row** — a tab widget with up to three tabs:
-    - **Tree** tab — parsed dictionary tree (center) and detail editor (right).
+    - **Tree** tab — parsed dictionary tree (center) and detail editor (right). A **⊞** button in the tab bar's top-right corner activates side-by-side mode when `blockMeshDict` is the active file (see [BlockMesh panel — Side-by-side mode](#side-by-side-mode)).
     - **Boundary** tab — boundary condition table for all field variables (see [Boundary view](#boundary-view)).
     - **BlockMesh** tab — interactive 3-D viewer for `blockMeshDict` geometry (see [BlockMesh panel](#blockmesh-panel)). Visible only when the Simple terminal is active; can also be toggled via **View > BlockMesh 3-D Panel**.
   - **Lower row** — tabbed panel with two tabs:
@@ -549,12 +549,20 @@ The tab can also be toggled at any time via **View > BlockMesh 3-D Panel** (chec
 
 The panel is updated automatically whenever `blockMeshDict` is loaded or edited. A **Refresh** button forces a manual update.
 
+### Side-by-side mode
+
+A **⊞** toggle button appears in the top-right corner of the upper tab widget when `blockMeshDict` is the active file and the BlockMesh panel is available. Clicking it places the 3-D viewer in a horizontal splitter to the right of the Tree tab so both are visible at the same time. The separate **BlockMesh** tab is removed while side-by-side mode is on, and restored when it is turned off.
+
+The 3-D view is **not** updated automatically while side-by-side mode is on — click **Refresh** after editing the tree to see the updated geometry.
+
+The **⊞** button is disabled while the xterm terminal is active (GPU/OpenGL conflict prevents the BlockMesh panel from being open at the same time).
+
 ### Variable resolution
 
 Variable definitions at the top level of `blockMeshDict` are automatically resolved before the geometry is extracted:
 
 - **Direct values** — `xMin -0.5;`, `length 10;` etc. are used as-is.
-- **Macro references** — `nx $nCell;` is resolved one level deep: if `nCell` has a numeric value, `nx` inherits it.
+- **Macro references** — `nx $nCell;` is resolved to whatever `nCell` evaluates to, including through chains of arbitrary depth.
 - **`$varName` and `${varName}`** references inside `vertices` and `blocks` are substituted with the resolved values.
 - **`#eval{ expr }`** — arithmetic expressions are evaluated after variable substitution. Supported operators: `+`, `−`, `*`, `/`, parentheses. Example: `zMax #eval{ $length / $nCell };`.
 
@@ -567,7 +575,8 @@ If a reference cannot be resolved (the variable is defined in an external file, 
 | **Vertices ▾** | Drop-down menu with three checkable items: **Vertices** (show vertices as red spheres), **Vertex labels** (overlay vertex index numbers), **Vertices table** (show or hide the vertex coordinate table on the right). |
 | **Blocks ▾** | Drop-down menu with four checkable items: **Block edges** (wireframe), **Block labels** (index at centroid), **Color blocks** (distinct colour per block from the tab10 palette), **Solid blocks** (semi-transparent solid faces at opacity 0.25, shares colour with Color blocks). |
 | **Boundary faces** | Show boundary patch faces, colour-coded by type. |
-| **Refresh** | Re-extract geometry from the current tree and redraw. |
+| **Refresh** | Re-extract geometry from the current tree and redraw. In Preview mode, also discards all preview edits and resets vertex coordinates to the tree values. |
+| **Preview** | Appears only when the `vertices` block contains variable references (`$varName`). This button is shown inside the **Vertices** panel (not in the main toolbar). Click to enter Preview mode: table cells become editable and each change immediately updates the 3-D view, but the tree and file are not modified. A yellow banner is shown while Preview mode is active. Click **Refresh** to leave Preview mode and restore the original values. |
 | **STL ▾** | Drop-down menu: **Load STL / OBJ…** loads an STL or OBJ file and displays it as a translucent grey overlay (multiple files can be loaded); **Clear STL** removes all loaded overlays (greyed out when none are loaded). |
 
 ### Boundary face colours
@@ -589,7 +598,8 @@ If a reference cannot be resolved (the variable is defined in an external file, 
 A scrollable table on the right side of the panel lists every vertex from the `vertices` block as a row with columns **#**, **X**, **Y**, **Z** (coordinates are shown after applying the `scale`/`convertToMeters` factor).
 
 - **Click a row** to highlight the corresponding vertex in the 3-D view as a larger cyan sphere.
-- **Double-click an X, Y, or Z cell** to edit the coordinate value inline. Entering a non-numeric value cancels the edit and restores the previous value. After a valid commit the FoamNode tree and text editor are updated immediately and the file is marked dirty. Click **Refresh** to update the 3-D view with the new coordinates.
+- **Double-click an X, Y, or Z cell** to edit the coordinate value inline (only available when vertices use literal numbers — see below). Entering a non-numeric value cancels the edit and restores the previous value. After a valid commit the FoamNode tree and text editor are updated immediately and the file is marked dirty. The 3-D view updates after clicking **Refresh**.
+- **When vertices contain variables** (`$varName` references), the X/Y/Z cells are read-only by default. A **⚙ Variable-based** chip and a **Preview** button appear at the top of the Vertices panel. Click **Preview** to unlock editing. In Preview mode changes update the 3-D view immediately without touching the tree or file. Click **Refresh** to exit Preview mode and restore the original values.
 - The **#** index column is read-only. Reordering vertices would silently break all `hex` and `faces` index references.
 - For meshes with more than 500 vertices only the first 500 rows are shown, with a truncation notice at the bottom.
 - The **Vertices table** item in the **Vertices ▾** menu collapses the table pane entirely, giving more space to the 3-D view.
@@ -970,7 +980,7 @@ Both trees are annotated with the same colour scheme (see [Tree overlay](#tree-o
 Right-click any leaf node in the reference pane and select **Use this value**. The value is applied to the matching node in the current case's tree immediately (or inserted if the key is absent). The diff highlighting updates automatically after the change.
 
 **Toggling side-by-side:**  
-Check or uncheck **Side by side** in the diff bar to show or hide the reference pane without leaving compare mode. The current case's tree always remains visible and editable.
+Check or uncheck **Side by side** in the diff bar to show or hide the reference pane without leaving compare mode. The reference pane is hidden (not merely collapsed) when unchecked, so no splitter gap appears. The current case's tree always remains visible and editable.
 
 ### Tree overlay
 

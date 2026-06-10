@@ -22,12 +22,24 @@ def test_file_ops_importable():
     from ui._file_ops import _FileOpsMixin  # noqa: F401
 
 
+def test_file_mgmt_ops_importable():
+    from ui._file_mgmt_ops import _FileManagementOpsMixin  # noqa: F401
+
+
 def test_tree_ops_importable():
     from ui._tree_ops import _TreeOpsMixin  # noqa: F401
 
 
 def test_boundary_ops_importable():
     from ui._boundary_ops import _BoundaryOpsMixin  # noqa: F401
+
+
+def test_diff_ops_importable():
+    from ui._diff_ops import _DiffOpsMixin  # noqa: F401
+
+
+def test_panel_ops_importable():
+    from ui._panel_ops import _PanelOpsMixin  # noqa: F401
 
 
 # ── method ownership ──────────────────────────────────────────────────────────
@@ -47,6 +59,12 @@ CASE_OPS_METHODS = [
     "manage_case_library",
     "reset_window_size",
     "reset_all_settings",
+    # foamMonitor launcher
+    "_on_foam_monitor_clicked",
+    "_stop_foam_monitor",
+    "_on_foam_monitor_poll",
+    "_update_foam_monitor_btn",
+    "_patched_foam_monitor",
 ]
 
 FILE_OPS_METHODS = [
@@ -57,6 +75,9 @@ FILE_OPS_METHODS = [
     "save_file",
     "save_all_files",
     "reset_file_list",
+]
+
+FILE_MGMT_OPS_METHODS = [
     "_on_create_file_requested",
     "_on_add_file_requested",
     "_create_backup",
@@ -64,9 +85,9 @@ FILE_OPS_METHODS = [
     "_on_manage_extra_files",
     "_on_remove_extra_file",
     "_on_delete_file_requested",
-    "_on_delete_dir_requested",
     "_on_duplicate_file_requested",
     "_on_duplicate_dir_requested",
+    "_on_delete_dir_requested",
     "_on_clean_backups",
 ]
 
@@ -111,6 +132,22 @@ BOUNDARY_OPS_METHODS = [
     "_apply_boundary_root_change",
 ]
 
+DIFF_OPS_METHODS = [
+    "_on_side_by_side_toggled",
+    "_compare_with_case",
+    "_clear_diff",
+    "_recompute_diff",
+    "_precompute_all_diff_counts",
+    "_precompute_diff_step",
+]
+
+PANEL_OPS_METHODS = [
+    "_on_toggle_blockmesh_panel",
+    "_on_toggle_bm_side_by_side",
+    "_update_bm_side_by_side_btn",
+    "_on_terminal_mode_changed",
+]
+
 
 @pytest.mark.parametrize("method", CASE_OPS_METHODS)
 def test_case_ops_owns_method(method):
@@ -122,6 +159,12 @@ def test_case_ops_owns_method(method):
 def test_file_ops_owns_method(method):
     from ui._file_ops import _FileOpsMixin
     assert method in _FileOpsMixin.__dict__, f"_FileOpsMixin missing {method}"
+
+
+@pytest.mark.parametrize("method", FILE_MGMT_OPS_METHODS)
+def test_file_mgmt_ops_owns_method(method):
+    from ui._file_mgmt_ops import _FileManagementOpsMixin
+    assert method in _FileManagementOpsMixin.__dict__, f"_FileManagementOpsMixin missing {method}"
 
 
 @pytest.mark.parametrize("method", TREE_OPS_METHODS)
@@ -136,27 +179,45 @@ def test_boundary_ops_owns_method(method):
     assert method in _BoundaryOpsMixin.__dict__, f"_BoundaryOpsMixin missing {method}"
 
 
+@pytest.mark.parametrize("method", DIFF_OPS_METHODS)
+def test_diff_ops_owns_method(method):
+    from ui._diff_ops import _DiffOpsMixin
+    assert method in _DiffOpsMixin.__dict__, f"_DiffOpsMixin missing {method}"
+
+
+@pytest.mark.parametrize("method", PANEL_OPS_METHODS)
+def test_panel_ops_owns_method(method):
+    from ui._panel_ops import _PanelOpsMixin
+    assert method in _PanelOpsMixin.__dict__, f"_PanelOpsMixin missing {method}"
+
+
 # ── no cross-mixin duplicates ─────────────────────────────────────────────────
 
 def test_no_duplicate_methods_across_mixins():
     from ui._case_ops import _CaseOpsMixin
     from ui._file_ops import _FileOpsMixin
+    from ui._file_mgmt_ops import _FileManagementOpsMixin
     from ui._tree_ops import _TreeOpsMixin
     from ui._boundary_ops import _BoundaryOpsMixin
+    from ui._diff_ops import _DiffOpsMixin
+    from ui._panel_ops import _PanelOpsMixin
 
     all_groups = [
-        ("_CaseOpsMixin", set(_CaseOpsMixin.__dict__)),
-        ("_FileOpsMixin", set(_FileOpsMixin.__dict__)),
-        ("_TreeOpsMixin", set(_TreeOpsMixin.__dict__)),
-        ("_BoundaryOpsMixin", set(_BoundaryOpsMixin.__dict__)),
+        ("_CaseOpsMixin",           set(_CaseOpsMixin.__dict__)),
+        ("_FileOpsMixin",           set(_FileOpsMixin.__dict__)),
+        ("_FileManagementOpsMixin", set(_FileManagementOpsMixin.__dict__)),
+        ("_TreeOpsMixin",           set(_TreeOpsMixin.__dict__)),
+        ("_BoundaryOpsMixin",       set(_BoundaryOpsMixin.__dict__)),
+        ("_DiffOpsMixin",           set(_DiffOpsMixin.__dict__)),
+        ("_PanelOpsMixin",          set(_PanelOpsMixin.__dict__)),
     ]
-    # Only check callables (methods), skip dunder and class-level attrs
+    mixins = [
+        _CaseOpsMixin, _FileOpsMixin, _FileManagementOpsMixin,
+        _TreeOpsMixin, _BoundaryOpsMixin, _DiffOpsMixin, _PanelOpsMixin,
+    ]
     method_groups = [
         (name, {k for k in methods if not k.startswith("__") and callable(getattr(m, k, None))})
-        for (name, methods), m in zip(
-            all_groups,
-            [_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin],
-        )
+        for (name, methods), m in zip(all_groups, mixins)
     ]
 
     seen: dict[str, str] = {}
@@ -177,13 +238,19 @@ def test_main_window_inherits_all_mixins(qapp):
     from ui.main_window import MainWindow
     from ui._case_ops import _CaseOpsMixin
     from ui._file_ops import _FileOpsMixin
+    from ui._file_mgmt_ops import _FileManagementOpsMixin
     from ui._tree_ops import _TreeOpsMixin
     from ui._boundary_ops import _BoundaryOpsMixin
+    from ui._diff_ops import _DiffOpsMixin
+    from ui._panel_ops import _PanelOpsMixin
 
     assert issubclass(MainWindow, _CaseOpsMixin)
     assert issubclass(MainWindow, _FileOpsMixin)
+    assert issubclass(MainWindow, _FileManagementOpsMixin)
     assert issubclass(MainWindow, _TreeOpsMixin)
     assert issubclass(MainWindow, _BoundaryOpsMixin)
+    assert issubclass(MainWindow, _DiffOpsMixin)
+    assert issubclass(MainWindow, _PanelOpsMixin)
 
 
 def test_main_window_mixins_before_qmainwindow(qapp):
@@ -230,18 +297,6 @@ CORE_METHODS = [
     "show_keyboard_shortcuts",
     "show_openfoam_resources",
     "_build_diff_bar",
-    "_compare_with_case",
-    "_clear_diff",
-    "_recompute_diff",
-    "_precompute_all_diff_counts",
-    "_on_side_by_side_toggled",
-    "_on_terminal_mode_changed",
-    "_on_toggle_blockmesh_panel",
-    "_on_foam_monitor_clicked",
-    "_stop_foam_monitor",
-    "_on_foam_monitor_poll",
-    "_update_foam_monitor_btn",
-    "_patched_foam_monitor",
 ]
 
 

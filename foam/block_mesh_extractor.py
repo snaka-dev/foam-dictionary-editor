@@ -47,41 +47,58 @@ def _eval_foam_expr(expr: str) -> str | None:
 def _build_var_map(root: FoamNode) -> dict[str, str]:
     """Collect top-level variable definitions as a substitution map.
 
-    First pass: direct scalar/int/word values.
-    Second pass: macro nodes whose value is $otherVar — resolved one level deep.
-    Third pass: unknown_raw_entry nodes containing ``name #eval{ expr };`` —
-    the expression is substituted then evaluated.
+    Seeds from direct scalar/int values then iterates macro-resolution and
+    #eval-expression passes until stable.  Multiple iterations handle chains
+    like ``z1 #eval{$z0+$dz0}; z2 #eval{$z1+$dz1}; z001 $z1;`` where the
+    macro reference to z1 cannot be resolved until #eval has run first.
     """
     var_map: dict[str, str] = {}
-    macro_refs: dict[str, str] = {}  # name -> referenced var name (without $)
+
+    # Seed with direct numeric values; skip word nodes — they may be #eval strings.
     for child in root.children:
         if not child.name or child.name in _BLOCKMESH_STRUCTURAL or child.value is None:
             continue
-        if child.node_type in ("scalar", "int", "word"):
+        if child.node_type in ("scalar", "int"):
             var_map[child.name] = str(child.value)
-        elif child.node_type == "macro":
-            macro_refs[child.name] = str(child.value).lstrip("$")
-    for name, ref in macro_refs.items():
-        if ref in var_map:
-            var_map[name] = var_map[ref]
-    # Third pass: nodes whose value is '#eval{expr}' or '#eval{ expr }' —
-    # the lexer splits '#eval' and '{' into separate tokens so the parser
-    # depth-tracks the braces correctly.  With no spaces the value has no
-    # whitespace so it is classified as 'word'; with spaces it is 'compound'.
-    for child in root.children:
-        if not child.name or child.name in _BLOCKMESH_STRUCTURAL:
-            continue
-        if child.node_type not in ("word", "compound"):
-            continue
-        val_str = str(child.value).strip() if child.value is not None else ""
-        m = _EVAL_VALUE_RE.match(val_str)
-        if not m:
-            continue
-        expr_raw = m.group(1)
-        expr_substituted = _substitute_vars(expr_raw, var_map)
-        result = _eval_foam_expr(expr_substituted)
-        if result is not None:
-            var_map[child.name] = result
+
+    # Iterate macro-resolution and #eval-evaluation until no new entries appear.
+    # Upper bound: a dependency DAG of N nodes resolves in at most N iterations.
+    # Circular references are safe — unresolvable vars simply stay absent.
+    for _ in range(len(root.children) + 1):
+        prev_len = len(var_map)
+
+        # Macro pass: resolve $ref / ${ref} one level per iteration.
+        for child in root.children:
+            if not child.name or child.name in _BLOCKMESH_STRUCTURAL or child.value is None:
+                continue
+            if child.name in var_map:
+                continue
+            if child.node_type == "macro":
+                ref = str(child.value).lstrip("$")
+                if ref.startswith("{"):
+                    ref = ref[1:].rstrip("}")
+                if ref in var_map:
+                    var_map[child.name] = var_map[ref]
+
+        # #eval pass: evaluate arithmetic expressions whose variables are now known.
+        for child in root.children:
+            if not child.name or child.name in _BLOCKMESH_STRUCTURAL or child.value is None:
+                continue
+            if child.name in var_map:
+                continue
+            if child.node_type not in ("word", "compound"):
+                continue
+            val_str = str(child.value).strip()
+            m = _EVAL_VALUE_RE.match(val_str)
+            if not m:
+                continue
+            result = _eval_foam_expr(_substitute_vars(m.group(1), var_map))
+            if result is not None:
+                var_map[child.name] = result
+
+        if len(var_map) == prev_len:
+            break
+
     return var_map
 
 

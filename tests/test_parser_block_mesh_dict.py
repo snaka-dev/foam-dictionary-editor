@@ -443,3 +443,38 @@ def test_eval_expression_with_multiplication():
     assert len(data.vertices) == 8
     assert data.vertices[0] == pytest.approx([-2.0, 0.0, 0.0])
     assert data.vertices[2] == pytest.approx([2.0, 2.0, 0.0])
+
+
+def test_multilevel_variable_chain():
+    """Multi-level chains like z1=#eval{...}; z001=$z1; resolve correctly.
+
+    The macro pass for z001 cannot succeed until the #eval pass has computed z1.
+    The iterative approach handles this by re-running both passes until stable.
+    """
+    src = """
+    FoamFile { version 2.0; format ascii; class dictionary; object blockMeshDict; }
+    scale 1;
+    dz0 10; dz1 5;
+    z0 0;
+    z1 #eval{$z0+$dz0};
+    z2 #eval{$z1+$dz1};
+    // vertex z-coords are macro refs to the #eval results
+    z000 $z0; z001 $z1; z002 $z2;
+    x0 0; x1 1;
+    vertices
+    (
+        ($x0 0 $z000) ($x1 0 $z000)
+        ($x0 0 $z001) ($x1 0 $z001)
+        ($x0 0 $z002) ($x1 0 $z002)
+        ($x0 0 $z002) ($x1 0 $z002)
+    );
+    blocks ();
+    boundary ();
+    """
+    root = OpenFoamParser(src).parse()
+    data = extract_block_mesh_data(root)
+    assert len(data.vertices) == 8
+    # z000=0, z001=10, z002=15
+    assert data.vertices[0] == pytest.approx([0.0, 0.0, 0.0])
+    assert data.vertices[2] == pytest.approx([0.0, 0.0, 10.0])
+    assert data.vertices[4] == pytest.approx([0.0, 0.0, 15.0])

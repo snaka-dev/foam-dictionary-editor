@@ -1,5 +1,36 @@
 # Release Notes
 
+## v1.5.0 — 2026-06-10
+
+### Improvements
+
+**BlockMesh viewer: side-by-side mode**
+
+- A **⊞** toggle button appears in the top-right corner of the upper tab widget when `blockMeshDict` is the active file and the BlockMesh panel is available.
+- Clicking it places the 3-D viewer in a horizontal splitter to the right of the Tree, so tree edits and the 3-D view are visible simultaneously. The separate **BlockMesh** tab is removed while side-by-side mode is on, and restored when it is turned off.
+- The 3-D view is not updated automatically; click **Refresh** in the BlockMesh panel after making tree edits.
+- The button is disabled while the xterm terminal is active (GPU/OpenGL conflict).
+
+**Comparison panel: hidden when not in comparison mode**
+
+- The reference-case tree pane is now hidden entirely when no reference case is loaded. Previously it occupied an invisible splitter slot, leaving a hairline splitter handle gap between the main tree and the detail pane.
+- The pane appears when **Side by side** is checked in the diff bar and disappears when it is unchecked or **Clear** is clicked.
+
+**BlockMesh viewer: Preview mode for variable-based meshes**
+
+- When the `vertices` block contains variable references (`$varName`), the X/Y/Z cells in the vertices table are now read-only by default (direct writes would silently fail and were confusing).
+- A **⚙ Variable-based** chip and a **Preview** toggle button appear at the top of the Vertices panel (inside the group box, not in the main toolbar). Clicking **Preview** enters Preview mode: table cells become editable and each change immediately updates the 3-D view, but the tree and file are not modified. A yellow banner is shown while Preview mode is active.
+- Click **Refresh** to exit Preview mode and restore vertex coordinates from the tree.
+- For meshes without variable references the table behaves as before: edits write through to the tree and editor immediately.
+
+**BlockMesh viewer: multi-level variable chain resolution**
+
+- Variable chains of arbitrary depth in `blockMeshDict` are now fully resolved. Previously, a macro reference like `z001 $z1;` would fail when `z1` itself was defined via `#eval{$z0+$dz0}` — the macro pass ran before `#eval` was evaluated, leaving the raw expression string instead of a number.
+- The fix replaces the fixed three-pass approach with an iterative loop that alternates macro-reference resolution and `#eval` expression evaluation until stable. The iteration cap is the number of top-level variable definitions, which is the theoretical maximum depth of any non-circular dependency graph.
+- Circular references (`a $b; b $a;`) are silently left unresolved without causing an infinite loop or crash.
+
+---
+
 ## v1.4.0 — 2026-06-09
 
 ### New features

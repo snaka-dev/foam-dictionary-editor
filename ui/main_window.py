@@ -2,17 +2,13 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
-import os
-import signal
 import subprocess
-import sys
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, Qt, QSortFilterProxyModel, QTimer
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
-    QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -30,25 +26,22 @@ from PySide6.QtWidgets import (
 
 from app_config import get_app_config
 from i18n import available_languages, get_language, tr
-from foam.diff import diff_trees, diff_trees_reverse
 from foam.nodes import FoamNode
-from foam.parser import OpenFoamParser
-from foam.utils import read_foam_file, is_large_non_foam_file
 from foam.writer import write_root
 from model.tree_model import FoamTreeModel
 from ui._boundary_ops import _BoundaryOpsMixin
 from ui._case_ops import _CaseOpsMixin
+from ui._diff_ops import _DiffOpsMixin
+from ui._file_mgmt_ops import _FileManagementOpsMixin
 from ui._file_ops import _FileOpsMixin
+from ui._panel_ops import _PanelOpsMixin
 from ui._tree_ops import _TreeOpsMixin
 from ui.comparison_tree_panel import ComparisonTreePanel
 from ui.detail_panel import DetailPanel
 from ui.editor_panel import EditorPanel
 from ui.file_list_panel import FileListPanel, display_file_name
-from ui.foam_monitor_dialog import FoamMonitorDialog
 from ui.terminal_panel import TerminalPanel
 from ui.layout_constants import (
-    BLOCKMESH_DICT_NAME as _BLOCKMESH_DICT_NAME,
-    SPLITTER_COMPARISON_WIDTH,
     SPLITTER_DETAIL_WIDTH,
     SPLITTER_FILE_LIST_WIDTH,
     SPLITTER_HANDLE_WIDTH,
@@ -77,7 +70,16 @@ def _act(menu, label: str, shortcut: str, slot) -> None:
     action.triggered.connect(slot)
 
 
-class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin, QMainWindow):
+class MainWindow(
+    _CaseOpsMixin,
+    _FileOpsMixin,
+    _FileManagementOpsMixin,
+    _TreeOpsMixin,
+    _BoundaryOpsMixin,
+    _DiffOpsMixin,
+    _PanelOpsMixin,
+    QMainWindow,
+):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(tr("foam dictionary editor"))
@@ -224,6 +226,8 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         self.boundary_panel = BoundaryViewPanel()
 
         self.block_mesh_panel = None
+        self._bm_side_by_side: bool = False
+        self._bm_side_by_side_btn: "QPushButton | None" = None
         if _feat_blockmesh:
             from ui.block_mesh_panel import BlockMeshPanel
             self.block_mesh_panel = BlockMeshPanel()
@@ -239,6 +243,7 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         right_upper_splitter.addWidget(self.detail_panel)
         right_upper_splitter.setSizes([SPLITTER_TREE_WIDTH, 0, SPLITTER_DETAIL_WIDTH])
         right_upper_splitter.setCollapsible(1, True)
+        self.comparison_panel.hide()
 
         # Allow all panes to shrink freely regardless of child minimum hints.
         tree_container.setMinimumSize(0, 0)
@@ -247,8 +252,17 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         self.detail_panel.setMinimumSize(0, 0)
         right_upper_splitter.setMinimumSize(0, 0)
 
+        # Outer splitter that holds the tree area on the left and, when
+        # side-by-side mode is active, the BlockMesh 3-D panel on the right.
+        # block_mesh_panel is NOT added here at startup; it lives in upper_tabs as
+        # a normal tab.  It is reparented into this splitter only when the user
+        # activates side-by-side mode, and moved back to a tab when they deactivate.
+        self._tree_bm_splitter = QSplitter(Qt.Horizontal)
+        self._tree_bm_splitter.addWidget(right_upper_splitter)
+        self._tree_bm_splitter.setMinimumSize(0, 0)
+
         self.upper_tabs = QTabWidget()
-        self.upper_tabs.addTab(right_upper_splitter, tr("Tree"))
+        self.upper_tabs.addTab(self._tree_bm_splitter, tr("Tree"))
         self.upper_tabs.addTab(self.boundary_panel, tr("Boundary"))
         if self.block_mesh_panel is not None:
             # When terminal is present, BlockMesh tab visibility depends on
@@ -257,6 +271,16 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
             show_bm = (self.terminal_panel is None) or (not self.terminal_panel.use_xterm)
             if show_bm:
                 self.upper_tabs.addTab(self.block_mesh_panel, tr("BlockMesh"))
+            # Corner button to enter/exit side-by-side mode.
+            self._bm_side_by_side_btn = QPushButton("⊞")
+            self._bm_side_by_side_btn.setCheckable(True)
+            self._bm_side_by_side_btn.setFixedWidth(28)
+            self._bm_side_by_side_btn.setToolTip(
+                tr("Show BlockMesh 3-D view alongside the tree (side-by-side)")
+            )
+            self._bm_side_by_side_btn.setEnabled(False)
+            self._bm_side_by_side_btn.clicked.connect(self._on_toggle_bm_side_by_side)
+            self.upper_tabs.setCornerWidget(self._bm_side_by_side_btn, Qt.TopRightCorner)
         self.upper_tabs.setMinimumSize(0, 0)
 
         right_splitter = QSplitter(Qt.Vertical)
@@ -535,6 +559,7 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         self._load_tree(FoamNode(name="root", node_type="dictionary"))
         self._update_window_title()
         self._update_file_label()
+        self._update_bm_side_by_side_btn()
 
     # ── dirty tracking ────────────────────────────────────────────────────────
 
@@ -587,21 +612,6 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
 
     def _to_proxy(self, source_index):
         return self.proxy_model.mapFromSource(source_index)
-
-    def _on_toggle_blockmesh_panel(self, checked: bool) -> None:
-        if self.block_mesh_panel is None:
-            return
-        from PySide6.QtCore import QTimer
-        if checked:
-            idx = self.upper_tabs.indexOf(self.block_mesh_panel)
-            if idx < 0:
-                self.upper_tabs.addTab(self.block_mesh_panel, tr("BlockMesh"))
-            QTimer.singleShot(0, self.block_mesh_panel._init_plotter)
-        else:
-            self.block_mesh_panel.shutdown()
-            idx = self.upper_tabs.indexOf(self.block_mesh_panel)
-            if idx >= 0:
-                self.upper_tabs.removeTab(idx)
 
     def _on_toggle_type_column(self, checked: bool) -> None:
         self.tree.setColumnHidden(FoamTreeModel.COL_TYPE, not checked)
@@ -699,314 +709,3 @@ class MainWindow(_CaseOpsMixin, _FileOpsMixin, _TreeOpsMixin, _BoundaryOpsMixin,
         bar_layout.addWidget(clear_btn)
         self._diff_bar.hide()
 
-    def _on_side_by_side_toggled(self, checked: bool) -> None:
-        if self.right_upper_splitter is None:
-            return
-        if checked:
-            self.right_upper_splitter.setSizes(
-                [SPLITTER_TREE_WIDTH // 2, SPLITTER_COMPARISON_WIDTH, SPLITTER_DETAIL_WIDTH]
-            )
-        else:
-            self.right_upper_splitter.setSizes(
-                [SPLITTER_TREE_WIDTH, 0, SPLITTER_DETAIL_WIDTH]
-            )
-
-    def _compare_with_case(self) -> None:
-        directory = QFileDialog.getExistingDirectory(
-            self,
-            tr("Select Reference Case Directory"),
-            self.current_case_dir or "",
-        )
-        if not directory:
-            return
-        self._diff_case_dir = directory
-        name = Path(directory).name or directory
-        self._diff_path_label.setText(
-            tr("Comparing with: <b>{name}</b>  ({directory})").format(name=name, directory=directory)
-        )
-        self._diff_path_label.setTextFormat(Qt.RichText)
-        self._diff_bar.show()
-        self._recompute_diff()
-        QTimer.singleShot(0, self._precompute_all_diff_counts)
-        self._side_by_side_cb.setChecked(True)
-
-    def _clear_diff(self) -> None:
-        self._diff_case_dir = None
-        self._diff_parsed_roots.clear()
-        self._diff_bar.hide()
-        self.current_model.clear_diff()
-        self.comparison_panel.clear()
-        self.file_list_panel.clear_diff_marks()
-        self.file_list_panel.set_diff_filter_enabled(False)
-        if self.right_upper_splitter is not None:
-            self.right_upper_splitter.setSizes(
-                [SPLITTER_TREE_WIDTH, 0, SPLITTER_DETAIL_WIDTH]
-            )
-        self.statusBar().showMessage(tr("Diff cleared."), _STATUS_SHORT)
-
-    def _recompute_diff(self) -> None:
-        if not self._diff_case_dir or not self.current_file or not self.current_case_dir:
-            return
-        try:
-            rel = Path(self.current_file).relative_to(Path(self.current_case_dir))
-        except ValueError:
-            return
-        other_path = Path(self._diff_case_dir) / rel
-        other_key = str(other_path)
-        if other_key not in self._diff_parsed_roots:
-            if not other_path.exists():
-                self.current_model.clear_diff()
-                self.comparison_panel.clear()
-                self.statusBar().showMessage(
-                    tr("Diff: {rel} not found in reference case.").format(rel=rel), _STATUS_SHORT
-                )
-                return
-            try:
-                self._diff_parsed_roots[other_key] = OpenFoamParser(
-                    read_foam_file(other_key)
-                ).parse()
-            except Exception:
-                self.current_model.clear_diff()
-                self.comparison_panel.clear()
-                return
-        other_root = self._diff_parsed_roots[other_key]
-        diff_map = diff_trees(self.current_root, other_root)
-        rev_diff_map = diff_trees_reverse(other_root, self.current_root)
-        self.current_model.set_diff(diff_map)
-        case_name = Path(self._diff_case_dir).name or self._diff_case_dir
-        self.comparison_panel.load(other_root, rev_diff_map, case_name)
-        n = len(diff_map)
-        self.file_list_panel.mark_diff(self.current_file, n)
-        self.statusBar().showMessage(
-            tr("Diff: {n} difference{s} in {rel}.").format(n=n, s="s" if n != 1 else "", rel=rel),
-            _STATUS_SHORT,
-        )
-
-    def _precompute_all_diff_counts(self) -> None:
-        if not self._diff_case_dir or not self.current_case_dir:
-            return
-        case_path = Path(self.current_case_dir)
-        diff_path = Path(self._diff_case_dir)
-        paths = [
-            item.data(Qt.UserRole)
-            for item in (
-                self.file_list_panel._list.item(i)
-                for i in range(self.file_list_panel._list.count())
-            )
-            if item.data(Qt.UserRole)
-        ]
-        self._precompute_diff_step(paths, 0, case_path, diff_path)
-
-    def _precompute_diff_step(
-        self, paths: list, idx: int, case_path: Path, diff_path: Path
-    ) -> None:
-        if not self._diff_case_dir:
-            return
-        if idx >= len(paths):
-            self.file_list_panel.set_diff_filter_enabled(True)
-            return
-        path = paths[idx]
-        advance = lambda: QTimer.singleShot(  # noqa: E731
-            0, lambda: self._precompute_diff_step(paths, idx + 1, case_path, diff_path)
-        )
-        try:
-            rel = Path(path).relative_to(case_path)
-        except ValueError:
-            advance()
-            return
-        other_path = diff_path / rel
-        other_key = str(other_path)
-        if other_key not in self._diff_parsed_roots:
-            if not other_path.exists():
-                self.file_list_panel.mark_diff(path, 0)
-                advance()
-                return
-            if is_large_non_foam_file(str(other_path))[0]:
-                advance()
-                return
-            try:
-                self._diff_parsed_roots[other_key] = OpenFoamParser(
-                    read_foam_file(other_key)
-                ).parse()
-            except Exception:
-                advance()
-                return
-        other_root = self._diff_parsed_roots[other_key]
-        if path == self.current_file:
-            a_root = self.current_root
-        elif path in self._parsed_roots:
-            a_root = self._parsed_roots[path]
-        else:
-            if is_large_non_foam_file(path)[0]:
-                advance()
-                return
-            try:
-                a_root = OpenFoamParser(read_foam_file(path)).parse()
-                self._parsed_roots[path] = a_root
-            except Exception:
-                advance()
-                return
-        d = diff_trees(a_root, other_root)
-        self.file_list_panel.mark_diff(path, len(d))
-        advance()
-
-    # ── terminal mode switch ──────────────────────────────────────────────────
-
-    def _on_terminal_mode_changed(self, use_xterm: bool) -> None:
-        if self.block_mesh_panel is None:
-            return
-        from PySide6.QtCore import QTimer
-        if use_xterm:
-            # xterm needs GPU/Vulkan — shut down VTK first and hide the tab.
-            self.block_mesh_panel.shutdown()
-            idx = self.upper_tabs.indexOf(self.block_mesh_panel)
-            if idx >= 0:
-                self.upper_tabs.removeTab(idx)
-            if self._blockmesh_action is not None:
-                self._blockmesh_action.setEnabled(False)
-                self._blockmesh_action.setText(
-                    tr("BlockMesh 3-D Panel  (unavailable: xterm active)")
-                )
-        else:
-            # Simple terminal is GPU-free — restore BlockMesh tab if user wants it.
-            if self._blockmesh_action is not None:
-                self._blockmesh_action.setEnabled(True)
-                self._blockmesh_action.setText(tr("BlockMesh 3-D Panel"))
-            user_wants_bm = (
-                self._blockmesh_action is None or self._blockmesh_action.isChecked()
-            )
-            if user_wants_bm:
-                idx = self.upper_tabs.indexOf(self.block_mesh_panel)
-                if idx < 0:
-                    self.upper_tabs.addTab(self.block_mesh_panel, tr("BlockMesh"))
-                # Brief delay lets the WebEngine GPU process finish cleaning up
-                # before VTK claims the OpenGL context.
-                QTimer.singleShot(300, self.block_mesh_panel._init_plotter)
-
-    # ── foamMonitor launcher ──────────────────────────────────────────────────
-
-    def _on_foam_monitor_clicked(self) -> None:
-        if self._foam_monitor_proc is not None:
-            self._stop_foam_monitor()
-            return
-        if not self.current_case_dir:
-            return
-        dlg = FoamMonitorDialog(
-            self.current_case_dir,
-            self._foam_monitor_last_file,
-            self._foam_monitor_last_options,
-            self,
-        )
-        if dlg.exec() != FoamMonitorDialog.Accepted:
-            return
-        file_path = dlg.get_file()
-        if not file_path:
-            return
-        if not os.path.isfile(file_path):
-            QMessageBox.warning(
-                self,
-                tr("File not found"),
-                tr("File not found:") + f"\n{file_path}",
-            )
-            return
-        self._foam_monitor_last_file = file_path
-        self._foam_monitor_last_options = dlg.get_options()
-        if sys.platform == "win32":
-            return
-        launcher = self._patched_foam_monitor()
-        if launcher is None:
-            QMessageBox.warning(
-                self,
-                tr("foamMonitor not found"),
-                tr("foamMonitor could not be found on PATH."),
-            )
-            return
-        self._foam_monitor_script_tmp = launcher
-        self._foam_monitor_proc = subprocess.Popen(
-            [launcher] + dlg.get_args() + [file_path],
-            cwd=self.current_case_dir,
-            start_new_session=True,
-            stderr=subprocess.PIPE,
-        )
-        self._foam_monitor_timer.start()
-        self._update_foam_monitor_btn()
-
-    def _stop_foam_monitor(self) -> None:
-        if self._foam_monitor_proc is not None:
-            try:
-                os.killpg(self._foam_monitor_proc.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-            self._foam_monitor_proc = None
-        self._foam_monitor_timer.stop()
-        if self._foam_monitor_script_tmp is not None:
-            try:
-                os.unlink(self._foam_monitor_script_tmp)
-            except OSError:
-                pass
-            self._foam_monitor_script_tmp = None
-        self._update_foam_monitor_btn()
-
-    def _on_foam_monitor_poll(self) -> None:
-        proc = self._foam_monitor_proc
-        if proc is None or proc.poll() is None:
-            return
-        stderr_text = ""
-        if proc.stderr is not None:
-            stderr_text = proc.stderr.read().decode("utf-8", errors="replace").strip()
-        self._foam_monitor_proc = None
-        self._foam_monitor_timer.stop()
-        if self._foam_monitor_script_tmp is not None:
-            try:
-                os.unlink(self._foam_monitor_script_tmp)
-            except OSError:
-                pass
-            self._foam_monitor_script_tmp = None
-        self._update_foam_monitor_btn()
-        if stderr_text:
-            QMessageBox.warning(self, tr("foamMonitor error"), stderr_text)
-
-    def _update_foam_monitor_btn(self) -> None:
-        running = self._foam_monitor_proc is not None
-        self._foam_monitor_btn.setText(
-            tr("■ foamMonitor") if running else tr("foamMonitor…")
-        )
-        self._foam_monitor_btn.setToolTip(
-            tr("Click to stop foamMonitor and close the gnuplot window")
-            if running else
-            tr("Launch foamMonitor to plot residuals or other data with gnuplot")
-        )
-        self._foam_monitor_btn.setEnabled(running or self.current_case_dir is not None)
-
-    @staticmethod
-    def _patched_foam_monitor() -> str | None:
-        """Return path to a temp copy of foamMonitor with the gnuplot reread fix.
-
-        Newer gnuplot versions deprecate `reread`.  The fix replaces it with
-        `load ARG0` and changes the invocation to `gnuplot -e "load '$GPFILE'"`
-        so that ARG0 is set to the script path before the loop starts.
-        """
-        import shutil
-        import tempfile
-
-        original = shutil.which("foamMonitor")
-        if original is None:
-            return None
-        try:
-            src = Path(original).read_text(encoding="utf-8")
-        except OSError:
-            return None
-
-        src = src.replace(
-            '$GNUPLOT "$GPFILE" &',
-            '$GNUPLOT -e "load \'$GPFILE\'" &',
-        )
-        src = src.replace("\nreread\n", "\nload ARG0\n")
-
-        tmp = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".sh", delete=False, encoding="utf-8"
-        )
-        tmp.write(src)
-        tmp.close()
-        os.chmod(tmp.name, 0o755)
-        return tmp.name

@@ -31,7 +31,7 @@ foam-dictionary-editor/
 │   ├── constants.py
 │   └── defaults.py
 ├── foam/
-│   ├── block_mesh_extractor.py  # extracts vertices/blocks/boundary from blockMeshDict FoamNode tree; _build_var_map resolves $vars and #eval{} expressions; parse_vertices() is public
+│   ├── block_mesh_extractor.py  # extracts vertices/blocks/boundary from blockMeshDict FoamNode tree; _build_var_map iteratively resolves $vars and #eval{} chains of arbitrary depth; parse_vertices() is public
 │   ├── diff.py                  # diff_trees(a, b) and diff_trees_reverse(b, a) — compare two FoamNode trees by key name; return dict[FoamNode, DiffEntry]
 │   ├── lexer.py                 # OpenFoamLexer; _read_directive stops at '{' so #eval{...} braces become LBRACE/RBRACE tokens for correct depth tracking
 │   ├── nodes.py
@@ -60,8 +60,11 @@ foam-dictionary-editor/
 │   └── ja.py                   # Japanese translations (LANGUAGE_NAME + TRANSLATIONS dict)
 ├── ui/
 │   ├── _boundary_ops.py        # mixin: boundary view patch operations
-│   ├── _case_ops.py            # mixin: open/reload/duplicate/save-as case, settings
-│   ├── _file_ops.py            # mixin: per-file load/save/create/delete
+│   ├── _case_ops.py            # mixin: open/reload/duplicate/save-as case, settings, foamMonitor launcher
+│   ├── _diff_ops.py            # mixin: side-by-side comparison, diff compute/clear
+│   ├── _file_mgmt_ops.py       # mixin: create/add/backup/delete/duplicate/clean file operations
+│   ├── _file_ops.py            # mixin: per-file load/save, directory scan helpers
+│   ├── _panel_ops.py           # mixin: BlockMesh panel and terminal mode toggle handlers
 │   ├── _tree_ops.py            # mixin: tree mutations, editor↔tree sync, and _apply_comparison_value
 │   ├── block_mesh_panel.py     # 3-D viewer for blockMeshDict (pyVista/VTK, lazy init)
 │   ├── add_files_dialog.py
@@ -76,13 +79,15 @@ foam-dictionary-editor/
 │   ├── foam_monitor_dialog.py  # FoamMonitorDialog: file picker + foamMonitor option controls (log scale, grid, refresh, idle, extra flags)
 │   ├── layout_constants.py
 │   ├── keyboard_shortcuts_dialog.py
-│   ├── main_window.py          # core: __init__, _build_ui and sub-builders, shared helpers, diff/compare logic, drag-and-drop (dragEnterEvent/dropEvent/eventFilter); foamMonitor launcher (_on_foam_monitor_clicked, _stop_foam_monitor, _patched_foam_monitor)
+│   ├── main_window.py          # core: __init__, _build_ui and sub-builders, shared helpers, drag-and-drop (dragEnterEvent/dropEvent/eventFilter)
 │   ├── manage_extra_files_dialog.py
 │   ├── rename_boundary_dialog.py  # Rename Boundary dialog + find_rename_targets() scanner
 │   ├── reset_settings_dialog.py
 │   ├── save_as_new_case_dialog.py
 │   ├── schema_manager_dialog.py
-│   └── terminal_panel.py
+│   ├── _simple_terminal_widget.py  # SimpleTerminalWidget: QProcess-based terminal (no WebEngine)
+│   ├── _xterm_widget.py            # PtyBackend, TerminalBridge, XtermTerminalWidget (Unix + QtWebEngine only); exports _XTERM_AVAILABLE
+│   └── terminal_panel.py           # TerminalPanel wrapper: mode_changed signal, xterm/simple toggle logic
 └── tests/
     ├── conftest.py
     ├── test_app_config.py
@@ -111,7 +116,7 @@ foam-dictionary-editor/
     └── test_writer_roundtrip.py
 ```
 
-`test_utils.py` covers `is_large_non_foam_file` — small files are never flagged regardless of header, large files with a `FoamFile` token in the first 512 bytes are not flagged, large files without it are flagged, missing files return `(False, 0)`, and a header preceded by a comment is still detected. `test_diff.py` covers `diff_trees` and `diff_trees_reverse` — identical trees, changed values, keys only in one tree, nested dictionaries, anonymous node skipping, `field_value_block` entries, and symmetry between the two functions. `FoamNode` carries `__hash__ = object.__hash__` so instances can be used as dict keys in the diff map. `test_comparison_tree_panel.py` covers `ComparisonTreePanel` — `load` sets the header label, populates the proxy, collapses the FoamFile node, and re-applies the Type column visibility; `clear` resets model and header; `set_type_column_visible` hides/shows the Type column and persists across `load` calls; `use_value_requested` signal is connectable. `test_tree_model.py` covers `set_diff(reverse=True)` — remaps `"only_here"` to `"only_in_ref"`, leaves `"changed"` unchanged, returns the light-green `BackgroundRole` colour, and includes `"only in reference case"` in the tooltip. `test_file_list_panel.py` covers the diff filter: `set_diff_filter_enabled` shows/hides and unchecks the checkbox; the filter hides zero-diff file items while always showing headers; `mark_diff` updates item visibility immediately when the filter is active. `test_case_loader.py` covers `detect_time_dirs` and `TestExtraDirs` — flat and recursive extra-directory scanning, missing-directory tolerance, and duplicate suppression. `test_case_files_config.py` covers `TestCaseFilesConfigDirs` — `DirEntry` add/remove/update-in-place, backward-compatible loading of plain-string JSON, and config reset. `test_main_window_split.py` verifies the mixin structure — that each mixin owns the right methods (including `_on_patch_selected` in `_BoundaryOpsMixin` and `_apply_comparison_value` in `_TreeOpsMixin`), there are no cross-mixin duplicates, and `MainWindow` inherits from all four mixins; `test_bool_nonuniform.py` covers bool/nonuniform_list parsing and parser error collection; `test_tree_color_lexer_dispatch.py` covers `unknown_raw_entry` amber colouring, lexer `//` behaviour, and the parser `_PAREN_DISPATCH` table; `test_source_lines.py` covers `source_line` and `source_end_line` population for all node types; `test_parser_block_mesh_dict.py` covers `boundary_block`/`boundary_entry` structured parsing, round-trip writing, and `extract_block_mesh_data` output for `blockMeshDict`; variable resolution (`$varName`, `${varName}`, macro references, and `#eval{ expr }` arithmetic); `test_rename_boundary.py` covers `find_rename_targets()` — detection of `boundary_entry` nodes in `blockMeshDict`, `dictionary` patch nodes in `boundaryField` blocks, absence of false positives for unrelated dictionaries, and the empty-input edge cases.
+`test_utils.py` covers `is_large_non_foam_file` — small files are never flagged regardless of header, large files with a `FoamFile` token in the first 512 bytes are not flagged, large files without it are flagged, missing files return `(False, 0)`, and a header preceded by a comment is still detected. `test_diff.py` covers `diff_trees` and `diff_trees_reverse` — identical trees, changed values, keys only in one tree, nested dictionaries, anonymous node skipping, `field_value_block` entries, and symmetry between the two functions. `FoamNode` carries `__hash__ = object.__hash__` so instances can be used as dict keys in the diff map. `test_comparison_tree_panel.py` covers `ComparisonTreePanel` — `load` sets the header label, populates the proxy, collapses the FoamFile node, and re-applies the Type column visibility; `clear` resets model and header; `set_type_column_visible` hides/shows the Type column and persists across `load` calls; `use_value_requested` signal is connectable. `test_tree_model.py` covers `set_diff(reverse=True)` — remaps `"only_here"` to `"only_in_ref"`, leaves `"changed"` unchanged, returns the light-green `BackgroundRole` colour, and includes `"only in reference case"` in the tooltip. `test_file_list_panel.py` covers the diff filter: `set_diff_filter_enabled` shows/hides and unchecks the checkbox; the filter hides zero-diff file items while always showing headers; `mark_diff` updates item visibility immediately when the filter is active. `test_case_loader.py` covers `detect_time_dirs` and `TestExtraDirs` — flat and recursive extra-directory scanning, missing-directory tolerance, and duplicate suppression. `test_case_files_config.py` covers `TestCaseFilesConfigDirs` — `DirEntry` add/remove/update-in-place, backward-compatible loading of plain-string JSON, and config reset. `test_main_window_split.py` verifies the mixin structure — that each mixin owns the right methods (including `_on_patch_selected` in `_BoundaryOpsMixin` and `_apply_comparison_value` in `_TreeOpsMixin`), there are no cross-mixin duplicates, and `MainWindow` inherits from all four mixins; `test_bool_nonuniform.py` covers bool/nonuniform_list parsing and parser error collection; `test_tree_color_lexer_dispatch.py` covers `unknown_raw_entry` amber colouring, lexer `//` behaviour, and the parser `_PAREN_DISPATCH` table; `test_source_lines.py` covers `source_line` and `source_end_line` population for all node types; `test_parser_block_mesh_dict.py` covers `boundary_block`/`boundary_entry` structured parsing, round-trip writing, and `extract_block_mesh_data` output for `blockMeshDict`; variable resolution (`$varName`, `${varName}`, macro references, `#eval{ expr }` arithmetic, and multi-level dependency chains); `test_rename_boundary.py` covers `find_rename_targets()` — detection of `boundary_entry` nodes in `blockMeshDict`, `dictionary` patch nodes in `boundaryField` blocks, absence of false positives for unrelated dictionaries, and the empty-input edge cases.
 
 ## Internationalisation (i18n)
 
@@ -150,7 +155,7 @@ TRANSLATIONS: dict[str, str] = {
 
 `case_loader.py`'s `list_case_files` accepts `extra_dirs: list[tuple[str, bool]] | None`. Each entry is iterated independently — flat entries use `sorted(d.iterdir(), key=...)`, recursive entries use `sorted(d.rglob("*"), key=lambda p: (str(p.parent), p.name.lower()))` so files appear in directory-then-name order. The deduplication set shared with the fixed `TARGET_FILES` prevents any path from appearing twice.
 
-`manage_extra_files_dialog.py` exposes a **Toggle Recursive** button that flips the recursive flag on all selected directory items. The raw path is stored in `Qt.UserRole` on each item; the display text appends `[recursive]` when the flag is set. The `result_dirs` property returns the full `list[DirEntry]` final state, which `_file_ops.py` uses to compute the status-bar summary (added, removed, toggled counts).
+`manage_extra_files_dialog.py` exposes a **Toggle Recursive** button that flips the recursive flag on all selected directory items. The raw path is stored in `Qt.UserRole` on each item; the display text appends `[recursive]` when the flag is set. The `result_dirs` property returns the full `list[DirEntry]` final state, which `_file_mgmt_ops.py` uses to compute the status-bar summary (added, removed, toggled counts).
 
 ## Tree-to-editor sync
 
@@ -205,7 +210,7 @@ If the selected directory does not contain a `system/` or `constant/` subdirecto
 The application uses two subsystems that both access the GPU on Linux:
 
 - **VTK / pyVista** (`block_mesh_panel.py`) — uses OpenGL for 3-D rendering via `QtInteractor`. Present only when `features.blockmesh=true`.
-- **Qt WebEngine** (`terminal_panel.py`, xterm mode) — uses its own GPU process. Present only when `features.terminal=true`.
+- **Qt WebEngine** (`_xterm_widget.py`, `XtermTerminalWidget`) — uses its own GPU process. Present only when `features.terminal=true`.
 
 These two cannot safely coexist on the same GPU context. The workarounds applied in `main.py` are:
 
@@ -217,6 +222,12 @@ The terminal mode toggle (`TerminalPanel.mode_changed` signal) shuts down VTK be
 **View menu action** — `_blockmesh_action` (`QAction`, checkable) in `_build_menu_bar` provides a second way to show/hide the BlockMesh tab independently of the terminal mode. When xterm is active the action is disabled and its text changes to `"BlockMesh 3-D Panel  (unavailable: xterm active)"` so the reason is visible without hovering. `_on_terminal_mode_changed` keeps the action's enabled state and label in sync with the terminal mode. `_on_toggle_blockmesh_panel` handles the actual tab add/remove when the user clicks the action.
 
 **Axes widget** — `add_axes()` creates a `vtkOrientationMarkerWidget` that persists across `plotter.clear()` calls (it is a widget, not an actor). It is therefore called once in `_init_plotter()`. `_render()` calls `show_axes()` / `hide_axes()` to toggle it, rather than re-adding it each frame.
+
+**Side-by-side mode** — A `⊞` toggle button (`_bm_side_by_side_btn`) is added as a `QTabWidget` corner widget. When enabled, `_on_toggle_bm_side_by_side` reparents `block_mesh_panel` from the `upper_tabs` `QTabWidget` into `_tree_bm_splitter` (a `QSplitter(Qt.Horizontal)` that wraps `right_upper_splitter` and is itself the content of the Tree tab). The Tree tab is switched to first so the splitter is visible before reparenting; `setSizes([1,1])` and `_init_plotter()` are deferred to the next event-loop tick via `QTimer.singleShot(0, ...)`. When side-by-side mode is turned off, `block_mesh_panel` is moved back into `upper_tabs` as a normal tab.
+
+**Comparison panel visibility** — `comparison_panel` is added to `right_upper_splitter` at startup but immediately hidden (`comparison_panel.hide()`). Qt `QSplitter` ignores hidden children, so no handle or gap appears. `_on_side_by_side_toggled(True)` calls `comparison_panel.show()` before `setSizes`; `_on_side_by_side_toggled(False)` and `_clear_diff` call `comparison_panel.hide()` after.
+
+**Preview mode** — `BlockMeshPanel` carries two extra flags set on every `update_block_mesh()` call: `_has_variables` (True when the `vertices` raw_list value contains a `$` character) and `_preview_mode` (False by default, toggled by the **Preview** button). When `_has_variables` is True a `_vtx_info_bar` widget (amber **⚙ Variable-based** chip + **Preview** toggle) appears inside the Vertices group box above the table, and the X/Y/Z cells are made read-only (`rw_flags = ro_flags`). When `_preview_mode` is True the cells are editable and `_on_cell_changed` calls `_render()` directly instead of emitting `vertices_changed` — keeping the tree and file untouched. `_on_refresh()` re-extracts from `self._root` before calling `_render()` when in preview mode, which both resets the vertex data and exits preview.
 
 ## Testing
 
