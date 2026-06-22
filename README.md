@@ -56,6 +56,7 @@ Without these packages the BlockMesh tab shows an install prompt and the 3-D vie
    - *Your own case:* **Case > Open Case** → select your case directory
    - *Drag and drop:* drag a case directory from your file manager onto any part of the application window
    - *Start from a tutorial:* **Case > Duplicate from Case Library** → browse `$FOAM_TUTORIALS` → copy to your working directory
+   - *Use a bundled example:* open any case from the `tutorials/` directory in the repository root (see [Example Cases](#example-cases))
 
 3. **Select a file** from the left panel (e.g. `system/controlDict`, `0/U`)
 
@@ -74,7 +75,7 @@ Without these packages the BlockMesh tab shows an install prompt and the 3-D vie
 - Detects multiRegion case structures and field directories (`0/`, `0.orig/`) automatically
 - Add extra directories to the file list — all files inside are scanned automatically, just like `0/`. Each directory can be scanned flat (direct files only) or recursively (all subdirectories). Useful for custom field directories (`initial/`), restart time steps (`0.5/`), or deep subdirectories (`lagrangian/chemkin/`)
 - Add, create, duplicate, backup, or delete files from the file panel
-- Reload the current case from disk via **Case > Reload Case** — discards all in-memory edits; prompts if files are unsaved
+- Reload the current case from disk with the **Reload Case** button in the top bar or **Case > Reload Case** — discards all in-memory edits; prompts if files are unsaved
 - Delete the `0/` directory from disk via right-click on the `0` header — available only when `0.orig` exists
 - Save the current state as a new case, or duplicate an existing one
 
@@ -112,7 +113,7 @@ Without these packages the BlockMesh tab shows an install prompt and the 3-D vie
 - Toggle between the two modes at runtime with the checkbox in the Terminal tab
 - Automatically switches to the case directory when a case is opened
 - Omitted entirely in the `no-terminal` and `no-terminal-blockmesh` variants (Windows-friendly)
-- **foamMonitor launcher** — **foamMonitor…** button in the top bar opens a dialog to launch `foamMonitor` and plot residuals or postProcessing data with gnuplot; click **■ foamMonitor** to stop
+- **foamMonitor launcher** — **Tools > foamMonitor…** opens a dialog to launch `foamMonitor` and plot residuals or postProcessing data with gnuplot; select **■ foamMonitor** again to stop
 
 **Case comparison**
 - **Case > Compare with Case...** — select a reference case directory to compare against the currently open case
@@ -135,6 +136,17 @@ Without these packages the BlockMesh tab shows an install prompt and the 3-D vie
 
 For detailed documentation of every panel, menu, and workflow, see [USER_GUIDE.md](USER_GUIDE.md).
 For project structure, dev setup, and testing, see [DEVELOPER.md](DEVELOPER.md).
+
+## Example Cases
+
+The `tutorials/` directory in the repository root contains ready-to-open OpenFOAM cases taken from the standard tutorial set distributed with OpenFOAM v2512:
+
+| Directory | Solver | Purpose |
+|---|---|---|
+| `tutorials/cavity/` | `icoFoam` | Single-region end-to-end workflow walkthrough |
+| `tutorials/snappyMultiRegionHeater/` | `chtMultiRegionFoam` | Multi-region case for the boundary view and region file listing |
+
+**License:** these case files are licensed under the **GPL-3.0** (not the AGPL-3.0 that covers FoDE source code). See `tutorials/tutorials_README.md` for full provenance and license details.
 
 ## License
 

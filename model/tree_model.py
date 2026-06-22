@@ -294,7 +294,7 @@ class FoamTreeModel(QAbstractItemModel):
         if t in {"vector", "scalar_list"}:
             return "(" + " ".join(format_scalar(x) for x in node.value) + ")"
 
-        if t in {"int_list", "list"}:
+        if t == "int_list":
             return "(" + " ".join(str(x) for x in node.value) + ")"
 
         if t == "raw_list":

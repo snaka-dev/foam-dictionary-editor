@@ -54,6 +54,7 @@ pip install pyvista pyvistaqt
    - *自分のケース:* **Case > Open Case** → ケースディレクトリを選択
    - *ドラッグ＆ドロップ:* ファイルマネージャからケースディレクトリをウィンドウ上の任意の場所にドロップ
    - *チュートリアルから始める:* **Case > Duplicate from Case Library** → `$FOAM_TUTORIALS` を参照 → 作業ディレクトリへコピー
+   - *同梱サンプルを使う:* リポジトリルートの `tutorials/` ディレクトリにあるケースを直接開く（「[サンプルケース](#サンプルケース)」参照）
 
 3. **ファイルを選択** — 左パネルから対象ファイルを選ぶ（例: `system/controlDict`、`0/U`）
 
@@ -72,7 +73,7 @@ pip install pyvista pyvistaqt
 - マルチリージョンケース構造やフィールドディレクトリ（`0/`、`0.orig/`）を自動検出
 - 任意のディレクトリをファイル一覧に追加可能。`0/` と同様にディレクトリ内のファイルを自動スキャン。フラット（直下ファイルのみ）または再帰スキャン（サブディレクトリを含む）を選択できます。カスタムフィールドディレクトリ（`initial/`）、再起動タイムステップ（`0.5/`）、深い階層のサブディレクトリ（`lagrangian/chemkin/`）などに対応
 - ファイルパネルからファイルの追加・作成・複製・バックアップ・削除が可能
-- **Case > Reload Case** でケースをディスクから再読み込みし、すべてのメモリ上の編集内容を破棄（未保存ファイルがある場合は確認ダイアログを表示）
+- トップバーの **Reload Case** ボタンまたは **Case > Reload Case** でケースをディスクから再読み込みし、すべてのメモリ上の編集内容を破棄（未保存ファイルがある場合は確認ダイアログを表示）
 - `0` ヘッダーの右クリックメニューから `0/` ディレクトリをディスクごと削除（`0.orig` が存在する場合のみ表示）
 - 現在のケースを新しいケースとして保存したり、既存ケースを複製したりできる
 
@@ -110,7 +111,7 @@ pip install pyvista pyvistaqt
 - Terminal タブのチェックボックスで実行中に切り替え可能
 - ケースを開くと自動的にそのディレクトリへ移動
 - `no-terminal` および `no-terminal-blockmesh` バリアントでは完全に省略（Windows 向け）
-- **foamMonitor ランチャー** — トップバーの **foamMonitor…** ボタンで `foamMonitor` を起動し、残差や postProcessing データを gnuplot でプロット。**■ foamMonitor** クリックで停止
+- **foamMonitor ランチャー** — **Tools > foamMonitor…** から `foamMonitor` を起動し、残差や postProcessing データを gnuplot でプロット。**■ foamMonitor** を再度選択して停止
 
 **ケース比較**
 - **Case > Compare with Case...** — 参照ケースのディレクトリを選択し、現在のケースと比較できます
@@ -133,6 +134,17 @@ pip install pyvista pyvistaqt
 
 すべてのパネル・メニュー・操作手順の詳細については [USER_GUIDE_ja.md](USER_GUIDE_ja.md) を参照してください。
 プロジェクト構成・開発環境のセットアップ・テストについては [DEVELOPER_ja.md](DEVELOPER_ja.md) を参照してください。
+
+## サンプルケース
+
+リポジトリルートの `tutorials/` ディレクトリには、OpenFOAM v2512 の標準チュートリアルセットから取得した OpenFOAM ケースが収録されています。
+
+| ディレクトリ | ソルバー | 用途 |
+|---|---|---|
+| `tutorials/cavity/` | `icoFoam` | 単一リージョンのエンドツーエンドワークフロー解説 |
+| `tutorials/snappyMultiRegionHeater/` | `chtMultiRegionFoam` | 境界条件ビューとリージョンファイル一覧のマルチリージョンケース |
+
+**ライセンス:** これらのケースファイルは **GPL-3.0** でライセンスされています（FoDE ソースコードの AGPL-3.0 とは別です）。詳細は `tutorials/tutorials_README.md` を参照してください。
 
 ## ライセンス
 

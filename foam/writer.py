@@ -112,7 +112,7 @@ def _format_value(node: FoamNode) -> str:
             "(" + " ".join(format_scalar(x) for x in p2) + ")"
         )
 
-    if node.node_type in {"int_list", "list"}:
+    if node.node_type == "int_list":
         return "(" + " ".join(str(x) for x in node.value) + ")"
 
     if node.node_type == "raw_list":

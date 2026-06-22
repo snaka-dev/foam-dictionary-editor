@@ -154,7 +154,7 @@ def list_case_files(
     for s in _list_phase_files(case_dir, "constant"):
         _add(s)
 
-    # Field directories (0/, 0.orig/)
+    # Field directories (0/, 0.orig/) — direct files and one level of region subdirs
     for dir_name in FIELD_DIRS:
         field_dir = base / dir_name
         if not field_dir.is_dir():
@@ -162,6 +162,10 @@ def list_case_files(
         for path in sorted(field_dir.iterdir(), key=lambda p: p.name.lower()):
             if path.is_file():
                 _add(str(path))
+            elif path.is_dir():
+                for sub_path in sorted(path.iterdir(), key=lambda p: p.name.lower()):
+                    if sub_path.is_file():
+                        _add(str(sub_path))
 
     # Extra directories: flat or recursive scan depending on the flag.
     for rel_dir, recursive in (extra_dirs or []):

@@ -1,5 +1,51 @@
 # Release Notes
 
+## v1.6.0 — 2026-06-19
+
+### Improvements
+
+**Bundled example cases in `tutorials/`**
+
+- Two ready-to-open OpenFOAM cases are now included in the `tutorials/` directory: `cavity` (icoFoam, single-region walkthrough) and `snappyMultiRegionHeater` (chtMultiRegionFoam, multi-region).
+- Cases are sourced from the OpenFOAM v2512 standard tutorial set and licensed under GPL-3.0 (separate from the AGPL-3.0 that covers FoDE source code). See `tutorials/tutorials_README.md` for provenance and license details.
+
+**MultiRegion: field files under `0/<region>/` now listed and shown in Boundary panel**
+
+- Field files inside `0/<region>/` and `0.orig/<region>/` (e.g. `0/heater/T`, `0/bottomWater/p`) are now included in the file list automatically, grouped under `0/<region>` headers such as `0/heater` and `0/bottomWater`.
+- The **Boundary** panel Directory selector now shows one entry per region subdirectory (e.g. `0/bottomWater`, `0/heater`, `0/topAir`) in addition to `0` and `0.orig`. Selecting a region entry filters the boundary table to that region's field files.
+- Previously only direct files inside `0/` and `0.orig/` were scanned; region subdirectories were silently ignored.
+
+**BlockMesh viewer: compact `(blockIndex, faceIndex)` boundary face notation**
+
+- The newer OpenFOAM compact boundary face notation — `(blockIndex faceIndex)` — is now supported alongside the traditional 4-vertex notation `(v0 v1 v2 v3)`.
+- The compact form is expanded to a 4-vertex list using the standard hex block face table (face 0 = −x, 1 = +x, 2 = −y, 3 = +y, 4 = −z, 5 = +z). Both notations can coexist in the same file.
+- Previously, compact face entries were silently dropped (the `len < 3` guard rejected 2-integer tuples), so boundary patches using the new notation were invisible in the 3-D view.
+
+**GUI: top-bar reorganisation and Tools menu**
+
+- Added a **Reload Case** button to the top bar, placed between **Save All Files** and the separator. The button is equivalent to **Case > Reload Case** and provides one-click access to the most common case-reload operation.
+- Moved the **foamMonitor…** launcher from the top bar to a new **Tools** menu (between **Settings** and **Help**). foamMonitor is a runtime monitoring tool rather than a file-editing operation; separating it from the editing buttons makes the distinction clearer. The running-state indicator (menu item text changes to **■ foamMonitor**) and stop-by-click behaviour are unchanged.
+
+### Bug fixes
+
+- **BlockMesh viewer: negated-macro vertex variables now resolved** — Variable definitions of the form `xMin -$xMax;` (a leading minus sign before a `$reference`) were silently ignored by `_build_var_map` because the parser classifies them as `word` nodes rather than `macro` nodes, and the macro-resolution pass only handled `macro`-typed nodes. As a result, vertices such as `($xMin $yMin $zMin)` were missing from the 3-D view. A new word/compound arithmetic pass evaluates the substituted value as a numeric expression, so `-$xMax` resolves correctly once `xMax` is known.
+
+- **Compare Cases: side-by-side panel now appears immediately** — The "Side by side" checkbox is checked by default. When a comparison was started, Qt's `toggled` signal was not emitted because the checkbox value was already `True`, so the comparison panel stayed hidden until the user manually unchecked and rechecked the box. Fixed by calling the toggle handler directly after `setChecked`.
+
+### Internal
+
+**Refactor: reorganise `ui/` into subdirectories**
+
+- Moved 14 dialog files to `ui/dialogs/`, 7 panel files to `ui/panels/`, 3 low-level widget files to `ui/widgets/`, and the 8 `_*_ops.py` mixin files to `ui/mixins/`. The orchestrator core (`main_window.py`, `app_state.py`, `layout_constants.py`) stays at `ui/` top level. No functional change.
+
+**Refactor: mirror source structure in `tests/`**
+
+- Moved all test files from the flat `tests/` directory into subdirectories that match the source layout: `tests/foam/`, `tests/model/`, `tests/ui/`, `tests/services/`, `tests/app_config/`, and `tests/schemas/`. `conftest.py` stays at the `tests/` root. No functional change.
+
+**Refactor: centralise shared state in `AppState` dataclass**
+
+- Added `ui/app_state.py` with an `AppState` dataclass holding all 18 shared mutable fields that were previously bare `self.X` attributes on `MainWindow` (current file/tree, file buffers, dirty tracking, flags, case config, diff state, foamMonitor state, panel state). `MainWindow.__init__` now does `self.state = AppState()` and all eight mixins access shared data as `self.state.<field>`, making every cross-mixin dependency explicit and grep-able. No functional change.
+
 ## v1.5.0 — 2026-06-10
 
 ### Improvements

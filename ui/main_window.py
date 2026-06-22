@@ -2,7 +2,6 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, Qt, QSortFilterProxyModel, QTimer
@@ -29,18 +28,20 @@ from i18n import available_languages, get_language, tr
 from foam.nodes import FoamNode
 from foam.writer import write_root
 from model.tree_model import FoamTreeModel
-from ui._boundary_ops import _BoundaryOpsMixin
-from ui._case_ops import _CaseOpsMixin
-from ui._diff_ops import _DiffOpsMixin
-from ui._file_mgmt_ops import _FileManagementOpsMixin
-from ui._file_ops import _FileOpsMixin
-from ui._panel_ops import _PanelOpsMixin
-from ui._tree_ops import _TreeOpsMixin
-from ui.comparison_tree_panel import ComparisonTreePanel
-from ui.detail_panel import DetailPanel
-from ui.editor_panel import EditorPanel
-from ui.file_list_panel import FileListPanel, display_file_name
-from ui.terminal_panel import TerminalPanel
+from ui.mixins._boundary_ops import _BoundaryOpsMixin
+from ui.mixins._case_ops import _CaseOpsMixin
+from ui.mixins._foam_monitor_ops import _FoamMonitorOpsMixin
+from ui.mixins._diff_ops import _DiffOpsMixin
+from ui.mixins._file_mgmt_ops import _FileManagementOpsMixin
+from ui.mixins._file_ops import _FileOpsMixin
+from ui.mixins._panel_ops import _PanelOpsMixin
+from ui.mixins._tree_ops import _TreeOpsMixin
+from ui.app_state import AppState
+from ui.panels.comparison_tree_panel import ComparisonTreePanel
+from ui.panels.detail_panel import DetailPanel
+from ui.panels.editor_panel import EditorPanel
+from ui.panels.file_list_panel import FileListPanel, display_file_name
+from ui.panels.terminal_panel import TerminalPanel
 from ui.layout_constants import (
     SPLITTER_DETAIL_WIDTH,
     SPLITTER_FILE_LIST_WIDTH,
@@ -72,6 +73,7 @@ def _act(menu, label: str, shortcut: str, slot) -> None:
 
 class MainWindow(
     _CaseOpsMixin,
+    _FoamMonitorOpsMixin,
     _FileOpsMixin,
     _FileManagementOpsMixin,
     _TreeOpsMixin,
@@ -84,25 +86,8 @@ class MainWindow(
         super().__init__()
         self.setWindowTitle(tr("foam dictionary editor"))
 
-        self.current_case_dir: str | None = None
-        self.current_file: str | None = None
-        self.current_root = FoamNode(name="root", node_type="dictionary")
-        self.current_model = FoamTreeModel(self.current_root)
-
-        self.file_buffers: dict[str, str] = {}
-        self.file_dirty: dict[str, bool] = {}
-        self.text_dirty = False
-        self._source_lines_valid = False
-        self._syncing = False
-        self._case_files_config = None
-        self._parsed_roots: dict[str, FoamNode] = {}
-        self._diff_case_dir: str | None = None
-        self._diff_parsed_roots: dict[str, FoamNode] = {}
-
-        self._foam_monitor_proc: subprocess.Popen | None = None
-        self._foam_monitor_script_tmp: str | None = None
-        self._foam_monitor_last_file: str = ""
-        self._foam_monitor_last_options: dict = {}
+        self.state = AppState()
+        self._foam_monitor_action: QAction | None = None
 
         self._build_ui()
         self.setAcceptDrops(True)
@@ -136,16 +121,14 @@ class MainWindow(
 
         save_btn = QPushButton(tr("Save File"))
         save_all_btn = QPushButton(tr("Save All Files"))
+        reload_case_btn = QPushButton(tr("Reload Case"))
         apply_btn = QPushButton(tr("Apply Text to Tree"))
         reload_btn = QPushButton(tr("Reload from Tree"))
         save_btn.clicked.connect(self.save_file)
         save_all_btn.clicked.connect(self.save_all_files)
+        reload_case_btn.clicked.connect(self.reload_case)
         apply_btn.clicked.connect(self.apply_text_to_tree)
         reload_btn.clicked.connect(self.reload_text_from_tree)
-
-        self._foam_monitor_btn = QPushButton(tr("foamMonitor…"))
-        self._foam_monitor_btn.setEnabled(False)
-        self._foam_monitor_btn.clicked.connect(self._on_foam_monitor_clicked)
 
         self._foam_monitor_timer = QTimer(self)
         self._foam_monitor_timer.setInterval(2000)
@@ -159,10 +142,10 @@ class MainWindow(
         layout.setContentsMargins(4, 4, 4, 2)
         layout.addWidget(save_btn)
         layout.addWidget(save_all_btn)
+        layout.addWidget(reload_case_btn)
+        layout.addWidget(sep)
         layout.addWidget(apply_btn)
         layout.addWidget(reload_btn)
-        layout.addWidget(sep)
-        layout.addWidget(self._foam_monitor_btn)
         layout.addWidget(QLabel(tr("Case:")))
         layout.addWidget(self.current_case_label)
         layout.addSpacing(16)
@@ -173,7 +156,7 @@ class MainWindow(
 
     def _build_tree_area(self) -> QWidget:
         self.proxy_model = QSortFilterProxyModel(self)
-        self.proxy_model.setSourceModel(self.current_model)
+        self.proxy_model.setSourceModel(self.state.current_model)
         self.proxy_model.setFilterCaseSensitivity(Qt.CaseInsensitive)
         self.proxy_model.setRecursiveFilteringEnabled(True)
         self.proxy_model.setFilterKeyColumn(FoamTreeModel.COL_KEY)
@@ -222,14 +205,13 @@ class MainWindow(
         if self.terminal_panel is not None:
             self.bottom_tabs.addTab(self.terminal_panel, self.terminal_panel.tab_label)
 
-        from ui.boundary_view_panel import BoundaryViewPanel
+        from ui.panels.boundary_view_panel import BoundaryViewPanel
         self.boundary_panel = BoundaryViewPanel()
 
         self.block_mesh_panel = None
-        self._bm_side_by_side: bool = False
         self._bm_side_by_side_btn: "QPushButton | None" = None
         if _feat_blockmesh:
-            from ui.block_mesh_panel import BlockMeshPanel
+            from ui.panels.block_mesh_panel import BlockMeshPanel
             self.block_mesh_panel = BlockMeshPanel()
             self.block_mesh_panel.vertices_changed.connect(
                 self._on_blockmesh_vertices_changed
@@ -412,6 +394,15 @@ class MainWindow(
             self._blockmesh_action.toggled.connect(self._on_toggle_blockmesh_panel)
             view_menu.addAction(self._blockmesh_action)
 
+        tools_menu = menubar.addMenu(tr("Tools"))
+        self._foam_monitor_action = QAction(tr("foamMonitor…"), self)
+        self._foam_monitor_action.setEnabled(False)
+        self._foam_monitor_action.setToolTip(
+            tr("Launch foamMonitor to plot residuals or other data with gnuplot")
+        )
+        self._foam_monitor_action.triggered.connect(self._on_foam_monitor_clicked)
+        tools_menu.addAction(self._foam_monitor_action)
+
         help_menu = menubar.addMenu(tr("Help"))
         help_menu.addAction(tr("About Foam Dictionary Editor (FoDE)...")).triggered.connect(self.show_about)
         help_menu.addSeparator()
@@ -496,65 +487,65 @@ class MainWindow(
         )
 
     def open_schema_manager(self) -> None:
-        from ui.schema_manager_dialog import SchemaManagerDialog
+        from ui.dialogs.schema_manager_dialog import SchemaManagerDialog
 
         SchemaManagerDialog(self).exec()
 
     def show_about(self) -> None:
-        from ui.about_dialog import AboutDialog
+        from ui.dialogs.about_dialog import AboutDialog
 
         AboutDialog(self).exec()
 
     def show_keyboard_shortcuts(self) -> None:
-        from ui.keyboard_shortcuts_dialog import KeyboardShortcutsDialog
+        from ui.dialogs.keyboard_shortcuts_dialog import KeyboardShortcutsDialog
 
         KeyboardShortcutsDialog(self).exec()
 
     def show_openfoam_resources(self) -> None:
-        from ui.openfoam_resources_dialog import OpenFOAMResourcesDialog
+        from ui.dialogs.openfoam_resources_dialog import OpenFOAMResourcesDialog
 
         OpenFOAMResourcesDialog(self).exec()
 
     # ── buffer / tree state ───────────────────────────────────────────────────
 
     def _save_current_buffer(self) -> None:
-        if self.current_file is None:
+        if self.state.current_file is None:
             return
-        self.file_buffers[self.current_file] = self.editor_panel.get_text()
-        self.file_dirty[self.current_file] = self.text_dirty
-        self.file_list_panel.mark_dirty(self.current_file, self.text_dirty)
+        self.state.file_buffers[self.state.current_file] = self.editor_panel.get_text()
+        self.state.file_dirty[self.state.current_file] = self.state.text_dirty
+        self.file_list_panel.mark_dirty(self.state.current_file, self.state.text_dirty)
 
     def _after_model_edit(self) -> None:
-        self.editor_panel.set_text(write_root(self.current_root))
+        self.editor_panel.set_text(write_root(self.state.current_root))
         self._mark_dirty()
-        if self.current_file:
-            self.boundary_panel.update_field(self.current_file, self.current_root)
-            if self.block_mesh_panel is not None and Path(self.current_file).name == _BLOCKMESH_DICT_NAME:
-                self.block_mesh_panel.update_block_mesh(self.current_file, self.current_root)
+        if self.state.current_file:
+            self.boundary_panel.update_field(self.state.current_file, self.state.current_root)
+            if self.block_mesh_panel is not None and Path(self.state.current_file).name == _BLOCKMESH_DICT_NAME:
+                self.block_mesh_panel.update_block_mesh(self.state.current_file, self.state.current_root)
         self._resize_tree_columns()
         self.on_tree_selection()
         self.statusBar().showMessage(tr("Tree changes applied to text editor"), _STATUS_SHORT)
 
     def _load_tree(self, root: FoamNode) -> None:
-        self.current_root = root
-        self.current_model = FoamTreeModel(root)
-        self.current_model.edit_rejected.connect(
+        self.state.current_root = root
+        self.state.current_model = FoamTreeModel(root)
+        self.state.current_model.edit_rejected.connect(
             lambda msg: self.statusBar().showMessage(msg, _STATUS_WARNING)
         )
-        self.proxy_model.setSourceModel(self.current_model)
+        self.proxy_model.setSourceModel(self.state.current_model)
         self.tree_filter_input.clear()
         self.tree.expandToDepth(_TREE_EXPAND_DEPTH)
         self._collapse_foam_file()
         self._connect_tree_selection()
         self._resize_tree_columns()
-        self._source_lines_valid = True
+        self.state.source_lines_valid = True
         self._update_sync_checkbox()
         self.editor_panel.clear_node_highlight()
         self._recompute_diff()
 
     def _clear_current_file(self) -> None:
-        self.current_file = None
-        self.text_dirty = False
+        self.state.current_file = None
+        self.state.text_dirty = False
         self.editor_panel.set_text("")
         self._load_tree(FoamNode(name="root", node_type="dictionary"))
         self._update_window_title()
@@ -564,24 +555,24 @@ class MainWindow(
     # ── dirty tracking ────────────────────────────────────────────────────────
 
     def _mark_dirty(self) -> None:
-        self.text_dirty = True
-        if self.current_file:
-            self.file_dirty[self.current_file] = True
+        self.state.text_dirty = True
+        if self.state.current_file:
+            self.state.file_dirty[self.state.current_file] = True
         self._update_window_title()
         self._update_file_label()
-        if self.current_file:
-            self.file_list_panel.mark_dirty(self.current_file, True)
+        if self.state.current_file:
+            self.file_list_panel.mark_dirty(self.state.current_file, True)
 
     def _mark_path_dirty(self, path: str) -> None:
-        self.file_dirty[path] = True
+        self.state.file_dirty[path] = True
         self.file_list_panel.mark_dirty(path, True)
-        if path == self.current_file:
-            self.text_dirty = True
+        if path == self.state.current_file:
+            self.state.text_dirty = True
             self._update_window_title()
             self._update_file_label()
 
     def _confirm_discard_if_needed(self) -> bool:
-        if not self.text_dirty:
+        if not self.state.text_dirty:
             return True
         reply = QMessageBox.question(
             self,
@@ -625,8 +616,8 @@ class MainWindow(
                 self.tree.resizeColumnToContents(col)
 
     def _collapse_foam_file(self) -> None:
-        for row in range(self.current_model.rowCount()):
-            src_index = self.current_model.index(row, 0)
+        for row in range(self.state.current_model.rowCount()):
+            src_index = self.state.current_model.index(row, 0)
             node = src_index.internalPointer()
             if node is not None and node.name == "FoamFile":
                 self.tree.setExpanded(self._to_proxy(src_index), False)
@@ -635,30 +626,30 @@ class MainWindow(
     # ── label / title updates ─────────────────────────────────────────────────
 
     def _update_case_label(self) -> None:
-        if self.current_case_dir:
-            name = Path(self.current_case_dir).name or self.current_case_dir
+        if self.state.current_case_dir:
+            name = Path(self.state.current_case_dir).name or self.state.current_case_dir
             self.current_case_label.setText(name)
-            self.current_case_label.setToolTip(self.current_case_dir)
+            self.current_case_label.setToolTip(self.state.current_case_dir)
         else:
             self.current_case_label.setText("-")
             self.current_case_label.setToolTip(tr("No case opened"))
         self._update_foam_monitor_btn()
 
     def _update_file_label(self) -> None:
-        if self.current_file:
-            dirty_mark = "*" if self.file_dirty.get(self.current_file, False) else ""
-            self.current_file_label.setText(f"{display_file_name(self.current_file)}{dirty_mark}")
-            self.current_file_label.setToolTip(self.current_file)
+        if self.state.current_file:
+            dirty_mark = "*" if self.state.file_dirty.get(self.state.current_file, False) else ""
+            self.current_file_label.setText(f"{display_file_name(self.state.current_file)}{dirty_mark}")
+            self.current_file_label.setToolTip(self.state.current_file)
         else:
             self.current_file_label.setText("-")
             self.current_file_label.setToolTip(tr("No file loaded"))
 
     def _update_window_title(self) -> None:
-        mark = "*" if self.text_dirty else ""
+        mark = "*" if self.state.text_dirty else ""
         self.setWindowTitle(f"{tr('foam dictionary editor')}{mark}")
 
     def _update_sync_checkbox(self) -> None:
-        stale = self.current_file is not None and not self._source_lines_valid
+        stale = self.state.current_file is not None and not self.state.source_lines_valid
         if stale:
             self.editor_autoscroll_checkbox.setText(tr("Auto-scroll editor (stale)"))
             self.editor_autoscroll_checkbox.setStyleSheet("color: gray;")

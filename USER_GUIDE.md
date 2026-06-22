@@ -145,7 +145,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 - Rebuild the tree from edited text with **Apply Text to Tree**.
 - Save the current file from the raw text editor with **Save File**.
 - Save all modified files at once with **Save Case**.
-- Reload the current case from disk with **Case > Reload Case**, discarding all in-memory edits. If there are unsaved changes, a confirmation dialog shows the number of affected files before proceeding.
+- Reload the current case from disk with the **Reload Case** button in the top bar or **Case > Reload Case**, discarding all in-memory edits. If there are unsaved changes, a confirmation dialog shows the number of affected files before proceeding.
 - Duplicate the open case to a new directory with **Case > Duplicate Case**, choosing between a full directory copy or a copy of only the app-visible files.
 - Save the currently open case as a new case with **Case > Save as New Case...**, which copies files from disk (all files or app-visible files only, selectable) and then writes any unsaved in-memory edits on top, then switches to the new case.
 - Register reference case directories in the **Case Library** for quick access. The `$FOAM_TUTORIALS` directory is included automatically whenever the environment variable is set.
@@ -194,7 +194,7 @@ The **Editor** tab has its own toolbar row with text search operations.
 - Find in Tree — selects the deepest tree node whose source span covers the current cursor line (Ctrl+Shift+T).
 - Line: N — current cursor line number (right side of the toolbar).
 
-The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, and a **Help** menu.
+The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, a **Tools** menu, and a **Help** menu.
 
 **Case menu:**
 
@@ -226,6 +226,10 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, and
 - Settings > Reset Window Size.
 - Settings > Reset All Settings…
 - Settings > Language — select the UI language (English / 日本語). Takes effect after restarting the application.
+
+**Tools menu:**
+
+- Tools > foamMonitor… — launch `foamMonitor` to plot residuals or other time-series data with gnuplot. See [foamMonitor launcher](#foammonitor-launcher).
 
 **Help menu:**
 
@@ -309,6 +313,8 @@ When subdirectories are found inside `system/`, the editor treats them as region
 - `turbulenceProperties`
 
 Each region directory appears as its own group header in the file list (for example `system/fluid`, `constant/heater`). Region groups are sorted after the top-level `system` and `constant` groups.
+
+Field files inside `0/<region>/` and `0.orig/<region>/` are also listed automatically, grouped under headers such as `0/fluid` and `0/solid`. This covers cases like `chtMultiRegionFoam` where each region has its own initial-condition files (e.g. `0/heater/T`, `0/bottomWater/p`).
 
 ### Symbolic links
 
@@ -467,7 +473,7 @@ In both orientations:
 
 ### Directory selector
 
-A drop-down at the top of the panel selects which field directory to display. It shows `0` and `0.orig` when they exist, plus any extra directories that contain at least one parseable field file (i.e. a file with a `boundaryField` dictionary). When only one qualifying directory exists, the selector is disabled. The table is rebuilt automatically when the selection changes.
+A drop-down at the top of the panel selects which field directory to display. It shows `0` and `0.orig` when they exist. For multiRegion cases it also shows one entry per region subdirectory (e.g. `0/bottomWater`, `0/heater`, `0/topAir`). Only directories that contain at least one parseable field file (i.e. a file with a `boundaryField` dictionary) appear in the list. When only one qualifying directory exists, the selector is disabled. The table is rebuilt automatically when the selection changes.
 
 ### Transpose
 
@@ -563,6 +569,7 @@ Variable definitions at the top level of `blockMeshDict` are automatically resol
 
 - **Direct values** — `xMin -0.5;`, `length 10;` etc. are used as-is.
 - **Macro references** — `nx $nCell;` is resolved to whatever `nCell` evaluates to, including through chains of arbitrary depth.
+- **Negated macro references** — `xMin -$xMax;` (a leading minus sign before a `$reference`) is resolved once `xMax` is known.
 - **`$varName` and `${varName}`** references inside `vertices` and `blocks` are substituted with the resolved values.
 - **`#eval{ expr }`** — arithmetic expressions are evaluated after variable substitution. Supported operators: `+`, `−`, `*`, `/`, parentheses. Example: `zMax #eval{ $length / $nCell };`.
 
@@ -578,6 +585,8 @@ If a reference cannot be resolved (the variable is defined in an external file, 
 | **Refresh** | Re-extract geometry from the current tree and redraw. In Preview mode, also discards all preview edits and resets vertex coordinates to the tree values. |
 | **Preview** | Appears only when the `vertices` block contains variable references (`$varName`). This button is shown inside the **Vertices** panel (not in the main toolbar). Click to enter Preview mode: table cells become editable and each change immediately updates the 3-D view, but the tree and file are not modified. A yellow banner is shown while Preview mode is active. Click **Refresh** to leave Preview mode and restore the original values. |
 | **STL ▾** | Drop-down menu: **Load STL / OBJ…** loads an STL or OBJ file and displays it as a translucent grey overlay (multiple files can be loaded); **Clear STL** removes all loaded overlays (greyed out when none are loaded). |
+
+Both the traditional 4-vertex face notation `(v0 v1 v2 v3)` and the newer compact notation `(blockIndex faceIndex)` are supported and can coexist in the same file. The compact form is automatically expanded to 4-vertex lists using the standard hex block face numbering before display.
 
 ### Boundary face colours
 
@@ -640,12 +649,55 @@ Built-in schema modules:
 
 Which schema modules to load is controlled at runtime via `schema_config.json`. You can add or remove schema modules without modifying the source code.
 
+For the complete list of internal node type strings, see [DEVELOPER.md](DEVELOPER.md).
+
 ### Writing a custom schema module
 
 Each schema module must define two module-level names.
 
 - `TARGET_FILE` — the dictionary filename the module applies to (e.g. `"controlDict"`).
 - `SCHEMAS` — a `dict[str, KeySchema]` mapping entry keys to their schema definitions.
+
+`KeySchema` has the following fields (defined in `schemas/_base.py`):
+
+| Field | Type | Description |
+|---|---|---|
+| `key` | `str` | The dictionary key this entry describes (matches the `SCHEMAS` dict key for plain entries) |
+| `label` | `str` | Short human-readable label shown in the Detail pane header |
+| `description` | `str` | Longer explanation shown in the **Key Help** field |
+| `supported_in` | `tuple[str, ...]` | Version strings shown in the **Key Supported In** field |
+| `note` | `str` | Additional remark shown in the **Key Note** field |
+| `choices` | `tuple[ChoiceItem, ...]` | Valid or common values shown in the **Choices** drop-down |
+
+Each `ChoiceItem` in the `choices` tuple has:
+
+| Field | Type | Description |
+|---|---|---|
+| `value` | `str` | The literal string written to the dictionary |
+| `description` | `str` | Explanation shown when the choice is selected in the drop-down |
+| `supported_in` | `tuple[str, ...]` | Which distributions support this value |
+| `note` | `str` | Optional additional remark |
+
+`_base.py` exports pre-built version strings for `supported_in`: `FOUNDATION_V13`, `OPENCFD_V2312`, `OPENCFD_V2512`, and `OPENCFD_SERIES`. A minimal custom module looks like this:
+
+```python
+from schemas._base import ChoiceItem, KeySchema, FOUNDATION_V13, OPENCFD_SERIES
+
+TARGET_FILE = "myDict"
+
+SCHEMAS = {
+    "myKey": KeySchema(
+        key="myKey",
+        label="My Key",
+        description="Controls what myKey does.",
+        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        choices=(
+            ChoiceItem("optionA", "Use option A."),
+            ChoiceItem("optionB", "Use option B."),
+        ),
+    ),
+}
+```
 
 Keys in `SCHEMAS` can be plain (`"startFrom"`) or **context-qualified** with a dotted prefix to avoid collisions between identically named keys in different sub-dicts:
 
@@ -791,12 +843,12 @@ The xterm.js library files are downloaded automatically from jsDelivr on first u
 
 ## foamMonitor launcher
 
-The **foamMonitor…** button in the top bar launches `foamMonitor` to plot residuals or other time-series data with gnuplot — without leaving FoDE.
+**Tools > foamMonitor…** launches `foamMonitor` to plot residuals or other time-series data with gnuplot — without leaving FoDE.
 
 ### Launching
 
 1. Open a case and start a solver in the Terminal tab.
-2. Click **foamMonitor…** in the top bar. A dialog opens with the following options:
+2. Select **Tools > foamMonitor…**. A dialog opens with the following options:
 
 | Field | Description |
 |---|---|
@@ -811,15 +863,15 @@ The **foamMonitor…** button in the top bar launches `foamMonitor` to plot resi
 
 ### Stopping
 
-While foamMonitor is running the button in the top bar reads **■ foamMonitor**. Click it to stop foamMonitor and close the gnuplot window.
+While foamMonitor is running the menu item reads **■ foamMonitor**. Select **Tools > ■ foamMonitor** to stop foamMonitor and close the gnuplot window.
 
-foamMonitor also stops automatically when its idle timeout expires (the monitored file has not been updated for the configured number of seconds). When that happens the button reverts to **foamMonitor…** on its own.
+foamMonitor also stops automatically when its idle timeout expires (the monitored file has not been updated for the configured number of seconds). When that happens the menu item reverts to **foamMonitor…** on its own.
 
 Opening a different case while foamMonitor is running stops the current instance.
 
 ### Notes
 
-- foamMonitor is a Unix shell script (`foamMonitor` must be on `PATH`). The button has no effect on Windows.
+- foamMonitor is a Unix shell script (`foamMonitor` must be on `PATH`). The menu item has no effect on Windows.
 - If the selected file does not exist, or foamMonitor exits with an error (e.g. gnuplot not installed), a warning dialog shows the error message.
 - FoDE automatically patches the `reread` command (deprecated in newer gnuplot versions) so that the gnuplot window refreshes correctly regardless of the installed gnuplot version.
 
@@ -878,6 +930,19 @@ Ctrl+C and Ctrl+V are scoped to the tree widget and do not interfere with the te
 - **Comment Out** — converts the selected entry into a commented-out `unknown_raw_entry` by prepending `// ` to every non-blank line of its rendered text. The result is written back into the file as a block comment. Disabled when the entry is already commented out.
 - **Restore from Comment** — reverses **Comment Out**: strips the `// ` prefix from each line, re-parses the result, and replaces the `unknown_raw_entry` with the recovered node(s). Enabled only when every non-blank line of the entry starts with `//`.
 - **Delete** — removes the selected node after a Yes/No confirmation dialog. This cannot be undone.
+
+## Bundled example cases
+
+The `tutorials/` directory in the repository root contains ready-to-open OpenFOAM cases sourced from the OpenFOAM v2512 standard tutorial set:
+
+| Directory | Solver | What it demonstrates |
+|---|---|---|
+| `tutorials/cavity/` | `icoFoam` | Single-region end-to-end workflow |
+| `tutorials/snappyMultiRegionHeater/` | `chtMultiRegionFoam` | Multi-region boundary view and region file listing |
+
+Open any case directly with **Case > Open Case** and navigate to the `tutorials/<case>` subdirectory, or duplicate it to a working directory with **Case > Duplicate from Case Library** after adding `tutorials/` to the Case Library.
+
+These case files are licensed under the **GPL-3.0**, separate from the AGPL-3.0 that covers FoDE source code. See `tutorials/tutorials_README.md` for full provenance and license details.
 
 ## Case Library
 
@@ -1031,7 +1096,7 @@ Click **Clear** in the diff bar to exit compare mode. This removes all `≠` mar
 
 ## Reloading a case
 
-Select **Case > Reload Case** to discard all in-memory edits and reload the current case from disk. All file buffers and dirty state are cleared, and the file list and boundary panel are refreshed exactly as if the case had just been opened.
+Click the **Reload Case** button in the top bar or select **Case > Reload Case** to discard all in-memory edits and reload the current case from disk. All file buffers and dirty state are cleared, and the file list and boundary panel are refreshed exactly as if the case had just been opened.
 
 If there are unsaved changes, a confirmation dialog shows the number of affected files and asks whether to proceed. Clicking **Yes** discards all changes; clicking **No** leaves the current state unchanged.
 
@@ -1087,16 +1152,22 @@ The window title shows a `*` suffix when the editor content has unsaved changes,
 
 ## Supported syntax and node types
 
-FoDE targets common OpenFOAM dictionary syntax with practical, tolerant handling rather than full specification coverage. The parser recognises the following node types:
+FoDE targets common OpenFOAM dictionary syntax with practical, tolerant handling rather than full specification coverage. The string shown in the **Type** column of the tree view is the exact `node_type` name for that row (see [DEVELOPER.md](DEVELOPER.md#node-types) for the internal Python representation of each type). The parser recognises the following node types:
 
 | Type | Description |
 |---|---|
-| `word` | A plain keyword–value pair |
+| `word` | A plain keyword–value pair (single unquoted token, fallback type) |
+| `string` | A double-quoted string value, e.g. `"my value"` |
+| `macro` | A `$variable` reference used as a value, e.g. `$nu` in `nu $nu;` |
+| `compound` | Multiple space-separated tokens that do not form a list, e.g. `uniform 0` or `uniform (0 0 0)` |
 | `scalar` | A floating-point value |
 | `int` | An integer value (auto-promoted to `scalar` when a fractional value is entered) |
 | `bool` | A boolean value (`true`/`false`/`yes`/`no`/`on`/`off`) |
 | `vector` | A parenthesised three-component value, e.g. `(0 0 9.81)` |
-| `list` | A parenthesised list of values |
+| `box_pair` | Two `(x y z)` vectors defining a bounding box; produced only for the `box` key |
+| `int_list` | A parenthesised list of integers, e.g. `(0 1 2)`; stored internally as `int_list` |
+| `scalar_list` | A parenthesised list of floats (not exactly 3 items), e.g. `(0.1 0.5 1.0 2.0)`; stored internally as `scalar_list` |
+| `raw_list` | A parenthesised list with mixed or nested content (e.g. `vertices`, `blocks`); stored as raw text internally as `raw_list` |
 | `nonuniform_list` | A `nonuniform List<T> N (…)` field value (e.g. `internalField` in `0/U`); shown as a count summary in the tree and stored as raw text — not editable inline |
 | `dictionary` | A sub-dictionary block |
 | `field_value_block` | A block with `internalField`/`boundaryField` structure (field files such as `0/U`) |
@@ -1110,6 +1181,8 @@ FoDE targets common OpenFOAM dictionary syntax with practical, tolerant handling
 | `unknown_raw_entry` | Any entry the parser could not fully interpret; stored and written back as raw text. Displayed in **amber** in the tree to distinguish it from normal entries |
 
 Unrecognised syntax is preserved as `unknown_raw_entry` nodes and written back verbatim, so partially-parsed files are not corrupted.
+
+**`field_value` nodes in the tree** — The Key column displays the `field_name` (e.g. `U`) and the Value column shows the `field_type` followed by the formatted value (e.g. `volVectorField uniform (0 0 0)`). In the Detail pane, these nodes show separate **Field Type**, **Field Name**, and **Value** fields. The value portion is editable; the type classification follows the same rules as for ordinary nodes.
 
 ## Limitations
 

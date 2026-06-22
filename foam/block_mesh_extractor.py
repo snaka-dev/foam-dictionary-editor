@@ -96,6 +96,27 @@ def _build_var_map(root: FoamNode) -> dict[str, str]:
             if result is not None:
                 var_map[child.name] = result
 
+        # Word/compound arithmetic pass: handles negated macros like ``-$xMax``.
+        # The macro pass only covers nodes whose value starts with ``$``; a
+        # leading sign character (``-``) makes the node type ``word`` instead.
+        # After substituting already-known vars, try evaluating the result as a
+        # numeric expression so that ``xMin -$xMax`` resolves once ``xMax`` is
+        # known.
+        for child in root.children:
+            if not child.name or child.name in _BLOCKMESH_STRUCTURAL or child.value is None:
+                continue
+            if child.name in var_map:
+                continue
+            if child.node_type not in ("word", "compound"):
+                continue
+            val_str = str(child.value).strip()
+            if _EVAL_VALUE_RE.match(val_str):
+                continue  # already handled by the #eval pass above
+            substituted = _substitute_vars(val_str, var_map)
+            result = _eval_foam_expr(substituted)
+            if result is not None:
+                var_map[child.name] = result
+
         if len(var_map) == prev_len:
             break
 
@@ -112,6 +133,20 @@ def _substitute_vars(text: str, var_map: dict[str, str]) -> str:
         text = re.sub(r'\$\{' + re.escape(name) + r'\}', val, text)
         text = re.sub(r'\$' + re.escape(name) + r'(?!\w)', val, text)
     return text
+
+
+# ── hex face index table ─────────────────────────────────────────────────────
+# Local vertex indices (0-7 within a hex block) for each of the 6 block faces.
+# Matches OpenFOAM's blockMesh convention: face 0 = -x, 1 = +x, 2 = -y,
+# 3 = +y, 4 = -z, 5 = +z.
+_HEX_FACE_VERTICES: list[list[int]] = [
+    [0, 4, 7, 3],  # 0: -x
+    [1, 2, 6, 5],  # 1: +x
+    [0, 1, 5, 4],  # 2: -y
+    [2, 3, 7, 6],  # 3: +y
+    [0, 3, 2, 1],  # 4: -z
+    [4, 5, 6, 7],  # 5: +z
+]
 
 
 # ── raw-string parsers ────────────────────────────────────────────────────────
@@ -142,6 +177,29 @@ def _parse_hex_blocks(raw: str) -> list[list[int]]:
     return result
 
 
+def _expand_compact_faces(
+    boundary_faces: dict[str, tuple[str, list[list[int]]]],
+    hex_blocks: list[list[int]],
+) -> dict[str, tuple[str, list[list[int]]]]:
+    """Convert (blockIndex, faceIndex) compact entries to 4-vertex lists.
+
+    Old-style 4-vertex entries are passed through unchanged.
+    """
+    expanded: dict[str, tuple[str, list[list[int]]]] = {}
+    for patch_name, (patch_type, faces) in boundary_faces.items():
+        new_faces: list[list[int]] = []
+        for f in faces:
+            if len(f) == 4:
+                new_faces.append(f)
+            elif len(f) == 2:
+                block_idx, face_idx = f
+                if 0 <= block_idx < len(hex_blocks) and 0 <= face_idx < 6:
+                    block = hex_blocks[block_idx]
+                    new_faces.append([block[i] for i in _HEX_FACE_VERTICES[face_idx]])
+        expanded[patch_name] = (patch_type, new_faces)
+    return expanded
+
+
 def _extract_boundary_from_tree(boundary_node: FoamNode) -> dict[str, tuple[str, list[list[int]]]]:
     """Walk a parsed boundary_block FoamNode and extract patch data."""
     result: dict[str, tuple[str, list[list[int]]]] = {}
@@ -156,7 +214,7 @@ def _extract_boundary_from_tree(boundary_node: FoamNode) -> dict[str, tuple[str,
             elif item.name == "faces" and item.node_type == "raw_list":
                 for fm in re.finditer(r"\(([^)]+)\)", str(item.value)):
                     nums = fm.group(1).split()
-                    if len(nums) >= 3:
+                    if len(nums) in (2, 4):
                         try:
                             faces.append([int(x) for x in nums])
                         except ValueError:
@@ -243,7 +301,7 @@ def _parse_boundary_block(raw: str) -> dict[str, tuple[str, list[list[int]]]]:
         faces: list[list[int]] = []
         for fm in re.finditer(r"\(([^)]+)\)", faces_raw):
             nums = fm.group(1).split()
-            if len(nums) >= 3:
+            if len(nums) in (2, 4):
                 try:
                     faces.append([int(x) for x in nums])
                 except ValueError:
@@ -292,6 +350,9 @@ def extract_block_mesh_data(root: FoamNode) -> BlockMeshData:
             nxt = children[idx + 1]
             if nxt.node_type == "unknown_raw_entry" and str(nxt.value).lstrip().startswith("("):
                 boundary_faces = _parse_boundary_block(str(nxt.value))
+
+    # Expand compact (blockIndex, faceIndex) notation to 4-vertex lists
+    boundary_faces = _expand_compact_faces(boundary_faces, hex_blocks)
 
     # Apply scale factor to vertex coordinates
     if scale != 1.0:
