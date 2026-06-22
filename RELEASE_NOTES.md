@@ -1,5 +1,11 @@
 # Release Notes
 
+## v1.6.1 — 2026-06-19
+
+### Bug fixes
+
+READMEs in tutorials/ is fixed and GPL license is added.
+
 ## v1.6.0 — 2026-06-19
 
 ### Improvements
