@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QCheckBox,
+    QHBoxLayout,
     QListWidget,
     QListWidgetItem,
     QMenu,
@@ -17,7 +18,13 @@ from PySide6.QtWidgets import (
 )
 
 from model.file_list_model import FileListModel
-from services.case_loader import FIELD_DIRS, detect_time_dirs, list_directory_files
+from services.case_loader import (
+    FIELD_DIRS,
+    PolyMeshInfo,
+    detect_poly_mesh,
+    detect_time_dirs,
+    list_directory_files,
+)
 from i18n import tr
 
 # Stored in headers to carry the clean group name for context-menu use.
@@ -81,6 +88,8 @@ class FileListPanel(QWidget):
     # Emitted when the user requests to delete a directory: (case_dir, group_name)
     delete_dir_requested = Signal(str, str)
     save_file_requested = Signal()
+    # Emitted when the user clicks the manual refresh button
+    refresh_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -102,6 +111,13 @@ class FileListPanel(QWidget):
         self._changed_only_cb.setVisible(False)
         self._changed_only_cb.toggled.connect(self._on_filter_changed)
 
+        self._refresh_btn = QPushButton("⟳")
+        self._refresh_btn.setFlat(True)
+        self._refresh_btn.setCursor(Qt.PointingHandCursor)
+        self._refresh_btn.setToolTip(tr("Refresh file list from disk"))
+        self._refresh_btn.setFixedWidth(24)
+        self._refresh_btn.clicked.connect(self.refresh_requested)
+
         self._list = QListWidget()
         self._list.setAlternatingRowColors(False)
         self._list.setUniformItemSizes(True)
@@ -109,11 +125,18 @@ class FileListPanel(QWidget):
         self._list.setContextMenuPolicy(Qt.CustomContextMenu)
         self._list.customContextMenuRequested.connect(self._on_context_menu)
 
+        filter_row = QHBoxLayout()
+        filter_row.setContentsMargins(0, 0, 0, 0)
+        filter_row.setSpacing(4)
+        filter_row.addWidget(self._changed_only_cb)
+        filter_row.addStretch(1)
+        filter_row.addWidget(self._refresh_btn)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self._extra_btn)
-        layout.addWidget(self._changed_only_cb)
+        layout.addLayout(filter_row)
         layout.addWidget(self._list)
 
     def load_files(
@@ -145,6 +168,9 @@ class FileListPanel(QWidget):
                 time_dirs = detect_time_dirs(case_dir, list(self._model.extra_dir_set) or None)
                 if time_dirs:
                     self._list.addItem(_make_time_dirs_indicator(time_dirs))
+                mesh_info = detect_poly_mesh(case_dir)
+                if mesh_info is not None:
+                    self._list.addItem(_make_mesh_indicator(mesh_info))
         finally:
             self._list.blockSignals(False)
 
@@ -398,6 +424,26 @@ def _make_time_dirs_indicator(dirs: list[str]) -> QListWidgetItem:
         tip += f":  {dirs[0]} … {dirs[-1]}"
     elif n == 1:
         tip += f":  {dirs[0]}"
+    item.setToolTip(tip)
+    return item
+
+
+def _make_mesh_indicator(info: PolyMeshInfo) -> QListWidgetItem:
+    if info.n_cells is not None:
+        label = f"constant/polyMesh: {info.n_cells:,} cells"
+        tip = f"{info.n_points:,} points, {info.n_cells:,} cells, {info.n_faces:,} faces"
+    else:
+        label = "constant/polyMesh (present)"
+        tip = "Mesh present; cell count unavailable"
+    if info.stale:
+        label += " — stale (blockMeshDict changed since last run)"
+        tip += " — stale: blockMeshDict changed since this mesh was generated"
+    item = QListWidgetItem(label)
+    item.setFlags(Qt.ItemIsEnabled)
+    font = QFont(item.font())
+    font.setBold(True)
+    item.setFont(font)
+    item.setForeground(_DIFF_HAS_FG if info.stale else QColor("#888888"))
     item.setToolTip(tip)
     return item
 

@@ -113,6 +113,8 @@ class EditorPanel(QWidget):
         return sep
 
     def _build_toolbar(self) -> QHBoxLayout:
+        from app_config import get_app_config
+
         def btn(label: str, slot, tip: str = "") -> QToolButton:
             b = QToolButton()
             b.setText(label)
@@ -130,6 +132,26 @@ class EditorPanel(QWidget):
             "Find in Tree", self.find_in_tree_requested.emit,
             "Select the tree entry for the current cursor line (Ctrl+Shift+T)",
         ))
+        toolbar.addSpacing(_SPACING_LARGE)
+
+        cfg = get_app_config()
+        hl_btn = QToolButton()
+        hl_btn.setText("Highlight")
+        hl_btn.setToolTip("Toggle syntax highlighting")
+        hl_btn.setCheckable(True)
+        hl_btn.setChecked(cfg.get_feature("syntax_highlighting", True))
+
+        def _toggle_highlight(checked: bool) -> None:
+            self._updating_programmatically = True
+            self._editor.set_highlighting_enabled(checked)
+            self._updating_programmatically = False
+            cfg.set_feature("syntax_highlighting", checked)
+            cfg.save()
+
+        toolbar.addWidget(hl_btn)
+        self._editor.set_highlighting_enabled(hl_btn.isChecked())
+        hl_btn.toggled.connect(_toggle_highlight)
+
         toolbar.addStretch(1)
         toolbar.addWidget(self._cursor_label)
         return toolbar

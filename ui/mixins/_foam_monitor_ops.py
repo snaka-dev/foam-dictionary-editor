@@ -17,15 +17,15 @@ from ui.dialogs.foam_monitor_dialog import FoamMonitorDialog
 
 class _FoamMonitorOpsMixin:
     def _on_foam_monitor_clicked(self) -> None:
-        if self.state.foam_monitor_proc is not None:
+        if self.state.foam_monitor.proc is not None:
             self._stop_foam_monitor()
             return
         if not self.state.current_case_dir:
             return
         dlg = FoamMonitorDialog(
             self.state.current_case_dir,
-            self.state.foam_monitor_last_file,
-            self.state.foam_monitor_last_options,
+            self.state.foam_monitor.last_file,
+            self.state.foam_monitor.last_options,
             self,
         )
         if dlg.exec() != FoamMonitorDialog.Accepted:
@@ -40,8 +40,8 @@ class _FoamMonitorOpsMixin:
                 tr("File not found:") + f"\n{file_path}",
             )
             return
-        self.state.foam_monitor_last_file = file_path
-        self.state.foam_monitor_last_options = dlg.get_options()
+        self.state.foam_monitor.last_file = file_path
+        self.state.foam_monitor.last_options = dlg.get_options()
         if sys.platform == "win32":
             return
         launcher = self._patched_foam_monitor()
@@ -52,8 +52,8 @@ class _FoamMonitorOpsMixin:
                 tr("foamMonitor could not be found on PATH."),
             )
             return
-        self.state.foam_monitor_script_tmp = launcher
-        self.state.foam_monitor_proc = subprocess.Popen(
+        self.state.foam_monitor.script_tmp = launcher
+        self.state.foam_monitor.proc = subprocess.Popen(
             [launcher] + dlg.get_args() + [file_path],
             cwd=self.state.current_case_dir,
             start_new_session=True,
@@ -63,36 +63,36 @@ class _FoamMonitorOpsMixin:
         self._update_foam_monitor_btn()
 
     def _stop_foam_monitor(self) -> None:
-        if self.state.foam_monitor_proc is not None:
+        if self.state.foam_monitor.proc is not None:
             try:
-                os.killpg(self.state.foam_monitor_proc.pid, signal.SIGTERM)
+                os.killpg(self.state.foam_monitor.proc.pid, signal.SIGTERM)
             except ProcessLookupError:
                 pass
-            self.state.foam_monitor_proc = None
+            self.state.foam_monitor.proc = None
         self._foam_monitor_timer.stop()
-        if self.state.foam_monitor_script_tmp is not None:
+        if self.state.foam_monitor.script_tmp is not None:
             try:
-                os.unlink(self.state.foam_monitor_script_tmp)
+                os.unlink(self.state.foam_monitor.script_tmp)
             except OSError:
                 pass
-            self.state.foam_monitor_script_tmp = None
+            self.state.foam_monitor.script_tmp = None
         self._update_foam_monitor_btn()
 
     def _on_foam_monitor_poll(self) -> None:
-        proc = self.state.foam_monitor_proc
+        proc = self.state.foam_monitor.proc
         if proc is None or proc.poll() is None:
             return
         stderr_text = ""
         if proc.stderr is not None:
             stderr_text = proc.stderr.read().decode("utf-8", errors="replace").strip()
-        self.state.foam_monitor_proc = None
+        self.state.foam_monitor.proc = None
         self._foam_monitor_timer.stop()
-        if self.state.foam_monitor_script_tmp is not None:
+        if self.state.foam_monitor.script_tmp is not None:
             try:
-                os.unlink(self.state.foam_monitor_script_tmp)
+                os.unlink(self.state.foam_monitor.script_tmp)
             except OSError:
                 pass
-            self.state.foam_monitor_script_tmp = None
+            self.state.foam_monitor.script_tmp = None
         self._update_foam_monitor_btn()
         if stderr_text:
             QMessageBox.warning(self, tr("foamMonitor error"), stderr_text)
@@ -100,7 +100,7 @@ class _FoamMonitorOpsMixin:
     def _update_foam_monitor_btn(self) -> None:
         if self._foam_monitor_action is None:
             return
-        running = self.state.foam_monitor_proc is not None
+        running = self.state.foam_monitor.proc is not None
         self._foam_monitor_action.setText(
             tr("■ foamMonitor") if running else tr("foamMonitor…")
         )

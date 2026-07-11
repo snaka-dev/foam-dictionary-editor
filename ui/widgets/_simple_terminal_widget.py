@@ -89,6 +89,9 @@ class SimpleTerminalWidget(QWidget):
         if self._process.state() == QProcess.Running:
             self._execute(f"cd {shlex.quote(path)}")
 
+    def run_command(self, cmd: str) -> None:
+        self._execute(cmd)
+
     def _apply_dark_theme(self) -> None:
         palette = self._output.palette()
         palette.setColor(QPalette.Base, QColor("#1e1e1e"))

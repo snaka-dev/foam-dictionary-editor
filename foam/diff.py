@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
+
 from foam.nodes import FoamNode
 
 _RECURSE_TYPES = frozenset({
@@ -8,6 +9,7 @@ _RECURSE_TYPES = frozenset({
     "boundary_block", "boundary_entry",
     "region_block", "region_entry",
     "field_value_block",
+    "action_list",
 })
 
 
@@ -44,6 +46,10 @@ def _diff_node(a: FoamNode, b: FoamNode, result: dict[FoamNode, DiffEntry]) -> N
         _diff_field_value_block(a, b, result)
         return
 
+    if a.node_type == "action_list" and b.node_type == "action_list":
+        _diff_action_list(a, b, result)
+        return
+
     b_map = _by_name(b.children)
     for a_child in a.children:
         if not a_child.name:
@@ -55,6 +61,32 @@ def _diff_node(a: FoamNode, b: FoamNode, result: dict[FoamNode, DiffEntry]) -> N
             _diff_node(a_child, b_child, result)
         else:
             if not _equal(a_child, b_child):
+                result[a_child] = ("changed", b_child)
+
+
+def _diff_action_list(
+    a: FoamNode, b: FoamNode, result: dict[FoamNode, DiffEntry]
+) -> None:
+    """Positional diff of anonymous action_entry children.
+
+    Entries are matched by index because they carry no unique key.
+    Extra entries in *a* beyond the length of *b* are marked only_here.
+    """
+    b_entries = b.children
+    for i, a_entry in enumerate(a.children):
+        if i >= len(b_entries):
+            for a_child in a_entry.children:
+                if a_child.name:
+                    result[a_child] = ("only_here", None)
+            continue
+        b_map = _by_name(b_entries[i].children)
+        for a_child in a_entry.children:
+            if not a_child.name:
+                continue
+            b_child = b_map.get(a_child.name)
+            if b_child is None:
+                result[a_child] = ("only_here", None)
+            elif not _equal(a_child, b_child):
                 result[a_child] = ("changed", b_child)
 
 

@@ -87,6 +87,9 @@ class TerminalPanel(QWidget):
         self._cwd = path
         self._widget.set_working_directory(path)  # type: ignore[union-attr]
 
+    def run_command(self, cmd: str) -> None:
+        self._widget.run_command(cmd)  # type: ignore[union-attr]
+
     # ── private ───────────────────────────────────────────────────────────────
 
     def _on_toggle(self, checked: bool) -> None:

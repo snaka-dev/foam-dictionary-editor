@@ -153,6 +153,9 @@ class AppConfigManager:
         """Return the value of a feature flag; defaults to True when absent."""
         return bool(self._features.get(name, default))
 
+    def set_feature(self, name: str, value: bool) -> None:
+        self._features[name] = value
+
     # ── language ──────────────────────────────────────────────────────────────
 
     def get_language(self) -> str:

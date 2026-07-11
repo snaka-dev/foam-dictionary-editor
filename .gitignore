@@ -6,6 +6,17 @@
 # foam dictionary editor settings for user
 app_config.json
 
+# Generated mesh and run logs inside bundled example cases
+tutorials/**/constant/polyMesh/
+tutorials/**/log.*
+
+### This will be needed future update
+# User-generated keyword list (overrides the tracked foam_keywords.default.json)
+#app_config/foam_keywords.json
+
+# Local scratch files
+*.patch
+
 #Python environment
 venv/
 

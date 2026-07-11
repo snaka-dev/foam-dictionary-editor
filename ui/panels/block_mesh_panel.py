@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QFileDialog,
@@ -23,10 +23,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from foam.block_mesh_extractor import extract_block_mesh_data
 from foam.nodes import FoamNode
+from foam.topo_set_extractor import TopoShape, extract_topo_set_data
 
 try:
-    import numpy as np
     import pyvista as pv
     from pyvistaqt import QtInteractor
 
@@ -34,19 +35,6 @@ try:
 except ImportError:
     _PYVISTA_OK = False
 
-_PATCH_COLORS: dict[str, str] = {
-    "wall":          "#E87722",
-    "patch":         "#0055A2",
-    "empty":         "#AAAAAA",
-    "symmetry":      "#00A050",
-    "symmetryPlane": "#00A050",
-    "wedge":         "#9040C0",
-    "cyclic":        "#C0A000",
-    "cyclicAMI":     "#C0A000",
-    "inlet":         "#0077CC",
-    "outlet":        "#CC2200",
-}
-_DEFAULT_PATCH_COLOR = "#4080FF"
 _MAX_VERTEX_TABLE_ROWS = 500
 
 _MOUSE_HINT = (
@@ -62,15 +50,37 @@ _MOUSE_HINT_TOOLTIP = (
 )
 
 
-def _make_hex_grid(pts: "np.ndarray", hex_blocks: list[list[int]]) -> "pv.UnstructuredGrid":
-    n_verts = len(pts)
-    valid = [b for b in hex_blocks if b and max(b) < n_verts]
-    cells = []
-    for block in valid:
-        cells.extend([8] + block)
-    cells_np = np.array(cells, dtype=np.int_)
-    cell_types = np.full(len(valid), pv.CellType.HEXAHEDRON, dtype=np.uint8)
-    return pv.UnstructuredGrid(cells_np, cell_types, pts)
+from ui.panels.block_mesh_renderer import (
+    _ACTION_COLORS,
+    BlockMeshRenderer,
+    RenderSettings,
+)
+
+
+def _color_swatch(color_name: str, size: int = 12) -> QIcon:
+    """A small filled square icon; stays vivid on disabled (greyed) menu rows."""
+    pm = QPixmap(size, size)
+    pm.fill(QColor(color_name))
+    icon = QIcon(pm)
+    icon.addPixmap(pm, QIcon.Disabled)
+    return icon
+
+
+class _StaysOpenMenu(QMenu):
+    """A QMenu whose checkable items toggle without closing the popup.
+
+    Qt closes a menu on any mouse-click activation, checkable or not, which
+    makes multi-selecting a checklist-style menu tedious. Clicking a checkable,
+    enabled item here toggles it and keeps the menu open; everything else
+    (clicking outside, Escape, disabled rows) behaves like a stock QMenu.
+    """
+
+    def mouseReleaseEvent(self, event) -> None:
+        action = self.activeAction()
+        if action is not None and action.isCheckable() and action.isEnabled():
+            action.trigger()
+            return
+        super().mouseReleaseEvent(event)
 
 
 class BlockMeshPanel(QWidget):
@@ -93,7 +103,10 @@ class BlockMeshPanel(QWidget):
         super().__init__(parent)
         self._data = None
         self._stl_meshes: list = []
+        self._topo_shapes: list[TopoShape] = []
+        self._topo_non_geometric: list[TopoShape] = []
         self._plotter: "QtInteractor | None" = None
+        self._renderer: "BlockMeshRenderer | None" = None
         self._plotter_layout: QVBoxLayout | None = None
         self._vtx_table: QTableWidget | None = None
         self._selected_vertex: int | None = None
@@ -103,6 +116,12 @@ class BlockMeshPanel(QWidget):
         self._preview_btn: "QPushButton | None" = None
         self._preview_banner: "QLabel | None" = None
         self._vtx_info_bar: "QWidget | None" = None
+        self._show_topo: "QAction | None" = None
+        self._topo_menu: "QMenu | None" = None
+        self._topo_sep: "QAction | None" = None
+        self._topo_legend_actions: list[QAction] = []
+        self._topo_shape_actions: list[QAction] = []
+        self._topo_info_actions: list[QAction] = []
 
         if not _PYVISTA_OK:
             lbl = QLabel(
@@ -163,6 +182,10 @@ class BlockMeshPanel(QWidget):
         self._vtx_table.itemSelectionChanged.connect(self._on_vertex_selected)
         self._vtx_table.cellChanged.connect(self._on_cell_changed)
         self._show_boundary.toggled.connect(self._render)
+        self._show_topo.toggled.connect(self._render)
+        self._show_topo.toggled.connect(
+            lambda on: [a.setEnabled(on) for a in self._topo_shape_actions]
+        )
         for act in (self._show_vertices, self._show_labels,
                     self._show_edges, self._show_block_labels,
                     self._color_blocks, self._solid_blocks,
@@ -172,7 +195,7 @@ class BlockMeshPanel(QWidget):
 
     def _build_geometry_toolbar(self) -> tuple:
         """Build the two toolbar rows; set geometry-visibility action attrs."""
-        vtx_menu = QMenu(self)
+        vtx_menu = _StaysOpenMenu(self)
         self._show_vertices  = QAction("Vertices",       vtx_menu, checkable=True, checked=True)
         self._show_labels    = QAction("Vertex labels",  vtx_menu, checkable=True, checked=False)
         self._act_vtx_table  = QAction("Vertices table", vtx_menu, checkable=True, checked=True)
@@ -185,7 +208,7 @@ class BlockMeshPanel(QWidget):
         vtx_btn.setPopupMode(QToolButton.InstantPopup)
         vtx_btn.setMenu(vtx_menu)
 
-        blk_menu = QMenu(self)
+        blk_menu = _StaysOpenMenu(self)
         self._show_edges        = QAction("Block edges",  blk_menu, checkable=True, checked=True)
         self._show_block_labels = QAction("Block labels", blk_menu, checkable=True, checked=False)
         self._color_blocks      = QAction("Color blocks", blk_menu, checkable=True, checked=False)
@@ -203,7 +226,35 @@ class BlockMeshPanel(QWidget):
         self._show_boundary = QCheckBox("Boundary faces")
         self._show_boundary.setChecked(True)
 
-        scale_menu = QMenu(self)
+        self._topo_menu = _StaysOpenMenu(self)
+        self._show_topo = QAction(
+            "Show topoSet geometry", self._topo_menu, checkable=True, checked=True
+        )
+        self._topo_menu.addAction(self._show_topo)
+        self._topo_menu.addSeparator()
+
+        # Static legend mapping each action to its overlay colour.
+        legend_header = QAction("Action colours", self._topo_menu)
+        legend_header.setEnabled(False)
+        self._topo_menu.addAction(legend_header)
+        self._topo_legend_actions = []
+        for action in ("new", "add", "subtract", "subset", "invert"):
+            act = QAction(_color_swatch(_ACTION_COLORS[action]), action, self._topo_menu)
+            act.setEnabled(False)
+            self._topo_menu.addAction(act)
+            self._topo_legend_actions.append(act)
+        self._topo_sep = self._topo_menu.addSeparator()
+
+        topo_btn = QToolButton()
+        topo_btn.setText("topoSet ▾")
+        topo_btn.setPopupMode(QToolButton.InstantPopup)
+        topo_btn.setMenu(self._topo_menu)
+        topo_btn.setToolTip(
+            "Show geometry sources from topoSetDict, or toggle individual shapes\n"
+            "(load topoSetDict to populate)"
+        )
+
+        scale_menu = _StaysOpenMenu(self)
         self._act_axes   = QAction("Axes",       scale_menu, checkable=True, checked=True)
         self._act_grid   = QAction("Grid",       scale_menu, checkable=True, checked=True)
         self._act_bounds = QAction("Dimensions", scale_menu, checkable=True, checked=True)
@@ -232,6 +283,7 @@ class BlockMeshPanel(QWidget):
         row1.addWidget(vtx_btn)
         row1.addWidget(blk_btn)
         row1.addWidget(self._show_boundary)
+        row1.addWidget(topo_btn)
         row1.addSpacing(12)
         row1.addWidget(refresh_btn)
         row1.addWidget(stl_btn)
@@ -321,6 +373,7 @@ class BlockMeshPanel(QWidget):
         self._plotter.setMinimumSize(0, 0)
         self._plotter_layout.addWidget(self._plotter)
         self._plotter.add_axes(xlabel="X", ylabel="Y", zlabel="Z", line_width=3)
+        self._renderer = BlockMeshRenderer(self._plotter)
         if self._data is not None:
             self._render()
 
@@ -338,7 +391,6 @@ class BlockMeshPanel(QWidget):
     def update_block_mesh(self, path: str, root: FoamNode) -> None:
         if not _PYVISTA_OK:
             return
-        from foam.block_mesh_extractor import extract_block_mesh_data
         self._root = root
         self._data = extract_block_mesh_data(root)
         self._preview_mode = False
@@ -349,8 +401,73 @@ class BlockMeshPanel(QWidget):
         if self._plotter is not None:
             self._render()
 
+    def update_topo_set(self, path: str, root: FoamNode) -> None:
+        if not _PYVISTA_OK:
+            return
+        data = extract_topo_set_data(root)
+        self._topo_shapes = data.shapes
+        self._topo_non_geometric = data.non_geometric
+        self._rebuild_topo_menu()
+        if self._plotter is not None:
+            self._render()
+
+    def _rebuild_topo_menu(self) -> None:
+        """Repopulate the per-shape toggles in the `topoSet ▾` menu.
+
+        The master action and separator persist; only the per-shape toggles and
+        the greyed non-geometric info entries are rebuilt so each renderable
+        entry can be shown or hidden individually.
+        """
+        if self._topo_menu is None:
+            return
+        for act in self._topo_shape_actions + self._topo_info_actions:
+            self._topo_menu.removeAction(act)
+            act.deleteLater()
+        self._topo_shape_actions = []
+        self._topo_info_actions = []
+        master_on = self._show_topo is not None and self._show_topo.isChecked()
+        for shape in self._topo_shapes:
+            label = shape.label or "(unnamed)"
+            act = QAction(
+                _color_swatch(_ACTION_COLORS.get(shape.action, "gray")),
+                f"{label}  ·  {shape.source}",
+                self._topo_menu,
+                checkable=True,
+                checked=True,
+            )
+            act.setEnabled(master_on)
+            act.toggled.connect(self._render)
+            self._topo_menu.addAction(act)
+            self._topo_shape_actions.append(act)
+
+        # Non-geometric sources: listed for awareness but never rendered.
+        for shape in self._topo_non_geometric:
+            label = shape.label or "(unnamed)"
+            act = QAction(
+                f"{label}  ·  {shape.source}  (no geometry)",
+                self._topo_menu,
+            )
+            act.setEnabled(False)
+            self._topo_menu.addAction(act)
+            self._topo_info_actions.append(act)
+
+    def _visible_topo_shapes(self) -> list[TopoShape]:
+        """Return the topoSet shapes currently selected for display."""
+        if not (self._show_topo and self._show_topo.isChecked()):
+            return []
+        if not self._topo_shape_actions:        # not yet rebuilt → show all
+            return list(self._topo_shapes)
+        return [
+            s
+            for s, a in zip(self._topo_shapes, self._topo_shape_actions)
+            if a.isChecked()
+        ]
+
     def clear(self) -> None:
         self._data = None
+        self._topo_shapes = []
+        self._topo_non_geometric = []
+        self._rebuild_topo_menu()
         self._selected_vertex = None
         if self._vtx_table is not None:
             self._vtx_table.setRowCount(0)
@@ -474,7 +591,6 @@ class BlockMeshPanel(QWidget):
 
     def _on_refresh(self) -> None:
         if self._preview_mode and self._root is not None:
-            from foam.block_mesh_extractor import extract_block_mesh_data
             self._data = extract_block_mesh_data(self._root)
             self._preview_mode = False
             self._update_preview_ui()
@@ -484,133 +600,34 @@ class BlockMeshPanel(QWidget):
 
     # ── rendering ─────────────────────────────────────────────────────────────
 
+    def _make_settings(self) -> RenderSettings:
+        return RenderSettings(
+            show_vertices=self._show_vertices.isChecked(),
+            show_labels=self._show_labels.isChecked(),
+            show_edges=self._show_edges.isChecked(),
+            show_block_labels=self._show_block_labels.isChecked(),
+            color_blocks=self._color_blocks.isChecked(),
+            solid_blocks=self._solid_blocks.isChecked(),
+            show_boundary=self._show_boundary.isChecked(),
+            show_axes=self._act_axes.isChecked(),
+            show_grid=self._act_grid.isChecked(),
+            show_bounds=self._act_bounds.isChecked(),
+            label_font_size=self._label_font_size.value(),
+            selected_vertex=self._selected_vertex,
+        )
+
     def _set_view(self, fn: str, **kw) -> None:
-        if self._plotter is None:
+        if self._renderer is None:
             return
-        getattr(self._plotter, fn)(**kw)
+        self._renderer.set_view(fn, **kw)
 
     def _render(self) -> None:
-        if self._plotter is None or self._data is None:
+        if self._renderer is None:
             return
-
-        self._plotter.clear()
-        verts = self._data.vertices
-        if not verts:
-            self._plotter.render()
+        if self._data is None and not self._topo_shapes:
             return
-
-        pts = np.array(verts, dtype=float)
-
-        if self._show_vertices.isChecked():
-            self._plotter.add_mesh(
-                pv.PolyData(pts),
-                render_points_as_spheres=True,
-                point_size=10,
-                color="red",
-            )
-
-        # Selected vertex — always rendered when a table row is active
-        if self._selected_vertex is not None and self._selected_vertex < len(verts):
-            sel_pt = np.array([verts[self._selected_vertex]], dtype=float)
-            self._plotter.add_mesh(
-                pv.PolyData(sel_pt),
-                render_points_as_spheres=True,
-                point_size=18,
-                color="cyan",
-            )
-
-        if self._show_labels.isChecked():
-            self._plotter.add_point_labels(
-                pts,
-                [str(i) for i in range(len(verts))],
-                font_size=self._label_font_size.value(),
-                text_color="black",
-                shape=None,
-                show_points=False,
-                always_visible=True,
-            )
-
-        if self._show_block_labels.isChecked() and self._data.hex_blocks:
-            centroids = np.array(
-                [pts[block].mean(axis=0) for block in self._data.hex_blocks]
-            )
-            self._plotter.add_point_labels(
-                centroids,
-                [str(i) for i in range(len(self._data.hex_blocks))],
-                font_size=self._label_font_size.value(),
-                text_color="darkblue",
-                shape=None,
-                show_points=False,
-                always_visible=True,
-            )
-
-        if (self._show_edges.isChecked() or self._solid_blocks.isChecked()) and self._data.hex_blocks:
-            grid = _make_hex_grid(pts, self._data.hex_blocks)
-            if self._color_blocks.isChecked():
-                grid.cell_data["block_id"] = np.arange(len(self._data.hex_blocks))
-                color_kw: dict = {
-                    "scalars": "block_id",
-                    "cmap": "tab10",
-                    "n_colors": len(self._data.hex_blocks),
-                    "show_scalar_bar": False,
-                }
-            else:
-                color_kw = {"color": "steelblue"}
-
-            if self._show_edges.isChecked():
-                self._plotter.add_mesh(grid, style="wireframe", line_width=2, **color_kw)
-            if self._solid_blocks.isChecked():
-                self._plotter.add_mesh(grid, style="surface", opacity=0.25, **color_kw)
-
-        if self._show_boundary.isChecked():
-            for _name, (patch_type, faces) in self._data.boundary_faces.items():
-                if not faces:
-                    continue
-                conn: list[int] = []
-                for face in faces:
-                    conn += [len(face)] + face
-                poly = pv.PolyData(pts, np.array(conn, dtype=np.int_))
-                color = _PATCH_COLORS.get(patch_type, _DEFAULT_PATCH_COLOR)
-                self._plotter.add_mesh(poly, color=color, opacity=0.6)
-
-        for stl in self._stl_meshes:
-            self._plotter.add_mesh(stl, color="lightgray", opacity=0.4)
-
-        # ── scale / orientation indicators ───────────────────────────────────
-        if self._act_axes.isChecked():
-            self._plotter.show_axes()
-        else:
-            self._plotter.hide_axes()
-
-        if self._act_grid.isChecked():
-            self._plotter.show_grid(color="gray", font_size=8)
-
-        if self._act_bounds.isChecked():
-            self._plotter.add_bounding_box(color="gray", line_width=1)
-            mins = pts.min(axis=0)
-            maxs = pts.max(axis=0)
-            dims = maxs - mins
-
-            def _fmt(v: float) -> str:
-                return f"{v:.4g}"
-
-            lines = [
-                f"X  {_fmt(mins[0])} → {_fmt(maxs[0])}  ({_fmt(dims[0])} m)",
-                f"Y  {_fmt(mins[1])} → {_fmt(maxs[1])}  ({_fmt(dims[1])} m)",
-                f"Z  {_fmt(mins[2])} → {_fmt(maxs[2])}  ({_fmt(dims[2])} m)",
-            ]
-            if self._data.scale != 1.0:
-                lines.append(f"scale  {self._data.scale}")
-            self._plotter.add_text(
-                "\n".join(lines),
-                position="upper_left",
-                font_size=9,
-                color="black",
-                font="courier",
-            )
-
-        self._plotter.reset_camera()
-        self._plotter.render()
+        topo = self._visible_topo_shapes()
+        self._renderer.render(self._data, self._make_settings(), self._stl_meshes, topo)
 
     # ── STL loading ───────────────────────────────────────────────────────────
 

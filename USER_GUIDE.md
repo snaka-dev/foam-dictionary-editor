@@ -192,6 +192,7 @@ The **Editor** tab has its own toolbar row with text search operations.
 - Find Prev — wraps to the previous match (Shift+F3).
 - Find Next — advances to the next match (F3).
 - Find in Tree — selects the deepest tree node whose source span covers the current cursor line (Ctrl+Shift+T).
+- Highlight — toggleable button; click to turn syntax highlighting on or off. The setting is saved to `app_config.json` and restored on the next launch.
 - Line: N — current cursor line number (right side of the toolbar).
 
 The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, a **Tools** menu, and a **Help** menu.
@@ -555,6 +556,8 @@ The tab can also be toggled at any time via **View > BlockMesh 3-D Panel** (chec
 
 The panel is updated automatically whenever `blockMeshDict` is loaded or edited. A **Refresh** button forces a manual update.
 
+Loading or editing `topoSetDict` also updates the panel: action geometry sources (box, sphere, cylinder, cone) are overlaid on the mesh. The overlay is shown even if `blockMeshDict` has not been loaded. Use the **"topoSet geometry"** checkbox to toggle it.
+
 ### Side-by-side mode
 
 A **⊞** toggle button appears in the top-right corner of the upper tab widget when `blockMeshDict` is the active file and the BlockMesh panel is available. Clicking it places the 3-D viewer in a horizontal splitter to the right of the Tree tab so both are visible at the same time. The separate **BlockMesh** tab is removed while side-by-side mode is on, and restored when it is turned off.
@@ -582,11 +585,39 @@ If a reference cannot be resolved (the variable is defined in an external file, 
 | **Vertices ▾** | Drop-down menu with three checkable items: **Vertices** (show vertices as red spheres), **Vertex labels** (overlay vertex index numbers), **Vertices table** (show or hide the vertex coordinate table on the right). |
 | **Blocks ▾** | Drop-down menu with four checkable items: **Block edges** (wireframe), **Block labels** (index at centroid), **Color blocks** (distinct colour per block from the tab10 palette), **Solid blocks** (semi-transparent solid faces at opacity 0.25, shares colour with Color blocks). |
 | **Boundary faces** | Show boundary patch faces, colour-coded by type. |
+| **topoSet geometry** | Show geometry sources from `topoSetDict` as semi-transparent overlays, colour-coded by action type (see [topoSetDict overlay](#toposetdict-overlay)). |
 | **Refresh** | Re-extract geometry from the current tree and redraw. In Preview mode, also discards all preview edits and resets vertex coordinates to the tree values. |
 | **Preview** | Appears only when the `vertices` block contains variable references (`$varName`). This button is shown inside the **Vertices** panel (not in the main toolbar). Click to enter Preview mode: table cells become editable and each change immediately updates the 3-D view, but the tree and file are not modified. A yellow banner is shown while Preview mode is active. Click **Refresh** to leave Preview mode and restore the original values. |
 | **STL ▾** | Drop-down menu: **Load STL / OBJ…** loads an STL or OBJ file and displays it as a translucent grey overlay (multiple files can be loaded); **Clear STL** removes all loaded overlays (greyed out when none are loaded). |
 
 Both the traditional 4-vertex face notation `(v0 v1 v2 v3)` and the newer compact notation `(blockIndex faceIndex)` are supported and can coexist in the same file. The compact form is automatically expanded to 4-vertex lists using the standard hex block face numbering before display.
+
+### topoSetDict overlay
+
+When `topoSetDict` is loaded or edited, the geometry source of each action entry is drawn as a semi-transparent shape overlaid on the mesh. The **"topoSet geometry"** checkbox in the first toolbar row toggles the overlay.
+
+**Supported source types:**
+
+| Source family | Examples | Shape |
+|---|---|---|
+| `boxToCell/Face/Point` | `box (x0 y0 z0) (x1 y1 z1)` | Wireframe + surface box |
+| `sphereToCell/Face/Point` | `centre`, `radius` | Sphere |
+| `cylinderToCell/Face/Point`, `cylinderAnnulusToCell` | `point1`/`p1`, `point2`/`p2`, `radius` | Cylinder |
+| `coneToCell/Face/Point`, `coneAnnulusToCell` | `point1`/`p1`, `point2`/`p2`, `radius1`, `radius2` | Cone (truncated; a true cone when `radius2` is 0) |
+
+**Colour coding by action:**
+
+| Action | Colour |
+|---|---|
+| `new` | Steel blue |
+| `add` | Green |
+| `subtract` / `delete` | Red |
+| `subset` | Purple |
+| `invert` | Gold |
+
+If an entry's geometry cannot be fully resolved (e.g. because of an unresolvable `$variable`), that entry is silently skipped. The overlay is shown even when `blockMeshDict` is not loaded.
+
+**Variable resolution** — Top-level scalar/integer definitions in `topoSetDict` (e.g. `xMin -0.01;`) are resolved before extraction, including macro chains (`y $x;`) and `#eval{ expr }` expressions. This is the same mechanism used in `blockMeshDict`. Variables from other files are not in scope.
 
 ### Boundary face colours
 
@@ -933,16 +964,23 @@ Ctrl+C and Ctrl+V are scoped to the tree widget and do not interfere with the te
 
 ## Bundled example cases
 
-The `tutorials/` directory in the repository root contains ready-to-open OpenFOAM cases sourced from the OpenFOAM v2512 standard tutorial set:
+The `tutorials/` directory in the repository root contains ready-to-open OpenFOAM cases:
 
 | Directory | Solver | What it demonstrates |
 |---|---|---|
-| `tutorials/cavity/` | `icoFoam` | Single-region end-to-end workflow |
+| `tutorials/cavity/cavity/` | `icoFoam` | Single-region end-to-end workflow |
+| `tutorials/cavity/cavityGrade/` | `icoFoam` | Non-uniform grading (`simpleGrading`) |
+| `tutorials/cavity/cavityClipped/` | `icoFoam` | Clipped geometry; `mapFieldsDict` |
 | `tutorials/snappyMultiRegionHeater/` | `chtMultiRegionFoam` | Multi-region boundary view and region file listing |
+| `tutorials/damBreak/` | `interFoam` | Two-phase flow; `setFieldsDict` and `0.orig/` |
+| `tutorials/oneBlocks/` | `icoFoam` | 3-D single-block; `blockMeshDict` editing and 3-D mesh viewer |
+| `tutorials/oneBlocks-vars/` | `icoFoam` | As `oneBlocks` with variable substitution and compact face notation |
+| `tutorials/nineBlocks/` | `icoFoam` | 3×3 multi-block; regex boundary patches |
+| `tutorials/nineBlocks-vars/` | `icoFoam` | As `nineBlocks` with variable substitution and compact face notation |
 
-Open any case directly with **Case > Open Case** and navigate to the `tutorials/<case>` subdirectory, or duplicate it to a working directory with **Case > Duplicate from Case Library** after adding `tutorials/` to the Case Library.
+Open any case directly with **Case > Open Case** and navigate to the case subdirectory, or duplicate it to a working directory with **Case > Duplicate from Case Library** after adding `tutorials/` to the Case Library.
 
-These case files are licensed under the **GPL-3.0**, separate from the AGPL-3.0 that covers FoDE source code. See `tutorials/tutorials_README.md` for full provenance and license details.
+These case files are licensed under the **GPL-3.0**, separate from the AGPL-3.0 that covers FoDE source code. See `tutorials/README.md` for full provenance and license details.
 
 ## Case Library
 
@@ -1148,7 +1186,22 @@ When parsing succeeds but some entries could not be fully interpreted, those ent
 
 The bottom editor is based on the custom `CodeEditor` widget and is used for direct plain-text editing of OpenFOAM dictionary files. It shows the current line number in the lower area of the editor panel.
 
+The editor applies **syntax highlighting** to OpenFOAM dictionary tokens: comments (`//` and `/* */`) appear grey italic, string literals green, `#directives` purple bold, `$macro` references orange, reserved keywords (`FoamFile`, `true`/`false`, `uniform`, `nonuniform`, etc.) blue bold, and numbers teal. Use the **Highlight** button in the editor toolbar to toggle highlighting on or off; the preference is saved across sessions.
+
 The window title shows a `*` suffix when the editor content has unsaved changes, and clears it after save, reload from tree, or a successful apply-to-tree.
+
+### Code folding
+
+The line-number gutter on the left of the editor contains a narrow fold column. For every `{ … }` block that spans more than one line, a small triangle is drawn in the fold column on the opening-brace line:
+
+| Triangle | Meaning |
+|----------|---------|
+| ▾ (down) | Block is expanded — click to collapse |
+| ▶ (right) | Block is collapsed — click to expand |
+
+Clicking the triangle hides or reveals the lines between the `{` and the matching `}`. The `FoamFile { … }` header block is collapsed automatically each time a file is loaded to keep the working dictionary entries at the top of the viewport.
+
+Folding is visual only: the underlying text is not modified. **Apply Text to Tree**, **Save File**, and all copy operations work on the full, unmodified text regardless of the current fold state.
 
 ## Supported syntax and node types
 

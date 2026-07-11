@@ -165,3 +165,27 @@ class TestTerminalPanelWorkingDirectory:
         """set_working_directory does not raise when XtermTerminalWidget is active"""
         if _XTERM_AVAILABLE:
             terminal_panel.set_working_directory("/tmp/foam_case")
+
+
+# ── SimpleTerminalWidget: run_command ─────────────────────────────────────────
+
+class TestSimpleTerminalWidgetRunCommand:
+    def test_run_command_echoes_to_output(self, simple_widget):
+        """run_command echoes the command into the output pane, like a typed one"""
+        simple_widget.run_command("blockMesh 2>&1 | tee log.blockMesh")
+        assert "$ blockMesh 2>&1 | tee log.blockMesh" in simple_widget._output.toPlainText()
+
+
+# ── TerminalPanel: run_command delegation ─────────────────────────────────────
+
+class TestTerminalPanelRunCommand:
+    def test_run_command_forwarded_to_simple_widget(self, terminal_panel):
+        """run_command is forwarded to SimpleTerminalWidget when not using xterm"""
+        if not _XTERM_AVAILABLE:
+            terminal_panel.run_command("blockMesh")
+            assert "$ blockMesh" in terminal_panel._widget._output.toPlainText()
+
+    def test_run_command_does_not_raise_with_xterm(self, terminal_panel):
+        """run_command does not raise when XtermTerminalWidget is active"""
+        if _XTERM_AVAILABLE:
+            terminal_panel.run_command("blockMesh")

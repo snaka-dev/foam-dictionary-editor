@@ -6,9 +6,9 @@ import re
 from dataclasses import dataclass, field
 
 from foam.nodes import FoamNode
+from foam.var_resolver import build_var_map, eval_foam_expr, substitute_vars
 
-_EVAL_VALUE_RE = re.compile(r'^#eval\s*\{\s*([^}]+)\}')
-_SAFE_EXPR_RE = re.compile(r'^[\d\s\+\-\*/\.\(\)eE]+$')
+_EVAL_VALUE_RE = re.compile(r'^#eval\s*\{\s*([^}]+)\}')  # still used by parse_vertices
 
 
 @dataclass
@@ -29,110 +29,15 @@ _BLOCKMESH_STRUCTURAL = frozenset({
 
 
 def _eval_foam_expr(expr: str) -> str | None:
-    """Evaluate a numeric arithmetic expression from #eval{...}.
-
-    Returns the float result as a string, or None if the expression
-    contains non-numeric tokens (e.g. unresolved $var references).
-    """
-    cleaned = expr.strip()
-    if not _SAFE_EXPR_RE.match(cleaned):
-        return None
-    try:
-        result = eval(cleaned, {"__builtins__": {}}, {})  # noqa: S307
-        return str(float(result))
-    except Exception:
-        return None
+    return eval_foam_expr(expr)
 
 
 def _build_var_map(root: FoamNode) -> dict[str, str]:
-    """Collect top-level variable definitions as a substitution map.
-
-    Seeds from direct scalar/int values then iterates macro-resolution and
-    #eval-expression passes until stable.  Multiple iterations handle chains
-    like ``z1 #eval{$z0+$dz0}; z2 #eval{$z1+$dz1}; z001 $z1;`` where the
-    macro reference to z1 cannot be resolved until #eval has run first.
-    """
-    var_map: dict[str, str] = {}
-
-    # Seed with direct numeric values; skip word nodes — they may be #eval strings.
-    for child in root.children:
-        if not child.name or child.name in _BLOCKMESH_STRUCTURAL or child.value is None:
-            continue
-        if child.node_type in ("scalar", "int"):
-            var_map[child.name] = str(child.value)
-
-    # Iterate macro-resolution and #eval-evaluation until no new entries appear.
-    # Upper bound: a dependency DAG of N nodes resolves in at most N iterations.
-    # Circular references are safe — unresolvable vars simply stay absent.
-    for _ in range(len(root.children) + 1):
-        prev_len = len(var_map)
-
-        # Macro pass: resolve $ref / ${ref} one level per iteration.
-        for child in root.children:
-            if not child.name or child.name in _BLOCKMESH_STRUCTURAL or child.value is None:
-                continue
-            if child.name in var_map:
-                continue
-            if child.node_type == "macro":
-                ref = str(child.value).lstrip("$")
-                if ref.startswith("{"):
-                    ref = ref[1:].rstrip("}")
-                if ref in var_map:
-                    var_map[child.name] = var_map[ref]
-
-        # #eval pass: evaluate arithmetic expressions whose variables are now known.
-        for child in root.children:
-            if not child.name or child.name in _BLOCKMESH_STRUCTURAL or child.value is None:
-                continue
-            if child.name in var_map:
-                continue
-            if child.node_type not in ("word", "compound"):
-                continue
-            val_str = str(child.value).strip()
-            m = _EVAL_VALUE_RE.match(val_str)
-            if not m:
-                continue
-            result = _eval_foam_expr(_substitute_vars(m.group(1), var_map))
-            if result is not None:
-                var_map[child.name] = result
-
-        # Word/compound arithmetic pass: handles negated macros like ``-$xMax``.
-        # The macro pass only covers nodes whose value starts with ``$``; a
-        # leading sign character (``-``) makes the node type ``word`` instead.
-        # After substituting already-known vars, try evaluating the result as a
-        # numeric expression so that ``xMin -$xMax`` resolves once ``xMax`` is
-        # known.
-        for child in root.children:
-            if not child.name or child.name in _BLOCKMESH_STRUCTURAL or child.value is None:
-                continue
-            if child.name in var_map:
-                continue
-            if child.node_type not in ("word", "compound"):
-                continue
-            val_str = str(child.value).strip()
-            if _EVAL_VALUE_RE.match(val_str):
-                continue  # already handled by the #eval pass above
-            substituted = _substitute_vars(val_str, var_map)
-            result = _eval_foam_expr(substituted)
-            if result is not None:
-                var_map[child.name] = result
-
-        if len(var_map) == prev_len:
-            break
-
-    return var_map
+    return build_var_map(root, skip_keys=_BLOCKMESH_STRUCTURAL)
 
 
 def _substitute_vars(text: str, var_map: dict[str, str]) -> str:
-    """Replace $name and ${name} references with values from var_map."""
-    if not var_map:
-        return text
-    # Longest names first to avoid $xMin matching before $xMinExtra
-    for name in sorted(var_map, key=len, reverse=True):
-        val = var_map[name]
-        text = re.sub(r'\$\{' + re.escape(name) + r'\}', val, text)
-        text = re.sub(r'\$' + re.escape(name) + r'(?!\w)', val, text)
-    return text
+    return substitute_vars(text, var_map)
 
 
 # ── hex face index table ─────────────────────────────────────────────────────

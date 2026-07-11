@@ -16,6 +16,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from model.file_list_model import _group_name, _group_sort_key
+from services.case_loader import PolyMeshInfo
 from ui.panels.file_list_panel import (
     FileListPanel,
     _EXTRA_FILE_COLOR,
@@ -25,6 +26,7 @@ from ui.panels.file_list_panel import (
     _has_unlisted_files,
     _make_header,
     _make_item,
+    _make_mesh_indicator,
     _make_time_dirs_indicator,
     display_file_name,
 )
@@ -282,6 +284,25 @@ class TestManageAndRemoveSignals:
         panel.remove_extra_file_requested.connect(received.append)
         panel.remove_extra_file_requested.emit(path)
         assert received == [path]
+
+
+# ── manual refresh ─────────────────────────────────────────────────────────────
+
+class TestRefreshRequested:
+    def test_refresh_requested_signal_defined(self, panel):
+        assert hasattr(panel, "refresh_requested")
+
+    def test_refresh_requested_emitted(self, panel):
+        received: list[bool] = []
+        panel.refresh_requested.connect(lambda: received.append(True))
+        panel.refresh_requested.emit()
+        assert received == [True]
+
+    def test_refresh_button_click_emits_signal(self, panel):
+        received: list[bool] = []
+        panel.refresh_requested.connect(lambda: received.append(True))
+        panel._refresh_btn.click()
+        assert received == [True]
 
     def test_delete_dir_requested_signal_defined(self, panel):
         assert hasattr(panel, "delete_dir_requested")
@@ -654,6 +675,89 @@ class TestTimeDirsInPanel:
         panel.load_files([path])  # no case_dir
         texts = [panel._list.item(i).text() for i in range(panel._list.count())]
         assert not any(t.startswith("Results:") for t in texts)
+
+
+# ── _make_mesh_indicator ───────────────────────────────────────────────────────
+
+class TestMakeMeshIndicator:
+    def test_label_shows_cell_count(self):
+        info = PolyMeshInfo(n_points=9261, n_cells=8000, n_faces=25200, stale=False)
+        item = _make_mesh_indicator(info)
+        assert "constant/polyMesh" in item.text()
+        assert "8,000 cells" in item.text()
+
+    def test_label_present_only_when_counts_unavailable(self):
+        info = PolyMeshInfo(n_points=None, n_cells=None, n_faces=None, stale=False)
+        item = _make_mesh_indicator(info)
+        assert "present" in item.text()
+
+    def test_stale_label_flagged(self):
+        info = PolyMeshInfo(n_points=9261, n_cells=8000, n_faces=25200, stale=True)
+        item = _make_mesh_indicator(info)
+        assert "stale" in item.text()
+
+    def test_fresh_not_flagged_stale(self):
+        info = PolyMeshInfo(n_points=9261, n_cells=8000, n_faces=25200, stale=False)
+        item = _make_mesh_indicator(info)
+        assert "stale" not in item.text()
+
+    def test_item_is_bold(self):
+        info = PolyMeshInfo(n_points=1, n_cells=1, n_faces=1, stale=False)
+        assert _make_mesh_indicator(info).font().bold()
+
+    def test_item_is_not_selectable(self):
+        info = PolyMeshInfo(n_points=1, n_cells=1, n_faces=1, stale=False)
+        item = _make_mesh_indicator(info)
+        assert not (item.flags() & Qt.ItemIsSelectable)
+
+    def test_item_is_enabled(self):
+        info = PolyMeshInfo(n_points=1, n_cells=1, n_faces=1, stale=False)
+        assert _make_mesh_indicator(info).flags() & Qt.ItemIsEnabled
+
+    def test_tooltip_shows_counts(self):
+        info = PolyMeshInfo(n_points=9261, n_cells=8000, n_faces=25200, stale=False)
+        tip = _make_mesh_indicator(info).toolTip()
+        assert "9,261" in tip
+        assert "8,000" in tip
+        assert "25,200" in tip
+
+
+# ── mesh indicator in FileListPanel.load_files ────────────────────────────────
+
+class TestMeshIndicatorInPanel:
+    def _make_case(self, tmp_path):
+        (tmp_path / "system").mkdir()
+        (tmp_path / "system" / "controlDict").write_text("", encoding="utf-8")
+        return str(tmp_path / "system" / "controlDict")
+
+    def _write_owner(self, tmp_path):
+        poly_mesh = tmp_path / "constant" / "polyMesh"
+        poly_mesh.mkdir(parents=True)
+        (poly_mesh / "owner").write_text(
+            'FoamFile\n{\n    note        "nPoints:9261  nCells:8000  nFaces:25200  nInternalFaces:22800";\n}\n',
+            encoding="utf-8",
+        )
+
+    def test_indicator_added_when_mesh_exists(self, panel, tmp_path):
+        path = self._make_case(tmp_path)
+        self._write_owner(tmp_path)
+        panel.load_files([path], case_dir=str(tmp_path))
+        texts = [panel._list.item(i).text() for i in range(panel._list.count())]
+        assert any("constant/polyMesh" in t for t in texts)
+
+    def test_indicator_not_added_when_no_mesh(self, panel, tmp_path):
+        path = self._make_case(tmp_path)
+        panel.load_files([path], case_dir=str(tmp_path))
+        texts = [panel._list.item(i).text() for i in range(panel._list.count())]
+        assert not any("constant/polyMesh" in t for t in texts)
+
+    def test_indicator_not_added_without_case_dir(self, panel, tmp_path):
+        """Without case_dir, detect_poly_mesh cannot run; no indicator shown."""
+        path = self._make_case(tmp_path)
+        self._write_owner(tmp_path)
+        panel.load_files([path])  # no case_dir
+        texts = [panel._list.item(i).text() for i in range(panel._list.count())]
+        assert not any("constant/polyMesh" in t for t in texts)
 
 
 # ── "Changed files only" diff filter ─────────────────────────────────────────

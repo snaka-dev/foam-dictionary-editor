@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
-from foam.utils import classify_parenthesized_value, classify_simple_value, is_int, is_number, parse_box_pair
+
 from foam.lexer import OpenFoamLexer
-from foam.nodes import BOOL_WORDS, FoamNode
+from foam.nodes import BOOL_WORDS, FoamNode, NodeType
+from foam.utils import classify_parenthesized_value, classify_simple_value, is_int, is_number, parse_box_pair
+
 
 class ParseError(Exception):
     pass
@@ -26,9 +28,14 @@ class OpenFoamParser:
     _FIELD_VALUE_KEYS: frozenset[str] = frozenset({"defaultFieldValues", "default", "fieldValues"})
 
     # Add new named-block entries here; _try_parse_special_parenthesized_entry needs no changes.
-    _NAMED_BLOCK_PARAMS: dict[str, tuple[str, str]] = {
+    _NAMED_BLOCK_PARAMS: dict[str, tuple[NodeType, NodeType]] = {
         "regions":  ("region_block",   "region_entry"),
         "boundary": ("boundary_block", "boundary_entry"),
+    }
+
+    # Like _NAMED_BLOCK_PARAMS but entries are anonymous dicts { ... } with no name prefix.
+    _ANONYMOUS_BLOCK_PARAMS: dict[str, tuple[NodeType, NodeType]] = {
+        "actions": ("action_list", "action_entry"),
     }
 
     def __init__(self, text: str):
@@ -170,6 +177,9 @@ class OpenFoamParser:
         params = self._NAMED_BLOCK_PARAMS.get(key)
         if params is not None:
             return self._parse_named_dict_block(key, start_index, *params)
+        params = self._ANONYMOUS_BLOCK_PARAMS.get(key)
+        if params is not None:
+            return self._parse_anonymous_dict_block(key, start_index, *params)
         return None
 
     def _parse_field_value_block_entry(self, key: str, start_index: int) -> FoamNode:
@@ -221,7 +231,7 @@ class OpenFoamParser:
         )
 
     def _parse_named_dict_block(
-        self, key: str, start_index: int, block_type: str, entry_type: str,
+        self, key: str, start_index: int, block_type: NodeType, entry_type: NodeType,
     ) -> FoamNode:
         self._expect("LPAREN")
         node = FoamNode(name=key, node_type=block_type)
@@ -246,6 +256,36 @@ class OpenFoamParser:
             entry_node = self._parse_dictionary_entry(entry_name, self.index - 1)
             entry_node.leading_trivia = inner_trivia
             entry_node.node_type = entry_type
+            node.add_child(entry_node)
+
+        self._expect("RPAREN")
+        self._expect("SEMICOLON")
+
+        return self._finalize_node(node, start_index)
+
+    def _parse_anonymous_dict_block(
+        self, key: str, start_index: int, block_type: NodeType, entry_type: NodeType,
+    ) -> FoamNode:
+        self._expect("LPAREN")
+        node = FoamNode(name=key, node_type=block_type)
+
+        while True:
+            inner_trivia = self._collect_trivia()
+
+            if self._check("RPAREN"):
+                break
+            if self._check("EOF"):
+                raise ParseError(f"unexpected EOF while parsing {key!r} block")
+
+            if not self._check("LBRACE"):
+                raise ParseError(
+                    f"expected LBRACE in {key!r} anonymous-dict block "
+                    f"but got {self.tokens[self.index].kind} at {self.tokens[self.index].pos}"
+                )
+
+            entry_node = self._parse_dictionary_entry("", self.index)
+            entry_node.node_type = entry_type
+            entry_node.leading_trivia = inner_trivia
             node.add_child(entry_node)
 
         self._expect("RPAREN")
@@ -324,7 +364,7 @@ class OpenFoamParser:
         raise ParseError(f"unexpected token {tok.kind} at {tok.pos} while parsing key")
 
     def _read_value_text_until_semicolon(self) -> str:
-        parts = []
+        parts: list[str] = []
         depth = 0
 
         while True:
@@ -384,7 +424,7 @@ class OpenFoamParser:
             raise ParseError("empty value before semicolon")
         return " ".join(text.split())
 
-    def _classify_value(self, key: str, text: str):
+    def _classify_value(self, key: str, text: str) -> tuple[NodeType, object]:
         if key == "box":
             box_pair = parse_box_pair(text)
             if box_pair is not None:

@@ -19,3 +19,7 @@ SPLITTER_COMPARISON_WIDTH = 400
 
 # ── Well-known file names ───────────────────────────────────────────────────
 BLOCKMESH_DICT_NAME = "blockMeshDict"
+TOPOSET_DICT_NAME = "topoSetDict"
+
+# ── Tree view ────────────────────────────────────────────────────────────────
+TREE_EXPAND_DEPTH = 2

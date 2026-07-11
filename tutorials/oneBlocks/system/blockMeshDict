@@ -1,0 +1,93 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2512                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      blockMeshDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+scale   1;
+
+vertices
+(
+    // zMin surface
+    (-1 -1 -1)  // v01
+    ( 1 -1 -1)  // v02
+    ( 1  1 -1)  // v03
+    (-1  1 -1)  // v04
+
+    // zMax surface
+    (-1 -1  1)  // v05
+    ( 1 -1  1)  // v06
+    ( 1  1  1)  // v07
+    (-1  1  1)  // v08
+);
+
+blocks
+(
+    hex (0 1 2 3 4 5 6 7) (10 10 10) grading (1 1 1)
+);
+
+edges ( );
+
+boundary
+(
+    xMin
+    {
+        type patch;
+        faces
+        (
+            ( 0 4 7 3 ) //(0 0)
+        );
+    }
+    xMax
+    {
+        type patch;
+        faces
+        (
+            ( 1 2 6 5 ) //(0 1)
+        );
+    }
+    yMin
+    {
+        type patch;
+        faces
+        (
+            ( 0 1 5 4 ) //(0 2)
+        );
+    }
+    yMax
+    {
+        type patch;
+        faces
+        (
+            ( 2 3 7 6 ) //(0 3)
+        );
+    }
+    zMin
+    {
+        type patch;
+        faces
+        (
+            ( 0 1 2 3 ) //(0 4)
+        );
+    }
+    zMax
+    {
+        type patch;
+        faces
+        (
+            ( 4 5 6 7) //(0 5)
+        );
+    }
+);
+
+// ************************************************************************* //

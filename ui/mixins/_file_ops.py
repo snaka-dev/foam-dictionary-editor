@@ -17,6 +17,7 @@ from services.case_loader import FIELD_DIRS, list_case_files
 from ui.panels.file_list_panel import display_file_name
 from ui.layout_constants import (
     BLOCKMESH_DICT_NAME as _BLOCKMESH_DICT_NAME,
+    TOPOSET_DICT_NAME as _TOPOSET_DICT_NAME,
     STATUS_NORMAL as _STATUS_NORMAL,
     STATUS_WARNING as _STATUS_WARNING,
     STATUS_SHORT as _STATUS_SHORT,
@@ -33,6 +34,13 @@ class _FileOpsMixin:
         self.state.case_files_config = CaseFilesConfig(directory)
         self._update_case_label()
 
+        if self._case_dir_watcher.directories():
+            self._case_dir_watcher.removePaths(self._case_dir_watcher.directories())
+        self._case_dir_watcher.addPath(directory)
+        constant_dir = str(Path(directory) / "constant")
+        if Path(constant_dir).is_dir():
+            self._case_dir_watcher.addPath(constant_dir)
+
         extra = self.state.case_files_config.get_extra_files() or None
         extra_dirs = self.state.case_files_config.get_extra_dirs() or None
         paths = list_case_files(directory, extra, extra_dirs)
@@ -44,6 +52,8 @@ class _FileOpsMixin:
         self.state.file_buffers.clear()
         self.state.file_dirty.clear()
         self.state.parsed_roots.clear()
+        if self.block_mesh_panel is not None:
+            self.block_mesh_panel._topo_shapes = []
         self._clear_current_file()
         if self.terminal_panel is not None:
             self.terminal_panel.set_working_directory(directory)
@@ -69,6 +79,9 @@ class _FileOpsMixin:
         if self.state.current_file:
             self.file_list_panel.select_file(self.state.current_file)
 
+    def _on_case_dir_changed_on_disk(self, path: str) -> None:
+        self._file_list_refresh_timer.start()
+
     # ── load / save ───────────────────────────────────────────────────────────
 
     def _parse_and_update(self, path: str, text: str) -> OpenFoamParser:
@@ -80,6 +93,8 @@ class _FileOpsMixin:
         self.boundary_panel.update_field(path, root)
         if self.block_mesh_panel is not None and Path(path).name == _BLOCKMESH_DICT_NAME:
             self.block_mesh_panel.update_block_mesh(path, root)
+        if self.block_mesh_panel is not None and Path(path).name == _TOPOSET_DICT_NAME:
+            self.block_mesh_panel.update_topo_set(path, root)
         self._update_bm_side_by_side_btn()
         return _parser
 
@@ -165,6 +180,7 @@ class _FileOpsMixin:
             self._update_window_title()
             self._update_file_label()
             self.file_list_panel.mark_dirty(self.state.current_file, False)
+            self._reload_file_list()
             self.statusBar().showMessage(tr("Saved: {path}").format(path=self.state.current_file), _STATUS_NORMAL)
 
             try:
@@ -210,6 +226,9 @@ class _FileOpsMixin:
                 saved.append(path)
             except Exception as e:
                 failed.append((path, str(e)))
+
+        if saved:
+            self._reload_file_list()
 
         if self.state.current_file in saved:
             self.state.text_dirty = False

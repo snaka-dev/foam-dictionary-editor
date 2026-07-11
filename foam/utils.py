@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from foam.nodes import NodeType
 
 SCALAR_FORMAT_PRECISION = 12
 
@@ -110,7 +111,7 @@ def parse_box_pair(text: str) -> list[list[float]] | None:
     return vectors
 
 
-def classify_parenthesized_value(text: str) -> tuple[str, object]:
+def classify_parenthesized_value(text: str) -> tuple[NodeType, object]:
     """Classify '(...)' text into (node_type, value). text must already be stripped."""
     inner = text[1:-1].strip()
     if not inner:
@@ -125,7 +126,7 @@ def classify_parenthesized_value(text: str) -> tuple[str, object]:
     return "raw_list", inner
 
 
-def classify_simple_value(text: str) -> tuple[str, object]:
+def classify_simple_value(text: str) -> tuple[NodeType, object]:
     """Classify a normalised scalar/vector/list value text into (node_type, value)."""
     text = text.strip()
     if text.startswith("(") and text.endswith(")"):
@@ -137,7 +138,7 @@ def classify_simple_value(text: str) -> tuple[str, object]:
     return "word", text
 
 
-def format_embedded_value(value_type: str, value, raw_value) -> str:
+def format_embedded_value(value_type: NodeType, value, raw_value) -> str:
     if value_type in {"vector", "scalar_list"}:
         return "(" + " ".join(format_scalar(x) for x in value) + ")"
     if value_type == "int_list":

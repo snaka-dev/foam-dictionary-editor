@@ -11,6 +11,14 @@ from services.case_files_config import CaseFilesConfig
 
 
 @dataclasses.dataclass
+class FoamMonitorState:
+    proc: subprocess.Popen | None = None
+    script_tmp: str | None = None
+    last_file: str = ""
+    last_options: dict = dataclasses.field(default_factory=dict)
+
+
+@dataclasses.dataclass
 class AppState:
     """Centralised shared state for a MainWindow session.
 
@@ -45,10 +53,7 @@ class AppState:
     diff_parsed_roots: dict[str, FoamNode] = dataclasses.field(default_factory=dict)
 
     # ── foamMonitor state ─────────────────────────────────────────────────────
-    foam_monitor_proc: subprocess.Popen | None = None
-    foam_monitor_script_tmp: str | None = None
-    foam_monitor_last_file: str = ""
-    foam_monitor_last_options: dict = dataclasses.field(default_factory=dict)
+    foam_monitor: FoamMonitorState = dataclasses.field(default_factory=FoamMonitorState)
 
     # ── panel state ───────────────────────────────────────────────────────────
     bm_side_by_side: bool = False

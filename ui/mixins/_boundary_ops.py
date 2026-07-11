@@ -7,11 +7,11 @@ from pathlib import Path
 from PySide6.QtWidgets import QDialog, QMessageBox
 
 from foam.nodes import FoamNode
-from foam.parser import OpenFoamParser
-from foam.utils import read_foam_file
-from foam.writer import write_root
+from model.boundary_model import extract_boundary
 from services.case_loader import FIELD_DIRS
 from i18n import tr
+from ui.dialogs.boundary_edit_dialog import BoundaryEditDialog, _parse_patch_content, _patch_inner_text
+from ui.dialogs.rename_boundary_dialog import RenameBoundaryDialog, find_rename_targets
 from ui.layout_constants import (
     STATUS_NORMAL as _STATUS_NORMAL,
     STATUS_SHORT as _STATUS_SHORT,
@@ -36,20 +36,6 @@ class _BoundaryOpsMixin:
                 if sub.is_dir() and any(f.is_file() for f in sub.iterdir()):
                     result.append(f"{base}/{sub.name}")
         return result
-
-    def _cache_parsed_root(self, path: str) -> FoamNode | None:
-        text = self.state.file_buffers.get(path)
-        if text is None:
-            try:
-                text = read_foam_file(path)
-            except OSError:
-                return None
-        try:
-            root = OpenFoamParser(text).parse()
-            self.state.parsed_roots[path] = root
-            return root
-        except Exception:
-            return None
 
     def _reload_boundary_panel(self) -> None:
         if not self.state.current_case_dir:
@@ -86,14 +72,11 @@ class _BoundaryOpsMixin:
     # ── patch edit signals ────────────────────────────────────────────────────
 
     def _on_patch_edit_requested(self, path: str, patch_name: str, patch_node: object) -> None:
-        from ui.dialogs.boundary_edit_dialog import BoundaryEditDialog, _parse_patch_content, _patch_inner_text
-        from ui.panels.boundary_view_panel import _extract_boundary
-
         root = self.state.parsed_roots.get(path)
         if root is None:
             return
 
-        live_patch = _extract_boundary(root).get(patch_name)
+        live_patch = extract_boundary(root).get(patch_name)
         if live_patch is None:
             QMessageBox.warning(
                 self, tr("Boundary Not Found"),
@@ -136,9 +119,6 @@ class _BoundaryOpsMixin:
         self.statusBar().showMessage(tr("Boundary updated: {file} / {patch}").format(file=Path(path).name, patch=patch_name), _STATUS_SHORT)
 
     def _on_patch_create_requested(self, path: str, patch_name: str) -> None:
-        from ui.dialogs.boundary_edit_dialog import BoundaryEditDialog, _parse_patch_content
-        from ui.panels.boundary_view_panel import _extract_boundary
-
         root = self.state.parsed_roots.get(path)
         if root is None:
             return
@@ -179,9 +159,6 @@ class _BoundaryOpsMixin:
         self.statusBar().showMessage(tr("Created boundary: {field} / {patch}").format(field=field_name, patch=patch_name), _STATUS_SHORT)
 
     def _on_patch_paste_requested(self, path: str, patch_name: str, content: str) -> None:
-        from ui.dialogs.boundary_edit_dialog import _parse_patch_content
-        from ui.panels.boundary_view_panel import _extract_boundary
-
         root = self.state.parsed_roots.get(path)
         if root is None:
             return
@@ -191,7 +168,7 @@ class _BoundaryOpsMixin:
             QMessageBox.warning(self, tr("Paste Error"), tr("Could not parse copied content:\n{e}").format(e=e))
             return
 
-        live_patch = _extract_boundary(root).get(patch_name)
+        live_patch = extract_boundary(root).get(patch_name)
         if live_patch is None:
             boundary_field = next(
                 (n for n in root.children if n.name == "boundaryField" and n.node_type == "dictionary"),
@@ -216,8 +193,6 @@ class _BoundaryOpsMixin:
         self.statusBar().showMessage(tr("Pasted to {file} / {patch}").format(file=Path(path).name, patch=patch_name), _STATUS_SHORT)
 
     def _on_patch_delete_requested(self, path: str, patch_name: str) -> None:
-        from ui.panels.boundary_view_panel import _extract_boundary
-
         root = self.state.parsed_roots.get(path)
         if root is None:
             return
@@ -239,8 +214,6 @@ class _BoundaryOpsMixin:
         self.statusBar().showMessage(tr("Deleted boundary: {file} / {patch}").format(file=Path(path).name, patch=patch_name), _STATUS_SHORT)
 
     def _on_rename_boundary_by_name(self, old_name: str) -> None:
-        from ui.dialogs.rename_boundary_dialog import RenameBoundaryDialog, find_rename_targets
-
         # Ensure all loaded files are parsed
         for path in list(self.state.file_buffers):
             if path not in self.state.parsed_roots:
@@ -281,21 +254,17 @@ class _BoundaryOpsMixin:
             self.file_list_panel.select_file(path)
         self.editor_panel.jump_to_text(patch_name)
 
-    def _apply_boundary_root_change(self, path: str, root) -> None:
-        text = write_root(root)
-        self.state.file_buffers[path] = text
-        self._mark_path_dirty(path)
+    def _apply_boundary_root_change(self, path: str, root: FoamNode) -> None:
+        text = self._write_root_to_buffer(path, root)
         if path == self.state.current_file:
             self.editor_panel.set_text(text)
             self._load_tree(root)
         self.boundary_panel.update_field(path, root)
 
     def _on_patch_delete_all_requested(self, patch_name: str) -> None:
-        from ui.panels.boundary_view_panel import _extract_boundary
-
         affected = [
             path for path, root in self.state.parsed_roots.items()
-            if patch_name in _extract_boundary(root)
+            if patch_name in extract_boundary(root)
         ]
         if not affected:
             return
@@ -330,11 +299,9 @@ class _BoundaryOpsMixin:
         self.statusBar().showMessage(tr("Deleted BoundaryField '{patch}' from {n} file(s).").format(patch=patch_name, n=len(affected)), _STATUS_SHORT)
 
     def _on_patch_add_all_requested(self, patch_name: str) -> None:
-        from ui.panels.boundary_view_panel import _extract_boundary
-
         targets = [
             path for path, root in self.state.parsed_roots.items()
-            if patch_name not in _extract_boundary(root)
+            if patch_name not in extract_boundary(root)
             and any(
                 n.name == "boundaryField" and n.node_type == "dictionary"
                 for n in root.children

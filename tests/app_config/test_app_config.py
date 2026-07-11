@@ -509,3 +509,15 @@ class TestFeatureFlags:
         config_path.write_text("{ broken", encoding="utf-8")
         mgr = AppConfigManager(config_path=str(config_path))
         assert mgr.get_feature("terminal") is True
+
+    def test_set_feature(self, config_path):
+        mgr = AppConfigManager(config_path=str(config_path))
+        mgr.set_feature("syntax_highlighting", False)
+        assert mgr.get_feature("syntax_highlighting") is False
+
+    def test_set_feature_persists_after_save_reload(self, config_path):
+        mgr1 = AppConfigManager(config_path=str(config_path))
+        mgr1.set_feature("syntax_highlighting", False)
+        mgr1.save()
+        mgr2 = AppConfigManager(config_path=str(config_path))
+        assert mgr2.get_feature("syntax_highlighting") is False

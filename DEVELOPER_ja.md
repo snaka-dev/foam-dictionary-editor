@@ -70,9 +70,10 @@ foam-dictionary-editor/
 │   │   ├── _file_ops.py            # Mixin: ファイルの読み込み・保存、ディレクトリスキャンヘルパー
 │   │   ├── _foam_monitor_ops.py    # Mixin: foamMonitor の起動・停止・ポーリング、gnuplot reread パッチ
 │   │   ├── _panel_ops.py           # Mixin: BlockMesh パネルおよびターミナルモード切替ハンドラ
+│   │   ├── _state_ops.py           # Mixin: 共通ヘルパー — バッファ・ツリー状態、ダーティ追跡、パースキャッシュ、ラベル更新、ヘルプダイアログ
 │   │   └── _tree_ops.py            # Mixin: ツリー編集、エディタ↔ツリー同期、_apply_comparison_value
 │   ├── layout_constants.py
-│   ├── main_window.py          # コア: __init__、_build_ui とサブビルダー、共通ヘルパー、ドラッグ＆ドロップ（dragEnterEvent/dropEvent/eventFilter）
+│   ├── main_window.py          # コア: __init__、_build_ui とサブビルダー、ドラッグ＆ドロップ（dragEnterEvent/dropEvent/eventFilter）
 │   ├── dialogs/
 │   │   ├── about_dialog.py
 │   │   ├── add_files_dialog.py
@@ -139,7 +140,7 @@ foam-dictionary-editor/
         └── test_schemas.py
 ```
 
-`test_utils.py` は `is_large_non_foam_file` を検証します（小さいファイルはヘッダーの有無にかかわらずフラグが立たないこと、最初の 512 バイト内に `FoamFile` トークンを含む大きいファイルはフラグが立たないこと、含まない大きいファイルはフラグが立つこと、存在しないファイルは `(False, 0)` を返すこと、コメントの後にヘッダーがある場合も正しく検出されることを含む）。`test_diff.py` は `diff_trees` と `diff_trees_reverse` を検証します（同一ツリー、値の変更、片方のみに存在するキー、ネストした辞書、匿名ノードのスキップ、`field_value_block` エントリ、両関数の対称性を含む）。`FoamNode` は `__hash__ = object.__hash__` を持ち、差分マップのキーとして使用可能です。`test_comparison_tree_panel.py` は `ComparisonTreePanel` を検証します（`load` でヘッダーラベルを設定しプロキシを更新して FoamFile ノードを折りたたみ Type 列の表示を再適用すること、`clear` でモデルとヘッダーをリセットすること、`set_type_column_visible` で Type 列の表示を切り替え `load` をまたいで状態が維持されること、`use_value_requested` シグナルが接続可能なことを含む）。`test_tree_model.py` は `set_diff(reverse=True)` を検証します（`"only_here"` を `"only_in_ref"` にリマップし `"changed"` は変更しないこと、淡緑色の `BackgroundRole` を返すこと、`"only in reference case"` をツールチップに含むことを含む）。`test_file_list_panel.py` は差分フィルターを検証します（`set_diff_filter_enabled` でチェックボックスの表示・非表示・チェック解除、フィルターが差分件数 0 のファイルアイテムを非表示にしヘッダーは常に表示、`mark_diff` がフィルター有効時に即座にアイテムの表示を更新することを含む）。`test_case_loader.py` は `detect_time_dirs` と `TestExtraDirs`（フラット・再帰スキャン、存在しないディレクトリの許容、重複排除）を検証します。`test_case_files_config.py` は `TestCaseFilesConfigDirs`（`DirEntry` の追加・削除・インプレース更新、プレーン文字列 JSON の後方互換ロード、設定リセット）を検証します。`test_main_window_split.py` は Mixin 構造を検証します（各 Mixin が正しいメソッドを保有し（`_BoundaryOpsMixin` の `_on_patch_selected`、`_TreeOpsMixin` の `_apply_comparison_value`、`_FoamMonitorOpsMixin` の foamMonitor 関連メソッドを含む）、Mixin 間の重複がなく、`MainWindow` がすべての Mixin を継承していることを確認します）。`test_bool_nonuniform.py` は bool/nonuniform_list のパースとパースエラー収集を検証します。`test_tree_color_lexer_dispatch.py` は `unknown_raw_entry` の琥珀色表示、レキサーの `//` 挙動、パーサの `_PAREN_DISPATCH` テーブルを検証します。`test_source_lines.py` はすべてのノード型に対する `source_line` および `source_end_line` の設定を検証します。`test_parser_block_mesh_dict.py` は `boundary_block`/`boundary_entry` の構造的パース、ライタの round-trip、`blockMeshDict` に対する `extract_block_mesh_data` の出力、変数解決（`$varName`、`${varName}`、マクロ参照、`-$xMax` のような否定マクロ word ノード、`#eval{ expr }` 算術式、多段依存チェーン）、コンパクト `(blockIndex, faceIndex)` 境界面記法（4 頂点リストへの展開、否定マクロ頂点変数との組み合わせを含む）を検証します。`test_rename_boundary.py` は `find_rename_targets()` を検証します（`blockMeshDict` 内の `boundary_entry` ノードおよび `boundaryField` ブロック内のパッチ `dictionary` ノードの検出、無関係な辞書への誤検出なし、空入力のエッジケースを含む）。
+`test_utils.py` は `is_large_non_foam_file` を検証します（小さいファイルはヘッダーの有無にかかわらずフラグが立たないこと、最初の 512 バイト内に `FoamFile` トークンを含む大きいファイルはフラグが立たないこと、含まない大きいファイルはフラグが立つこと、存在しないファイルは `(False, 0)` を返すこと、コメントの後にヘッダーがある場合も正しく検出されることを含む）。`test_diff.py` は `diff_trees` と `diff_trees_reverse` を検証します（同一ツリー、値の変更、片方のみに存在するキー、ネストした辞書、匿名ノードのスキップ、`field_value_block` エントリ、両関数の対称性を含む）。`FoamNode` は `__hash__ = object.__hash__` を持ち、差分マップのキーとして使用可能です。`test_comparison_tree_panel.py` は `ComparisonTreePanel` を検証します（`load` でヘッダーラベルを設定しプロキシを更新して FoamFile ノードを折りたたみ Type 列の表示を再適用すること、`clear` でモデルとヘッダーをリセットすること、`set_type_column_visible` で Type 列の表示を切り替え `load` をまたいで状態が維持されること、`use_value_requested` シグナルが接続可能なことを含む）。`test_tree_model.py` は `set_diff(reverse=True)` を検証します（`"only_here"` を `"only_in_ref"` にリマップし `"changed"` は変更しないこと、淡緑色の `BackgroundRole` を返すこと、`"only in reference case"` をツールチップに含むことを含む）。`test_file_list_panel.py` は差分フィルターを検証します（`set_diff_filter_enabled` でチェックボックスの表示・非表示・チェック解除、フィルターが差分件数 0 のファイルアイテムを非表示にしヘッダーは常に表示、`mark_diff` がフィルター有効時に即座にアイテムの表示を更新することを含む）。`test_case_loader.py` は `detect_time_dirs` と `TestExtraDirs`（フラット・再帰スキャン、存在しないディレクトリの許容、重複排除）を検証します。`test_case_files_config.py` は `TestCaseFilesConfigDirs`（`DirEntry` の追加・削除・インプレース更新、プレーン文字列 JSON の後方互換ロード、設定リセット）を検証します。`test_main_window_split.py` は Mixin 構造を検証します（各 Mixin が正しいメソッドを保有し（`_BoundaryOpsMixin` の `_on_patch_selected`、`_TreeOpsMixin` の `_apply_comparison_value`、`_FoamMonitorOpsMixin` の foamMonitor 関連メソッドを含む）、Mixin 間の重複がなく、`MainWindow` がすべての Mixin を継承していることを確認します）。`test_bool_nonuniform.py` は bool/nonuniform_list のパースとパースエラー収集を検証します。`test_tree_color_lexer_dispatch.py` は `unknown_raw_entry` の琥珀色表示、レキサーの `//` 挙動、パーサの `_PAREN_DISPATCH` テーブルを検証します。`test_source_lines.py` はすべてのノード型に対する `source_line` および `source_end_line` の設定を検証します。`test_parser_block_mesh_dict.py` は `boundary_block`/`boundary_entry` の構造的パース、ライタの round-trip、`blockMeshDict` に対する `extract_block_mesh_data` の出力、変数解決（`$varName`、`${varName}`、マクロ参照、`-$xMax` のような否定マクロ word ノード、`#eval{ expr }` 算術式、多段依存チェーン）、コンパクト `(blockIndex, faceIndex)` 境界面記法（4 頂点リストへの展開、否定マクロ頂点変数との組み合わせを含む）を検証します。`test_rename_boundary.py` は `find_rename_targets()` を検証します（`blockMeshDict` 内の `boundary_entry` ノードおよび `boundaryField` ブロック内のパッチ `dictionary` ノードの検出、無関係な辞書への誤検出なし、空入力のエッジケースを含む）。`test_parser_topo_set_dict.py` は `action_list`/`action_entry` の構造的パースを検証します（ノード型、エントリ数、名前付き子ノードの値、`box_pair` 座標、ソースなしエントリ、round-trip 書き込み、`_diff_action_list` による位置ベースの差分検出を含む）。
 
 ## パーサとデータモデル
 
@@ -174,6 +175,8 @@ foam-dictionary-editor/
 | `region_entry` | `region_block` 内の名前付き `{ … }` エントリ |
 | `boundary_block` | `blockMeshDict` の `boundary ( … );` |
 | `boundary_entry` | `boundary_block` 内の名前付き `{ … }` エントリ |
+| `action_list` | `topoSetDict` の `actions ( … );`; `value=None`、子ノードは `action_entry` |
+| `action_entry` | `action_list` 内の無名 `{ … }` ブロック; `name=""`、子ノードは辞書エントリ |
 | `directive_entry` | `#include`、`#inputMode` など。`name=""` |
 | `macro_entry` | 単独の `$macro;`。`name=""` |
 | `unknown_raw_entry` | パース失敗時のフォールバック。生テキストが `value` に逐語的に保持される |
@@ -317,10 +320,11 @@ _RECURSE_TYPES = frozenset({
     "boundary_block", "boundary_entry",
     "region_block", "region_entry",
     "field_value_block",
+    "action_list",
 })
 ```
 
-子ノードは `node.name` で照合します。無名ノード（`name` が空）はスキップします。`field_value_block` については `_diff_field_value_block` が `node.value` の `field_name` でアイテムを照合します（[`field_value_block` の子ノードが `value` に格納される](#field_value_block-の子ノードが-value-に格納される)と同じレイアウト）。
+子ノードは `node.name` で照合します。無名ノード（`name` が空）はスキップします。`field_value_block` については `_diff_field_value_block` が `node.value` の `field_name` でアイテムを照合します（[`field_value_block` の子ノードが `value` に格納される](#field_value_block-の子ノードが-value-に格納される)と同じレイアウト）。`action_list` については `_diff_action_list` が `action_entry` の子ノードを**インデックス順（位置）** で照合し、各エントリの名前付きサブエントリをキーで比較します。`action_entry` ノード自体は無名（`name=""`）のため名前で照合できません。
 
 等値は `_equal(a, b)` で判定します: `a.node_type == b.node_type and a.value == b.value` のとき `True`。
 
@@ -461,9 +465,9 @@ Boundary パネルツールバーの **Auto-scroll editor** チェックボッ�
 - `state.text_dirty: bool` — 現在開いているファイルのインメモリエディタ内容がディスク上のものと異なるかどうか。`_mark_dirty()` で設定され、`save_file()`、Apply Text to Tree、Reload from Disk でクリアされます。
 - `state.file_dirty: dict[str, bool]` — 現在のセッションで読み込まれたすべてのファイルのファイルごとのダーティ状態。ファイルを切り替えても未保存の編集が失われないよう、ファイルスイッチをまたいで保持されます。
 
-`_mark_dirty()`（`ui/main_window.py:566`）は両方の値を `True` に設定し、ウィンドウタイトルに `*` サフィックスを追加し、`file_list_panel.mark_dirty()` を呼び出してファイルリストにインジケーターを表示します。これは `_after_model_edit()`（`write_root()` 経由でテキストを再生成するツリー編集後）と `_on_user_text_changed()`（エディタへの人間によるキー入力時）から呼び出されます。
+`_mark_dirty()`（`ui/mixins/_state_ops.py:143`）は両方の値を `True` に設定し、ウィンドウタイトルに `*` サフィックスを追加し、`file_list_panel.mark_dirty()` を呼び出してファイルリストにインジケーターを表示します。これは `_after_model_edit()`（`write_root()` 経由でテキストを再生成するツリー編集後）と `_on_user_text_changed()`（エディタへの人間によるキー入力時）から呼び出されます。
 
-`_save_current_buffer()`（`ui/main_window.py:520`）はファイルスイッチ前に `editor_panel.get_text()` を `state.file_buffers[state.current_file]` へフラッシュし、`state.text_dirty` を `state.file_dirty[state.current_file]` に書き戻します。これにより、スイッチをまたいでも未保存の編集がインメモリで保持されます。
+`_save_current_buffer()`（`ui/mixins/_state_ops.py:72`）はファイルスイッチ前に `editor_panel.get_text()` を `state.file_buffers[state.current_file]` へフラッシュし、`state.text_dirty` を `state.file_dirty[state.current_file]` に書き戻します。これにより、スイッチをまたいでも未保存の編集がインメモリで保持されます。
 
 `_mark_path_dirty(path)` は現在開いているファイルに関係なく特定のパスをダーティとしてマークします。複数のフィールドファイルにわたって境界パッチをリネームするような操作で使用されます。
 
@@ -490,6 +494,24 @@ python3 -m pytest -q
 ```
 
 `pytest -q` だと import 周りで問題が出る場合は、プロジェクトルートの扱いが安定しやすい `python3 -m pytest -q` を使う方が安全です。
+
+`tests/test_lint.py` はテストスイートの一部として `ruff` と `mypy` を実行するため（後述）、`pytest -q` を実行するだけで lint / 型チェックの regression も検出できます。
+
+## Lint と型チェック
+
+設定は `pyproject.toml` にあります。`ruff` にはリポジトリ全体を対象とする `include`/`exclude` 制限はありませんが、現時点でクリーンなのは `foam/` と `model/` のみです（それ以外、特に `ui/` には未整理の既存違反があります）。そのためスコープを指定して実行します。
+
+```bash
+ruff check foam model
+```
+
+`mypy` は `pyproject.toml` の `[tool.mypy] files` で `foam/` と `model/` に明示的にスコープされています。静的型付けの効果が最も高い、ほぼ純粋な Python 層だからです。`ui/` は対象外です。PySide6 のスタブは UI 層全体で使われているフラット化された enum アクセス（`Qt.Horizontal` など。完全修飾形は `Qt.Orientation.Horizontal`）を認識せず、含めると大量の誤検出が発生するためです。
+
+```bash
+mypy
+```
+
+`foam/nodes.py` の `NodeType` という `Literal` が、有効な `node_type` 値の確定的な一覧です。この集合に含まれない値への代入や比較は `mypy` が検出します。各値の意味は上記の「ノード型」セクションを参照してください。
 
 ## 謝辞
 

@@ -1,10 +1,19 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
+
 from PySide6.QtCore import QAbstractItemModel, QModelIndex, Qt, Signal
 from PySide6.QtGui import QBrush, QColor
-from foam.utils import classify_simple_value, format_embedded_value, format_scalar, is_int, is_number, parse_box_pair
-from foam.nodes import BOOL_WORDS, FoamNode, NON_KEY_EDITABLE, STRING_TYPES
+
+from foam.nodes import BOOL_WORDS, NON_KEY_EDITABLE, STRING_TYPES, FoamNode
+from foam.utils import (
+    classify_simple_value,
+    format_embedded_value,
+    format_scalar,
+    is_int,
+    is_number,
+    parse_box_pair,
+)
 
 
 class FoamTreeModel(QAbstractItemModel):
@@ -25,7 +34,7 @@ class FoamTreeModel(QAbstractItemModel):
     def __init__(self, root: FoamNode, parent=None):
         super().__init__(parent)
         self.root = root
-        self._diff: "dict[FoamNode, tuple[str, FoamNode | None]] | None" = None
+        self._diff: dict[FoamNode, tuple[str, FoamNode | None]] | None = None
         self._attach_parents(self.root, None)
 
     def columnCount(self, parent=QModelIndex()):
@@ -186,7 +195,7 @@ class FoamTreeModel(QAbstractItemModel):
 
     def set_diff(
         self,
-        diff: "dict[FoamNode, tuple[str, FoamNode | None]]",
+        diff: dict[FoamNode, tuple[str, FoamNode | None]],
         *,
         reverse: bool = False,
     ) -> None:
@@ -212,7 +221,7 @@ class FoamTreeModel(QAbstractItemModel):
         self.dataChanged.emit(
             self.index(0, 0, parent),
             self.index(n - 1, self.COL_VALUE, parent),
-            [Qt.BackgroundRole],
+            [Qt.ItemDataRole.BackgroundRole],
         )
         for row in range(n):
             self._emit_datachanged_recursive(self.index(row, 0, parent))
@@ -279,8 +288,8 @@ class FoamTreeModel(QAbstractItemModel):
         if t == "nonuniform_list":
             parts = str(node.value).split(None, 3)
             list_type = parts[1] if len(parts) > 1 else "List"
-            count = parts[2] if len(parts) > 2 and parts[2] != "(" else "?"
-            return f"nonuniform {list_type} ({count} values)"
+            count_str = parts[2] if len(parts) > 2 and parts[2] != "(" else "?"
+            return f"nonuniform {list_type} ({count_str} values)"
 
         if t in {"directive_entry", "unknown_raw_entry", "macro_entry"}:
             return str(node.value)
@@ -311,10 +320,13 @@ class FoamTreeModel(QAbstractItemModel):
     def _tooltip(self, node: FoamNode) -> str:
         if node.node_type == "field_value":
             data = node.value
+            value_str = format_embedded_value(
+                data.get("value_type"), data.get("value"), data.get("raw_value")
+            )
             return (
                 f"type: {data.get('field_type', '')}\n"
                 f"field: {data.get('field_name', '')}\n"
-                f"value: {format_embedded_value(data.get('value_type'), data.get('value'), data.get('raw_value'))}"
+                f"value: {value_str}"
             )
 
         if node.node_type == "directive_entry":

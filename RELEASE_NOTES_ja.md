@@ -1,5 +1,40 @@
 # リリースノート
 
+## v1.7.0 — 2026-07-04
+
+### 新機能
+
+- **`topoSetDict` の `actions` ブロック**を、不透明な生テキストではなく構造化ツリーとしてパースするようになりました。各無名 `{ … }` エントリが `action_entry` ノードになり、その子ノード（`name`、`type`、`action`、`source`、`box`、`set` など）をツリービューで個別に表示・編集できます。差分比較はアクションエントリを位置ベースで照合します。
+- **テキストエディタのシンタックスハイライト** — プレーンテキストエディタで OpenFOAM 辞書ファイルのトークンが色付けされるようになりました: `//` および `/* */` コメント（グレー・斜体）、文字列リテラル（緑）、`#ディレクティブ`（紫・太字）、`$マクロ` 参照（オレンジ）、`FoamFile`・`true`/`false`・`uniform`・`nonuniform` などの予約済みキーワード（青・太字）、数値（ティール）。PySide6 組み込みの `QSyntaxHighlighter` を使用しており、新たな依存関係はありません。
+- **テキストエディタのコード折りたたみ** — 複数行にまたがる `{ … }` ブロックに加え、2 行以上連続するコメント行（複数行の `/* … */` ブロックや連続する `//` 行）ごとに、行番号ガターにクリック可能な ▾/▶ 三角形が表示されるようになりました。三角形をクリックすると領域の折りたたみ・展開を切り替えられます。ファイルを読み込むと `FoamFile { … }` ヘッダーとファイル先頭のコメントバナーはどちらも自動的に折りたたまれます。折りたたみは表示のみの操作で、テキスト本文は変更されません。
+- **BlockMesh 3-D パネルへの `topoSetDict` ジオメトリの表示** — `topoSetDict` を読み込んだり編集したりすると、各アクションのジオメトリソースが 3-D パネルにオーバーレイ表示されるようになりました。対応ソースタイプ: `boxToCell/Face/Point`（ボックス）、`sphereToCell/Face/Point`（球）、`cylinderToCell/Face/Point/AnnulusToCell`（円柱）、`coneToCell/Face/Point` および `coneAnnulusToCell`（円錐台。`radius2` が 0 のときは真円錐）。円柱・円錐では、新しい `point1`/`point2` と旧来の `p1`/`p2` の両方の軸点キー名を受け付けます。シェイプはアクション種別で色分けされます（`new` = スチールブルー、`add` = 緑、`subtract`/`delete` = 赤、`subset` = 紫、`invert` = ゴールド）。半透明で描画されるため、下地のメッシュも視認できます。パネルツールバーの **「topoSet ▾」** メニューでオーバーレイ全体の表示・非表示を切り替えられるほか、各シェイプ（アクションごとに `name · source` で一覧表示）を個別に表示・非表示できます。`topoSetDict` のトップレベルに定義した `$変数` および `#eval{ 式 }` は抽出前に解決されます（`blockMeshDict` と同じ仕組みです）。
+
+### バグ修正
+
+- キーワードリストを拡張スキャンで再生成した後、シンタックスハイライトがサイレントに失敗する問題（`QRegularExpression` が無効 — "regular expression is too large"）を修正しました。ハイライターが値キーワードの交替パターンを 1,000 キーワードずつのチャンクに分割し、それぞれを独立した `QRegularExpression` オブジェクトとしてコンパイルするようになりました。これにより、キーワードリストの規模にかかわらず PCRE2 のコンパイル済みコードサイズ制限に達しなくなります。
+- `ui/mixins/_boundary_ops.py` の `_on_patch_edit_requested`、`_on_patch_paste_requested`、`_on_patch_delete_all_requested`、`_on_patch_add_all_requested` が存在しない `_extract_boundary` を `ui.panels.boundary_view_panel` からインポートしていた問題を修正しました。正しくは `model.boundary_model` の `extract_boundary` をインポートします。
+- ケース比較の差分バーにある **Side by side** チェックボックスが、比較を開いても効果がなかった問題を修正しました。チェックボックスがシグナル接続前に checked 状態で初期化されていたため、常に `True` のまま固定されていました。`_compare_with_case` が `setChecked(True)` を呼び出しても既に checked であるためシグナルが発火せず、比較パネルが表示されませんでした。
+- **OpenFOAM キーワード生成**で、`CoProcessor()` や `Pipeline:` などの正規表現特殊文字を含むトークンがリストに混入し `QRegularExpression` パターンが無効になる問題を修正しました。ジェネレーターは完全な識別子パターン（`^[A-Za-z]\w+$`）にマッチするトークンのみ保存するようになりました。ハイライターのローダーにも同じフィルターを追加したため、既に生成済みのファイルは次回起動時に自動的にクリーンアップされます（再生成は不要です）。
+- BlockMesh 3-D パネルの **「Vertices ▾」**・**「Blocks ▾」**・**「Scale ▾」**・**「topoSet ▾」** ドロップダウンメニューが、クリックのたびに閉じてしまい、複数のチェックボックスを続けて切り替えにくい問題（例: topoSet の複数シェイプを個別に表示・非表示する場合）を修正しました。チェック可能な項目をクリックしてもメニューは開いたままになり、メニュー外のクリック・Escape キー・ツールバーボタンの再クリックで閉じる従来の挙動は維持されます。
+- **ツリーパネル**で値を直接編集(インラインセル編集)しても、ファイルが未保存としてマークされず、**「ツリーからテキストを再読込」**を実行してもテキストエディタが更新されない問題を修正しました。詳細パネル経由で同じ値を編集した場合は正しく動作していました。ツリーモデルの `dataChanged` シグナルを、詳細パネル編集と同じ後処理(テキストエディタの再生成・未保存マーク)に接続したことで、インラインでのツリー編集も詳細パネル編集と同じ挙動になりました。
+
+### 改善
+
+- **topoSet シェイプの個別表示** — BlockMesh 3-D パネルの topoSet オーバーレイ操作を **「topoSet ▾」** メニューに変更しました。マスターの **Show topoSet geometry** トグルに加えて、読み込んだ `topoSetDict` の各シェイプ（`name · source` で表示）を個別のチェックボックスで表示・非表示できるため、特定のボックス・球・円柱・円錐ソースだけを表示したり隠したりできます。新しい `topoSetDict` を読み込むと一覧はすべて表示状態にリセットされます。メニューには **アクション色の凡例**（`new`・`add`・`subtract`・`subset`・`invert`）も表示され、各シェイプ行にはそのアクションに対応する色見本が付くため、メニューと 3-D ビューの色が直接対応します。
+- **topoSet の中空環状体・`rotatedBox`・非ジオメトリソースの一覧表示** — BlockMesh 3-D パネルで、`cylinderAnnulusToCell` と `coneAnnulusToCell` が（`innerRadius` / `innerRadius1` / `innerRadius2` を反映して）中実ではなく本当に中空のチューブとして描画されるようになりました。`rotatedBoxToCell/Face/Point`（`origin` + `i`/`j`/`k` のスパンベクトルで定義される斜め方向のボックス）もオーバーレイ表示されます。描画対象のジオメトリを持たないソース（`cellToFace`、`zoneToCell`、`fieldToCell`、`surfaceToCell` など）は、**「topoSet ▾」** メニューに *"(no geometry)"* としてグレーアウト表示され、辞書内に存在することが分かるようになりました。
+- **シンタックスハイライトのトグル** — エディタツールバーに **Highlight** ボタンを追加しました。ワンクリックでシンタックスカラーリングのオン／オフを切り替えられます。設定は `app_config.json` に保存され、次回起動時に復元されます。
+- **シンタックスハイライトのキーワードリストを拡充** — **OpenFOAM キーワード生成** スキャナーが、C++ ヘッダーの `ClassName("…")` マクロと実装ファイルの `addNamedToRunTimeSelectionTable` / `addNamedToMemberFunctionSelectionTable` ルックアップ名も抽出するようになり、ベースラインのキーワード数が約 2,200 から約 3,100 に増加しました。辞書のキー名（`vertices`、`blocks`、`edges`、`boundary`、`dimensions`、`internalField`、`boundaryField`、`solvers` など）もダーク・シアンでハイライトされるようになりました。caseDicts スキャンがノード値に加えてノード名を収集するようになり、またハイライターが起動時にスキーマレジストリからキーセグメントを抽出するため、キーワードファイルを再生成しなくても一般的なキーがカバーされます。
+- **パーサ／モデル層の型安全性強化** — `FoamNode.node_type`（`foam/nodes.py`）が単なる `str` ではなく、パーサ／ライタ／ツリーモデルが実際に生成するすべての値からなる `Literal` 型になりました。開発依存として追加した `mypy`（`foam/` と `model/` にスコープ）がこれを検証し、`tests/test_lint.py` によって通常のテスト実行の一部としてチェックされます。lint 用の `ruff` も同様です。機能・挙動の変更はありません。
+
+**`tutorials/` の同梱チュートリアルセットを拡充**
+
+- `tutorials/cavity/` を OpenFOAM v2512 標準チュートリアルの 3 つの icoFoam サブケースをまとめるコンテナに変更しました: `cavity/`（単一リージョンのワークフロー解説）、`cavityGrade/`（非一様 `simpleGrading`）、`cavityClipped/`（クリップ形状、`mapFieldsDict`）。コンテナレベルに `Allclean`/`Allrun` スクリプトも含まれます。
+- OpenFOAM v2512 標準チュートリアルから `tutorials/damBreak/`（interFoam、層流）を追加しました。`defaultFieldValues`/`regions` ブロックを持つ `setFieldsDict`、`0.orig/`、および `sampling` 関数オブジェクト辞書のテストに使用します。
+- cavity をベースにしたカスタム icoFoam `blockMeshDict` ケースを 4 件追加しました: `oneBlocks`（3-D 単一ブロック）、`oneBlocks-vars`（変数置換とコンパクト `(blockId faceId)` 面記法）、`nineBlocks`（3×3 マルチブロック、正規表現境界パッチ）、`nineBlocks-vars`（変数置換 + コンパクト記法）。
+- `tutorials/topoSetShapes/` を追加しました。単一の 3×3×3 ブロック上に、BlockMesh 3-D パネルがオーバーレイ表示できるすべてのジオメトリソース（`boxToCell`、`rotatedBoxToCell`、`sphereToCell`、`cylinderToCell`、中空の `cylinderAnnulusToCell`、切頭円錐の `coneToCell` フラスタム、`radius2 0` の真円錐 `coneToCell`、中空の `coneAnnulusToCell`）に加えて非ジオメトリの `cellToFace` アクションを、`$変数` および `#eval` 解決とあわせて配置した `topoSetDict` のデモです。`system/topoSetDict` を開いて **「topoSet geometry」** にチェックを入れると、アクション別に色分けされた形状が表示されます。
+
+---
+
 ## v1.6.1 — 2026-06-19
 
 ### バグ修正

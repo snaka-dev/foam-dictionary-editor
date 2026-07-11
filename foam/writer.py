@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
-import re
-from foam.utils import format_embedded_value, format_scalar
-from foam.nodes import FoamNode, STRING_TYPES
 
+import re
+
+from foam.nodes import STRING_TYPES, FoamNode
+from foam.utils import format_embedded_value, format_scalar
 
 MAX_CONSECUTIVE_NEWLINES = 3
 
@@ -32,8 +33,11 @@ def _write_node(node: FoamNode, indent: int = 0) -> str:
     if node.node_type in {"dictionary", "region_entry", "boundary_entry"}:
         return _with_leading_trivia(node, _write_dictionary(node, indent))
 
-    if node.node_type in {"region_block", "boundary_block"}:
+    if node.node_type in {"region_block", "boundary_block", "action_list"}:
         return _with_leading_trivia(node, _write_region_block(node, indent))
+
+    if node.node_type == "action_entry":
+        return _with_leading_trivia(node, _write_action_entry(node, indent))
 
     if node.node_type == "field_value_block":
         return _with_leading_trivia(node, _write_field_value_block(node, indent))
@@ -63,6 +67,17 @@ def _write_region_block(node: FoamNode, indent: int = 0) -> str:
     for child in node.children:
         lines.append(_write_node(child, indent + 1))
     lines.append(f"{_indent(indent)});\n")
+    return "".join(lines)
+
+
+def _write_action_entry(node: FoamNode, indent: int = 0) -> str:
+    lines = [f"{_indent(indent)}{{\n"]
+    for child in node.children:
+        chunk = _write_node(child, indent + 1)
+        if not chunk.endswith("\n"):
+            chunk += "\n"
+        lines.append(chunk)
+    lines.append(f"{_indent(indent)}}}\n")
     return "".join(lines)
 
 

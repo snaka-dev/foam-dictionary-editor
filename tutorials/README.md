@@ -7,16 +7,42 @@ so that users can try FoDE on real cases and reproduce the worked tutorials.
 
 ## Cases included
 
-| Directory                  | Source tutorial                                   | Solver               | Purpose in FoDE docs                                  |
-|----------------------------|---------------------------------------------------|----------------------|-------------------------------------------------------|
-| `cavity/`                  | `incompressible/icoFoam/cavity/cavity`            | `icoFoam`            | Single-region, end-to-end workflow walkthrough        |
-| `snappyMultiRegionHeater/` | `heatTransfer/chtMultiRegionFoam/snappyMultiRegionHeater` | `chtMultiRegionFoam` | Multi-region overview, boundary view, symbolic links  |
+| Directory                         | Origin                                                           | Solver               | Purpose in FoDE docs                                                                  |
+|-----------------------------------|------------------------------------------------------------------|----------------------|---------------------------------------------------------------------------------------|
+| `cavity/cavity/`                  | `incompressible/icoFoam/cavity/cavity`                           | `icoFoam`            | Single-region, end-to-end workflow walkthrough                                        |
+| `cavity/cavityGrade/`             | `incompressible/icoFoam/cavity/cavityGrade`                      | `icoFoam`            | Non-uniform grading; tests `simpleGrading` in `blockMeshDict`                         |
+| `cavity/cavityClipped/`           | `incompressible/icoFoam/cavity/cavityClipped`                    | `icoFoam`            | Clipped geometry; tests `mapFieldsDict` and non-rectangular block topology            |
+| `snappyMultiRegionHeater/`        | `heatTransfer/chtMultiRegionFoam/snappyMultiRegionHeater`        | `chtMultiRegionFoam` | Multi-region overview, boundary view, symbolic links                                  |
+| `damBreak/`                       | `multiphase/interFoam/laminar/damBreak/damBreak`                 | `interFoam`          | Tests `setFieldsDict` (`defaultFieldValues`/`regions`), `0.orig/`, `sampling`         |
+| `oneBlocks/`                      | Derived from `cavity` (custom `blockMeshDict`)                   | `icoFoam`            | 3-D single-block case; tests basic `blockMeshDict` editing and 3-D mesh viewer        |
+| `oneBlocks-vars/`                 | Derived from `cavity` (custom `blockMeshDict`)                   | `icoFoam`            | As `oneBlocks` but uses variable definitions and compact face notation `(block face)` |
+| `nineBlocks/`                     | Derived from `cavity` (custom `blockMeshDict`)                   | `icoFoam`            | 3×3 multi-block case; tests multi-block `blockMeshDict` and regex boundary patches    |
+| `nineBlocks-vars/`                | Derived from `cavity` (custom `blockMeshDict`)                   | `icoFoam`            | As `nineBlocks` but uses variable definitions and compact face notation                |
+| `topoSetShapes/`                  | Custom (single 3×3×3 block + `topoSetDict`)                      | `icoFoam`            | Tests `topoSetDict` geometry overlay in the 3-D viewer (box/sphere/cylinder/cone family, `$var`/`#eval`) |
 
-Both cases are taken from the standard tutorial set distributed with OpenFOAM
-(OpenCFD/ESI, OpenFOAM v2512). Any modifications made for the FoDE tutorials
-(e.g. duplication into a working copy, minor edits to dictionary entries shown
-in the walkthroughs) are limited to the dictionary files and are described in
-the per-case README in each subdirectory.
+The `cavity/` subdirectories, `snappyMultiRegionHeater`, and `damBreak` are
+taken unchanged from the standard tutorial set distributed with OpenFOAM
+(OpenCFD/ESI, OpenFOAM v2512).
+
+`snappyMultiRegionHeater/0/` is not present in the
+original source (it is generated at run time by `./Allrun`); the
+copy here was produced from a completed run of that tutorial.
+
+The `oneBlocks`, `oneBlocks-vars`, `nineBlocks`, `nineBlocks-vars`, and
+`topoSetShapes` cases are custom cases created for FoDE testing. Their
+`system/controlDict`, `system/fvSchemes`, `system/fvSolution`,
+`system/decomposeParDict`, and `constant/transportProperties` files are taken
+from or closely follow the standard `cavity` tutorial; the
+`system/blockMeshDict` files are custom-authored.  The two `-vars` variants
+exercise two features not present in the plain variants: variable substitution
+(`$var`) and the compact block-face notation `(blockId faceId)` in the
+`boundary` section.  `topoSetShapes` adds a custom `system/topoSetDict` that
+demonstrates every geometry source rendered by the BlockMesh 3-D panel.
+
+Any modifications made for the FoDE tutorials (e.g. duplication into a working
+copy, minor edits to dictionary entries shown in the walkthroughs) are limited
+to the dictionary files and are described in the per-case README in each
+subdirectory where applicable.
 
 ## License of these cases
 

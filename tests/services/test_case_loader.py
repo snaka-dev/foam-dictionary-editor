@@ -1,6 +1,15 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
-from services.case_loader import is_openfoam_case, list_case_files, list_directory_files, detect_time_dirs
+import os
+import time
+
+from services.case_loader import (
+    detect_poly_mesh,
+    detect_time_dirs,
+    is_openfoam_case,
+    list_case_files,
+    list_directory_files,
+)
 
 
 def test_list_case_files(tmp_path):  # legacy top-level test kept for compatibility
@@ -610,3 +619,75 @@ class TestDetectTimeDirs:
         result = detect_time_dirs(str(tmp_path))
         assert result == ["2"]
         assert "/" not in result[0]
+
+
+class TestDetectPolyMesh:
+    @staticmethod
+    def _write_owner(tmp_path, note=True):
+        poly_mesh = tmp_path / "constant" / "polyMesh"
+        poly_mesh.mkdir(parents=True)
+        owner = poly_mesh / "owner"
+        body = (
+            'FoamFile\n{\n    note        "nPoints:9261  nCells:8000  nFaces:25200  nInternalFaces:22800";\n}\n'
+            if note
+            else "FoamFile\n{\n}\n"
+        )
+        owner.write_text(body, encoding="utf-8")
+        return owner
+
+    def test_returns_none_when_no_polymesh(self, tmp_path):
+        """No constant/polyMesh/ at all → None."""
+        assert detect_poly_mesh(str(tmp_path)) is None
+
+    def test_returns_none_when_owner_missing(self, tmp_path):
+        """polyMesh/ exists but owner file is missing → None."""
+        (tmp_path / "constant" / "polyMesh").mkdir(parents=True)
+        assert detect_poly_mesh(str(tmp_path)) is None
+
+    def test_parses_counts_from_note(self, tmp_path):
+        """Counts are parsed from the owner file's FoamFile note field."""
+        self._write_owner(tmp_path)
+        info = detect_poly_mesh(str(tmp_path))
+        assert info is not None
+        assert info.n_points == 9261
+        assert info.n_cells == 8000
+        assert info.n_faces == 25200
+
+    def test_counts_none_when_note_unparseable(self, tmp_path):
+        """Owner file present but without a parseable note → counts are None, still 'present'."""
+        self._write_owner(tmp_path, note=False)
+        info = detect_poly_mesh(str(tmp_path))
+        assert info is not None
+        assert info.n_cells is None
+        assert info.n_points is None
+        assert info.n_faces is None
+
+    def test_stale_false_without_blockmeshdict(self, tmp_path):
+        """No blockMeshDict to compare against → not considered stale."""
+        self._write_owner(tmp_path)
+        info = detect_poly_mesh(str(tmp_path))
+        assert info.stale is False
+
+    def test_stale_true_when_dict_newer_than_owner(self, tmp_path):
+        """blockMeshDict modified after the mesh was generated → stale."""
+        owner = self._write_owner(tmp_path)
+        (tmp_path / "system").mkdir()
+        dict_path = tmp_path / "system" / "blockMeshDict"
+        dict_path.write_text("...", encoding="utf-8")
+        now = time.time()
+        os.utime(owner, (now - 100, now - 100))
+        os.utime(dict_path, (now, now))
+        info = detect_poly_mesh(str(tmp_path))
+        assert info.stale is True
+
+    def test_stale_false_when_owner_newer_than_dict(self, tmp_path):
+        """Mesh generated after the last blockMeshDict edit → not stale."""
+        owner = self._write_owner(tmp_path)
+        (tmp_path / "system").mkdir()
+        dict_path = tmp_path / "system" / "blockMeshDict"
+        dict_path.write_text("...", encoding="utf-8")
+        now = time.time()
+        os.utime(dict_path, (now - 100, now - 100))
+        os.utime(owner, (now, now))
+        info = detect_poly_mesh(str(tmp_path))
+        assert info.stale is False

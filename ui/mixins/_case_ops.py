@@ -2,7 +2,6 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
-import os
 import shutil
 from pathlib import Path
 
@@ -18,6 +17,10 @@ from app_config.defaults import DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH
 from i18n import tr
 from services.case_copier import copy_visible_files
 from services.case_loader import is_openfoam_case
+from ui.dialogs.case_library_dialog import CaseLibraryDialog
+from ui.dialogs.duplicate_case_dialog import DuplicateCaseDialog
+from ui.dialogs.reset_settings_dialog import ResetSettingsDialog
+from ui.dialogs.save_as_new_case_dialog import SaveAsNewCaseDialog
 from ui.layout_constants import (
     STATUS_NORMAL as _STATUS_NORMAL,
     STATUS_SHORT as _STATUS_SHORT,
@@ -106,8 +109,6 @@ class _CaseOpsMixin:
             if reply == QMessageBox.Yes:
                 self.save_all_files()
 
-        from ui.dialogs.duplicate_case_dialog import DuplicateCaseDialog
-
         dialog = DuplicateCaseDialog(self.state.current_case_dir, self)
         if dialog.exec() != QDialog.Accepted:
             return
@@ -124,7 +125,6 @@ class _CaseOpsMixin:
             return
         cfg = get_app_config()
         default_dest = cfg.get_default_case_dir() or str(Path(source).parent)
-        from ui.dialogs.duplicate_case_dialog import DuplicateCaseDialog
         dialog = DuplicateCaseDialog(source, default_dest_parent=default_dest, parent=self)
         if dialog.exec() != QDialog.Accepted:
             return
@@ -222,8 +222,6 @@ class _CaseOpsMixin:
         if self.state.current_file is not None:
             self.state.file_buffers[self.state.current_file] = self.editor_panel.get_text()
             self.state.file_dirty[self.state.current_file] = self.state.text_dirty
-
-        from ui.dialogs.save_as_new_case_dialog import SaveAsNewCaseDialog
 
         dlg = SaveAsNewCaseDialog(self.state.current_case_dir, self)
         if dlg.exec() != QDialog.Accepted:
@@ -325,8 +323,6 @@ class _CaseOpsMixin:
             )
 
     def manage_case_library(self) -> None:
-        from ui.dialogs.case_library_dialog import CaseLibraryDialog
-
         cfg = get_app_config()
         dialog = CaseLibraryDialog(cfg.get_user_library_dirs(), self)
         dialog.exec()
@@ -362,8 +358,6 @@ class _CaseOpsMixin:
             )
 
     def reset_all_settings(self) -> None:
-        from ui.dialogs.reset_settings_dialog import ResetSettingsDialog
-
         dialog = ResetSettingsDialog(self)
         dialog.exec()
         if dialog.app_settings_reset:

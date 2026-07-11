@@ -166,10 +166,8 @@ class _DiffOpsMixin:
             if is_large_non_foam_file(path)[0]:
                 advance()
                 return
-            try:
-                a_root = OpenFoamParser(read_foam_file(path)).parse()
-                self.state.parsed_roots[path] = a_root
-            except Exception:
+            a_root = self._cache_parsed_root(path)
+            if a_root is None:
                 advance()
                 return
         d = diff_trees(a_root, other_root)

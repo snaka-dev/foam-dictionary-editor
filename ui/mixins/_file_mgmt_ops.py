@@ -12,10 +12,15 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 
+from datetime import datetime
+
 from foam.utils import read_foam_file
 from i18n import tr
 from services.case_files_config import CaseFilesConfig
 from services.case_loader import list_case_files
+from ui.dialogs.add_files_dialog import AddFilesDialog
+from ui.dialogs.clean_backups_dialog import CleanBackupsDialog, find_backup_files
+from ui.dialogs.manage_extra_files_dialog import ManageExtraFilesDialog
 from ui.panels.file_list_panel import display_file_name
 from ui.layout_constants import (
     STATUS_NORMAL as _STATUS_NORMAL,
@@ -64,7 +69,6 @@ class _FileManagementOpsMixin:
         self.file_list_panel.select_file(str(target))
 
     def _on_add_file_requested(self, case_dir: str, group: str) -> None:
-        from ui.dialogs.add_files_dialog import AddFilesDialog
 
         cfg = CaseFilesConfig(case_dir)
         extra = cfg.get_extra_files() or None
@@ -93,8 +97,6 @@ class _FileManagementOpsMixin:
 
     def _create_backup(self, path: str) -> bool:
         """Write a .bak_<timestamp> copy. Returns True on success."""
-        from datetime import datetime
-
         p = Path(path)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_path = p.parent / f"{p.name}.bak_{timestamp}"
@@ -127,7 +129,6 @@ class _FileManagementOpsMixin:
     def _on_manage_extra_files(self) -> None:
         if not self.state.case_files_config:
             return
-        from ui.dialogs.manage_extra_files_dialog import ManageExtraFilesDialog
 
         old_dirs = self.state.case_files_config.get_extra_dirs()
         dlg = ManageExtraFilesDialog(
@@ -369,7 +370,6 @@ class _FileManagementOpsMixin:
     def _on_clean_backups(self) -> None:
         if not self.state.current_case_dir:
             return
-        from ui.dialogs.clean_backups_dialog import CleanBackupsDialog, find_backup_files
 
         backups = find_backup_files(self.state.current_case_dir)
         dlg = CleanBackupsDialog(backups, parent=self)

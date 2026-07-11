@@ -2,6 +2,8 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+import dataclasses
+import re
 from pathlib import Path
 
 
@@ -121,6 +123,48 @@ def detect_time_dirs(case_dir: str, extra_dirs: list[str] | None = None) -> list
         except ValueError:
             continue
     return [name for _, name in sorted(dirs)]
+
+
+@dataclasses.dataclass
+class PolyMeshInfo:
+    """Cheap summary of constant/polyMesh/, parsed from the owner file header."""
+
+    n_points: int | None
+    n_cells: int | None
+    n_faces: int | None
+    stale: bool  # blockMeshDict mtime > constant/polyMesh/owner mtime
+
+
+_OWNER_NOTE_RE = re.compile(r"nPoints:(\d+)\s+nCells:(\d+)\s+nFaces:(\d+)")
+
+
+def detect_poly_mesh(case_dir: str) -> PolyMeshInfo | None:
+    """Return a PolyMeshInfo if constant/polyMesh/owner exists, else None.
+
+    Counts come from the owner file's FoamFile header `note` field (e.g.
+    "nPoints:9261  nCells:8000  nFaces:25200  nInternalFaces:22800") rather
+    than parsing the mesh itself, so this stays a cheap, no-dependency check.
+    """
+    owner = Path(case_dir) / "constant" / "polyMesh" / "owner"
+    if not owner.is_file():
+        return None
+    try:
+        header = owner.read_text(errors="replace")[:2000]
+    except OSError:
+        header = ""
+    match = _OWNER_NOTE_RE.search(header)
+    if match:
+        n_points, n_cells, n_faces = (int(g) for g in match.groups())
+    else:
+        n_points = n_cells = n_faces = None
+    stale = False
+    dict_path = Path(case_dir) / "system" / "blockMeshDict"
+    try:
+        if dict_path.is_file():
+            stale = dict_path.stat().st_mtime > owner.stat().st_mtime
+    except OSError:
+        pass
+    return PolyMeshInfo(n_points=n_points, n_cells=n_cells, n_faces=n_faces, stale=stale)
 
 
 def is_openfoam_case(directory: str) -> bool:

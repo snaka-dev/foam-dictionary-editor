@@ -4,6 +4,8 @@ FoDE — Foam Dictionary Editor（読み方: "フォーディー"）
 
 Python と PySide6 で作られた、OpenFOAM 辞書ファイル向け GUI エディタです。
 
+> 📄 **[*SoftwareX*](https://www.sciencedirect.com/journal/softwarex)**（Elsevier）に採録されました — 書誌情報とリンクは近日追記予定です。
+
 ## FoDE とは？
 
 FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集するツールです。構造化されたツリー表示とプレーンテキストエディタの両方で辞書を閲覧・編集・管理できます。OpenFOAM シミュレーションを行うエンジニアや研究者が、ケースファイルのセットアップや修正をより手軽に行えることを目指しています。
@@ -137,14 +139,27 @@ pip install pyvista pyvistaqt
 
 ## サンプルケース
 
-リポジトリルートの `tutorials/` ディレクトリには、OpenFOAM v2512 の標準チュートリアルセットから取得した OpenFOAM ケースが収録されています。
+リポジトリルートの `tutorials/` ディレクトリには、すぐに開ける OpenFOAM ケースが収録されています。
 
 | ディレクトリ | ソルバー | 用途 |
 |---|---|---|
-| `tutorials/cavity/` | `icoFoam` | 単一リージョンのエンドツーエンドワークフロー解説 |
+| `tutorials/cavity/cavity/` | `icoFoam` | 単一リージョンのエンドツーエンドワークフロー解説 |
+| `tutorials/cavity/cavityGrade/` | `icoFoam` | 非一様グレーディング（`simpleGrading`） |
+| `tutorials/cavity/cavityClipped/` | `icoFoam` | クリップ形状・`mapFieldsDict` |
 | `tutorials/snappyMultiRegionHeater/` | `chtMultiRegionFoam` | 境界条件ビューとリージョンファイル一覧のマルチリージョンケース |
+| `tutorials/damBreak/` | `interFoam` | 二相流・`setFieldsDict` と `0.orig/` のテスト |
+| `tutorials/oneBlocks/` | `icoFoam` | 3-D 単一ブロック・`blockMeshDict` 編集と 3-D メッシュビューア |
+| `tutorials/oneBlocks-vars/` | `icoFoam` | `oneBlocks` の変数置換・コンパクト面記法バリアント |
+| `tutorials/nineBlocks/` | `icoFoam` | 3×3 マルチブロック・正規表現パッチ |
+| `tutorials/nineBlocks-vars/` | `icoFoam` | `nineBlocks` の変数置換・コンパクト面記法バリアント |
 
-**ライセンス:** これらのケースファイルは **GPL-3.0** でライセンスされています（FoDE ソースコードの AGPL-3.0 とは別です）。詳細は `tutorials/tutorials_README.md` を参照してください。
+`cavity/` 各ケース・`snappyMultiRegionHeater`・`damBreak` は OpenFOAM v2512 標準チュートリアルセットから取得しています。`oneBlocks*` および `nineBlocks*` は FoDE テスト用に cavity をベースにしたカスタム `blockMeshDict` ケースです。
+
+**ライセンス:** これらのケースファイルは **GPL-3.0** でライセンスされています（FoDE ソースコードの AGPL-3.0 とは別です）。詳細は `tutorials/README.md` を参照してください。
+
+## 引用
+
+FoDE を紹介する論文が **[*SoftwareX*](https://www.sciencedirect.com/journal/softwarex)**（Elsevier）に採録され、現在校正・出版準備中です。正式な書誌情報と論文へのリンクは、公開され次第ここに追記します。
 
 ## ライセンス
 

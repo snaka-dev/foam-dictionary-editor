@@ -6,6 +6,8 @@ A GUI editor for OpenFOAM dictionary files, built with Python and PySide6.
 
 [Demo movie link at YouTube](https://youtu.be/L22fQW3NSUk)
 
+> 📄 **Now accepted in [*SoftwareX*](https://www.sciencedirect.com/journal/softwarex)** (Elsevier) — citation & link coming soon.
+
 ## What is FoDE?
 
 FoDE is a graphical editor for OpenFOAM case dictionary files. It lets you browse, edit, and manage dictionaries through a structured tree view or a plain-text editor — whichever suits the task. It is aimed at engineers and researchers who run OpenFOAM simulations and want a more convenient way to set up and modify case files.
@@ -78,6 +80,7 @@ Without these packages the BlockMesh tab shows an install prompt and the 3-D vie
 - Reload the current case from disk with the **Reload Case** button in the top bar or **Case > Reload Case** — discards all in-memory edits; prompts if files are unsaved
 - Delete the `0/` directory from disk via right-click on the `0` header — available only when `0.orig` exists
 - Save the current state as a new case, or duplicate an existing one
+- File list automatically refreshes after changes made outside the app (e.g. via the Terminal panel), with a manual refresh button as a fallback
 
 **Tree and text editing**
 - Structured tree view for browsing and editing dictionary entries
@@ -114,6 +117,9 @@ Without these packages the BlockMesh tab shows an install prompt and the 3-D vie
 - Automatically switches to the case directory when a case is opened
 - Omitted entirely in the `no-terminal` and `no-terminal-blockmesh` variants (Windows-friendly)
 - **foamMonitor launcher** — **Tools > foamMonitor…** opens a dialog to launch `foamMonitor` and plot residuals or postProcessing data with gnuplot; select **■ foamMonitor** again to stop
+- **Restore 0/ from 0.orig** — **Tools > Restore 0/ from 0.orig** sends `rm -rf 0 && cp -r 0.orig 0` to the terminal; always asks for confirmation first, since it discards any edits made directly to `0/`
+- **Run blockMesh** — **Tools > Run blockMesh** sends `blockMesh` to the terminal (output also saved to `log.blockMesh`); asks for confirmation first if the case already has solver results
+- **Open Mesh in ParaView** — **Tools > Open Mesh in ParaView…** launches `paraFoam` (or `paraview` as a fallback) against the current case to view the actual generated mesh, as an alternative to the BlockMesh 3-D panel's block-topology preview
 
 **Case comparison**
 - **Case > Compare with Case...** — select a reference case directory to compare against the currently open case
@@ -139,14 +145,27 @@ For project structure, dev setup, and testing, see [DEVELOPER.md](DEVELOPER.md).
 
 ## Example Cases
 
-The `tutorials/` directory in the repository root contains ready-to-open OpenFOAM cases taken from the standard tutorial set distributed with OpenFOAM v2512:
+The `tutorials/` directory in the repository root contains ready-to-open OpenFOAM cases:
 
 | Directory | Solver | Purpose |
 |---|---|---|
-| `tutorials/cavity/` | `icoFoam` | Single-region end-to-end workflow walkthrough |
+| `tutorials/cavity/cavity/` | `icoFoam` | Single-region end-to-end workflow walkthrough |
+| `tutorials/cavity/cavityGrade/` | `icoFoam` | Non-uniform grading (`simpleGrading`) |
+| `tutorials/cavity/cavityClipped/` | `icoFoam` | Clipped geometry; `mapFieldsDict` |
 | `tutorials/snappyMultiRegionHeater/` | `chtMultiRegionFoam` | Multi-region case for the boundary view and region file listing |
+| `tutorials/damBreak/` | `interFoam` | Two-phase flow; tests `setFieldsDict` and `0.orig/` |
+| `tutorials/oneBlocks/` | `icoFoam` | 3-D single-block; `blockMeshDict` editing and 3-D mesh viewer |
+| `tutorials/oneBlocks-vars/` | `icoFoam` | As `oneBlocks` with variable substitution and compact face notation |
+| `tutorials/nineBlocks/` | `icoFoam` | 3×3 multi-block; regex boundary patches |
+| `tutorials/nineBlocks-vars/` | `icoFoam` | As `nineBlocks` with variable substitution and compact face notation |
 
-**License:** these case files are licensed under the **GPL-3.0** (not the AGPL-3.0 that covers FoDE source code). See `tutorials/tutorials_README.md` for full provenance and license details.
+The `cavity/` cases, `snappyMultiRegionHeater`, and `damBreak` are from the OpenFOAM v2512 standard tutorial set. The `oneBlocks*` and `nineBlocks*` cases are custom `blockMeshDict` cases derived from cavity for FoDE testing.
+
+**License:** these case files are licensed under the **GPL-3.0** (not the AGPL-3.0 that covers FoDE source code). See `tutorials/README.md` for full provenance and license details.
+
+## Citation
+
+A paper describing FoDE has been **accepted for publication in [*SoftwareX*](https://www.sciencedirect.com/journal/softwarex)** (Elsevier) and is currently in production. Full citation details and a link to the article will be added here once it is published.
 
 ## License
 

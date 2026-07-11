@@ -87,9 +87,9 @@ def test_source_line_zero_never_negative():
 class _FakeWindow:
     """Minimal stand-in for MainWindow to call _find_deepest without Qt."""
 
-    from ui.mixins._tree_ops import _TreeOpsMixin
+    from ui.mixins._tree_sync_ops import _TreeSyncOpsMixin
 
-    _find_deepest = _TreeOpsMixin._find_deepest
+    _find_deepest = _TreeSyncOpsMixin._find_deepest
 
 
 _finder = _FakeWindow()

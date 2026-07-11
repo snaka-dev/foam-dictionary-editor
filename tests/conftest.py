@@ -4,6 +4,35 @@ import pytest
 
 
 @pytest.fixture
+def main_window(qapp):
+    """A real MainWindow instance, with the terminal/blockmesh features disabled
+    to keep instantiation light and independent of VTK/QtWebEngine availability."""
+    from app_config import get_app_config
+
+    cfg = get_app_config()
+    original = {name: cfg.get_feature(name) for name in ("terminal", "blockmesh")}
+    cfg.set_feature("terminal", False)
+    cfg.set_feature("blockmesh", False)
+
+    from ui.main_window import MainWindow
+
+    win = MainWindow()
+    yield win
+
+    win._file_list_refresh_timer.stop()
+    if win._case_dir_watcher.directories():
+        win._case_dir_watcher.removePaths(win._case_dir_watcher.directories())
+    win._stop_foam_monitor()
+    if win.terminal_panel is not None:
+        win.terminal_panel.cleanup()
+    if win.block_mesh_panel is not None:
+        win.block_mesh_panel.shutdown()
+
+    for name, value in original.items():
+        cfg.set_feature(name, value)
+
+
+@pytest.fixture
 def control_dict_text():
     return """/*--------------------------------*- C++ -*----------------------------------*\\
 | =========                 |                                                 |

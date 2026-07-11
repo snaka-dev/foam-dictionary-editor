@@ -31,7 +31,9 @@ foam-dictionary-editor/
 │   ├── constants.py
 │   └── defaults.py
 ├── foam/
-│   ├── block_mesh_extractor.py  # extracts vertices/blocks/boundary from blockMeshDict FoamNode tree; _build_var_map iteratively resolves $vars (including negated-macro word nodes like -$xMax) and #eval{} chains of arbitrary depth; _HEX_FACE_VERTICES + _expand_compact_faces convert compact (blockIdx, faceIdx) boundary entries to 4-vertex lists; parse_vertices() is public
+│   ├── block_mesh_extractor.py  # extracts vertices/blocks/boundary from blockMeshDict FoamNode tree; _HEX_FACE_VERTICES + _expand_compact_faces convert compact (blockIdx, faceIdx) boundary entries to 4-vertex lists; parse_vertices() is public; delegates variable resolution to var_resolver
+│   ├── var_resolver.py          # shared variable resolution: build_var_map(root, skip_keys) iteratively resolves $vars (including negated-macro word nodes like -$xMax) and #eval{} chains of arbitrary depth; substitute_vars() and eval_foam_expr() are public helpers used by both extractors
+│   ├── topo_set_extractor.py    # extracts renderable geometry (box, sphere, cylinder, cone) from topoSetDict action_entry nodes; resolves $var and #eval inside raw_list / macro geometry values via var_resolver; returns TopoSetData(shapes=[TopoShape(...)])
 │   ├── diff.py                  # diff_trees(a, b) and diff_trees_reverse(b, a) — compare two FoamNode trees by key name; return dict[FoamNode, DiffEntry]
 │   ├── lexer.py                 # OpenFoamLexer; _read_directive stops at '{' so #eval{...} braces become LBRACE/RBRACE tokens for correct depth tracking
 │   ├── nodes.py
@@ -61,7 +63,7 @@ foam-dictionary-editor/
 │   ├── __init__.py             # tr(), set_language(), get_language(), available_languages()
 │   └── ja.py                   # Japanese translations (LANGUAGE_NAME + TRANSLATIONS dict)
 ├── ui/
-│   ├── app_state.py            # AppState dataclass: all 18 shared mutable fields; MainWindow sets self.state = AppState()
+│   ├── app_state.py            # AppState dataclass: all 15 shared mutable fields; MainWindow sets self.state = AppState()
 │   ├── mixins/
 │   │   ├── _boundary_ops.py        # mixin: boundary view patch operations
 │   │   ├── _case_ops.py            # mixin: open/reload/duplicate/save-as case, settings
@@ -69,10 +71,14 @@ foam-dictionary-editor/
 │   │   ├── _file_mgmt_ops.py       # mixin: create/add/backup/delete/duplicate/clean file operations
 │   │   ├── _file_ops.py            # mixin: per-file load/save, directory scan helpers
 │   │   ├── _foam_monitor_ops.py    # mixin: foamMonitor launch/stop/poll, gnuplot reread patch
+│   │   ├── _model_ops.py           # mixin: buffer/tree state, dirty tracking, parse cache
 │   │   ├── _panel_ops.py           # mixin: BlockMesh panel and terminal mode toggle handlers
-│   │   └── _tree_ops.py            # mixin: tree mutations, editor↔tree sync, and _apply_comparison_value
+│   │   ├── _tools_ops.py           # mixin: Tools-menu actions — restore 0/ from 0.orig, run blockMesh, open ParaView
+│   │   ├── _tree_crud_ops.py       # mixin: tree entry CRUD (copy/paste, add, duplicate, comment out, delete, restore) and _apply_comparison_value
+│   │   ├── _tree_sync_ops.py       # mixin: editor↔tree sync (apply text to tree, reload from tree)
+│   │   └── _ui_ops.py              # mixin: label updates, schema manager, help dialogs, language menu, tree column toggles
 │   ├── layout_constants.py
-│   ├── main_window.py          # core: __init__, _build_ui and sub-builders, shared helpers, drag-and-drop (dragEnterEvent/dropEvent/eventFilter)
+│   ├── main_window.py          # core: __init__, _build_ui and sub-builders, drag-and-drop (dragEnterEvent/dropEvent/eventFilter)
 │   ├── dialogs/
 │   │   ├── about_dialog.py
 │   │   ├── add_files_dialog.py
@@ -139,7 +145,7 @@ foam-dictionary-editor/
         └── test_schemas.py
 ```
 
-`test_utils.py` covers `is_large_non_foam_file` — small files are never flagged regardless of header, large files with a `FoamFile` token in the first 512 bytes are not flagged, large files without it are flagged, missing files return `(False, 0)`, and a header preceded by a comment is still detected. `test_diff.py` covers `diff_trees` and `diff_trees_reverse` — identical trees, changed values, keys only in one tree, nested dictionaries, anonymous node skipping, `field_value_block` entries, and symmetry between the two functions. `FoamNode` carries `__hash__ = object.__hash__` so instances can be used as dict keys in the diff map. `test_comparison_tree_panel.py` covers `ComparisonTreePanel` — `load` sets the header label, populates the proxy, collapses the FoamFile node, and re-applies the Type column visibility; `clear` resets model and header; `set_type_column_visible` hides/shows the Type column and persists across `load` calls; `use_value_requested` signal is connectable. `test_tree_model.py` covers `set_diff(reverse=True)` — remaps `"only_here"` to `"only_in_ref"`, leaves `"changed"` unchanged, returns the light-green `BackgroundRole` colour, and includes `"only in reference case"` in the tooltip. `test_file_list_panel.py` covers the diff filter: `set_diff_filter_enabled` shows/hides and unchecks the checkbox; the filter hides zero-diff file items while always showing headers; `mark_diff` updates item visibility immediately when the filter is active. `test_case_loader.py` covers `detect_time_dirs` and `TestExtraDirs` — flat and recursive extra-directory scanning, missing-directory tolerance, and duplicate suppression. `test_case_files_config.py` covers `TestCaseFilesConfigDirs` — `DirEntry` add/remove/update-in-place, backward-compatible loading of plain-string JSON, and config reset. `test_main_window_split.py` verifies the mixin structure — that each mixin owns the right methods (including `_on_patch_selected` in `_BoundaryOpsMixin`, `_apply_comparison_value` in `_TreeOpsMixin`, and the foamMonitor methods in `_FoamMonitorOpsMixin`), there are no cross-mixin duplicates, and `MainWindow` inherits from all mixins; `test_bool_nonuniform.py` covers bool/nonuniform_list parsing and parser error collection; `test_tree_color_lexer_dispatch.py` covers `unknown_raw_entry` amber colouring, lexer `//` behaviour, and the parser `_PAREN_DISPATCH` table; `test_source_lines.py` covers `source_line` and `source_end_line` population for all node types; `test_parser_block_mesh_dict.py` covers `boundary_block`/`boundary_entry` structured parsing, round-trip writing, and `extract_block_mesh_data` output for `blockMeshDict`; variable resolution (`$varName`, `${varName}`, macro references, negated-macro word nodes like `-$xMax`, `#eval{ expr }` arithmetic, and multi-level dependency chains); compact `(blockIndex, faceIndex)` boundary face notation (expansion to 4-vertex lists, including combined with negated-macro vertex variables); `test_rename_boundary.py` covers `find_rename_targets()` — detection of `boundary_entry` nodes in `blockMeshDict`, `dictionary` patch nodes in `boundaryField` blocks, absence of false positives for unrelated dictionaries, and the empty-input edge cases.
+`test_utils.py` covers `is_large_non_foam_file` — small files are never flagged regardless of header, large files with a `FoamFile` token in the first 512 bytes are not flagged, large files without it are flagged, missing files return `(False, 0)`, and a header preceded by a comment is still detected. `test_diff.py` covers `diff_trees` and `diff_trees_reverse` — identical trees, changed values, keys only in one tree, nested dictionaries, anonymous node skipping, `field_value_block` entries, and symmetry between the two functions. `FoamNode` carries `__hash__ = object.__hash__` so instances can be used as dict keys in the diff map. `test_comparison_tree_panel.py` covers `ComparisonTreePanel` — `load` sets the header label, populates the proxy, collapses the FoamFile node, and re-applies the Type column visibility; `clear` resets model and header; `set_type_column_visible` hides/shows the Type column and persists across `load` calls; `use_value_requested` signal is connectable. `test_tree_model.py` covers `set_diff(reverse=True)` — remaps `"only_here"` to `"only_in_ref"`, leaves `"changed"` unchanged, returns the light-green `BackgroundRole` colour, and includes `"only in reference case"` in the tooltip. `test_file_list_panel.py` covers the diff filter: `set_diff_filter_enabled` shows/hides and unchecks the checkbox; the filter hides zero-diff file items while always showing headers; `mark_diff` updates item visibility immediately when the filter is active. `test_case_loader.py` covers `detect_time_dirs` and `TestExtraDirs` — flat and recursive extra-directory scanning, missing-directory tolerance, and duplicate suppression. `test_case_files_config.py` covers `TestCaseFilesConfigDirs` — `DirEntry` add/remove/update-in-place, backward-compatible loading of plain-string JSON, and config reset. `test_main_window_split.py` verifies the mixin structure — that each mixin owns the right methods (including `_on_patch_selected` in `_BoundaryOpsMixin`, `_apply_comparison_value` in `_TreeCrudOpsMixin`, and the foamMonitor methods in `_FoamMonitorOpsMixin`), there are no cross-mixin duplicates, and `MainWindow` inherits from all mixins; `test_bool_nonuniform.py` covers bool/nonuniform_list parsing and parser error collection; `test_tree_color_lexer_dispatch.py` covers `unknown_raw_entry` amber colouring, lexer `//` behaviour, and the parser `_PAREN_DISPATCH` table; `test_source_lines.py` covers `source_line` and `source_end_line` population for all node types; `test_parser_block_mesh_dict.py` covers `boundary_block`/`boundary_entry` structured parsing, round-trip writing, and `extract_block_mesh_data` output for `blockMeshDict`; variable resolution (`$varName`, `${varName}`, macro references, negated-macro word nodes like `-$xMax`, `#eval{ expr }` arithmetic, and multi-level dependency chains); compact `(blockIndex, faceIndex)` boundary face notation (expansion to 4-vertex lists, including combined with negated-macro vertex variables); `test_rename_boundary.py` covers `find_rename_targets()` — detection of `boundary_entry` nodes in `blockMeshDict`, `dictionary` patch nodes in `boundaryField` blocks, absence of false positives for unrelated dictionaries, and the empty-input edge cases. `test_parser_topo_set_dict.py` covers `action_list`/`action_entry` structured parsing — node type, entry count, named child values, `box_pair` coordinates, source-less entries, round-trip writing, and positional diff detection via `_diff_action_list`. `test_topo_set_extractor.py` covers `extract_topo_set_data` — plain typed values for all three geometry types (box, sphere, cylinder), `$var` resolution in vectors and scalars, `#eval{...}` inside raw_list, chained var/eval resolution, unresolvable variable skipping, and all face/point source variants. `test_var_resolver.py` covers `build_var_map`, `substitute_vars`, and `eval_foam_expr` — scalar/int seeding, macro chains, `#eval` expressions, negated-macro word nodes, unresolvable vars staying absent, `skip_keys` exclusion, and dictionary node non-collection.
 
 ## Parser and data model
 
@@ -174,6 +180,8 @@ foam-dictionary-editor/
 | `region_entry` | named `{ … }` entry inside a `region_block` |
 | `boundary_block` | `boundary ( … );` in `blockMeshDict` |
 | `boundary_entry` | named `{ … }` entry inside a `boundary_block` |
+| `action_list` | `actions ( … );` in `topoSetDict`; `value=None`, children are `action_entry` nodes |
+| `action_entry` | anonymous `{ … }` block inside an `action_list`; `name=""`, children are the dict entries |
 | `directive_entry` | `#include`, `#inputMode`, etc.; `name=""` |
 | `macro_entry` | standalone `$macro;`; `name=""` |
 | `unknown_raw_entry` | fallback when a parse attempt fails; raw text stored verbatim in `value` |
@@ -317,10 +325,11 @@ _RECURSE_TYPES = frozenset({
     "boundary_block", "boundary_entry",
     "region_block", "region_entry",
     "field_value_block",
+    "action_list",
 })
 ```
 
-Children are matched by `node.name`; anonymous nodes (empty `name`) are skipped. For `field_value_block`, `_diff_field_value_block` matches items by `field_name` from `node.value` (the same `value`-as-list layout described in [`field_value_block` children in `value`](#field_value_block-children-in-value)).
+Children are matched by `node.name`; anonymous nodes (empty `name`) are skipped. For `field_value_block`, `_diff_field_value_block` matches items by `field_name` from `node.value` (the same `value`-as-list layout described in [`field_value_block` children in `value`](#field_value_block-children-in-value)). For `action_list`, `_diff_action_list` matches `action_entry` children **positionally** (by index), then compares their named sub-entries by key; `action_entry` nodes themselves are anonymous (`name=""`) so they cannot be matched by name.
 
 Equality is tested by `_equal(a, b)`: `True` when `a.node_type == b.node_type and a.value == b.value`.
 
@@ -396,15 +405,17 @@ The **Auto-scroll editor** checkbox in the Boundary panel toolbar gates the `pat
 - `state.text_dirty: bool` — whether the currently open file's in-memory editor content differs from what is on disk. Set by `_mark_dirty()` and cleared by `save_file()`, Apply Text to Tree, and Reload from Disk.
 - `state.file_dirty: dict[str, bool]` — per-file dirty state for every file that has been loaded in the current session. Persists across file switches so unsaved edits are not lost when the user selects a different file.
 
-`_mark_dirty()` (`ui/main_window.py:566`) sets both values to `True`, adds the `*` suffix to the window title, and calls `file_list_panel.mark_dirty()` to show the indicator in the file list. It is called from `_after_model_edit()` (after any tree edit that regenerates text via `write_root()`) and from `_on_user_text_changed()` (on any human keystroke in the editor).
+`_mark_dirty()` (`ui/mixins/_model_ops.py:102`) sets both values to `True`, adds the `*` suffix to the window title, and calls `file_list_panel.mark_dirty()` to show the indicator in the file list. It is called from `_after_model_edit()` (after any tree edit that regenerates text via `write_root()`) and from `_on_user_text_changed()` (on any human keystroke in the editor).
 
-`_save_current_buffer()` (`ui/main_window.py:520`) flushes `editor_panel.get_text()` to `state.file_buffers[state.current_file]` and writes `state.text_dirty` back into `state.file_dirty[state.current_file]` before a file switch. This preserves unsaved edits in memory across switches.
+`_after_model_edit()` itself is reached two ways: explicitly, by the Detail-panel "Apply" handlers and the tree CRUD operations (`_tree_crud_ops.py`) right after they call `FoamTreeModel.setData()` / `insert_node()` / `remove_node()`; and via `_load_tree()`, which connects `FoamTreeModel.dataChanged` to `_on_tree_data_changed()` (`ui/mixins/_model_ops.py`), filtered to emissions carrying `Qt.EditRole`. The signal connection is what catches edits made directly in the Tree panel's inline cell editor — Qt's item delegate calls `setData()` straight from the view, with no explicit `_after_model_edit()` call anywhere in that path. Without the `dataChanged` hook, inline tree edits change the node but never regenerate the editor text or mark the file dirty. The `Qt.EditRole` filter excludes the diff-highlight refresh (`set_diff()` / `clear_diff()`), which emits `dataChanged` with `BackgroundRole` only.
+
+`_save_current_buffer()` (`ui/mixins/_model_ops.py:29`) flushes `editor_panel.get_text()` to `state.file_buffers[state.current_file]` and writes `state.text_dirty` back into `state.file_dirty[state.current_file]` before a file switch. This preserves unsaved edits in memory across switches.
 
 `_mark_path_dirty(path)` marks a specific path dirty regardless of which file is currently open. Used by operations that modify non-current files (e.g. renaming a boundary patch across multiple field files).
 
 ## Tree copy/paste shortcuts
 
-`_setup_tree_copy_paste()` (`ui/mixins/_tree_ops.py:29`) attaches Ctrl+C and Ctrl+V `QShortcut` instances directly to the `tree` widget using `Qt.WidgetShortcut` scope:
+`_setup_tree_copy_paste()` (`ui/mixins/_tree_crud_ops.py:27`) attaches Ctrl+C and Ctrl+V `QShortcut` instances directly to the `tree` widget using `Qt.WidgetShortcut` scope:
 
 ```python
 copy_sc = QShortcut(QKeySequence.Copy, self.tree)
@@ -492,6 +503,24 @@ python3 -m pytest -q
 ```
 
 If `pytest -q` causes import issues, running it as `python3 -m pytest -q` is safer because the project root is handled more reliably.
+
+`tests/test_lint.py` runs `ruff` and `mypy` as part of the suite (see below), so a plain `pytest -q` also catches lint/type regressions.
+
+## Linting and type-checking
+
+Configuration lives in `pyproject.toml`. `ruff` has no repo-wide `include`/`exclude` restriction, but only `foam/` and `model/` are currently clean — the rest of the repo (mainly `ui/`) has pre-existing violations not yet cleaned up, so run it scoped:
+
+```bash
+ruff check foam model
+```
+
+`mypy` is explicitly scoped to `foam/` and `model/` via `[tool.mypy] files` in `pyproject.toml` — these are the pure-Python (or near-pure-Python) layers where static typing pays off most; `ui/` is excluded because PySide6's stubs don't recognise the flattened enum-access style (`Qt.Horizontal` vs. the fully-qualified `Qt.Orientation.Horizontal`) used throughout the UI layer, which would otherwise produce hundreds of false positives.
+
+```bash
+mypy
+```
+
+`foam/nodes.py`'s `NodeType` `Literal` is the definitive list of valid `node_type` values; `mypy` flags any assignment or comparison against a value outside that set. See the "Node types" section above for what each value means.
 
 ## Acknowledgements
 

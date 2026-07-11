@@ -1,0 +1,66 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2512                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      PDRblockMeshDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+scale   1;
+
+// variable definition
+nx 10; ny $nx; nz $nx;
+xMax 1;      yMax  $xMax; zMax  $xMax;
+xMin -$xMax; yMin -$yMax; zMin -$zMax;
+
+x
+{
+    points  ($xMin $xMax);
+    nCells  ($nx);
+    ratios  (1);
+}
+
+y
+{
+    points  ($yMin $yMax);
+    nCells  ($ny);
+    ratios  (1);
+}
+
+z
+{
+    points  ($zMin $zMax);
+    nCells  ($nz);
+    ratios  (1);
+}
+
+
+boundary
+(
+    movingWall
+    {
+        type  wall;
+        faces (3);
+    }
+    fixedWalls
+    {
+        type  wall;
+        faces (0 1 2);
+    }
+    frontAndBack
+    {
+        type  empty;
+        faces (4 5);
+    }
+);
+
+
+// ************************************************************************* //

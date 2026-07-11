@@ -1,0 +1,152 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2512                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      topoSetDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Demonstrates every geometry source the BlockMesh 3-D panel can overlay:
+// box, rotatedBox, sphere, cylinder, cylinderAnnulus (drawn hollow), cone
+// (frustum), cone (true, radius2 0) and coneAnnulus (drawn hollow). Two entries
+// also exercise $variable and #eval resolution. Sources that carry no geometry
+// (e.g. cellToFace) are listed greyed-out in the "topoSet ▾" menu as
+// "(no geometry)". Use the "Show topoSet geometry" toggle in that menu to
+// see the shapes.
+//
+// Panel colour is keyed on 'action':
+//   new = steel-blue, add = green, subtract/delete = red, subset = purple,
+//   invert = gold. (OpenFOAM's own 'remove'/'clear' delete the whole set and
+//   carry no geometry, so they are not overlaid.)
+
+// Top-level variables (resolved before extraction). Only scalar variables are
+// resolved, so a vector is composed from scalar components, e.g. ($ballX $ballY $ballZ).
+ballX   2.2;
+ballY   0.8;
+ballZ   0.8;
+ballR   0.5;
+
+actions
+(
+    // Box  (steel-blue)
+    {
+        name    box0;
+        type    cellSet;
+        action  new;
+        source  boxToCell;
+        box     (0.2 0.2 0.2) (1.1 1.1 1.1);
+    }
+
+    // Sphere via $variables  (green)
+    {
+        name    ball;
+        type    cellSet;
+        action  add;
+        source  sphereToCell;
+        centre  ($ballX $ballY $ballZ);
+        radius  $ballR;
+    }
+
+    // Cylinder  (green)
+    {
+        name    pipe;
+        type    cellSet;
+        action  add;
+        source  cylinderToCell;
+        point1  (0.6 2.3 0.2);
+        point2  (0.6 2.3 2.8);
+        radius  0.35;
+    }
+
+    // Hollow cylinder  (steel-blue)
+    {
+        name    ring;
+        type    cellSet;
+        action  new;
+        source  cylinderAnnulusToCell;
+        point1  (2.4 2.4 0.2);
+        point2  (2.4 2.4 1.2);
+        radius  0.5;
+        innerRadius 0.25;
+    }
+
+    // Truncated cone / frustum  (gold)
+    {
+        name    frustum;
+        type    cellSet;
+        action  invert;
+        source  coneToCell;
+        point1  (1.4 0.5 1.6);
+        point2  (1.4 0.5 2.9);
+        radius1 0.5;
+        radius2 0.15;
+    }
+
+    // True cone (radius2 0) with #eval on the apex height  (red)
+    {
+        name    spike;
+        type    cellSet;
+        action  subtract;
+        source  coneToCell;
+        point1  (2.3 1.6 0.2);
+        point2  (2.3 1.6 #eval{ 0.2 + 1.4 });
+        radius1 0.55;
+        radius2 0;
+    }
+
+    // Hollow cone  (steel-blue)
+    {
+        name    coneRing;
+        type    cellSet;
+        action  new;
+        source  coneAnnulusToCell;
+        point1  (0.5 0.5 1.7);
+        point2  (0.5 0.5 2.7);
+        radius1 0.5;
+        radius2 0.2;
+        innerRadius1 0.25;
+        innerRadius2 0.1;
+    }
+
+    // Box subset  (purple)
+    {
+        name    core;
+        type    cellSet;
+        action  subset;
+        source  boxToCell;
+        box     (2.0 0.2 2.0) (2.9 0.9 2.9);
+    }
+
+    // Rotated (oriented) box  (green)
+    {
+        name    tilted;
+        type    cellSet;
+        action  add;
+        source  rotatedBoxToCell;
+        origin  (0.5 1.6 0.3);
+        i       (0.7 0.4 0.0);
+        j       (-0.4 0.7 0.0);
+        k       (0.0 0.0 0.7);
+    }
+
+    // Non-geometric source: promotes the cell set above to its boundary faces.
+    // Listed greyed-out in the panel menu; nothing is drawn for it.
+    {
+        name    coreFaces;
+        type    faceSet;
+        action  new;
+        source  cellToFace;
+        set     core;
+        option  all;
+    }
+);
+
+// ************************************************************************* //

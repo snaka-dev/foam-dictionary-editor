@@ -1,7 +1,23 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
+
 from dataclasses import dataclass, field
+from typing import Any, Literal
+
+# The definitive list of node_type values the parser/writer/model recognise.
+# This Literal is the single source of truth — mypy flags any code that
+# assigns or compares against a value not listed here. See DEVELOPER.md's
+# "Node types" section for what each value means and when it's produced.
+NodeType = Literal[
+    # Leaf value types
+    "int", "scalar", "bool", "word", "string", "macro", "compound",
+    "vector", "int_list", "scalar_list", "raw_list", "box_pair", "nonuniform_list",
+    # Structural types
+    "dictionary", "field_value_block", "field_value", "region_block", "region_entry",
+    "boundary_block", "boundary_entry", "action_list", "action_entry",
+    "directive_entry", "macro_entry", "unknown_raw_entry",
+]
 
 # Node types where the key column is not editable.
 NON_KEY_EDITABLE = frozenset({"field_value", "macro_entry", "directive_entry", "unknown_raw_entry"})
@@ -16,8 +32,11 @@ BOOL_WORDS = frozenset({"true", "false", "on", "off", "yes", "no"})
 @dataclass
 class FoamNode:
     name: str
-    node_type: str
-    value: object = None
+    node_type: NodeType
+    # Runtime type depends on node_type (str/int/float/list/dict/None).
+    # Dispatch is on node_type, not on value's Python type, so a
+    # discriminated union isn't modeled here.
+    value: Any = None
     children: list[FoamNode] = field(default_factory=list)
     parent: FoamNode | None = field(default=None, repr=False)
 

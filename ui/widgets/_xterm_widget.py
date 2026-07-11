@@ -151,15 +151,22 @@ if _XTERM_AVAILABLE:
             super().__init__(parent)
             self._backend = backend
             self._pending_cwd: str | None = None
+            self._pending_cmd: str | None = None
             backend.data_ready.connect(self.send_to_terminal)
 
         def set_pending_cwd(self, path: str) -> None:
             self._pending_cwd = path
 
+        def set_pending_cmd(self, cmd: str) -> None:
+            self._pending_cmd = cmd
+
         @Slot()
         def terminal_ready(self) -> None:
             self._backend.start_shell(self._pending_cwd)
             self._pending_cwd = None
+            if self._pending_cmd:
+                self._backend.write(f"{self._pending_cmd}\n".encode())
+                self._pending_cmd = None
 
         @Slot(str)
         def on_input(self, text: str) -> None:
@@ -203,6 +210,12 @@ if _XTERM_AVAILABLE:
                 self._backend.write(f"cd {shlex.quote(path)}\n".encode())
             else:
                 self._bridge.set_pending_cwd(path)
+
+        def run_command(self, cmd: str) -> None:
+            if self._backend.is_running:
+                self._backend.write(f"{cmd}\n".encode())
+            else:
+                self._bridge.set_pending_cmd(cmd)
 
         def _load_terminal(self) -> None:
             ui_dir = Path(__file__).parent.parent
