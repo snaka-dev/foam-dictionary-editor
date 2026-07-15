@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from schemas._base import (
-    ChoiceItem, KeySchema,
-    FOUNDATION_V13, OPENCFD_SERIES,
+    FOUNDATION_V13,
+    OPENCFD_SERIES,
+    ChoiceItem,
+    KeySchema,
 )
 
 TARGET_FILE = "fvSolution"
@@ -15,12 +17,27 @@ SCHEMAS: dict[str, KeySchema] = {
         label="solvers/<field>/solver",
         description="Selects the linear solver used for the field.",
         supported_in=(FOUNDATION_V13,),
-        note="Representative Foundation v13 linear-solver choices. Actual valid choices depend on matrix symmetry and case setup.",
+        note=(
+            "Representative Foundation v13 linear-solver choices. Actual valid "
+            "choices depend on matrix symmetry and case setup."
+        ),
         choices=(
-            ChoiceItem("PCG", "Preconditioned conjugate-gradient solver for symmetric systems.", supported_in=(FOUNDATION_V13,)),
-            ChoiceItem("PBiCG", "Preconditioned bi-conjugate-gradient solver.", supported_in=(FOUNDATION_V13,)),
-            ChoiceItem("PBiCGStab", "Stabilised preconditioned bi-conjugate-gradient solver.", supported_in=(FOUNDATION_V13,)),
-            ChoiceItem("smoothSolver", "Iterative solver using a smoothing method.", supported_in=(FOUNDATION_V13,)),
+            ChoiceItem(
+                "PCG",
+                "Preconditioned conjugate-gradient solver for symmetric systems.",
+                supported_in=(FOUNDATION_V13,),
+            ),
+            ChoiceItem(
+                "PBiCG", "Preconditioned bi-conjugate-gradient solver.", supported_in=(FOUNDATION_V13,)
+            ),
+            ChoiceItem(
+                "PBiCGStab",
+                "Stabilised preconditioned bi-conjugate-gradient solver.",
+                supported_in=(FOUNDATION_V13,),
+            ),
+            ChoiceItem(
+                "smoothSolver", "Iterative solver using a smoothing method.", supported_in=(FOUNDATION_V13,)
+            ),
             ChoiceItem("GAMG", "Geometric-algebraic multi-grid solver.", supported_in=(FOUNDATION_V13,)),
         ),
     ),
@@ -45,7 +62,9 @@ SCHEMAS: dict[str, KeySchema] = {
         choices=(
             ChoiceItem("GaussSeidel", "Gauss-Seidel smoother.", supported_in=(FOUNDATION_V13,)),
             ChoiceItem("symGaussSeidel", "Symmetric Gauss-Seidel smoother.", supported_in=(FOUNDATION_V13,)),
-            ChoiceItem("DIC", "Diagonal incomplete-Cholesky smoother option.", supported_in=(FOUNDATION_V13,)),
+            ChoiceItem(
+                "DIC", "Diagonal incomplete-Cholesky smoother option.", supported_in=(FOUNDATION_V13,)
+            ),
             ChoiceItem("DILU", "Diagonal incomplete-LU smoother option.", supported_in=(FOUNDATION_V13,)),
         ),
     ),
@@ -89,8 +108,12 @@ SCHEMAS: dict[str, KeySchema] = {
         description="Controls whether the momentum predictor step is performed.",
         supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
         choices=(
-            ChoiceItem("true", "Enable the momentum predictor.", supported_in=(FOUNDATION_V13, OPENCFD_SERIES)),
-            ChoiceItem("false", "Disable the momentum predictor.", supported_in=(FOUNDATION_V13, OPENCFD_SERIES)),
+            ChoiceItem(
+                "true", "Enable the momentum predictor.", supported_in=(FOUNDATION_V13, OPENCFD_SERIES)
+            ),
+            ChoiceItem(
+                "false", "Disable the momentum predictor.", supported_in=(FOUNDATION_V13, OPENCFD_SERIES)
+            ),
             ChoiceItem("yes", "Alternative enabled switch form.", supported_in=(FOUNDATION_V13,)),
             ChoiceItem("no", "Alternative disabled switch form.", supported_in=(FOUNDATION_V13,)),
         ),

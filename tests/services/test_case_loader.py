@@ -214,6 +214,39 @@ class TestConstants:
         assert "constant/regionProperties" in TARGET_FILES
 
 
+class TestRootScripts:
+    def test_all_scripts_listed(self, tmp_path):
+        """Case-root All* scripts (Allrun, Allrun.pre, Allclean) are listed"""
+        (tmp_path / "system").mkdir()
+        for name in ("Allrun", "Allrun.pre", "Allclean"):
+            (tmp_path / name).write_text("#!/bin/sh\n", encoding="utf-8")
+        files = list_case_files(str(tmp_path))
+        for name in ("Allrun", "Allrun.pre", "Allclean"):
+            assert str(tmp_path / name) in files
+
+    def test_all_prefixed_directory_ignored(self, tmp_path):
+        """A directory whose name matches All* is not listed"""
+        (tmp_path / "Allrun.d").mkdir()
+        files = list_case_files(str(tmp_path))
+        assert str(tmp_path / "Allrun.d") not in files
+
+    def test_other_root_files_not_listed(self, tmp_path):
+        """Non-All* case-root files (logs, .foam) stay hidden"""
+        (tmp_path / "system").mkdir()
+        (tmp_path / "log.blockMesh").write_text("", encoding="utf-8")
+        (tmp_path / "case.foam").write_text("", encoding="utf-8")
+        files = list_case_files(str(tmp_path))
+        assert str(tmp_path / "log.blockMesh") not in files
+        assert str(tmp_path / "case.foam") not in files
+
+    def test_case_without_scripts_unchanged(self, tmp_path):
+        """A case with no All* scripts lists only its dictionary files"""
+        (tmp_path / "system").mkdir()
+        (tmp_path / "system" / "controlDict").write_text("", encoding="utf-8")
+        files = list_case_files(str(tmp_path))
+        assert files == [str(tmp_path / "system" / "controlDict")]
+
+
 class TestIsOpenfoamCase:
     def test_both_dirs_present(self, tmp_path):
         (tmp_path / "system").mkdir()
@@ -329,6 +362,26 @@ class TestExtraDirs:
         )
         assert files.count(str(d / "f")) == 1
 
+    def test_flat_scan_excludes_dotfiles(self, tmp_path):
+        """Hidden files are skipped by a non-recursive extra dir scan."""
+        (tmp_path / ".foam-editor-files.json").write_text("{}", encoding="utf-8")
+        (tmp_path / "visible").write_text("", encoding="utf-8")
+        files = list_case_files(str(tmp_path), extra_dirs=[(".", False)])
+        assert str(tmp_path / "visible") in files
+        assert str(tmp_path / ".foam-editor-files.json") not in files
+
+    def test_recursive_scan_excludes_dotfiles_and_hidden_dirs(self, tmp_path):
+        """Hidden files and files inside hidden directories are skipped recursively."""
+        d = tmp_path / "validation"
+        (d / ".git").mkdir(parents=True)
+        (d / ".git" / "config").write_text("", encoding="utf-8")
+        (d / ".hidden").write_text("", encoding="utf-8")
+        (d / "shown").write_text("", encoding="utf-8")
+        files = list_case_files(str(tmp_path), extra_dirs=[("validation", True)])
+        assert str(d / "shown") in files
+        assert str(d / ".hidden") not in files
+        assert str(d / ".git" / "config") not in files
+
 
 # ── list_directory_files ──────────────────────────────────────────────────────
 
@@ -362,6 +415,15 @@ class TestListDirectoryFiles:
         result = list_directory_files(str(tmp_path), "system")
         names = [Path(f).name for f in result]
         assert names == sorted(names, key=str.lower)
+
+    def test_dotfiles_excluded(self, tmp_path):
+        """Hidden files are never returned (e.g. the app's own config at case root)"""
+        (tmp_path / ".foam-editor-files.json").write_text("{}", encoding="utf-8")
+        (tmp_path / "log.blockMesh").write_text("", encoding="utf-8")
+        result = list_directory_files(str(tmp_path), ".")
+        names = [Path(f).name for f in result]
+        assert "log.blockMesh" in names
+        assert ".foam-editor-files.json" not in names
 
 
 # ── detect_regions ────────────────────────────────────────────────────────────

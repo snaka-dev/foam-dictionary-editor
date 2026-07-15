@@ -15,23 +15,47 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 | I want to… | Section |
 |---|---|
 | Browse and manage case files | [File list behavior](#file-list-behavior) |
+| Add non-default files, whole directories, or result time steps to the file list | [Adding extra directories](#adding-extra-directories) |
 | Open or reload a case | [Reloading a case](#reloading-a-case) |
 | Save or duplicate a case | [Duplicating a case](#duplicating-a-case) / [Saving as a new case](#saving-as-a-new-case) |
+| Back up a file, or clean up old backups | [Creating a backup](#creating-a-backup) / [Cleaning up backup files](#cleaning-up-backup-files) |
 | Compare two cases side-by-side | [Case comparison](#case-comparison) |
 | Use tutorial or template cases | [Case Library](#case-library) |
+| Try FoDE with a ready-made example case | [Bundled example cases](#bundled-example-cases) |
+| Work with a multiRegion (CHT) case | [MultiRegion cases](#multiregion-cases) |
 | Understand tree ↔ text sync | [Tree and text workflow](#tree-and-text-workflow) |
 | Edit values in the tree | [Tree view context menu](#tree-view-context-menu) |
 | Get help on a dictionary setting | [Detail pane](#detail-pane) |
-| Edit boundary conditions in bulk | [Boundary view](#boundary-view) |
+| View all boundary conditions at a glance without opening each field file | [Boundary view](#boundary-view) |
+| Delete or add a boundary condition across all field files at once | [Deleting](#deleting-a-boundary-condition-across-all-field-files) / [Adding a boundary condition across all field files](#adding-a-boundary-condition-across-all-field-files) |
+| Rename a boundary patch across blockMeshDict and all field files | [Renaming a boundary patch](#renaming-a-boundary-patch) |
+| Copy the boundary table into a report (Markdown/CSV) | [Copy Table](#copy-table) |
 | View blockMeshDict geometry in 3-D | [BlockMesh panel](#blockmesh-panel) |
+| View topoSetDict geometry in 3-D | [topoSetDict overlay](#toposetdict-overlay) |
+| View snappyHexMeshDict surfaces/regions in 3-D | [snappyHexMeshDict overlay](#snappyhexmeshdict-overlay) |
+| View setFieldsDict regions in 3-D | [setFieldsDict overlay](#setfieldsdict-overlay) |
+| See the tree and the 3-D view at the same time | [Side-by-side mode](#side-by-side-mode) |
+| Tweak vertex coordinates and see the 3-D effect instantly | [Vertices table](#vertices-table) |
+| Export topoSet/snappyHexMesh/setFields shapes as STL, or overlay an STL/OBJ file | [Geometry controls](#geometry-controls) |
+| View the generated mesh in ParaView | [Open Mesh in ParaView](#open-mesh-in-paraview) |
 | Filter tree keys | [Tree key filter](#tree-key-filter-and-editor-sync) |
 | Jump to a tree entry from the editor | [Find in Tree](#tree-key-filter-and-editor-sync) |
 | Find text in the editor | [Editor toolbar](#current-ui-layout) |
 | View keyboard shortcuts | Help > Keyboard Shortcuts… |
 | Run OpenFOAM commands from FoDE | [Terminal tab](#terminal-tab) |
+| Check whether the mesh is up to date | [Mesh presence/staleness indicator](#mesh-presencestaleness-indicator) |
+| Run blockMesh or restore 0/ without leaving FoDE | [Run blockMesh](#run-blockmesh) / [Restore 0/ from 0.orig](#restore-0-from-0orig) |
+| Run snappyHexMesh or topoSet without leaving FoDE | [Run snappyHexMesh](#run-snappyhexmesh) / [Run topoSet](#run-toposet) |
+| Set initial field regions, or validate the mesh | [Run setFields](#run-setfields) / [Run checkMesh](#run-checkmesh) |
+| Run the case's whole workflow, or clean it back to a pristine state | [Run Allrun Script](#run-allrun-script) / [Run Allclean Script](#run-allclean-script) / [Clean Case](#clean-case-foamcleantutorials) |
+| Plot residuals while a solver is running | [foamMonitor launcher](#foammonitor-launcher) |
+| Read a long log.snappyHexMesh log without scrolling through thousands of lines | [View Log Summary](#view-log-summary) |
+| See how a keyword or function object is used in real cases | [Find OpenFOAM Examples](#find-openfoam-examples) |
 | Choose a variant (no-terminal, BlockMesh) | [Variants](#variants) |
 | Add schema help for custom keys | [Schema module configuration](#schema-module-configuration) |
+| Match syntax highlighting to my OpenFOAM version | [Generate OpenFOAM Keywords](#generate-openfoam-keywords) |
 | Configure application settings | [Application settings](#application-settings) |
+| Switch the UI language (English / 日本語) | Settings > Language |
 | Open help links or reference sites | [Resources dialog](#resources-dialog) |
 
 ## Contents
@@ -52,6 +76,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
   - [Extra files and directories indicator](#extra-files-and-directories-indicator)
   - [Removing extra files and directories](#removing-extra-files-and-directories)
   - [Numeric time directory indicator](#numeric-time-directory-indicator)
+  - [Mesh presence/staleness indicator](#mesh-presencestaleness-indicator)
   - [Creating a backup](#creating-a-backup)
   - [Creating a new file](#creating-a-new-file)
   - [Cleaning up backup files](#cleaning-up-backup-files)
@@ -61,6 +86,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
   - [Deleting a field directory](#deleting-a-field-directory)
   - [Resetting the file list](#resetting-the-file-list)
 - [Case Library](#case-library)
+- [Bundled example cases](#bundled-example-cases)
 - [Case comparison](#case-comparison)
 - [Reloading a case](#reloading-a-case)
 - [Saving as a new case](#saving-as-a-new-case)
@@ -84,6 +110,15 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
   - [Deleting a boundary condition across all field files](#deleting-a-boundary-condition-across-all-field-files)
   - [Adding a boundary condition across all field files](#adding-a-boundary-condition-across-all-field-files)
 - [BlockMesh panel](#blockmesh-panel)
+  - [Side-by-side mode](#side-by-side-mode)
+  - [Variable resolution](#variable-resolution)
+  - [Geometry controls](#geometry-controls)
+  - [topoSetDict overlay](#toposetdict-overlay)
+  - [snappyHexMeshDict overlay](#snappyhexmeshdict-overlay)
+  - [setFieldsDict overlay](#setfieldsdict-overlay)
+  - [Overlay clipping](#overlay-clipping)
+  - [Vertices table](#vertices-table)
+  - [Mouse controls](#mouse-controls)
 - [Behavior on parse failure](#behavior-on-parse-failure)
 
 **Navigation & search**
@@ -97,9 +132,25 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 - [Terminal tab](#terminal-tab)
 - [Variants](#variants)
 - [Schema module configuration](#schema-module-configuration)
+- [Generate OpenFOAM Keywords](#generate-openfoam-keywords)
 - [Application settings](#application-settings)
 - [Resetting settings](#resetting-settings)
 - [Resources dialog](#resources-dialog)
+
+**Tools**
+- [foamMonitor launcher](#foammonitor-launcher)
+- [Restore 0/ from 0.orig](#restore-0-from-0orig)
+- [Run blockMesh](#run-blockmesh)
+- [Run snappyHexMesh](#run-snappyhexmesh)
+- [Run topoSet](#run-toposet)
+- [Run setFields](#run-setfields)
+- [Run checkMesh](#run-checkmesh)
+- [Run Allrun Script](#run-allrun-script)
+- [Open Mesh in ParaView](#open-mesh-in-paraview)
+- [Run Allclean Script](#run-allclean-script)
+- [Clean Case (foamCleanTutorials)](#clean-case-foamcleantutorials)
+- [View Log Summary](#view-log-summary)
+- [Find OpenFOAM Examples](#find-openfoam-examples)
 
 **Reference**
 - [Supported syntax and node types](#supported-syntax-and-node-types)
@@ -116,6 +167,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 - Automatically list all files found under the `0` and `0.orig` field directories.
 - Automatically detect multiRegion case structures (e.g. `chtMultiRegionFoam`, `chtMultiRegionSimpleFoam`) and list per-region files under separate group headers such as `system/fluid` and `constant/heater`.
 - Automatically collect phase-variant files such as `thermophysicalProperties.air` and `turbulenceProperties.water` that are present in `constant/` or per-region constant directories.
+- Automatically list the case-root `All*` scripts (`Allrun`, `Allrun.pre`, `Allclean`, …) under a **case root** group so the scripts run from the Tools menu can be inspected and edited; they open as text with shell syntax highlighting (no tree view), keep their executable permission when saved, and are included when the case is duplicated. Other case-root files (`log.*`, results, `*.foam`) stay hidden.
 - Display symbolic links in the file list with a `⇢` marker and italic text; hovering shows the link target in the tooltip.
 - Add files not in the default list to the file panel at runtime via right-click on a directory header.
 - Add entire directories to the file list so that all files inside are scanned automatically, just like `0/` and `0.orig/`. Each directory can be scanned flat (direct files only, default) or recursively (all subdirectories). Useful for custom field directories (`initial/`), restart time steps (`0.5/`), or deep subdirectories (`lagrangian/chemkin/`) and cases that include a `validation/` tree. Extra directories are shown with a distinct (purple) header. Right-click the **Results** indicator to add a numeric time directory directly; use **Settings > Manage Extra Files & Directories…** or the indicator button for arbitrary directories.
@@ -170,7 +222,7 @@ The main window is divided into two top-level columns separated by a horizontal 
 - **Left column** — file list for the selected OpenFOAM case (full window height).
 - **Right column** — a vertical splitter with two rows:
   - **Upper row** — a tab widget with up to three tabs:
-    - **Tree** tab — parsed dictionary tree (center) and detail editor (right). A **⊞** button in the tab bar's top-right corner activates side-by-side mode when `blockMeshDict` is the active file (see [BlockMesh panel — Side-by-side mode](#side-by-side-mode)).
+    - **Tree** tab — parsed dictionary tree (center) and detail editor (right). A **⊞** button in the tab bar's top-right corner activates side-by-side mode when `blockMeshDict`, `topoSetDict`, `snappyHexMeshDict`, or `setFieldsDict` is the active file (see [BlockMesh panel — Side-by-side mode](#side-by-side-mode)).
     - **Boundary** tab — boundary condition table for all field variables (see [Boundary view](#boundary-view)).
     - **BlockMesh** tab — interactive 3-D viewer for `blockMeshDict` geometry (see [BlockMesh panel](#blockmesh-panel)). Visible only when the Simple terminal is active; can also be toggled via **View > BlockMesh 3-D Panel**.
   - **Lower row** — tabbed panel with two tabs:
@@ -216,6 +268,7 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, a *
 
 - View > Show Type Column (checkable; hidden by default).
 - View > BlockMesh 3-D Panel (checkable; shows or hides the BlockMesh tab. Grayed out — with the label "BlockMesh 3-D Panel  (unavailable: xterm active)" — while xterm terminal mode is active due to the GPU conflict).
+- View > View Log Summary… — the same action as Tools > View Log Summary…, listed here too for discoverability. See [View Log Summary](#view-log-summary).
 
 **Settings menu:**
 
@@ -227,14 +280,27 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, a *
 - Settings > Reset Window Size.
 - Settings > Reset All Settings…
 - Settings > Language — select the UI language (English / 日本語). Takes effect after restarting the application.
+- Settings > Generate OpenFOAM Keywords… — rebuild the syntax-highlighter keyword list from a selected OpenFOAM installation. See [Generate OpenFOAM Keywords](#generate-openfoam-keywords).
 
 **Tools menu:**
 
 - Tools > foamMonitor… — launch `foamMonitor` to plot residuals or other time-series data with gnuplot. See [foamMonitor launcher](#foammonitor-launcher).
+- Tools > Restore 0/ from 0.orig — recreate `0/` from `0.orig/`, discarding any edits made directly to `0/`. See [Restore 0/ from 0.orig](#restore-0-from-0orig).
+- Tools > Run blockMesh — run `blockMesh` in the case directory. See [Run blockMesh](#run-blockmesh).
+- Tools > Run snappyHexMesh — run `snappyHexMesh -overwrite` in the case directory. See [Run snappyHexMesh](#run-snappyhexmesh).
+- Tools > Run topoSet — run `topoSet` in the case directory. See [Run topoSet](#run-toposet).
+- Tools > Run setFields — run `setFields` in the case directory, offering to restore `0/` from `0.orig/` first. See [Run setFields](#run-setfields).
+- Tools > Run checkMesh — run `checkMesh` in the case directory. See [Run checkMesh](#run-checkmesh).
+- Tools > Run Allrun Script — run the case's `./Allrun` script, including the solver. See [Run Allrun Script](#run-allrun-script).
+- Tools > Open Mesh in ParaView… — open the current case in ParaView. See [Open Mesh in ParaView](#open-mesh-in-paraview).
+- Tools > Run Allclean Script — run the case's `./Allclean` script. See [Run Allclean Script](#run-allclean-script).
+- Tools > Clean Case (foamCleanTutorials) — clean the case with `foamCleanTutorials`. See [Clean Case (foamCleanTutorials)](#clean-case-foamcleantutorials).
+- Tools > View Log Summary… — show a condensed summary of a `log.*` file. See [View Log Summary](#view-log-summary).
+- Tools > Find OpenFOAM Examples… — search the OpenFOAM tutorials and `etc/caseDicts` templates for usage examples of a keyword. See [Find OpenFOAM Examples](#find-openfoam-examples).
 
 **Help menu:**
 
-- Help > About Foam Dictionary Editor (FoDE)...
+- Help > About Foam Dictionary Editor (FoDE)... — shows the application version (with a short dev-build suffix when run from a git checkout), license, and acknowledgements.
 - Help > Keyboard Shortcuts...
 - Help > Resources...
 
@@ -291,6 +357,12 @@ In addition, all files found directly inside the `0` and `0.orig` directories of
 
 Phase-variant files matching `thermophysicalProperties.*` and `turbulenceProperties.*` (for example `thermophysicalProperties.air`) are collected automatically via glob from `constant/` and from each per-region constant directory.
 
+### Case-root scripts
+
+Script files matching `All*` directly in the case root (`Allrun`, `Allrun.pre`, `Allclean`, …) are listed automatically under a **case root** group, shown after all other groups. Since the Tools menu can run these scripts, listing them lets you inspect and edit exactly what will be executed. Other case-root files (`log.*`, `*.foam`, result directories) stay hidden by default to keep the list clean, and this group never shows a `[+]` marker (there are almost always unlisted logs at the root, so the marker would be permanently on). To list specific extra root files — a run log, a `README`, a custom script — right-click the **case root** header and choose **Add files from 'case root'...**; the same menu also offers **New file in 'case root'...**, consistent with the other directory headers. Hidden files (names starting with `.`) are never offered.
+
+Scripts are shell files, not OpenFOAM dictionaries: opening one shows it in the text editor only — the tree view stays empty, **Apply Text to Tree** has no effect, and compare mode skips them. The editor automatically switches to a shell-highlighting mode (detected by the `#!` shebang): `#` comments, quoted strings, `$variables`, OpenFOAM run helpers such as `runApplication` and `runParallel`, and utility/solver names from the regular OpenFOAM keyword list are all coloured. Editing and saving work as for any other file, and the executable permission is preserved. The scripts are also included when the case is duplicated or saved as a new case, so the copy remains runnable from the Tools menu.
+
 ### MultiRegion cases
 
 When subdirectories are found inside `system/`, the editor treats them as region names and builds additional file groups. The following files are listed per region when present:
@@ -323,10 +395,10 @@ Symbolic links in the file list are shown with a `⇢` marker appended to the fi
 
 ### Adding files at runtime
 
-Right-click any directory header in the file list to open a context menu with the following actions.
+Right-click any directory header in the file list — including the **case root** header — to open a context menu with the following actions.
 
 - **New file in '\<dir\>'...** — create a new file from a FoamFile template (see [Creating a new file](#creating-a-new-file)).
-- **Add files from '\<dir\>'...** — add existing files to the file list. A dialog lists all files in that directory that are not yet shown. Select one or more and click **OK** to add them.
+- **Add files from '\<dir\>'...** — add existing files to the file list. A dialog lists all files in that directory that are not yet shown (hidden files starting with `.` are excluded). Select one or more and click **OK** to add them.
 - **Remove '\<dir\>' from file list** — removes an extra directory from the file list. Shown only on extra-directory headers (see [Adding extra directories](#adding-extra-directories)).
 - **Duplicate '\<dir\>' → '\<counterpart\>'...** — copy a `0/` or `0.orig/` directory to create the missing counterpart (see [Duplicating a field directory](#duplicating-a-field-directory)). This action is shown only for `0` and `0.orig` headers, and only when exactly one of the two directories is present.
 - **Delete '0' directory...** — permanently delete the `0/` directory from disk (see [Deleting a field directory](#deleting-a-field-directory)). Shown only on the `0` header, and only when `0.orig` exists.
@@ -346,6 +418,8 @@ Any directory inside the case root can be added to the file list so that all fil
 
 Extra directory group headers are shown in **purple** to distinguish them from built-in groups. The `[+]` unlisted-files marker is never shown for extra directories because all files are already loaded.
 
+Hidden files and directories (names starting with `.`, such as the app's own `.foam-editor-files.json` or a `.git/` tree) are always excluded from extra-directory scans.
+
 **Adding a time directory via the Results indicator:**  
 Right-click the **Results: …** row at the bottom of the file list. A submenu lists each time directory; click one to add it. Directories already added are greyed out.
 
@@ -360,8 +434,8 @@ Right-click the (purple) directory header in the file list and select **Remove '
 
 Files created or duplicated inside an extra directory are not added to the extra-files list — they are already visible because the whole directory is scanned.
 
-**Large non-dictionary files in extra directories:**  
-If a directory contains large files that are not OpenFOAM dictionaries (e.g. `log.simpleFoam`, solver output files), those files appear in the file list but are skipped during case comparison diff computation — no `≠` marker is shown for them. Opening such a file manually shows a confirmation dialog warning that the tree view will be unavailable and the application may not respond during loading.
+**Run logs and large non-dictionary files in extra directories:**  
+`log.*` run logs (e.g. `log.blockMesh`, `log.simpleFoam`) appearing via an extra directory are shown **dimmed (grey)** in the file list and always open as plain text — the dictionary parser is never run on them, so there is no tree view, **Apply Text to Tree** has no effect, and case comparison skips them (no `≠` marker). Opening a log larger than 100 KB still shows a confirmation dialog first, since loading a very large text file can take a moment. Other large non-dictionary files get the same confirmation dialog and are likewise skipped during diff computation.
 
 ### Extra files and directories indicator
 
@@ -389,6 +463,14 @@ Removing an extra file or directory from the list does not delete anything from 
 When numeric directories (OpenFOAM calculation results such as `0.5`, `1`, `10`) are found at the case root — excluding `0`, `0.orig`, and any directories already added as extra directories — a non-selectable **Results: …** row is appended at the bottom of the file list. The indicator is rendered in bold gray text and lists up to six directory names. When more than six exist, a `(+N more)` suffix is added. Hovering shows the total count and, for multiple directories, the first and last in the sorted range.
 
 Right-click the indicator to add any of the listed directories to the file list as an extra directory (see [Adding extra directories](#adding-extra-directories)). Once a directory is added, it no longer appears in the Results indicator and instead shows as a full group header.
+
+### Mesh presence/staleness indicator
+
+When `constant/polyMesh/owner` exists, a non-selectable indicator row is appended near the bottom of the file list (alongside the Results indicator) showing the cell count, e.g. **"constant/polyMesh: 8,000 cells"**. The count is read from the `note` field in the file's `FoamFile` header (e.g. `nPoints:9261 nCells:8000 nFaces:25200`) rather than by parsing the mesh, so the check is cheap. If the count can't be read from the header, the indicator falls back to **"constant/polyMesh (present)"**.
+
+If `system/blockMeshDict` has been modified more recently than the mesh was generated, the indicator is shown in amber with a **" — stale (blockMeshDict changed since last run)"** suffix, and the tooltip explains why. Hovering over the indicator always shows the full point/cell/face counts when available.
+
+The indicator updates automatically: it is recomputed on every file-list refresh, including after **Tools > Run blockMesh**, after saving `blockMeshDict` (`Save File` / `Save Case`), and after any change detected by the file-system watcher — no manual **Reload Case** is needed.
 
 ### Creating a backup
 
@@ -556,13 +638,21 @@ The tab can also be toggled at any time via **View > BlockMesh 3-D Panel** (chec
 
 The panel is updated automatically whenever `blockMeshDict` is loaded or edited. A **Refresh** button forces a manual update.
 
-Loading or editing `topoSetDict` also updates the panel: action geometry sources (box, sphere, cylinder, cone) are overlaid on the mesh. The overlay is shown even if `blockMeshDict` has not been loaded. Use the **"topoSet geometry"** checkbox to toggle it.
+Loading or editing `topoSetDict` also updates the panel: action geometry sources (box, rotated box, sphere, cylinder, cone, point-carrying sources such as `nearestToCell`, and `planeToFaceZone`) are overlaid on the mesh. The overlay is shown even if `blockMeshDict` has not been loaded. Use the **"Show topoSet geometry"** toggle in the **topoSet ▾** menu to toggle it.
+
+Loading or editing `snappyHexMeshDict` overlays its `geometry` block (box/sphere/cylinder/cone/triSurfaceMesh/collection), classified as surface, region, or geometry-only via `refinementSurfaces`/`refinementRegions`, plus `locationInMesh`/`locationsInMesh` keep-point markers — see [snappyHexMeshDict overlay](#snappyhexmeshdict-overlay). This overlay is also shown independently of `blockMeshDict`/`topoSetDict`.
+
+Loading or editing `setFieldsDict` overlays its `regions ( … )` list the same way, each region labelled with its `fieldValues` summary — see [setFieldsDict overlay](#setfieldsdict-overlay).
+
+Overlay shapes that extend beyond the block mesh are clipped in the view so the mesh stays visible — see [Overlay clipping](#overlay-clipping).
 
 ### Side-by-side mode
 
-A **⊞** toggle button appears in the top-right corner of the upper tab widget when `blockMeshDict` is the active file and the BlockMesh panel is available. Clicking it places the 3-D viewer in a horizontal splitter to the right of the Tree tab so both are visible at the same time. The separate **BlockMesh** tab is removed while side-by-side mode is on, and restored when it is turned off.
+A **⊞** toggle button appears in the top-right corner of the upper tab widget when `blockMeshDict`, `topoSetDict`, `snappyHexMeshDict`, or `setFieldsDict` is the active file and the BlockMesh panel is available. Clicking it places the 3-D viewer in a horizontal splitter to the right of the Tree tab so both are visible at the same time. The separate **BlockMesh** tab is removed while side-by-side mode is on, and restored when it is turned off.
 
 The 3-D view is **not** updated automatically while side-by-side mode is on — click **Refresh** after editing the tree to see the updated geometry.
+
+The splitter handle between the tree and the 3-D view can be dragged freely: neither pane snaps closed, and the 3-D view can be narrowed down to a small minimum width, with its toolbar wrapping onto extra lines as needed.
 
 The **⊞** button is disabled while the xterm terminal is active (GPU/OpenGL conflict prevents the BlockMesh panel from being open at the same time).
 
@@ -578,32 +668,40 @@ Variable definitions at the top level of `blockMeshDict` are automatically resol
 
 If a reference cannot be resolved (the variable is defined in an external file, for instance), any vertex or block that contains it is silently skipped.
 
-### Geometry controls (first toolbar row)
+### Geometry controls
+
+All controls sit in a single toolbar at the top of the panel. The toolbar *wraps*: when the panel is narrow (for example in side-by-side mode) the buttons flow onto additional lines instead of dictating a minimum panel width.
 
 | Control | Description |
 |---|---|
 | **Vertices ▾** | Drop-down menu with three checkable items: **Vertices** (show vertices as red spheres), **Vertex labels** (overlay vertex index numbers), **Vertices table** (show or hide the vertex coordinate table on the right). |
 | **Blocks ▾** | Drop-down menu with four checkable items: **Block edges** (wireframe), **Block labels** (index at centroid), **Color blocks** (distinct colour per block from the tab10 palette), **Solid blocks** (semi-transparent solid faces at opacity 0.25, shares colour with Color blocks). |
-| **Boundary faces** | Show boundary patch faces, colour-coded by type. |
-| **topoSet geometry** | Show geometry sources from `topoSetDict` as semi-transparent overlays, colour-coded by action type (see [topoSetDict overlay](#toposetdict-overlay)). |
+| **Boundary faces** | Show boundary patch faces, colour-coded by type. Exterior block faces not claimed by any patch — blockMesh's implicit `defaultFaces` — are drawn in a fainter grey; without them a quasi-2-D case like damBreak (whose big front/back faces are never listed under `boundary`) would appear to have no boundary at all. |
+| **topoSet ▾** | Drop-down menu for the `topoSetDict` overlay: a master **Show topoSet geometry** toggle, **Show all shapes** / **Hide all shapes** actions, an action-colour legend, one checkable toggle per renderable shape, and a **Non-geometric sources (N)** submenu collecting the entries that carry no drawable geometry (see [topoSetDict overlay](#toposetdict-overlay)). |
+| **snappyHexMesh ▾** | Drop-down menu for the `snappyHexMeshDict` overlay, structured like **topoSet ▾**: a master toggle, **Show all shapes** / **Hide all shapes**, a category-colour legend, per-shape and keep-point toggles, and a **Non-geometric sources (N)** submenu (see [snappyHexMeshDict overlay](#snappyhexmeshdict-overlay)). |
+| **setFields ▾** | Drop-down menu for the `setFieldsDict` overlay, structured like **topoSet ▾**: a master **Show setFields regions** toggle, **Show all shapes** / **Hide all shapes**, the region colour legend, one checkable toggle per renderable region, and a **Non-geometric sources (N)** submenu (see [setFieldsDict overlay](#setfieldsdict-overlay)). |
 | **Refresh** | Re-extract geometry from the current tree and redraw. In Preview mode, also discards all preview edits and resets vertex coordinates to the tree values. |
 | **Preview** | Appears only when the `vertices` block contains variable references (`$varName`). This button is shown inside the **Vertices** panel (not in the main toolbar). Click to enter Preview mode: table cells become editable and each change immediately updates the 3-D view, but the tree and file are not modified. A yellow banner is shown while Preview mode is active. Click **Refresh** to leave Preview mode and restore the original values. |
-| **STL ▾** | Drop-down menu: **Load STL / OBJ…** loads an STL or OBJ file and displays it as a translucent grey overlay (multiple files can be loaded); **Clear STL** removes all loaded overlays (greyed out when none are loaded). |
+| **STL ▾** | Drop-down menu: **Load STL / OBJ…** loads an STL or OBJ file and displays it as a translucent grey overlay (multiple files can be loaded); **Clear STL** removes all loaded overlays (greyed out when none are loaded); **Export Shapes as STL…** opens a dialog listing every renderable `topoSetDict`/`snappyHexMeshDict`/`setFieldsDict` shape currently loaded, with a checkbox per shape (defaulting to its current visibility in the 3-D view) and a Select All / Deselect All pair. Choose an output folder and click Export to write each checked shape as its own `.stl` file, named after its label/name (greyed out when no topoSet/snappyHexMesh/setFields geometry is loaded). Point-marker shapes (e.g. `nearestToCell`) and `planeToFaceZone` discs are not offered — they have no meaningful STL surface. Exported geometry is always the full, unclipped shape, even when the 3-D view shows it clipped. |
 
 Both the traditional 4-vertex face notation `(v0 v1 v2 v3)` and the newer compact notation `(blockIndex faceIndex)` are supported and can coexist in the same file. The compact form is automatically expanded to 4-vertex lists using the standard hex block face numbering before display.
 
 ### topoSetDict overlay
 
-When `topoSetDict` is loaded or edited, the geometry source of each action entry is drawn as a semi-transparent shape overlaid on the mesh. The **"topoSet geometry"** checkbox in the first toolbar row toggles the overlay.
+When `topoSetDict` is loaded or edited, the geometry source of each action entry is drawn as a semi-transparent shape overlaid on the mesh. The **"Show topoSet geometry"** master toggle in the **topoSet ▾** menu toggles the whole overlay; each renderable shape also gets its own checkable toggle, and **Show all shapes** / **Hide all shapes** switch every toggle at once. Sources that carry no drawable geometry (e.g. `cellToFace`, `patchToCell`) are collected under a **Non-geometric sources (N)** submenu so a source-rich dictionary stays readable.
 
 **Supported source types:**
 
 | Source family | Examples | Shape |
 |---|---|---|
-| `boxToCell/Face/Point` | `box (x0 y0 z0) (x1 y1 z1)` | Wireframe + surface box |
-| `sphereToCell/Face/Point` | `centre`, `radius` | Sphere |
+| `boxToCell/Face/Point` | `box (x0 y0 z0) (x1 y1 z1)`, or `min`/`max` keys, or a multi-box `boxes ( … )` list | Wireframe + surface box (a `boxes` list draws every box) |
+| `rotatedBoxToCell/Face/Point` | `origin`, `i`, `j`, `k` | Oriented (rotated) box |
+| `sphereToCell/Face/Point` | `origin`/`centre`, `radius`, optional `innerRadius` | Sphere (hollow when `innerRadius` is given — the inner shell shows through) |
 | `cylinderToCell/Face/Point`, `cylinderAnnulusToCell` | `point1`/`p1`, `point2`/`p2`, `radius` | Cylinder |
 | `coneToCell/Face/Point`, `coneAnnulusToCell` | `point1`/`p1`, `point2`/`p2`, `radius1`, `radius2` | Cone (truncated; a true cone when `radius2` is 0) |
+| `nearestToCell`, `nearestToPoint` | `points ( … )` | Labelled point markers |
+| `regionToCell` / `regionToFace` | `insidePoints`/`insidePoint` / `nearPoint` | Labelled point markers |
+| `planeToFaceZone` | `point`, `normal` | Disc in the given plane, sized to the scene bounds (a plane is infinite, so the extent is display-only) |
 
 **Colour coding by action:**
 
@@ -618,6 +716,58 @@ When `topoSetDict` is loaded or edited, the geometry source of each action entry
 If an entry's geometry cannot be fully resolved (e.g. because of an unresolvable `$variable`), that entry is silently skipped. The overlay is shown even when `blockMeshDict` is not loaded.
 
 **Variable resolution** — Top-level scalar/integer definitions in `topoSetDict` (e.g. `xMin -0.01;`) are resolved before extraction, including macro chains (`y $x;`) and `#eval{ expr }` expressions. This is the same mechanism used in `blockMeshDict`. Variables from other files are not in scope.
+
+### snappyHexMeshDict overlay
+
+When `snappyHexMeshDict` is loaded or edited, its `geometry {}` block is drawn as a set of semi-transparent shapes overlaid on the mesh, each classified as a **surface**, a **region**, or plain **geometry** by cross-referencing `castellatedMeshControls.refinementSurfaces` / `refinementRegions`. The **"Show snappyHexMesh geometry"** master toggle in the **snappyHexMesh ▾** menu toggles the whole overlay; the menu also lists a checkable toggle per individual shape (with **Show all shapes** / **Hide all shapes** to switch them all at once), plus a **Non-geometric sources (N)** submenu collecting the entries for geometry that could not be drawn.
+
+**Supported `geometry` entry types:**
+
+| `type` | Fields | Shape |
+|---|---|---|
+| `box` | `min`, `max` | Wireframe + surface box |
+| `sphere` | `centre`/`origin`, `radius` | Sphere; if `radius` is given as a vector `(rx ry rz)` (e.g. an igloo-shaped dome), an ellipsoid is drawn instead of a true sphere |
+| `cylinder` | `point1`/`p1`, `point2`/`p2`, `radius` | Cylinder |
+| `cone` | `point1`/`p1`, `point2`/`p2`, `radius1`, `radius2` | Cone (truncated; a true cone when `radius2` is 0) |
+| `triSurfaceMesh` / `distributedTriSurfaceMesh` | `file` (or the entry's own key, if it ends in `.stl`/`.stlb`/`.obj`) | The referenced mesh, loaded automatically from `constant/triSurface/` relative to the case directory. If the file cannot be found, the entry is listed greyed-out instead of drawn. |
+| `collection` (searchableSurfaceCollection) | named sub-entries, each with `surface <name>`, `scale`, `transform { origin; rotation none; }` or `transform { origin; e1; e3; }` | Each sub-entry referencing a **box**-type base surface is drawn as its own scaled/rotated/translated box, named `<collection>.<member>` (e.g. `twoFridgeFreezers.seal`). Members referencing a non-box base, or using an unsupported/missing `transform`, are not drawn; if none of a collection's members could be resolved, the collection itself is listed greyed-out. |
+
+**Colour coding by category:**
+
+| Category | Colour | How it's determined |
+|---|---|---|
+| Surface | Teal | The geometry entry's name (or a `name` override) matches a `refinementSurfaces` entry — either exactly, or via a regex-pattern key such as `"iglo.*"` |
+| Region | Purple | Matches a `refinementRegions` entry (by exact name only); a shape that matches both is shown as a surface |
+| Geometry | Grey | Defined in `geometry {}` but not referenced by either control block |
+
+Each drawn shape is labelled with its name and, when available, its `refinementSurfaces` level `(min max)` or its `refinementRegions` mode (`inside`/`outside`/`distance`).
+
+**Keep points** — `castellatedMeshControls.locationInMesh` (a single point) or `locationsInMesh` (a list of `((x y z) regionName)` pairs, used by multi-region cases) are drawn as labelled point markers, independent of the shape overlay above.
+
+If a `geometry` entry's fields cannot be fully resolved (e.g. an unresolvable `$variable`), it is listed greyed-out rather than drawn. The overlay is shown even when `blockMeshDict`/`topoSetDict` are not loaded.
+
+**Not visualized** — per-region overrides inside a `refinementSurfaces` entry's `regions { … }` sub-block, `patchInfo`, `castellatedMeshControls.features` (feature-edge `.eMesh` references), and `refinementRegions.levelIncrement` (directional refinement) are read by the parser/schema but have no effect on this overlay.
+
+### setFieldsDict overlay
+
+When `setFieldsDict` is loaded or edited, each entry of its `regions ( … )` list is drawn as a semi-transparent orange shape overlaid on the mesh. Region sources use the same geometry keywords as `topoSetDict`, so the same shape families render: `boxToCell` (including the `min`/`max` and multi-box `boxes ( … )` forms), `rotatedBoxToCell`, `sphereToCell` (with optional `innerRadius`), `cylinderToCell`/`cylinderAnnulusToCell`, and `coneToCell`/`coneAnnulusToCell` — see the source table in [topoSetDict overlay](#toposetdict-overlay). `$variable` and `#eval{ expr }` references are resolved the same way.
+
+Each shape is labelled with a summary of the entry's `fieldValues` (e.g. `alpha.water=1`), so you can see at a glance which region sets which field. The **"Show setFields regions"** master toggle in the **setFields ▾** menu toggles the whole overlay; each region also gets its own checkable toggle, with **Show all shapes** / **Hide all shapes** to switch them all at once. Sources that carry no drawable geometry (e.g. `zoneToCell`, `surfaceToCell`) are collected under a **Non-geometric sources (N)** submenu. `defaultFieldValues` applies to the whole mesh and is not drawn.
+
+The overlay is shown even when `blockMeshDict` is not loaded. Renderable regions are also offered by **STL ▾ → Export Shapes as STL…** as a third group.
+
+### Overlay clipping
+
+setFieldsDict regions in particular are often written far larger than the domain (e.g. damBreak's `box (0 0 -1) (0.1461 0.292 1)` on a ~0.6 m tank) — drawn at full size they dwarf the block mesh. Whenever a block mesh is loaded, every overlay shape (topoSet, snappyHexMesh, and setFields) is therefore clipped, **for display only**, to the block-mesh bounding box expanded by 10% per axis:
+
+- A shape that fits inside the expanded bounds is drawn unchanged.
+- A shape that pokes out is cut down to the bounds and its scene label gains a **"✂ clipped"** mark, so the cut is not mistaken for the shape's real extent.
+- A shape lying entirely outside the block mesh is kept unclipped and labelled **"⚠ outside block mesh"**.
+- A shape whose volume encloses the whole scene (no part of its surface falls inside the bounds) is drawn as its bounding-box overlap instead of disappearing.
+
+The clipping never modifies the dictionary or the extracted geometry: **Export Shapes as STL…** always writes the full shape, and no clipping is applied when no block mesh is loaded.
+
+**Variable resolution** — Top-level scalar/integer definitions in `snappyHexMeshDict` are resolved the same way as in `blockMeshDict`/`topoSetDict`, including macro chains and `#eval{ expr }` expressions.
 
 ### Boundary face colours
 
@@ -644,7 +794,7 @@ A scrollable table on the right side of the panel lists every vertex from the `v
 - For meshes with more than 500 vertices only the first 500 rows are shown, with a truncation notice at the bottom.
 - The **Vertices table** item in the **Vertices ▾** menu collapses the table pane entirely, giving more space to the 3-D view.
 
-### Scale and label controls (second toolbar row)
+### Scale and label controls
 
 | Control | Description |
 |---|---|
@@ -676,7 +826,7 @@ Built-in schema modules:
 - `schemas/fv_schemes.py` — schema for `fvSchemes`.
 - `schemas/fv_solution.py` — schema for `fvSolution`.
 - `schemas/block_mesh_dict.py` — schema for `blockMeshDict`. Covers the top-level scaling keys (`convertToMeters`, `scale`), `mergeType`, and `verbose`.
-- `schemas/snappy_hex_mesh_dict.py` — schema for `snappyHexMeshDict`. Covers the top-level phase-toggle keys (`castellatedMesh`, `snap`, `addLayers`), `mergeTolerance`, and `debug`; common settings inside `castellatedMeshControls`, `snapControls`, `addLayersControls` (including layer-quality and medial-axis parameters), and `meshQualityControls` (including the `relaxed` sub-dict); per-surface keys inside `refinementSurfaces` entries (`level`, `faceZone`, `cellZone`, `cellZoneInside`, `faceType`); per-region keys inside `refinementRegions` entries (`mode`, `levels`); per-patch `nSurfaceLayers` inside `layers` entries; and `patchInfo.type` with patch-type choices.
+- `schemas/snappy_hex_mesh_dict/` — schema for `snappyHexMeshDict` (a package split by subdomain into submodules, merged in `__init__.py`). Covers the top-level phase-toggle keys (`castellatedMesh`, `snap`, `addLayers`), `mergeTolerance`, and `debug`; common settings inside `castellatedMeshControls`, `snapControls`, `addLayersControls` (including layer-quality and medial-axis parameters), and `meshQualityControls` (including the `relaxed` sub-dict); per-surface keys inside `refinementSurfaces` entries (`level`, `faceZone`, `cellZone`, `cellZoneInside`, `faceType`); per-region keys inside `refinementRegions` entries (`mode`, `levels`); per-patch `nSurfaceLayers` inside `layers` entries; and `patchInfo.type` with patch-type choices.
 
 Which schema modules to load is controlled at runtime via `schema_config.json`. You can add or remove schema modules without modifying the source code.
 
@@ -762,6 +912,16 @@ The registry imports each configured module and reads these two names. Any modul
 
 To add a custom schema module, select **Settings > Manage Schema Modules** in the application, then use the **Add Module from File** button to select a Python file. The change is saved to `schema_config.json` and takes effect immediately.
 
+## Generate OpenFOAM Keywords
+
+Select **Settings > Generate OpenFOAM Keywords…** to rebuild the keyword list used by the editor's syntax highlighter (see [Editor behavior](#editor-behavior)) from your local OpenFOAM installation.
+
+Pick an installation from the **Installation** dropdown — installations are auto-discovered the same way as in [Find OpenFOAM Examples](#find-openfoam-examples) (sourced environment first, then the usual install locations), and **Browse…** lets you point at any other directory, which is remembered across sessions. Click **Generate**. The scan reads the installation's `etc/caseDicts/` templates, `TypeName(...)`/`ClassName(...)` macros and run-time-selection-table registration names in `src/` headers, and dictionary-read calls (`lookup("…")`, `get<…>("…")`, `readEntry("…")`, …) in the `src/` and `applications/` sources — the last of these is what picks up free-form keys such as `application` or `writePrecision` in `controlDict`. The result is written to `app_config/foam_keywords.json`, which overrides the bundled default list. Progress is shown in the dialog's log area; click **Cancel** to stop an in-progress scan. The dialog can be closed once the scan finishes or is cancelled.
+
+If no installation is selected and no OpenFOAM environment is sourced, the scan reports an error in the log instead of failing silently.
+
+This is an optional, advanced action — the application ships with a pre-generated `app_config/foam_keywords.default.json` (built from OpenFOAM v2512; see the file's `version` field), so highlighting works out of the box without ever running this scanner. Version-to-version keyword differences are small and only cosmetic for highlighting, so one bundled default is enough — if you want a list matched exactly to your own version or distribution, regenerate it here. Deleting `app_config/foam_keywords.json` reverts to the bundled default.
+
 ## Variants
 
 FoDE ships in three configurations controlled by feature flags. Choose the one that matches your platform and workflow.
@@ -809,7 +969,8 @@ General application settings are stored in `app_config.json`, which is separate 
   "default_case_dir": "/path/to/cases",
   "case_library_dirs": ["/home/user/my_templates"],
   "user_links": [{"label": "My reference", "url": "https://example.com"}],
-  "features": {"terminal": true, "blockmesh": true}
+  "features": {"terminal": true, "blockmesh": true},
+  "openfoam_dir": "/usr/lib/openfoam/openfoam2606"
 }
 ```
 
@@ -820,6 +981,7 @@ General application settings are stored in `app_config.json`, which is separate 
 | `case_library_dirs` | User-added Case Library directories. The `$FOAM_TUTORIALS` directory is not stored here; it is included dynamically from the environment variable. |
 | `user_links` | User-defined reference links shown in **Help > Resources... > My Links**. Each entry is `{"label": "…", "url": "…"}`. |
 | `features` | Feature flags set by `--variant` (see [Variants](#variants)). Omitting this key is equivalent to `{"terminal": true, "blockmesh": true}`. |
+| `openfoam_dir` | OpenFOAM installation chosen via **Browse…** in [Find OpenFOAM Examples](#find-openfoam-examples). Only written after browsing; auto-discovered installations are not stored. |
 
 ### Setting the default case directory
 
@@ -905,6 +1067,92 @@ Opening a different case while foamMonitor is running stops the current instance
 - foamMonitor is a Unix shell script (`foamMonitor` must be on `PATH`). The menu item has no effect on Windows.
 - If the selected file does not exist, or foamMonitor exits with an error (e.g. gnuplot not installed), a warning dialog shows the error message.
 - FoDE automatically patches the `reread` command (deprecated in newer gnuplot versions) so that the gnuplot window refreshes correctly regardless of the installed gnuplot version.
+
+## Restore 0/ from 0.orig
+
+Select **Tools > Restore 0/ from 0.orig** to recreate the `0/` field directory from `0.orig/`. A confirmation dialog warns that `0/` will be deleted and replaced with a fresh copy of `0.orig/`, discarding any edits made directly to `0/`; click **Yes** to proceed. The command runs in the Terminal tab (`rm -rf 0 && cp -r 0.orig 0`), which is switched to automatically. The action is available only when a case is open, a `0.orig/` directory exists, and a terminal panel is present (absent in the `no-terminal` variant).
+
+## Run blockMesh
+
+Select **Tools > Run blockMesh** to run `blockMesh` in the case directory. If the case already has numeric result directories, a confirmation dialog lists them and warns that re-running `blockMesh` may invalidate those results; click **Yes** to proceed. The command runs in the Terminal tab (which is switched to automatically) and its output is also saved to `log.blockMesh` in the case directory. The action is available only when a case is open and a terminal panel is present.
+
+## Run snappyHexMesh
+
+Select **Tools > Run snappyHexMesh** to run `snappyHexMesh -overwrite` in the case directory. Like **Run blockMesh**, a confirmation dialog warns if the case already has numeric result directories that re-meshing may invalidate. The command runs in the Terminal tab (switched to automatically) and its output is also saved to `log.snappyHexMesh`. The action is available only when a case is open and a terminal panel is present.
+
+## Run topoSet
+
+Select **Tools > Run topoSet** to run `topoSet` in the case directory, reading `system/topoSetDict`. Like **Run blockMesh**, a confirmation dialog warns if the case already has numeric result directories that re-running may invalidate. The command runs in the Terminal tab (switched to automatically) and its output is also saved to `log.topoSet`. The action is available only when a case is open and a terminal panel is present.
+
+## Run setFields
+
+Select **Tools > Run setFields** to run `setFields` in the case directory, reading `system/setFieldsDict`. The command runs in the Terminal tab (switched to automatically) and its output is also saved to `log.setFields`.
+
+`setFields` overwrites the field files in `0/` in place, so re-running it on already-set fields compounds the values (an already-filled `alpha.water` region stays filled even if the dictionary's box has moved). When the case has a `0.orig/` backup, the action therefore offers three choices:
+
+- **Restore 0/, then run** — recreate `0/` from `0.orig/` first (`rm -rf 0 && cp -r 0.orig 0`), then run `setFields` on the clean initial fields. This is the standard tutorial workflow.
+- **Run anyway** — run `setFields` on the current `0/` as-is.
+- **Cancel**
+
+Without a `0.orig/` directory, a plain confirmation notes that `0/` is modified in place. The action is available only when a case is open and a terminal panel is present.
+
+## Run checkMesh
+
+Select **Tools > Run checkMesh** to run `checkMesh` in the case directory — typically after **Run blockMesh** or **Run snappyHexMesh** — to validate mesh quality (non-orthogonality, skewness, aspect ratio, …). `checkMesh` only reads the mesh, so it runs immediately without a confirmation dialog. The command runs in the Terminal tab (switched to automatically) and its output is also saved to `log.checkMesh`, where [View Log Summary](#view-log-summary) can pick it up. The action is available only when a case is open and a terminal panel is present.
+
+## Run Allrun Script
+
+Select **Tools > Run Allrun Script** to run the case's `./Allrun` script in the Terminal tab (switched to automatically) — the case's full workflow, typically meshing, field initialisation, and the solver itself. A warning dialog is shown if the case has no `Allrun` script. Since solver runs can take a long time, a confirmation dialog is shown first; note that in Simple terminal mode a running job cannot be interrupted (the xterm terminal supports Ctrl+C).
+
+If the case already has `log.*` files, a different dialog appears instead: OpenFOAM's Allrun helper functions (`runApplication`/`runParallel`) skip any step whose `log.*` file already exists ("already run … remove log file to re-run"), so on an already-run case a plain `./Allrun` may appear to do nothing. The dialog lists the existing log files and offers three choices: **Clean, then run** (sends `foamCleanTutorials && ./Allrun` — the standard `./Allclean && ./Allrun` idiom, see [Clean Case](#clean-case-foamcleantutorials)), **Run anyway** (sends `./Allrun` unchanged, with already-run steps skipped), or **Cancel**. The action is available only when a case is open and a terminal panel is present.
+
+Each `Allrun` step writes its own `log.<application>` file, so [View Log Summary](#view-log-summary) and [foamMonitor](#foammonitor-launcher) work on the results as usual.
+
+## Open Mesh in ParaView
+
+Select **Tools > Open Mesh in ParaView…** to view the actual generated mesh in ParaView, as an alternative to the BlockMesh 3-D panel's block-topology preview. FoDE launches `paraFoam -case <case directory>` if `paraFoam` is on `PATH`, falling back to a plain `paraview` launch if it is not. If neither is found, a warning dialog reports that neither could be located. The action is available whenever a case is open; it does not require `blockMesh` to have been run in FoDE.
+
+## Run Allclean Script
+
+Select **Tools > Run Allclean Script** to run the case's `./Allclean` script in the Terminal tab (switched to automatically). A warning dialog is shown if the case has no `Allclean` script; otherwise a confirmation dialog warns that the generated mesh, time directories, log files, and other results will be removed. The file list refreshes automatically once the deletions hit the disk. The action is available only when a case is open and a terminal panel is present.
+
+Note that [Clean Case (foamCleanTutorials)](#clean-case-foamcleantutorials) already runs `./Allclean` when the case has one — this action exists for when you want the script itself, explicitly.
+
+## Clean Case (foamCleanTutorials)
+
+Select **Tools > Clean Case (foamCleanTutorials)** to clean the case with OpenFOAM's standard `foamCleanTutorials` script, run in the Terminal tab (switched to automatically). It removes the generated mesh (`constant/polyMesh`), time directories, `processor*/` decompositions, `postProcessing/`, `log.*` files, and other generated artifacts. Two case-specific behaviors, both stated in the confirmation dialog:
+
+- If the case has its own `Allclean` (or `Allwclean`) script, `foamCleanTutorials` runs that script instead of its built-in cleaning.
+- Otherwise, if a `0.orig/` directory exists, `0/` is also removed (`foamCleanTutorials`' default `-auto` mode — the standard tutorial convention; use [Restore 0/ from 0.orig](#restore-0-from-0orig) or **Run Allrun Script** to recreate it).
+
+The file list and the [mesh indicator](#mesh-presencestaleness-indicator) refresh automatically after cleaning. The action is available only when a case is open and a terminal panel is present, and requires a sourced OpenFOAM environment in the terminal (same as **Run blockMesh**).
+
+## View Log Summary
+
+Select **Tools > View Log Summary…** to open a condensed report of a `log.*` file instead of reading the raw text — most useful for `log.snappyHexMesh`, which can run to thousands of lines of repetitive refinement/snapping/layer-iteration output. The dialog defaults to the most-recently-modified `log.*` file in the case directory (use **Browse…** to pick a different one, including outside the case directory) and shows two tabs:
+
+- **Summary** — for `blockMesh`: the `Mesh Information` and `Patches` blocks. For `snappyHexMesh`: final cell/face/point counts and iteration counts per castellation refinement category, the snapping relaxation iteration count, the final per-patch layer-thickness table, and the mesh-quality result. For `topoSet`: one condensed line per cell/face/point set, listing the sources applied and the final set size. Repeated warnings (e.g. per-iteration displacement warnings) are collapsed into one line with a count; fatal errors are always shown in full. Any other utility's log falls back to its header plus the last ~20 lines.
+- **Raw Log** — the untouched file contents, in case the summary omits something you need.
+
+Like [Find OpenFOAM Examples](#find-openfoam-examples) — and unlike FoDE's other dialogs — this one is **non-modal**: it can stay open beside the main window while you keep working in the tree, editor, or terminal, so you can cross-reference dictionary settings against the log's results. The action is available whenever a case is open; it does not require the terminal panel or a prior FoDE-run mesh command — any existing `log.*` file works.
+
+## Find OpenFOAM Examples
+
+Select **Tools > Find OpenFOAM Examples…** to search a local OpenFOAM installation for real usage examples of a keyword or setting — the kind of question ("how is `nOuterCorrectors` actually used?", "what goes in a `forces` function object?") that otherwise requires `find`/`grep` skills. The dialog searches two sources, each toggleable with a checkbox:
+
+- **Tutorials** — the ~550 example cases shipped under the installation's `tutorials/` directory.
+- **caseDicts templates** — the curated files under `etc/caseDicts/`, including the `postProcessing/` function-object templates (usable in a `controlDict` `functions {}` block via `#includeFunc <name>`) and the fully annotated example dictionaries under `annotated/`.
+
+**Choosing an installation.** The selector at the top lists the OpenFOAM installations found on your machine: the sourced environment (`WM_PROJECT_DIR`/`FOAM_TUTORIALS`/`FOAM_ETC`) if FoDE was started from a sourced shell, plus auto-discovered installs under `/usr/lib/openfoam/`, `/opt/`, and `~/OpenFOAM/`, newest first. Use **Browse…** to point at any other directory (an install root or a bare `tutorials/` directory); a browsed choice is saved to `app_config.json` (`openfoam_dir` key) and preselected next time.
+
+**Searching.** Type a keyword (matched case-insensitively, line by line) and press Enter or click **Search**. The file-name dropdown narrows the search to one dictionary file (`controlDict`, `fvSchemes`, …) — leave it on "All files" to search everything. The search runs in the background and can be cancelled; results are capped at 200 files. Hits are grouped by tutorial case (and by template folder for caseDicts), each with the first matching line as a preview snippet.
+
+**Using a result.** Selecting a hit shows the whole file in a read-only, syntax-highlighted preview, scrolled to the first matching line. From there:
+
+- **Copy File** / **Copy Selection** — copy the whole file, or just the text you selected in the preview (the button enables once something is selected), e.g. to paste into the Editor tab of your own case.
+- **Compare with this case** — enabled when the hit lies inside a tutorial case. One click loads that case as the reference of the existing [Case comparison](#case-comparison) view, so you can see exactly where your case differs and adopt individual settings with the right-click **Use this value** action. FoDE asks you to open a case first if none is open.
+
+The dialog is **non-modal**: keep it open beside the main window and copy from examples while editing. No case needs to be open just to search.
 
 ## Tree key filter and editor sync
 
@@ -1080,7 +1328,7 @@ When a reference case is selected the centre panel splits horizontally: the left
 Both trees are annotated with the same colour scheme (see [Tree overlay](#tree-overlay) below). The reference pane additionally uses **light green** for keys that exist only in the reference case but are absent from the current file.
 
 **Applying a value from the reference case:**  
-Right-click any leaf node in the reference pane and select **Use this value**. The value is applied to the matching node in the current case's tree immediately (or inserted if the key is absent). The diff highlighting updates automatically after the change.
+Right-click any leaf node in the reference pane and select **Use this value**. The value is applied to the matching node in the current case's tree immediately, or inserted if the key is absent — including when its enclosing block does not exist yet: missing parent dictionaries (e.g. a `functions {}` block) are created automatically. Unnamed entries such as `#includeFunc …` directives are appended into the target block (and skipped with a message if an identical entry is already there). The only case that is refused is a name clash where the enclosing key exists in the current case but is not a dictionary. The diff highlighting updates automatically after the change.
 
 **Toggling side-by-side:**  
 Check or uncheck **Side by side** in the diff bar to show or hide the reference pane without leaving compare mode. The reference pane is hidden (not merely collapsed) when unchecked, so no splitter gap appears. The current case's tree always remains visible and editable.

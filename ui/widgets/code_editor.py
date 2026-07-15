@@ -91,6 +91,10 @@ class CodeEditor(QPlainTextEdit):
     def set_highlighting_enabled(self, enabled: bool) -> None:
         self._highlighter.set_enabled(enabled)
 
+    def set_shell_mode(self, enabled: bool) -> None:
+        """Switch the highlighter between shell-script and OpenFOAM rules."""
+        self._highlighter.set_mode("shell" if enabled else "foam")
+
     def setPlainText(self, text: str) -> None:
         self._fold_map = {}
         self._folded = set()

@@ -15,12 +15,14 @@ FoamFile
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 // Demonstrates every geometry source the BlockMesh 3-D panel can overlay:
-// box, rotatedBox, sphere, cylinder, cylinderAnnulus (drawn hollow), cone
-// (frustum), cone (true, radius2 0) and coneAnnulus (drawn hollow). Two entries
-// also exercise $variable and #eval resolution. Sources that carry no geometry
-// (e.g. cellToFace) are listed greyed-out in the "topoSet ▾" menu as
-// "(no geometry)". Use the "Show topoSet geometry" toggle in that menu to
-// see the shapes.
+// box (single, min/max and multi-box forms), rotatedBox, sphere (solid and
+// hollow, via centre or origin), cylinder, cylinderAnnulus (drawn hollow),
+// cone (frustum), cone (true, radius2 0), coneAnnulus (drawn hollow),
+// point-carrying sources (nearestToCell, drawn as markers) and planeToFaceZone
+// (drawn as a disc sized to the scene). Two entries also exercise $variable
+// and #eval resolution. Sources that carry no geometry (e.g. cellToFace) are
+// collected under the "Non-geometric sources" submenu of the "topoSet ▾"
+// menu. Use the "Show topoSet geometry" toggle in that menu to see the shapes.
 //
 // Panel colour is keyed on 'action':
 //   new = steel-blue, add = green, subtract/delete = red, subset = purple,
@@ -137,8 +139,67 @@ actions
         k       (0.0 0.0 0.7);
     }
 
+    // Box via min/max keys  (green)
+    {
+        name    slab;
+        type    cellSet;
+        action  add;
+        source  boxToCell;
+        min     (1.4 1.4 0.2);
+        max     (2.0 2.0 0.8);
+    }
+
+    // Several boxes in one action via the boxes list  (steel-blue)
+    {
+        name    twinBoxes;
+        type    cellSet;
+        action  new;
+        source  boxToCell;
+        boxes
+        (
+            (0.2 2.3 2.2) (0.7 2.8 2.7)
+            (0.9 2.3 2.2) (1.2 2.8 2.7)
+        );
+    }
+
+    // Hollow sphere via origin (OpenFOAM's primary keyword)  (steel-blue)
+    {
+        name        shell;
+        type        cellSet;
+        action      new;
+        source      sphereToCell;
+        origin      (1.6 2.5 1.6);
+        radius      0.45;
+        innerRadius 0.2;
+    }
+
+    // Point-carrying source: drawn as labelled point markers  (steel-blue)
+    {
+        name    probes;
+        type    cellSet;
+        action  new;
+        source  nearestToCell;
+        points
+        (
+            (0.3 0.3 2.8)
+            (2.8 0.3 2.8)
+            (2.8 2.8 2.8)
+        );
+    }
+
+    // Plane source: drawn as a disc sized to the scene bounds  (steel-blue)
+    {
+        name    midPlane;
+        type    faceZoneSet;
+        action  new;
+        source  planeToFaceZone;
+        point   (1.5 1.5 1.5);
+        normal  (0 0 1);
+        option  closest;
+    }
+
     // Non-geometric source: promotes the cell set above to its boundary faces.
-    // Listed greyed-out in the panel menu; nothing is drawn for it.
+    // Listed under "Non-geometric sources" in the panel menu; nothing is drawn.
     {
         name    coreFaces;
         type    faceSet;

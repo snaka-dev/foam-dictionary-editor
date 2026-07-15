@@ -10,13 +10,10 @@ from PySide6.QtWidgets import QMessageBox
 from foam.block_mesh_extractor import parse_vertices
 from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser, ParseError
-from foam.utils import format_scalar
+from foam.utils import format_scalar, is_log_filename, is_script_text
 from foam.writer import write_root
-from model.tree_model import FoamTreeModel
 from i18n import tr
 from ui.layout_constants import (
-    BLOCKMESH_DICT_NAME as _BLOCKMESH_DICT_NAME,
-    TOPOSET_DICT_NAME as _TOPOSET_DICT_NAME,
     STATUS_NORMAL as _STATUS_NORMAL,
     STATUS_WARNING as _STATUS_WARNING,
     STATUS_SHORT as _STATUS_SHORT,
@@ -44,7 +41,7 @@ class _TreeSyncOpsMixin:
         proxy_index = QModelIndex()
         current = node
         while current is not None and current is not self.state.current_root:
-            src_index = self.state.current_model._index_of_node(current)
+            src_index = self.state.current_model.index_of_node(current)
             proxy_index = self._to_proxy(src_index)
             if proxy_index.isValid():
                 break
@@ -144,16 +141,23 @@ class _TreeSyncOpsMixin:
 
     def apply_text_to_tree(self) -> None:
         text = self.editor_panel.get_text()
+        is_log = self.state.current_file is not None and is_log_filename(
+            Path(self.state.current_file).name
+        )
+        if is_script_text(text) or is_log:
+            self.statusBar().showMessage(
+                tr("Script file — tree editing unavailable")
+                if is_script_text(text)
+                else tr("Text file — tree editing unavailable"),
+                _STATUS_SHORT,
+            )
+            return
         try:
             _parser = OpenFoamParser(text)
             root = _parser.parse()
             if self.state.current_file:
                 self.state.parsed_roots[self.state.current_file] = root
-                self.boundary_panel.update_field(self.state.current_file, root)
-                if self.block_mesh_panel is not None and Path(self.state.current_file).name == _BLOCKMESH_DICT_NAME:
-                    self.block_mesh_panel.update_block_mesh(self.state.current_file, root)
-                if self.block_mesh_panel is not None and Path(self.state.current_file).name == _TOPOSET_DICT_NAME:
-                    self.block_mesh_panel.update_topo_set(self.state.current_file, root)
+                self._update_viewer_panels(self.state.current_file, root)
             self._load_tree(root)
             self._mark_dirty()
             if _parser.errors:

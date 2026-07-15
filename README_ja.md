@@ -4,7 +4,7 @@ FoDE — Foam Dictionary Editor（読み方: "フォーディー"）
 
 Python と PySide6 で作られた、OpenFOAM 辞書ファイル向け GUI エディタです。
 
-> 📄 **[*SoftwareX*](https://www.sciencedirect.com/journal/softwarex)**（Elsevier）に採録されました — 書誌情報とリンクは近日追記予定です。
+> 📄 **[*SoftwareX*](https://doi.org/10.1016/j.softx.2026.102852)**（Elsevier）に掲載されました — 「[引用](#引用)」を参照してください。
 
 ## FoDE とは？
 
@@ -32,7 +32,7 @@ pip install -r requirements.txt   # PySide6 (Qt for Python) をインストー�
 | `xterm.css` | `https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/css/xterm.css` |
 | `xterm-addon-fit.js` | `https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.11.0/lib/addon-fit.js` |
 
-**オプション — BlockMesh 3D ビューア**（Linux/macOS）: `blockMeshDict` のインタラクティブな 3D ジオメトリパネルを有効にするには `pyvista` と `pyvistaqt` をインストールしてください:
+**オプション — BlockMesh 3D ビューア**（Linux/macOS）: `blockMeshDict` のインタラクティブな 3D ジオメトリパネルを有効にするには `pyvista` と `pyvistaqt` をインストールしてください（`topoSetDict`・`snappyHexMeshDict`・`setFieldsDict` を開いている場合、それらのジオメトリも重ねて表示されます）:
 
 ```bash
 pip install pyvista pyvistaqt
@@ -70,67 +70,57 @@ pip install pyvista pyvistaqt
 
 ## 主な機能
 
-**ファイル管理**
-- 代表的な辞書ファイル（`controlDict`、`fvSchemes`、`fvSolution`、`blockMeshDict`、`snappyHexMeshDict` など）を自動表示
-- マルチリージョンケース構造やフィールドディレクトリ（`0/`、`0.orig/`）を自動検出
-- 任意のディレクトリをファイル一覧に追加可能。`0/` と同様にディレクトリ内のファイルを自動スキャン。フラット（直下ファイルのみ）または再帰スキャン（サブディレクトリを含む）を選択できます。カスタムフィールドディレクトリ（`initial/`）、再起動タイムステップ（`0.5/`）、深い階層のサブディレクトリ（`lagrangian/chemkin/`）などに対応
-- ファイルパネルからファイルの追加・作成・複製・バックアップ・削除が可能
-- トップバーの **Reload Case** ボタンまたは **Case > Reload Case** でケースをディスクから再読み込みし、すべてのメモリ上の編集内容を破棄（未保存ファイルがある場合は確認ダイアログを表示）
-- `0` ヘッダーの右クリックメニューから `0/` ディレクトリをディスクごと削除（`0.orig` が存在する場合のみ表示）
-- 現在のケースを新しいケースとして保存したり、既存ケースを複製したりできる
+各見出しは [USER_GUIDE_ja.md](USER_GUIDE_ja.md) の詳細ドキュメントへのリンクになっています。
 
-**ツリーとテキストの編集**
-- 辞書エントリの閲覧・編集ができる構造化ツリービュー
-- 生テキストエディタをいつでもフォールバックとして利用可能
-- ツリーとテキストの双方向同期
+**[ファイル管理](USER_GUIDE_ja.md#ファイル一覧の挙動)**
+- 代表的な辞書ファイル（`controlDict`、`fvSchemes`、`fvSolution`、`blockMeshDict`、`snappyHexMeshDict` など）と `0/`・`0.orig/` 配下の全ファイル、ケースルートの `All*` スクリプト（`Allrun`、`Allclean` など — プレーンテキストとして編集可能）を自動表示。マルチリージョンケース構造も自動検出
+- 追加のファイルやディレクトリ（フラット/再帰スキャン）をファイル一覧に登録可能 — カスタムフィールドディレクトリ、再起動タイムステップ、深い階層のサブディレクトリなどに便利
+- ファイルパネルからファイルの作成・複製・バックアップ・削除が可能。ケースはいつでもディスクから再読み込みできる
+- アプリ外部（Terminal パネルなど）での変更を検知してファイル一覧を自動更新。`constant/polyMesh` インジケーターがセル数を表示し、メッシュ生成後に `blockMeshDict` が変更されると「stale」と表示
+- 現在の状態を新しいケースとして保存したり、既存ケースを複製したりできる
+
+**[ツリーとテキストの編集](USER_GUIDE_ja.md#ツリーとテキストの編集フロー)**
+- 構造化ツリービューと生テキストエディタを双方向に同期
+- OpenFOAM シンタックスハイライト（オン/オフ切替可。キーワードリストは自分のインストールから再生成可能）とコード折りたたみ
 - 右クリックメニューでエントリの追加・複製・コメントアウト・削除が可能
 
-**境界条件ビュー**
-- 全フィールド変数の境界条件を一つのテーブルで確認
-- セルをクリックするとそのファイルをエディタで開きパッチエントリにジャンプ（**Auto-scroll editor** で切り替え可）
-- テーブル上でパッチエントリを直接編集・作成・削除・コピー・ペースト
-- 全フィールドファイルへのパッチ一括追加・削除
+**[境界条件ビュー](USER_GUIDE_ja.md#境界条件ビュー)**
+- 全フィールド変数の境界条件を一つのテーブルで一覧 — フィールドファイルを切り替える必要なし
+- テーブル上でパッチエントリを直接編集・作成・削除・コピー・ペースト。パッチの追加・削除・リネームは全フィールドファイルに対して一括で実行可能
+- セルをクリックするとエディタのパッチエントリへジャンプ。テーブル全体を Markdown / CSV としてコピー可能
 
-**スキーマヘルプ**
+**[スキーマヘルプ](USER_GUIDE_ja.md#詳細ペイン)**
 - 主要な設定項目（`controlDict`、`fvSchemes`、`fvSolution`、`blockMeshDict`、`snappyHexMeshDict`）の説明と有効な選択肢を組み込み表示
 - 独自のスキーマモジュール（Python ファイル）で拡張可能
 
-**BlockMesh 3D ビューア** *(pyvista / pyvistaqt が必要)*
-- `blockMeshDict` のジオメトリをインタラクティブに 3D プレビュー（頂点、ブロックエッジ、境界面）
-- 境界面をパッチ種別（wall、inlet、outlet、symmetry など）で色分け表示
-- STL / OBJ ジオメトリファイルの読み込みとオーバーレイ表示
-- 頂点、頂点ラベル、ブロックエッジ、ブロックラベル、境界面、軸、グリッド、寸法テキストの表示切替
-- Color blocks: 各ヘックスブロックを定性的パレットの異なる色で表示。Solid blocks: 半透明のソリッドブロック面（opacity 0.25）を表示
-- 頂点ラベルとブロックラベルで共用するラベルフォントサイズ調整スピンボックス
-- 視点方向ボタン（+X/−X/+Y/−Y/+Z/−Z/Iso）でカメラ位置を素早く切り替え
-- 3D ビュー下部のマウス操作ヒント（ドラッグ = 回転、Shift+ドラッグ = 平行移動、スクロール = ズーム）。詳細は **Help > Keyboard Shortcuts…** を参照
-- 3D ビューと並んで表示される頂点テーブル（インデックス | X | Y | Z）。行をクリックすると頂点がハイライト表示され、座標セルをダブルクリックすると値を編集できます。変更は即座に FoamNode ツリーとテキストエディタに書き戻されます
-- `blockmesh` フィーチャーが有効なときに **BlockMesh** タブとして表示（`no-terminal-blockmesh` バリアントでは常時表示、`standard` バリアントではシンプルターミナル使用時のみ表示）。**View > BlockMesh 3-D Panel** でも切り替え可能
+**[BlockMesh 3D ビューア](USER_GUIDE_ja.md#blockmesh-パネル)** *(pyvista / pyvistaqt が必要)*
+- `blockMeshDict` のジオメトリ（頂点、ブロック、パッチ種別で色分けされた境界面）をインタラクティブに 3D プレビュー。`$variable` や `#eval` 参照も自動解決
+- `topoSetDict` のアクションジオメトリ、`snappyHexMeshDict` の `geometry {}` 形状（surface / region / geometry のみ に分類）、`setFieldsDict` の領域（`fieldValues` をラベル表示）をオーバーレイ表示。形状ごとに表示切替可能。ブロックメッシュより大きい形状はビュー内でクリップされ「✂ clipped」マークが付く
+- 3D ビュー横の頂点テーブルで座標を編集すると即座に反映。変数ベースの頂点はプレビューモードでファイルを変更せずに試せる
+- STL/OBJ のオーバーレイ読み込みと、topoSet/snappyHexMesh/setFields 形状の STL エクスポート
+- **⊞** サイドバイサイドモードで、`blockMeshDict`・`topoSetDict`・`snappyHexMeshDict`・`setFieldsDict` の編集中にツリーの隣に 3D ビューを表示
 
-**統合ターミナル**
-- フル PTY xterm.js ターミナル（Linux/macOS で `QtWebEngineWidgets` が利用可能な場合）— `standard` バリアントのデフォルト
-- QProcess ベースのシンプルターミナルも利用可能。有効にすると BlockMesh 3D パネルが表示される
-- Terminal タブのチェックボックスで実行中に切り替え可能
-- ケースを開くと自動的にそのディレクトリへ移動
-- `no-terminal` および `no-terminal-blockmesh` バリアントでは完全に省略（Windows 向け）
-- **foamMonitor ランチャー** — **Tools > foamMonitor…** から `foamMonitor` を起動し、残差や postProcessing データを gnuplot でプロット。**■ foamMonitor** を再度選択して停止
+**[統合ターミナル](USER_GUIDE_ja.md#ターミナルタブ)**
+- フル PTY xterm.js ターミナル（Linux/macOS）と QProcess ベースのシンプルターミナルを実行中に切替可能。ケースを開くと自動的にそのディレクトリへ移動
+- `no-terminal` バリアントでは完全に省略（Windows 向け）
 
-**ケース比較**
-- **Case > Compare with Case...** — 参照ケースのディレクトリを選択し、現在のケースと比較できます
-- アクションバー下の差分バーに参照パス、カラーレジェンド、**Side by side** トグルを表示します。**Clear** をクリックすると比較モードを終了できます
-- **サイドバイサイド表示**: メインツリーの右に参照ケースのツリーパネルが開きます。そのエントリを右クリックして **Use this value** を選ぶと、値を現在のケースへ直接適用できます
-- ツリーオーバーレイ — 現在のケース（左ペイン）: 薄黄色 = 値の変更、薄青 = 現在のファイルのみに存在するキー。参照ペイン（右）: 薄黄色 = 値の変更、薄緑 = 参照のみに存在するキー
-- いずれかのペインのハイライト行をホバーすると、ツールチップに対応する値を表示します
-- ファイル一覧のマーカー: 差分あり → `≠N`（アンバー）、差分なし（確認済み）→ `≠0`（グレー）、未訪問 → マーカーなし。50 件超は `≠50+` に丸めます。比較開始時に全ファイルのマーカーが即座に計算されます
-- ファイル一覧の **Changed files only** チェックボックス: 差分のないファイルを非表示にします
+**[ツールメニュー](USER_GUIDE_ja.md#foammonitor-ランチャー)**
+- `blockMesh`・`snappyHexMesh`・`topoSet`・`setFields`・`checkMesh` をワンクリックでターミナル実行（出力は `log.*` に保存）。`0/` を `0.orig` から復元することも可能
+- ケースの `Allrun`/`Allclean` スクリプトを実行、または `foamCleanTutorials` でケースを初期状態にクリーン
+- ソルバー実行中に `foamMonitor` を起動して gnuplot で残差をプロット
+- 生成されたメッシュを ParaView で表示
+- 数千行の生ログをスクロールする代わりに `log.*` ファイルの要約レポートを表示
+- OpenFOAM の使用例検索: インストールの `tutorials/` ケースと `etc/caseDicts/` テンプレートからキーワードの実際の使用例を検索し、プレビューからそのまま比較ビューへ読み込める
+
+**[ケース比較](USER_GUIDE_ja.md#ケース比較)**
+- 開いているケースを任意の参照ケースと比較: ツリーの色分け差分オーバーレイ、ファイル一覧の `≠N` マーカー、差分ありファイルのみの絞り込みフィルター
+- サイドバイサイドの参照ツリーで右クリック **Use this value** により個々の設定を取り込み
 
 **UI 言語**
-- **Settings > Language** — English と 日本語 を切り替えられます。アプリケーションを再起動すると反映されます。
-- `i18n/` に翻訳ファイルを1つ追加するだけで、新しい言語を追加できます。
+- **Settings > Language** — English と 日本語 を切り替えられます（再起動で反映）。`i18n/` に翻訳ファイルを1つ追加するだけで新しい言語を追加できます
 
-**参照リンク**
-- **Help > Resources...** から OpenFOAM 公式ドキュメントへのリンクを確認できます
-- **My Links** タブで個人用参照リンクの追加・編集・並び替え・削除が可能。ダブルクリックでブラウザを開きます
+**[参照リンク](USER_GUIDE_ja.md#resources-ダイアログ)**
+- **Help > Resources...** — OpenFOAM 公式ドキュメントへのリンクと、個人用の **My Links** リスト
 
 ## 全リファレンス
 
@@ -159,7 +149,13 @@ pip install pyvista pyvistaqt
 
 ## 引用
 
-FoDE を紹介する論文が **[*SoftwareX*](https://www.sciencedirect.com/journal/softwarex)**（Elsevier）に採録され、現在校正・出版準備中です。正式な書誌情報と論文へのリンクは、公開され次第ここに追記します。
+引用は必須ではありませんが、FoDE が研究の役に立った場合は、以下を引用いただけると開発の励みになります:
+
+> Shinji Nakagawa,
+> Foam Dictionary Editor: A GUI-based open-source tool for OpenFOAM case configuration,
+> *SoftwareX*, Volume 35, 2026, 102852, ISSN 2352-7110,
+> [https://doi.org/10.1016/j.softx.2026.102852](https://doi.org/10.1016/j.softx.2026.102852)
+> ([ScienceDirect](https://www.sciencedirect.com/science/article/pii/S2352711026003444))
 
 ## ライセンス
 
@@ -172,7 +168,7 @@ This offering is not approved or endorsed by OpenCFD Limited, producer and distr
 ## 謝辞
 
 - [PySide6 (Qt for Python)](https://doc.qt.io/qtforpython/) — GUI フレームワーク（LGPL v3）
-- [pyVista](https://pyvista.org/) / [VTK](https://vtk.org/) — `blockMeshDict` の 3D ビューア（BSD-3-Clause、オプション）
+- [pyVista](https://pyvista.org/) / [VTK](https://vtk.org/) — `blockMeshDict`、`topoSetDict`、`snappyHexMeshDict` ジオメトリの 3D ビューア（BSD-3-Clause、オプション）
 - [xterm.js](https://xtermjs.org/) — ターミナルパネルで使用するターミナルエミュレータ（MIT）。初回起動時に jsDelivr から自動ダウンロードされ `ui/xterm/` にキャッシュされます
 - [pytest](https://pytest.org/) / [pytest-qt](https://pytest-qt.readthedocs.io/) — テストフレームワーク（開発時のみ）
 

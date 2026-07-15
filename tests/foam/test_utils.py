@@ -6,9 +6,54 @@ from foam.utils import (
     format_scalar,
     is_int,
     is_large_non_foam_file,
+    is_log_filename,
     is_number,
+    is_script_path,
+    is_script_text,
     parse_box_pair,
 )
+
+
+class TestIsLogFilename:
+    def test_run_log_detected(self):
+        assert is_log_filename("log.blockMesh")
+        assert is_log_filename("log.snappyHexMesh")
+
+    def test_dictionary_not_flagged(self):
+        assert not is_log_filename("blockMeshDict")
+
+    def test_other_log_spellings_not_flagged(self):
+        assert not is_log_filename("mylog.txt")
+        assert not is_log_filename("blockMesh.log")
+
+
+class TestIsScriptText:
+    def test_shebang_detected(self):
+        assert is_script_text("#!/bin/sh\ncd ${0%/*} || exit 1\n")
+
+    def test_foam_dictionary_not_flagged(self):
+        assert not is_script_text("FoamFile\n{\n    version 2.0;\n}\n")
+
+    def test_comment_not_flagged(self):
+        assert not is_script_text("// comment\napplication interFoam;\n")
+
+    def test_empty_text_not_flagged(self):
+        assert not is_script_text("")
+
+
+class TestIsScriptPath:
+    def test_script_file_detected(self, tmp_path):
+        p = tmp_path / "Allrun"
+        p.write_text("#!/bin/sh\n", encoding="utf-8")
+        assert is_script_path(p)
+
+    def test_dictionary_file_not_flagged(self, tmp_path):
+        p = tmp_path / "controlDict"
+        p.write_text("application interFoam;\n", encoding="utf-8")
+        assert not is_script_path(p)
+
+    def test_missing_file_returns_false(self, tmp_path):
+        assert not is_script_path(tmp_path / "nope")
 
 
 class TestIsLargeNonFoamFile:

@@ -3,17 +3,28 @@
 """Dialog that scans an OpenFOAM installation and writes foam_keywords.json."""
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
+    QHBoxLayout,
     QLabel,
     QPlainTextEdit,
     QPushButton,
     QVBoxLayout,
 )
 
+from app_config import get_app_config
 from i18n import tr
+from services.example_search import (
+    FoamInstallation,
+    discover_installations,
+    installation_from_dir,
+)
 
 
 class _GeneratorThread(QThread):
@@ -21,9 +32,10 @@ class _GeneratorThread(QThread):
     finished_ok = Signal(int, str)   # count, output_path
     finished_err = Signal(str)       # error message
 
-    def __init__(self) -> None:
+    def __init__(self, project_dir: Path | None = None) -> None:
         super().__init__()
         self._cancelled = False
+        self._project_dir = project_dir
 
     def cancel(self) -> None:
         self._cancelled = True
@@ -34,6 +46,7 @@ class _GeneratorThread(QThread):
             count, path = generate(
                 progress=lambda msg: self.progress.emit(msg),
                 cancelled=lambda: self._cancelled,
+                project_dir=self._project_dir,
             )
             self.finished_ok.emit(count, str(path))
         except RuntimeError as exc:
@@ -57,12 +70,21 @@ class GenerateKeywordsDialog(QDialog):
 
         self._info = QLabel(
             tr(
-                "Scans $FOAM_ETC/caseDicts/ and $FOAM_SRC/**/*.H from your\n"
-                "active OpenFOAM environment and writes app_config/foam_keywords.json.\n"
-                "Source your OpenFOAM environment before opening this dialog."
+                "Scans the selected OpenFOAM installation (etc/caseDicts/, src/ and\n"
+                "applications/ sources) and writes app_config/foam_keywords.json,\n"
+                "which overrides the bundled foam_keywords.default.json."
             )
         )
         layout.addWidget(self._info)
+
+        install_row = QHBoxLayout()
+        install_row.addWidget(QLabel(tr("Installation:")))
+        self._install_combo = QComboBox()
+        install_row.addWidget(self._install_combo, 1)
+        browse_btn = QPushButton(tr("Browse…"))
+        browse_btn.clicked.connect(self._on_browse_installation)
+        install_row.addWidget(browse_btn)
+        layout.addLayout(install_row)
 
         self._log = QPlainTextEdit()
         self._log.setReadOnly(True)
@@ -86,6 +108,48 @@ class GenerateKeywordsDialog(QDialog):
         self._cancel_btn.clicked.connect(self._on_cancel)
         self._close_btn.clicked.connect(self.accept)
 
+        self._populate_installations()
+
+    # ── installations ─────────────────────────────────────────────────────────
+
+    def _populate_installations(self) -> None:
+        cfg = get_app_config()
+        saved = cfg.get_openfoam_dir()
+        extra_roots = [saved] if saved else []
+        installations = discover_installations(extra_roots=extra_roots)
+        self._install_combo.clear()
+        for installation in installations:
+            self._install_combo.addItem(installation.label, installation)
+        if not installations:
+            self._append(
+                tr(
+                    "No OpenFOAM installation found — browse to one, or source "
+                    "your OpenFOAM environment and reopen this dialog."
+                )
+            )
+
+    def _current_project_dir(self) -> Path | None:
+        data = self._install_combo.currentData()
+        return data.root if isinstance(data, FoamInstallation) else None
+
+    def _on_browse_installation(self) -> None:
+        directory = QFileDialog.getExistingDirectory(
+            self, tr("Select OpenFOAM Installation Directory")
+        )
+        if not directory:
+            return
+        installation = installation_from_dir(Path(directory))
+        if installation is None:
+            self._append(
+                tr("Not an OpenFOAM directory (no tutorials/ or etc/caseDicts/).")
+            )
+            return
+        cfg = get_app_config()
+        cfg.set_openfoam_dir(directory)
+        cfg.save()
+        self._install_combo.insertItem(0, installation.label, installation)
+        self._install_combo.setCurrentIndex(0)
+
     # ── slots ─────────────────────────────────────────────────────────────────
 
     def _on_generate(self) -> None:
@@ -94,7 +158,7 @@ class GenerateKeywordsDialog(QDialog):
         self._cancel_btn.show()
         self._close_btn.setEnabled(False)
 
-        self._thread = _GeneratorThread()
+        self._thread = _GeneratorThread(project_dir=self._current_project_dir())
         self._thread.progress.connect(self._append)
         self._thread.finished_ok.connect(self._on_done)
         self._thread.finished_err.connect(self._on_error)
@@ -108,6 +172,7 @@ class GenerateKeywordsDialog(QDialog):
 
     def _on_done(self, count: int, path: str) -> None:
         self._append(f"\n✓  Wrote {count} keywords → {path}")
+        self._append(tr("This file overrides the bundled foam_keywords.default.json."))
         self._finish()
 
     def _on_error(self, msg: str) -> None:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from model.file_list_model import FileListModel
+from model.file_list_model import FileListModel, ROOT_GROUP
 
 
 @pytest.fixture()
@@ -63,6 +63,23 @@ class TestSortedGroups:
     def test_empty_paths(self, model, case_dir):
         model.load([], case_dir)
         assert model.sorted_groups() == []
+
+
+class TestRootGroup:
+    def test_root_files_grouped_under_root_group(self, model, case_dir):
+        paths = _paths(case_dir, "system/controlDict", "Allrun")
+        model.load(paths, case_dir)
+        groups = dict(model.sorted_groups())
+        assert ROOT_GROUP in groups
+        assert groups[ROOT_GROUP] == _paths(case_dir, "Allrun")
+
+    def test_root_group_sorts_last(self, model, case_dir):
+        paths = _paths(
+            case_dir, "Allrun", "0/U", "system/controlDict", "constant/g", "Allclean"
+        )
+        model.load(paths, case_dir)
+        group_names = [g for g, _ in model.sorted_groups()]
+        assert group_names == ["system", "constant", "0", ROOT_GROUP]
 
 
 class TestDirtyState:

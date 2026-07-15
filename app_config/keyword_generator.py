@@ -3,16 +3,29 @@
 """Scan an OpenFOAM installation to build app_config/foam_keywords.json.
 
 Shared by tools/generate_foam_keywords.py (CLI) and the Settings menu action.
+The output file is the user-local override; the repository ships a baseline as
+app_config/foam_keywords.default.json (see DEVELOPER.md).
 """
 from __future__ import annotations
 
 import json
 import os
 import re
+from collections.abc import Callable
+from datetime import date
 from pathlib import Path
-from typing import Callable
 
 OUTPUT = Path(__file__).parent / "foam_keywords.json"
+
+# License/provenance note embedded in the generated JSON. The file contains
+# identifier names only (no source code); names are recorded here so the
+# origin of the shipped default list stays auditable.
+_NOTE = (
+    "Keyword identifier names mechanically extracted from an OpenFOAM "
+    "installation for syntax highlighting. This file contains keyword names "
+    "only, no source code. OpenFOAM is a registered trademark of OpenCFD "
+    "Ltd.; OpenFOAM sources are Copyright OpenCFD Ltd. and licensed GPL-3.0."
+)
 
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z]\w+$")
 _TYPENAME_RE = re.compile(r'TypeName\s*\(\s*"(\w+)"')
@@ -23,23 +36,37 @@ _NAMED_RTST_RE = re.compile(
 _NAMED_MFST_RE = re.compile(
     r'addNamedToMemberFunctionSelectionTable\s*\(\s*\w+\s*,\s*\w+\s*,\s*\w+\s*,\s*\w+\s*,\s*(\w+)\s*\)'
 )
+# Dictionary-read calls: dict.lookup("kw"), dict.get<scalar>("kw"),
+# readEntry("kw", ...), found("kw"), ... — these name real dictionary keywords
+# (e.g. controlDict's "application"/"writePrecision") that never appear in
+# caseDicts templates or TypeName macros.
+_LOOKUP_RE = re.compile(
+    r'\b(?:lookup|lookupOrDefault|get|getOrDefault|getCheck|readEntry|readIfPresent|found)'
+    r'\s*(?:<[^<>]*>)?\s*\(\s*"(?P<kw>[A-Za-z]\w+)"'
+)
 
 
 def _is_keyword(tok: str) -> bool:
     return bool(_IDENTIFIER_RE.match(tok))
 
 
-def _foam_dirs() -> tuple[Path, Path, str]:
-    """Return (foam_etc, foam_src, project_label) from environment."""
+def _foam_dirs() -> tuple[Path, Path, Path, str, str]:
+    """Return (foam_etc, foam_src, foam_apps, project_label, version) from environment."""
     project = Path(os.environ.get("WM_PROJECT_DIR", ""))
     etc = Path(os.environ.get("FOAM_ETC", ""))
     src = Path(os.environ.get("FOAM_SRC", ""))
+    apps = Path(os.environ.get("FOAM_APP", ""))
     if not etc.is_dir() and project.is_dir():
         etc = project / "etc"
     if not src.is_dir() and project.is_dir():
         src = project / "src"
+    if not apps.is_dir() and project.is_dir():
+        apps = project / "applications"
     label = str(project) if project.is_dir() else "unknown"
-    return etc, src, label
+    version = os.environ.get("WM_PROJECT_VERSION", "") or (
+        project.name if project.is_dir() else "unknown"
+    )
+    return etc, src, apps, label, version
 
 
 def _collect_node_words(node, out: set[str]) -> None:
@@ -142,16 +169,60 @@ def scan_src_named_registrations(
     return words
 
 
+def scan_src_lookup_keywords(
+    root_dir: Path,
+    progress: Callable[[str], None] | None = None,
+    cancelled: Callable[[], bool] | None = None,
+) -> set[str]:
+    """Grep root_dir/**/*.{C,H} for dictionary-read calls (see _LOOKUP_RE)."""
+    if not root_dir.is_dir():
+        if progress:
+            progress(f"  [skip] {root_dir} not found")
+        return set()
+
+    words: set[str] = set()
+    files = sorted(f for f in root_dir.rglob("*") if f.suffix in (".C", ".H"))
+    for i, path in enumerate(files):
+        if cancelled and cancelled():
+            break
+        try:
+            text = path.read_text(errors="replace")
+            for m in _LOOKUP_RE.finditer(text):
+                tok = m.group("kw")
+                if _is_keyword(tok):
+                    words.add(tok)
+        except Exception:
+            pass
+        if progress and (i % 500 == 0 or i == len(files) - 1):
+            progress(
+                f"  {root_dir.name} lookups: {i + 1}/{len(files)} files, "
+                f"{len(words)} tokens so far"
+            )
+    return words
+
+
 def generate(
     progress: Callable[[str], None] | None = None,
     cancelled: Callable[[], bool] | None = None,
+    project_dir: Path | None = None,
 ) -> tuple[int, Path]:
     """Run the full scan and write foam_keywords.json.
+
+    When ``project_dir`` is given, etc/src/applications are derived from that
+    installation root; otherwise the sourced environment (WM_PROJECT_DIR,
+    FOAM_ETC, FOAM_SRC, FOAM_APP) is used.
 
     Returns (keyword_count, output_path).
     Raises RuntimeError if nothing was collected (OpenFOAM not found).
     """
-    etc, src, label = _foam_dirs()
+    if project_dir is not None:
+        etc = project_dir / "etc"
+        src = project_dir / "src"
+        apps = project_dir / "applications"
+        label = str(project_dir)
+        version = project_dir.name
+    else:
+        etc, src, apps, label, version = _foam_dirs()
 
     words: set[str] = set()
 
@@ -185,13 +256,30 @@ def generate(
     if cancelled and cancelled():
         raise RuntimeError("Cancelled")
 
+    for lookup_dir in (src, apps):
+        if lookup_dir.is_dir():
+            if progress:
+                progress(f"Scanning dictionary-read calls in {lookup_dir} …")
+            words |= scan_src_lookup_keywords(
+                lookup_dir, progress=progress, cancelled=cancelled
+            )
+        if cancelled and cancelled():
+            raise RuntimeError("Cancelled")
+
     if not words:
         raise RuntimeError(
             "No keywords collected.\n"
-            "Source your OpenFOAM environment first:\n"
+            "Choose an installation directory, or source your OpenFOAM "
+            "environment first:\n"
             "  source /opt/openfoam*/etc/bashrc"
         )
 
-    payload = {"keywords": sorted(words), "source": label}
+    payload = {
+        "note": _NOTE,
+        "source": label,
+        "version": version,
+        "generated": date.today().isoformat(),
+        "keywords": sorted(words),
+    }
     OUTPUT.write_text(json.dumps(payload, indent=2) + "\n")
     return len(words), OUTPUT

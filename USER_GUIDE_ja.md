@@ -15,23 +15,47 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 | やりたいこと | 参照セクション |
 |---|---|
 | ケースのファイルを管理する | [ファイル一覧の挙動](#ファイル一覧の挙動) |
+| デフォルト以外のファイルやディレクトリ、結果タイムステップをファイル一覧に追加する | [追加ディレクトリの登録](#追加ディレクトリの登録) |
 | ケースを開く・再読み込みする | [ケースの再読み込み](#ケースの再読み込み) |
 | ケースを保存・複製する | [ケースの複製](#ケースの複製) / [新しいケースとして保存](#新しいケースとして保存) |
+| ファイルをバックアップする・古いバックアップを整理する | [バックアップの作成](#バックアップの作成) / [バックアップファイルの一括削除](#バックアップファイルの一括削除) |
 | 2 つのケースを比較する | [ケース比較](#ケース比較) |
 | チュートリアルやテンプレートケースを使う | [ケースライブラリ](#ケースライブラリ) |
+| 同梱のサンプルケースで FoDE を試す | [同梱サンプルケース](#同梱サンプルケース) |
+| マルチリージョン（CHT）ケースを扱う | [マルチリージョンケース](#マルチリージョンケース) |
 | ツリーとテキストの同期を理解する | [ツリーとテキストの編集フロー](#ツリーとテキストの編集フロー) |
 | ツリーで値を編集する | [ツリービューのコンテキストメニュー](#ツリービューのコンテキストメニュー) |
 | 辞書設定のヘルプを確認する | [詳細ペイン](#詳細ペイン) |
-| 境界条件を一括編集する | [境界条件ビュー](#境界条件ビュー) |
+| 変数ファイルを切り替えずに全境界条件を一覧する | [境界条件ビュー](#境界条件ビュー) |
+| 境界条件を全フィールドファイルへ一括で追加・削除する | [削除](#全フィールドファイルからの境界条件削除) / [全フィールドファイルへの境界条件追加](#全フィールドファイルへの境界条件追加) |
+| blockMeshDict と全フィールドファイルにまたがって境界パッチをリネームする | [境界パッチのリネーム](#境界パッチのリネーム) |
+| 境界条件テーブルをレポートにコピーする（Markdown/CSV） | [テーブルのコピー](#テーブルのコピー) |
 | blockMeshDict のジオメトリを 3D で確認する | [BlockMesh パネル](#blockmesh-パネル) |
+| topoSetDict のジオメトリを 3D で確認する | [topoSetDict オーバーレイ](#toposetdict-オーバーレイ) |
+| snappyHexMeshDict の surface / region を 3D で確認する | [snappyHexMeshDict オーバーレイ](#snappyhexmeshdict-オーバーレイ) |
+| setFieldsDict の領域を 3D で確認する | [setFieldsDict オーバーレイ](#setfieldsdict-オーバーレイ) |
+| ツリーと 3D ビューを同時に表示する | [サイドバイサイドモード](#サイドバイサイドモード) |
+| 頂点座標を調整して 3D 表示への効果をすぐ確認する | [頂点テーブル](#頂点テーブル) |
+| topoSet/snappyHexMesh の形状を STL にエクスポートする・STL/OBJ を重ねて表示する | [ジオメトリコントロール](#ジオメトリコントロール) |
+| 生成されたメッシュを ParaView で確認する | [Open Mesh in ParaView](#open-mesh-in-paraview) |
 | ツリーキーを絞り込む | [ツリーキーフィルター](#ツリーキーフィルターとエディタ同期) |
 | エディタのカーソル行からツリーエントリへ移動する | [Find in Tree](#ツリーキーフィルターとエディタ同期) |
 | エディタでテキストを検索する | [Editor ツールバー](#現在のui構成) |
 | キーボードショートカットを確認する | Help > Keyboard Shortcuts… |
 | FoDE から OpenFOAM コマンドを実行する | [ターミナルタブ](#ターミナルタブ) |
+| メッシュが最新かどうかを確認する | [メッシュ有無・古さのインジケーター](#メッシュ有無古さのインジケーター) |
+| FoDE を離れずに blockMesh を実行・0/ を復元する | [Run blockMesh](#run-blockmesh) / [Restore 0/ from 0.orig](#restore-0-from-0orig) |
+| FoDE を離れずに snappyHexMesh・topoSet を実行する | [Run snappyHexMesh](#run-snappyhexmesh) / [Run topoSet](#run-toposet) |
+| 初期場の領域を設定する、またはメッシュを検証する | [Run setFields](#run-setfields) / [Run checkMesh](#run-checkmesh) |
+| ケースのワークフロー全体を実行する、またはケースを初期状態にクリーンする | [Run Allrun Script](#run-allrun-script) / [Run Allclean Script](#run-allclean-script) / [Clean Case](#clean-case-foamcleantutorials) |
+| ソルバー実行中に残差をプロットする | [foamMonitor ランチャー](#foammonitor-ランチャー) |
+| 数千行に及ぶ log.snappyHexMesh をスクロールせずに読む | [View Log Summary](#view-log-summary) |
+| キーワードや function object が実際のケースでどう使われているか調べる | [Find OpenFOAM Examples](#find-openfoam-examples) |
 | バリアント（ターミナルなし・BlockMesh）を選ぶ | [バリアント](#バリアント) |
 | カスタムキーのスキーマを追加する | [スキーマモジュール設定](#スキーマモジュール設定) |
+| 自分の OpenFOAM バージョンに合わせてシンタックスハイライトを更新する | [Generate OpenFOAM Keywords](#generate-openfoam-keywords) |
 | アプリの設定を変更する | [アプリケーション設定](#アプリケーション設定) |
+| UI 言語を切り替える（English / 日本語） | Settings > Language |
 | ヘルプリンクや参照サイトを開く | [Resources ダイアログ](#resources-ダイアログ) |
 
 ## 目次
@@ -52,6 +76,7 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
   - [追加ファイル・ディレクトリインジケーター](#追加ファイルディレクトリインジケーター)
   - [追加ファイル・ディレクトリの削除](#追加ファイルディレクトリの削除)
   - [数値タイムディレクトリのインジケーター](#数値タイムディレクトリのインジケーター)
+  - [メッシュ有無・古さのインジケーター](#メッシュ有無古さのインジケーター)
   - [バックアップの作成](#バックアップの作成)
   - [新規ファイルの作成](#新規ファイルの作成)
   - [バックアップファイルの一括削除](#バックアップファイルの一括削除)
@@ -62,6 +87,7 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
   - [ファイル一覧のリセット](#ファイル一覧のリセット)
 - [ケース比較](#ケース比較)
 - [ケースライブラリ](#ケースライブラリ)
+- [同梱サンプルケース](#同梱サンプルケース)
 - [ケースの再読み込み](#ケースの再読み込み)
 - [新しいケースとして保存](#新しいケースとして保存)
 - [ケースの複製](#ケースの複製)
@@ -84,6 +110,15 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
   - [全フィールドファイルからの境界条件削除](#全フィールドファイルからの境界条件削除)
   - [全フィールドファイルへの境界条件追加](#全フィールドファイルへの境界条件追加)
 - [BlockMesh パネル](#blockmesh-パネル)
+  - [サイドバイサイドモード](#サイドバイサイドモード)
+  - [変数の解決](#変数の解決)
+  - [ジオメトリコントロール](#ジオメトリコントロール)
+  - [topoSetDict オーバーレイ](#toposetdict-オーバーレイ)
+  - [snappyHexMeshDict オーバーレイ](#snappyhexmeshdict-オーバーレイ)
+  - [setFieldsDict オーバーレイ](#setfieldsdict-オーバーレイ)
+  - [オーバーレイのクリップ表示](#オーバーレイのクリップ表示)
+  - [頂点テーブル](#頂点テーブル)
+  - [マウス操作](#マウス操作)
 - [パース失敗時の挙動](#パース失敗時の挙動)
 
 **ナビゲーション・検索**
@@ -97,9 +132,25 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 - [ターミナルタブ](#ターミナルタブ)
 - [バリアント](#バリアント)
 - [スキーマモジュール設定](#スキーマモジュール設定)
+- [Generate OpenFOAM Keywords](#generate-openfoam-keywords)
 - [アプリケーション設定](#アプリケーション設定)
 - [設定のリセット](#設定のリセット)
 - [Resources ダイアログ](#resources-ダイアログ)
+
+**ツール**
+- [foamMonitor ランチャー](#foammonitor-ランチャー)
+- [Restore 0/ from 0.orig](#restore-0-from-0orig)
+- [Run blockMesh](#run-blockmesh)
+- [Run snappyHexMesh](#run-snappyhexmesh)
+- [Run topoSet](#run-toposet)
+- [Run setFields](#run-setfields)
+- [Run checkMesh](#run-checkmesh)
+- [Run Allrun Script](#run-allrun-script)
+- [Open Mesh in ParaView](#open-mesh-in-paraview)
+- [Run Allclean Script](#run-allclean-script)
+- [Clean Case (foamCleanTutorials)](#clean-case-foamcleantutorials)
+- [View Log Summary](#view-log-summary)
+- [Find OpenFOAM Examples](#find-openfoam-examples)
 
 **リファレンス**
 - [対応構文とノード型](#対応構文とノード型)
@@ -116,6 +167,7 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 - `0` および `0.orig` ディレクトリ直下にあるファイルを自動的に一覧へ追加します。
 - `chtMultiRegionFoam` / `chtMultiRegionSimpleFoam` 等のマルチリージョンケース構造を自動検出し、`system/fluid` や `constant/heater` のようなグループヘッダーごとにリージョンのファイルを一覧表示します。
 - `constant/` や各リージョンの constant ディレクトリに存在する `thermophysicalProperties.air` や `turbulenceProperties.water` のようなフェーズバリアントファイルを glob で自動収集します。
+- ケースルート直下の `All*` スクリプト（`Allrun`、`Allrun.pre`、`Allclean` など）を **case root** グループへ自動的に一覧表示し、Tools メニューから実行するスクリプトを確認・編集できます。スクリプトはシェル用シンタックスハイライト付きのテキストとして開かれ（ツリービューなし）、保存しても実行権限は保持され、ケースの複製にも含まれます。それ以外のケースルート直下のファイル（`log.*`、計算結果、`*.foam`）は表示されません。
 - シンボリックリンクをファイル一覧に `⇢` マーカー付き・斜体で表示します。ホバーするとリンク先パスをツールチップで確認できます。
 - ファイル一覧のディレクトリヘッダーを右クリックすることで、デフォルトリストにないファイルを実行時に追加できます。
 - 任意のディレクトリをファイル一覧に追加し、`0/` や `0.orig/` と同様にディレクトリ内のファイルを自動スキャンできます。フラット（直下ファイルのみ、デフォルト）または再帰スキャン（サブディレクトリを含む）を選択できます。カスタムフィールドディレクトリ（`initial/`）、再起動タイムステップ（`0.5/`）、深い階層のサブディレクトリ（`lagrangian/chemkin/`）、`validation/` などのディレクトリツリーに対応します。追加ディレクトリのヘッダーは**紫色**で表示されます。**Results** インジケーターを右クリックして数値タイムディレクトリを直接追加するか、**Settings > Manage Extra Files & Directories…** またはインジケーターボタンから任意のディレクトリを追加できます。
@@ -169,7 +221,7 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 - **左カラム** — OpenFOAM ケースのファイル一覧（ウィンドウ全高）。
 - **右カラム** — 垂直スプリッタで上下に分割。
   - **上段** — タブ切り替えパネル（最大 3 タブ）。
-    - **Tree** タブ — パース済み辞書のツリー表示（中央）と詳細編集ペイン（右）。`blockMeshDict` がアクティブなファイルのとき、タブバーの右上に **⊞** ボタンが表示されサイドバイサイドモードを起動できます（「[BlockMesh パネル — サイドバイサイドモード](#サイドバイサイドモード)」参照）。
+    - **Tree** タブ — パース済み辞書のツリー表示（中央）と詳細編集ペイン（右）。`blockMeshDict`、`topoSetDict`、`snappyHexMeshDict`、`setFieldsDict` のいずれかがアクティブなファイルのとき、タブバーの右上に **⊞** ボタンが表示されサイドバイサイドモードを起動できます（「[BlockMesh パネル — サイドバイサイドモード](#サイドバイサイドモード)」参照）。
     - **Boundary** タブ — 全フィールド変数の境界条件テーブル（「[境界条件ビュー](#境界条件ビュー)」参照）。
     - **BlockMesh** タブ — `blockMeshDict` ジオメトリのインタラクティブ 3D ビューア（「[BlockMesh パネル](#blockmesh-パネル)」参照）。シンプルターミナルが有効なときのみ表示。**View > BlockMesh 3-D Panel** でも切り替え可能。
   - **下段** — タブ切り替えパネル。
@@ -215,6 +267,7 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 
 - View > Show Type Column（チェック式、デフォルトで非表示）
 - View > BlockMesh 3-D Panel（チェック式。BlockMesh タブの表示・非表示を切り替えます。xterm ターミナルモードが有効な場合は GPU 競合のためグレーアウトし、ラベルが **"BlockMesh 3-D Panel  (unavailable: xterm active)"** に変わります）
+- View > View Log Summary… — Tools > View Log Summary… と同じアクションで、見つけやすさのためここにも表示されます。[View Log Summary](#view-log-summary) を参照。
 
 **Settings メニュー:**
 
@@ -226,14 +279,27 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 - Settings > Reset Window Size
 - Settings > Reset All Settings…
 - Settings > Language — UI の言語を選択します（English / 日本語）。アプリケーションを再起動すると反映されます。
+- Settings > Generate OpenFOAM Keywords… — 選択した OpenFOAM インストールからシンタックスハイライト用のキーワード一覧を再生成します。[Generate OpenFOAM Keywords](#generate-openfoam-keywords) を参照。
 
 **Tools メニュー:**
 
 - Tools > foamMonitor… — `foamMonitor` を起動し、残差などの時系列データを gnuplot でプロットします。[foamMonitor ランチャー](#foammonitor-ランチャー) を参照。
+- Tools > Restore 0/ from 0.orig — `0.orig/` から `0/` を再作成します。[Restore 0/ from 0.orig](#restore-0-from-0orig) を参照。
+- Tools > Run blockMesh — ケースディレクトリで `blockMesh` を実行します。[Run blockMesh](#run-blockmesh) を参照。
+- Tools > Run snappyHexMesh — ケースディレクトリで `snappyHexMesh -overwrite` を実行します。[Run snappyHexMesh](#run-snappyhexmesh) を参照。
+- Tools > Run topoSet — ケースディレクトリで `topoSet` を実行します。[Run topoSet](#run-toposet) を参照。
+- Tools > Run setFields — ケースディレクトリで `setFields` を実行します。先に `0/` を `0.orig/` から復元するかを確認します。[Run setFields](#run-setfields) を参照。
+- Tools > Run checkMesh — ケースディレクトリで `checkMesh` を実行します。[Run checkMesh](#run-checkmesh) を参照。
+- Tools > Run Allrun Script — ケースの `./Allrun` スクリプト（ソルバーを含む）を実行します。[Run Allrun Script](#run-allrun-script) を参照。
+- Tools > Open Mesh in ParaView… — 現在のケースを ParaView で開きます。[Open Mesh in ParaView](#open-mesh-in-paraview) を参照。
+- Tools > Run Allclean Script — ケースの `./Allclean` スクリプトを実行します。[Run Allclean Script](#run-allclean-script) を参照。
+- Tools > Clean Case (foamCleanTutorials) — `foamCleanTutorials` でケースをクリーンします。[Clean Case (foamCleanTutorials)](#clean-case-foamcleantutorials) を参照。
+- Tools > View Log Summary… — `log.*` ファイルの要約を表示します。[View Log Summary](#view-log-summary) を参照。
+- Tools > Find OpenFOAM Examples… — OpenFOAM のチュートリアルと `etc/caseDicts` テンプレートからキーワードの使用例を検索します。[Find OpenFOAM Examples](#find-openfoam-examples) を参照。
 
 **Help メニュー:**
 
-- Help > About Foam Dictionary Editor (FoDE)...
+- Help > About Foam Dictionary Editor (FoDE)... — アプリケーションのバージョン（git チェックアウトから実行した場合は開発ビルドの短い接尾辞付き）、ライセンス、謝辞を表示します。
 - Help > Keyboard Shortcuts...
 - Help > Resources...
 
@@ -290,6 +356,12 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 
 `thermophysicalProperties.*` および `turbulenceProperties.*` にマッチするフェーズバリアントファイル（例: `thermophysicalProperties.air`）は、`constant/` および各リージョンの constant ディレクトリから glob で自動収集されます。
 
+### ケースルートのスクリプト
+
+ケースルート直下の `All*` にマッチするスクリプトファイル（`Allrun`、`Allrun.pre`、`Allclean` など）は、他のすべてのグループの後に表示される **case root** グループへ自動的に一覧表示されます。Tools メニューからこれらのスクリプトを実行できるため、実行される内容をそのまま確認・編集できます。それ以外のケースルート直下のファイル（`log.*`、`*.foam`、結果ディレクトリ）は一覧を簡潔に保つためデフォルトでは表示されず、このグループに `[+]` マーカーが付くこともありません（ルートにはほぼ常に未表示のログが存在するため、マーカーが常時点灯してしまうからです）。特定のルートファイル — 実行ログ、`README`、カスタムスクリプトなど — を一覧に加えたい場合は、**case root** ヘッダーを右クリックして **Add files from 'case root'...** を選択します。同じメニューには他のディレクトリヘッダーと同様に **New file in 'case root'...** もあります。隠しファイル（`.` で始まる名前）は候補に表示されません。
+
+スクリプトはシェルファイルであり OpenFOAM 辞書ではないため、開いてもテキストエディタにのみ表示されます — ツリービューは空のままで、**Apply Text to Tree** は効果がなく、比較モードの対象にもなりません。エディタは（`#!` シバンの検出により）自動的にシェル用のシンタックスハイライトに切り替わり、`#` コメント、引用符付き文字列、`$変数`、`runApplication`・`runParallel` などの OpenFOAM 実行ヘルパー、および通常の OpenFOAM キーワードリストによるユーティリティ・ソルバー名が色分けされます。編集と保存は他のファイルと同様に行え、実行権限は保持されます。また、ケースを複製したり新しいケースとして保存したりする際にもスクリプトが含まれるため、複製後も Tools メニューから実行できます。
+
 ### マルチリージョンケース
 
 `system/` 内にサブディレクトリが存在する場合、各サブディレクトリをリージョン名として認識し、追加のファイルグループを構築します。リージョンごとに次のファイルが存在すれば一覧に追加されます。
@@ -322,10 +394,10 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 
 ### 実行時のファイル追加
 
-ファイル一覧のディレクトリヘッダーを右クリックすると、次のコンテキストメニューが表示されます。
+ファイル一覧のディレクトリヘッダー（**case root** ヘッダーを含む）を右クリックすると、次のコンテキストメニューが表示されます。
 
 - **New file in '\<dir\>'...** — FoamFile テンプレートから新規ファイルを作成します（「[新規ファイルの作成](#新規ファイルの作成)」を参照）。
-- **Add files from '\<dir\>'...** — 既存ファイルを一覧に追加します。そのディレクトリにあって未登録のファイルがダイアログで表示されます。1 つ以上選択して **OK** をクリックすると追加されます。
+- **Add files from '\<dir\>'...** — 既存ファイルを一覧に追加します。そのディレクトリにあって未登録のファイルがダイアログで表示されます（`.` で始まる隠しファイルは除外されます）。1 つ以上選択して **OK** をクリックすると追加されます。
 - **Remove '\<dir\>' from file list** — 追加ディレクトリをファイル一覧から削除します。追加ディレクトリのヘッダー（紫色）にのみ表示されます（「[追加ディレクトリの登録](#追加ディレクトリの登録)」を参照）。
 - **Duplicate '\<dir\>' → '\<counterpart\>'...** — `0/` または `0.orig/` ディレクトリを複製してもう一方を作成します（「[フィールドディレクトリの複製](#フィールドディレクトリの複製)」を参照）。`0` および `0.orig` のヘッダーでのみ表示され、2 つのうちどちらか一方しか存在しない場合に限り表示されます。
 - **Delete '0' directory...** — `0/` ディレクトリをディスクごと削除します（「[フィールドディレクトリの削除](#フィールドディレクトリの削除)」を参照）。`0` ヘッダーでのみ表示され、`0.orig` が存在する場合にのみ有効です。
@@ -345,6 +417,8 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 
 追加ディレクトリのグループヘッダーは**紫色**で表示されます。ファイルがすべて読み込まれるため、`[+]` の未読み込みマーカーは表示されません。
 
+隠しファイル・隠しディレクトリ（`.` で始まる名前、例: アプリ自身の `.foam-editor-files.json` や `.git/` ツリー）は、追加ディレクトリのスキャンから常に除外されます。
+
 **Results インジケーターからタイムディレクトリを追加する:**  
 ファイル一覧下部の **Results: …** 行を右クリックします。各タイムディレクトリがサブメニューに表示されます。クリックするとそのディレクトリが追加されます。すでに追加済みのディレクトリはグレーアウトされます。
 
@@ -359,8 +433,8 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 
 追加ディレクトリ内で作成・複製したファイルは、そのディレクトリ全体がスキャン対象のため、追加ファイルリストへは追加されません。
 
-**追加ディレクトリ内の大きな非ディクショナリファイル:**  
-`log.simpleFoam` やソルバー出力ファイルなど、OpenFOAM のディクショナリではない大きなファイルが含まれているディレクトリを追加した場合、それらのファイルはファイル一覧には表示されますが、ケース比較の差分計算ではスキップされ `≠` マーカーは表示されません。手動でそのファイルを開こうとすると、ツリービューが利用できないことおよび読み込み中にアプリケーションが応答しなくなる可能性があることを警告する確認ダイアログが表示されます。
+**追加ディレクトリ内の実行ログと大きな非ディクショナリファイル:**  
+追加ディレクトリ経由で一覧に含まれた `log.*` 実行ログ（例: `log.blockMesh`、`log.simpleFoam`）は、ファイル一覧で**グレー（薄く）表示**され、常にプレーンテキストとして開かれます — 辞書パーサーは一切実行されないため、ツリービューはなく、**Apply Text to Tree** は効果がなく、ケース比較でもスキップされます（`≠` マーカーなし）。100 KB を超えるログを開く場合は、大きなテキストファイルの読み込みに時間がかかることがあるため、先に確認ダイアログが表示されます。それ以外の大きな非ディクショナリファイルにも同じ確認ダイアログが表示され、差分計算では同様にスキップされます。
 
 ### 追加ファイル・ディレクトリインジケーター
 
@@ -388,6 +462,14 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 ケースルートに数値名のディレクトリ（`0.5`、`1`、`10` のような OpenFOAM の計算結果ディレクトリ）が存在する場合、`0`、`0.orig`、およびすでに追加ディレクトリとして登録済みのものを除いて、ファイル一覧の末尾に非選択の **Results: …** 行が追加されます。太字のグレーテキストで表示され、最大 6 件のディレクトリ名を並べます。7 件以上の場合は `(+N more)` サフィックスが付きます。ホバーすると件数と、複数ある場合は最初と最後のディレクトリ名が表示されます。
 
 右クリックするとサブメニューが表示され、任意のタイムディレクトリを追加ディレクトリとしてファイル一覧に登録できます（「[追加ディレクトリの登録](#追加ディレクトリの登録)」を参照）。登録後はそのディレクトリは Results インジケーターに表示されなくなり、代わりに通常のグループヘッダーとして表示されます。
+
+### メッシュ有無・古さのインジケーター
+
+`constant/polyMesh/owner` が存在する場合、ファイル一覧の下部（Results インジケーターの近く）に非選択の行が追加され、**「constant/polyMesh: 8,000 cells」** のようにセル数が表示されます。この件数はメッシュ自体を解析するのではなく、ファイルの `FoamFile` ヘッダーの `note` フィールド（例: `nPoints:9261 nCells:8000 nFaces:25200`）から読み取るため、チェックは軽量です。ヘッダーから件数を読み取れない場合は **「constant/polyMesh (present)」** にフォールバックします。
+
+`system/blockMeshDict` がメッシュの生成後に変更されている場合、インジケーターはアンバー色になり **「 — stale (blockMeshDict changed since last run)」** というサフィックスが付き、ツールチップに理由が表示されます。ホバーすると、利用可能な場合は常に頂点・セル・面の全カウントが表示されます。
+
+インジケーターは自動的に更新されます。ファイル一覧が更新されるたびに再計算され、**Tools > Run blockMesh** の実行後、`blockMeshDict` の保存後（**Save File** / **Save Case**）、ファイルシステムウォッチャーが変更を検知した後のいずれでも、手動で **Reload Case** を行う必要はありません。
 
 ### バックアップの作成
 
@@ -555,13 +637,21 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 
 `blockMeshDict` を読み込んだとき、または編集したときにパネルが自動的に更新されます。**Refresh** ボタンで手動更新もできます。
 
-`topoSetDict` を読み込んだり編集したりしたときも、各アクションのジオメトリソース（ボックス・球・円柱・円錐）が 3D パネルにオーバーレイ表示されます。`blockMeshDict` が読み込まれていない場合でもオーバーレイのみ表示できます。**"topoSet geometry"** チェックボックスで表示・非表示を切り替えられます。
+`topoSetDict` を読み込んだり編集したりしたときも、各アクションのジオメトリソース（ボックス・回転ボックス・球・円柱・円錐、`nearestToCell` のような点を持つソース、`planeToFaceZone`）が 3D パネルにオーバーレイ表示されます。`blockMeshDict` が読み込まれていない場合でもオーバーレイのみ表示できます。**topoSet ▾** メニューの **"Show topoSet geometry"** トグルで表示・非表示を切り替えられます。
+
+`snappyHexMeshDict` を読み込んだり編集したりすると、その `geometry` ブロック（ボックス／球／円柱／円錐／triSurfaceMesh／collection）が `refinementSurfaces`/`refinementRegions` と照合して surface・region・ジオメトリのみに分類されオーバーレイ表示され、`locationInMesh`/`locationsInMesh` の保持点マーカーも表示されます — 詳細は「[snappyHexMeshDict オーバーレイ](#snappyhexmeshdict-オーバーレイ)」を参照してください。このオーバーレイも `blockMeshDict`/`topoSetDict` とは独立して表示されます。
+
+`setFieldsDict` を読み込んだり編集したりすると、その `regions ( … )` リストも同様にオーバーレイ表示され、各領域には `fieldValues` の要約がラベルとして付きます — 「[setFieldsDict オーバーレイ](#setfieldsdict-オーバーレイ)」を参照してください。
+
+ブロックメッシュを超えて広がるオーバーレイシェイプは、メッシュが見えるようにビュー内でクリップされます — 「[オーバーレイのクリップ表示](#オーバーレイのクリップ表示)」を参照してください。
 
 ### サイドバイサイドモード
 
-`blockMeshDict` がアクティブなファイルで BlockMesh パネルが利用可能なとき、上部タブウィジェットの右上に **⊞** トグルボタンが表示されます。クリックすると Tree タブの右隣に 3D ビューが水平スプリッターで並列表示され、ツリーの編集と 3D ビューを同時に確認できます。サイドバイサイドモード中は独立した **BlockMesh** タブが非表示になり、モードを切ると復元されます。
+`blockMeshDict`、`topoSetDict`、`snappyHexMeshDict`、`setFieldsDict` のいずれかがアクティブなファイルで BlockMesh パネルが利用可能なとき、上部タブウィジェットの右上に **⊞** トグルボタンが表示されます。クリックすると Tree タブの右隣に 3D ビューが水平スプリッターで並列表示され、ツリーの編集と 3D ビューを同時に確認できます。サイドバイサイドモード中は独立した **BlockMesh** タブが非表示になり、モードを切ると復元されます。
 
 サイドバイサイドモード中は 3D ビューが **自動更新されません**。ツリーを編集した後は BlockMesh パネルの **Refresh** をクリックしてください。
+
+ツリーと 3D ビューの間のスプリッターハンドルは自由にドラッグできます。どちらのペインも折りたたまれて消えることはなく、3D ビューは小さな最小幅まで狭められ、ツールバーは必要に応じて複数行に折り返されます。
 
 xterm ターミナルがアクティブな間は **⊞** ボタンが無効化されます（GPU/OpenGL の競合により BlockMesh パネルを同時に開けないためです）。
 
@@ -577,32 +667,40 @@ xterm ターミナルがアクティブな間は **⊞** ボタンが無効化�
 
 参照が解決できない場合（例：変数が外部ファイルで定義されている場合）、その変数を含む頂点やブロックは静かにスキップされます。
 
-### ジオメトリコントロール（第 1 ツールバー行）
+### ジオメトリコントロール
+
+すべてのコントロールはパネル上部の 1 本のツールバーに配置されています。ツールバーは*折り返し*式で、パネルが狭いとき（サイドバイサイドモードなど）はボタンが複数行に流し込まれ、パネルの最小幅を押し広げません。
 
 | コントロール | 説明 |
 |---|---|
 | **Vertices ▾** | 3 つのチェック可能な項目を持つドロップダウンメニュー: **Vertices**（頂点を赤い球で表示）、**Vertex labels**（頂点インデックス番号をオーバーレイ表示）、**Vertices table**（右側の頂点座標テーブルを表示・非表示）。 |
 | **Blocks ▾** | 4 つのチェック可能な項目を持つドロップダウンメニュー: **Block edges**（ワイヤーフレーム表示）、**Block labels**（重心にブロックインデックスをオーバーレイ）、**Color blocks**（tab10 パレットでブロックごとに色分け）、**Solid blocks**（半透明ソリッド面を opacity 0.25 で追加表示、Color blocks の色設定を共有）。 |
-| **Boundary faces** | 境界パッチの面をパッチ種別で色分けして表示します。 |
-| **topoSet geometry** | `topoSetDict` のジオメトリソースをアクション種別で色分けして半透明オーバーレイ表示します（「[topoSetDict オーバーレイ](#toposetdict-オーバーレイ)」参照）。 |
+| **Boundary faces** | 境界パッチの面をパッチ種別で色分けして表示します。どのパッチにも割り当てられていない外部ブロック面 — blockMesh の暗黙の `defaultFaces` — は薄いグレーで描画されます。これがないと、damBreak のような擬似 2D ケース（大きな前面・背面が `boundary` に列挙されない）では境界が何も表示されないように見えてしまいます。 |
+| **topoSet ▾** | `topoSetDict` オーバーレイ用のドロップダウンメニュー: マスタートグルの **Show topoSet geometry**、**Show all shapes** / **Hide all shapes** アクション、アクションカラーの凡例、描画可能なシェイプごとのチェック可能な表示切替、そして描画可能なジオメトリを持たないエントリをまとめた **Non-geometric sources (N)** サブメニュー（「[topoSetDict オーバーレイ](#toposetdict-オーバーレイ)」参照）。 |
+| **snappyHexMesh ▾** | `snappyHexMeshDict` オーバーレイ用のドロップダウンメニューで、構成は **topoSet ▾** と同じです: マスタートグル、**Show all shapes** / **Hide all shapes**、カテゴリカラーの凡例、シェイプごと・保持点ごとの表示切替、**Non-geometric sources (N)** サブメニュー（「[snappyHexMeshDict オーバーレイ](#snappyhexmeshdict-オーバーレイ)」参照）。 |
+| **setFields ▾** | `setFieldsDict` オーバーレイ用のドロップダウンメニューで、構成は **topoSet ▾** と同じです: マスタートグルの **Show setFields regions**、**Show all shapes** / **Hide all shapes**、領域カラーの凡例、描画可能な領域ごとの表示切替、**Non-geometric sources (N)** サブメニュー（「[setFieldsDict オーバーレイ](#setfieldsdict-オーバーレイ)」参照）。 |
 | **Refresh** | 現在のツリーからジオメトリを再抽出して再描画します。プレビューモード中はすべてのプレビュー編集を破棄してツリーの値に戻します。 |
 | **Preview** | `vertices` ブロックに変数参照（`$varName`）が含まれる場合のみ表示されます。このボタンはメインツールバーではなく **Vertices** パネル内（テーブルの上部）に表示されます。クリックするとプレビューモードになり、テーブルセルが編集可能になって各変更が即座に 3D ビューへ反映されますが、ツリーとファイルは変更されません。プレビューモード中は黄色いバナーが表示されます。**Refresh** をクリックするとプレビューモードを終了して元の値に戻ります。 |
-| **STL ▾** | ドロップダウンメニュー: **Load STL / OBJ…** で STL または OBJ ファイルを読み込み半透明グレーオーバーレイとして表示（複数ファイル読み込み可）。**Clear STL** で読み込み済みオーバーレイをすべて削除（未読み込み時はグレーアウト）。 |
+| **STL ▾** | ドロップダウンメニュー: **Load STL / OBJ…** で STL または OBJ ファイルを読み込み半透明グレーオーバーレイとして表示（複数ファイル読み込み可）。**Clear STL** で読み込み済みオーバーレイをすべて削除（未読み込み時はグレーアウト）。**Export Shapes as STL…** は、読み込み済みの `topoSetDict`/`snappyHexMeshDict`/`setFieldsDict` の描画可能な各シェイプをチェックボックス付きで一覧表示するダイアログを開きます（初期状態は 3D ビューでの現在の表示/非表示に対応）。Select All / Deselect All も使えます。出力先フォルダを選んで Export をクリックすると、チェックした各シェイプがそのラベル/名前にちなんだ個別の `.stl` ファイルとして書き出されます（topoSet/snappyHexMesh/setFields のジオメトリが読み込まれていない場合はグレーアウト）。点マーカーのシェイプ（`nearestToCell` など）と `planeToFaceZone` の円板は、意味のある STL サーフェスを持たないため一覧に表示されません。3D ビューでクリップ表示されているシェイプも、エクスポートされるのは常にクリップ前の完全なジオメトリです。 |
 
 従来の 4 頂点インデックス記法 `(v0 v1 v2 v3)` と新しいコンパクト記法 `(blockIndex faceIndex)` の両方がサポートされており、同じファイル内で混在させることができます。コンパクト記法は表示前に標準的な六面体ブロック面番号を使用して 4 頂点リストに自動展開されます。
 
 ### topoSetDict オーバーレイ
 
-`topoSetDict` を読み込んだり編集したりすると、各アクションエントリのジオメトリソースが半透明シェイプとしてメッシュ上に描画されます。第 1 ツールバー行の **"topoSet geometry"** チェックボックスでオーバーレイを切り替えられます。
+`topoSetDict` を読み込んだり編集したりすると、各アクションエントリのジオメトリソースが半透明シェイプとしてメッシュ上に描画されます。**topoSet ▾** メニューのマスタートグル **"Show topoSet geometry"** でオーバーレイ全体を切り替えられるほか、描画可能な各シェイプには個別のチェック可能な表示切替があり、**Show all shapes** / **Hide all shapes** で全シェイプを一括切替できます。描画可能なジオメトリを持たないソース（`cellToFace`、`patchToCell` など）は **Non-geometric sources (N)** サブメニューにまとめられるため、ソースの多い辞書でもメニューが読みやすいままです。
 
 **対応ソースタイプ:**
 
 | ソースファミリー | 例 | シェイプ |
 |---|---|---|
-| `boxToCell/Face/Point` | `box (x0 y0 z0) (x1 y1 z1)` | ボックス（ワイヤーフレーム＋面） |
-| `sphereToCell/Face/Point` | `centre`、`radius` | 球 |
+| `boxToCell/Face/Point` | `box (x0 y0 z0) (x1 y1 z1)`、`min`/`max` キー、または複数ボックスの `boxes ( … )` リスト | ボックス（ワイヤーフレーム＋面。`boxes` リストはすべてのボックスを描画） |
+| `rotatedBoxToCell/Face/Point` | `origin`、`i`、`j`、`k` | 回転（傾いた）ボックス |
+| `sphereToCell/Face/Point` | `origin`/`centre`、`radius`、任意で `innerRadius` | 球（`innerRadius` 指定時は中空球 — 内殻が透けて見えます） |
 | `cylinderToCell/Face/Point`、`cylinderAnnulusToCell` | `point1`/`p1`、`point2`/`p2`、`radius` | 円柱 |
 | `coneToCell/Face/Point`、`coneAnnulusToCell` | `point1`/`p1`、`point2`/`p2`、`radius1`、`radius2` | 円錐（円錐台。`radius2` が 0 のときは真円錐） |
+| `nearestToCell`、`nearestToPoint` | `points ( … )` | ラベル付き点マーカー |
+| `regionToCell` / `regionToFace` | `insidePoints`/`insidePoint` / `nearPoint` | ラベル付き点マーカー |
+| `planeToFaceZone` | `point`、`normal` | 指定平面上の円板。シーンの大きさに合わせて表示されます（平面は無限なので、表示範囲は表示専用です） |
 
 **アクションによる色分け:**
 
@@ -617,6 +715,58 @@ xterm ターミナルがアクティブな間は **⊞** ボタンが無効化�
 ジオメトリを完全に解決できないエントリ（未解決の `$変数` がある場合など）は静かにスキップされます。`blockMeshDict` が読み込まれていない場合でもオーバーレイのみ表示できます。
 
 **変数の解決** — `topoSetDict` のトップレベルに定義したスカラー・整数変数（例：`xMin -0.01;`）は抽出前に解決されます。マクロチェーン（`y $x;`）や `#eval{ 式 }` 表現も対応します。これは `blockMeshDict` と同じ仕組みです。他のファイルで定義された変数はスコープ外です。
+
+### snappyHexMeshDict オーバーレイ
+
+`snappyHexMeshDict` を読み込んだり編集したりすると、その `geometry {}` ブロックが半透明シェイプの集合としてメッシュ上に描画されます。各シェイプは `castellatedMeshControls.refinementSurfaces` / `refinementRegions` と照合して **surface**（サーフェス）・**region**（リージョン）・**geometry**（ジオメトリのみ）のいずれかに分類されます。**snappyHexMesh ▾** メニューのマスタートグル **"Show snappyHexMesh geometry"** でオーバーレイ全体を切り替えられます。メニューには、シェイプごとのチェック可能な表示切替（**Show all shapes** / **Hide all shapes** で一括切替可能）に加え、描画できなかったジオメトリのエントリをまとめた **Non-geometric sources (N)** サブメニューも表示されます。
+
+**対応する `geometry` エントリタイプ:**
+
+| `type` | フィールド | シェイプ |
+|---|---|---|
+| `box` | `min`、`max` | ボックス（ワイヤーフレーム＋面） |
+| `sphere` | `centre`/`origin`、`radius` | 球。`radius` がベクトル `(rx ry rz)` で与えられている場合（イグルー型のドームなど）は球ではなくだ円体として描画されます |
+| `cylinder` | `point1`/`p1`、`point2`/`p2`、`radius` | 円柱 |
+| `cone` | `point1`/`p1`、`point2`/`p2`、`radius1`、`radius2` | 円錐（円錐台。`radius2` が 0 のときは真円錐） |
+| `triSurfaceMesh` / `distributedTriSurfaceMesh` | `file`（または `.stl`/`.stlb`/`.obj` で終わるエントリ自身のキー名） | ケースディレクトリを基準に `constant/triSurface/` から自動的に読み込まれたメッシュ。ファイルが見つからない場合はグレーアウト表示され、描画されません |
+| `collection`（searchableSurfaceCollection） | 名前付きサブエントリ。それぞれ `surface <name>`、`scale`、`transform { origin; rotation none; }` または `transform { origin; e1; e3; }` を持つ | ベースサーフェスが **box** タイプのサブエントリのみ、スケール・回転・平行移動済みのボックスとして `<collection>.<member>`（例：`twoFridgeFreezers.seal`）の名前で個別に描画されます。ベースが box 以外、または `transform` が未対応・未指定のメンバーは描画されません。collection のメンバーが 1 つも解決できなかった場合は collection 自体がグレーアウト表示されます |
+
+**カテゴリによる色分け:**
+
+| カテゴリ | 色 | 判定方法 |
+|---|---|---|
+| Surface | ティール | ジオメトリエントリの名前（または `name` による上書き名）が `refinementSurfaces` のエントリと一致 — 完全一致、または `"iglo.*"` のような正規表現パターンのキーによる一致 |
+| Region | 紫 | `refinementRegions` のエントリと一致（完全一致のみ）。surface と region の両方に一致するシェイプは surface として表示されます |
+| Geometry | グレー | `geometry {}` で定義されているが、いずれの制御ブロックからも参照されていない |
+
+描画された各シェイプには名前に加え、可能であれば `refinementSurfaces` のレベル `(min max)` または `refinementRegions` のモード（`inside`/`outside`/`distance`）もラベル表示されます。
+
+**保持点** — `castellatedMeshControls.locationInMesh`（単一の点）または `locationsInMesh`（マルチリージョンケースで使われる `((x y z) regionName)` のペアのリスト）は、上記のシェイプオーバーレイとは独立してラベル付きの点マーカーとして描画されます。
+
+`geometry` エントリのフィールドを完全に解決できない場合（未解決の `$変数` があるなど）は、描画されずにグレーアウト表示されます。`blockMeshDict`/`topoSetDict` が読み込まれていない場合でもオーバーレイのみ表示できます。
+
+**表示されないもの** — `refinementSurfaces` エントリ内の `regions { … }` によるリージョン単位の上書き、`patchInfo`、`castellatedMeshControls.features`（フィーチャーエッジの `.eMesh` 参照）、`refinementRegions.levelIncrement`（方向性リファインメント）は、パーサー／スキーマでは読み取られますが、このオーバーレイには反映されません。
+
+### setFieldsDict オーバーレイ
+
+`setFieldsDict` を読み込んだり編集したりすると、その `regions ( … )` リストの各エントリが半透明のオレンジ色のシェイプとしてメッシュ上に描画されます。領域ソースは `topoSetDict` と同じジオメトリキーワードを使うため、同じシェイプファミリーが描画されます: `boxToCell`（`min`/`max` 形式と複数ボックスの `boxes ( … )` 形式を含む）、`rotatedBoxToCell`、`sphereToCell`（オプションの `innerRadius` 付き）、`cylinderToCell`/`cylinderAnnulusToCell`、`coneToCell`/`coneAnnulusToCell` — ソースの一覧表は「[topoSetDict オーバーレイ](#toposetdict-オーバーレイ)」を参照してください。`$変数` と `#eval{ 式 }` の参照も同じ仕組みで解決されます。
+
+各シェイプにはエントリの `fieldValues` の要約（例: `alpha.water=1`）がラベル表示されるため、どの領域がどの場を設定するのかが一目で分かります。**setFields ▾** メニューのマスタートグル **"Show setFields regions"** でオーバーレイ全体を切り替えられるほか、各領域には個別のチェック可能な表示切替があり、**Show all shapes** / **Hide all shapes** で一括切替できます。描画可能なジオメトリを持たないソース（`zoneToCell`、`surfaceToCell` など）は **Non-geometric sources (N)** サブメニューにまとめられます。`defaultFieldValues` はメッシュ全体に適用されるため描画されません。
+
+`blockMeshDict` が読み込まれていない場合でもオーバーレイのみ表示できます。描画可能な領域は **STL ▾ → Export Shapes as STL…** にも 3 つ目のグループとして表示されます。
+
+### オーバーレイのクリップ表示
+
+特に setFieldsDict の領域は、ドメインよりはるかに大きく書かれることがよくあります（例: 約 0.6 m のタンクに対する damBreak の `box (0 0 -1) (0.1461 0.292 1)`）— そのままの大きさで描画するとブロックメッシュが極端に小さく見えてしまいます。そのため、ブロックメッシュが読み込まれている場合、すべてのオーバーレイシェイプ（topoSet、snappyHexMesh、setFields）は、ブロックメッシュのバウンディングボックスを各軸 10% 拡大した範囲に **表示上のみ** クリップされます:
+
+- 拡大した範囲に収まるシェイプはそのまま描画されます。
+- はみ出すシェイプは範囲内に切り取られ、シーンラベルに **「✂ clipped」** マークが付くため、切り取られた形状を実際の大きさと見誤ることはありません。
+- ブロックメッシュの完全に外側にあるシェイプはクリップせずに **「⚠ outside block mesh」** とラベル付けされます。
+- シーン全体を包み込むシェイプ（表面のどの部分も範囲内に入らないもの）は、消えてしまう代わりにバウンディングボックスの重なり部分として描画されます。
+
+クリップ表示は辞書にも抽出済みジオメトリにも影響しません: **Export Shapes as STL…** は常に完全なシェイプを書き出し、ブロックメッシュが読み込まれていないときはクリップも行われません。
+
+**変数の解決** — `snappyHexMeshDict` のトップレベルに定義されたスカラー・整数変数は、`blockMeshDict`/`topoSetDict` と同じ仕組み（マクロチェーンおよび `#eval{ 式 }` 表現を含む）で解決されます。
 
 ### 境界面の色分け
 
@@ -643,7 +793,7 @@ xterm ターミナルがアクティブな間は **⊞** ボタンが無効化�
 - 頂点数が 500 を超える場合は先頭 500 行のみ表示され、末尾に件数の通知が表示されます。
 - **Vertices ▾** メニューの **Vertices table** 項目でテーブルペインを完全に折りたたむことができ、3D ビューの表示領域を広げられます。
 
-### スケール・ラベルコントロール（第 2 ツールバー行）
+### スケール・ラベルコントロール
 
 | コントロール | 説明 |
 |---|---|
@@ -675,7 +825,7 @@ BlockMesh パネル下部のヒントバーに主要な操作が常時表示さ�
 - `schemas/fv_schemes.py` — `fvSchemes` 用スキーマ
 - `schemas/fv_solution.py` — `fvSolution` 用スキーマ
 - `schemas/block_mesh_dict.py` — `blockMeshDict` 用スキーマ。スケーリングキー（`convertToMeters`、`scale`）、`mergeType`、`verbose` を対象とします。
-- `schemas/snappy_hex_mesh_dict.py` — `snappyHexMeshDict` 用スキーマ。トップレベルのフェーズ切り替えキー（`castellatedMesh`、`snap`、`addLayers`）、`mergeTolerance`、`debug`、`castellatedMeshControls`・`snapControls`・`addLayersControls`（レイヤー品質・メジアン軸パラメータを含む）・`meshQualityControls`（`relaxed` サブ辞書を含む）内の主要設定、`refinementSurfaces` エントリ内のキー（`level`、`faceZone`、`cellZone`、`cellZoneInside`、`faceType`）、`refinementRegions` エントリ内のキー（`mode`、`levels`）、`layers` エントリ内の `nSurfaceLayers`、および `patchInfo.type`（パッチ種別の選択肢付き）を対象とします。
+- `schemas/snappy_hex_mesh_dict/` — `snappyHexMeshDict` 用スキーマ（サブドメイン別に分割されたパッケージ。`__init__.py` で統合）。トップレベルのフェーズ切り替えキー（`castellatedMesh`、`snap`、`addLayers`）、`mergeTolerance`、`debug`、`castellatedMeshControls`・`snapControls`・`addLayersControls`（レイヤー品質・メジアン軸パラメータを含む）・`meshQualityControls`（`relaxed` サブ辞書を含む）内の主要設定、`refinementSurfaces` エントリ内のキー（`level`、`faceZone`、`cellZone`、`cellZoneInside`、`faceType`）、`refinementRegions` エントリ内のキー（`mode`、`levels`）、`layers` エントリ内の `nSurfaceLayers`、および `patchInfo.type`（パッチ種別の選択肢付き）を対象とします。
 
 どのスキーマモジュールを読み込むかは、実行時に `schema_config.json` で制御されます。ソースコードを直接修正しなくても、スキーマモジュールの追加・削除が可能です。
 
@@ -761,6 +911,16 @@ SCHEMAS = {
 
 カスタムスキーマモジュールを追加するには、アプリケーションで **Settings > Manage Schema Modules** を選び、**Add Module from File** ボタンから Python ファイルを指定します。変更内容は `schema_config.json` に保存され、その場で反映されます。
 
+## Generate OpenFOAM Keywords
+
+**Settings > Generate OpenFOAM Keywords…** を選択すると、エディタのシンタックスハイライトが使用するキーワード一覧（[エディタの挙動](#エディタの挙動) を参照）を、ローカルの OpenFOAM インストールからスキャンし直して再構築できます。
+
+**Installation** ドロップダウンからインストールを選択します。インストールは [Find OpenFOAM Examples](#find-openfoam-examples) と同じ方法で自動検出され（source 済みの環境が最優先、次に一般的なインストール場所）、**Browse…** で任意のディレクトリを指定することもできます（指定はセッションをまたいで記憶されます）。**Generate** をクリックすると、スキャンはインストールの `etc/caseDicts/` テンプレート、`src/` ヘッダー内の `TypeName(...)`/`ClassName(...)` マクロと Run-Time Selection Table への登録名、そして `src/` と `applications/` のソース内の辞書読み取り呼び出し（`lookup("…")`、`get<…>("…")`、`readEntry("…")` など）を対象とします。最後の辞書読み取りスキャンによって、`controlDict` の `application` や `writePrecision` のような自由形式のキーも収集されます。結果は `app_config/foam_keywords.json` に書き込まれ、同梱のデフォルト一覧より優先されます。進捗状況はダイアログのログ領域に表示され、実行中に **Cancel** をクリックすると中断できます。スキャンが完了または中断された後、ダイアログを閉じられます。
+
+インストールが選択されておらず OpenFOAM 環境も source されていない場合、スキャンは黙って失敗するのではなくログにエラーを表示します。
+
+これは任意の上級者向け操作です。アプリケーションには事前生成済みの `app_config/foam_keywords.default.json`（OpenFOAM v2512 から生成。ファイルの `version` フィールドを参照）が同梱されているため、このスキャナを一度も実行しなくてもハイライト機能はそのまま動作します。バージョン間のキーワード差分は小さく、ハイライトにおいては見た目だけの違いなので、同梱デフォルトは 1 つで十分です。使用中のバージョンやディストリビューションに正確に一致した一覧が必要な場合は、ここで再生成してください。`app_config/foam_keywords.json` を削除すると同梱デフォルトに戻ります。
+
 ## バリアント
 
 FoDE はフィーチャーフラグで制御される 3 つの構成で動作します。プラットフォームとワークフローに合ったものを選んでください。
@@ -808,7 +968,8 @@ presets/no-terminal-blockmesh.json
   "default_case_dir": "/path/to/cases",
   "case_library_dirs": ["/home/user/my_templates"],
   "user_links": [{"label": "My reference", "url": "https://example.com"}],
-  "features": {"terminal": true, "blockmesh": true}
+  "features": {"terminal": true, "blockmesh": true},
+  "openfoam_dir": "/usr/lib/openfoam/openfoam2606"
 }
 ```
 
@@ -819,6 +980,7 @@ presets/no-terminal-blockmesh.json
 | `case_library_dirs` | ユーザーが手動で追加したケースライブラリのディレクトリ一覧です。`$FOAM_TUTORIALS` は環境変数から動的に追加されるため、ここには保存されません。 |
 | `user_links` | **Help > Resources... > My Links** に表示するユーザー定義のリンク一覧です。各エントリは `{"label": "…", "url": "…"}` の形式です。 |
 | `features` | `--variant` で設定されるフィーチャーフラグ（「[バリアント](#バリアント)」参照）。このキーがない場合は `{"terminal": true, "blockmesh": true}` と同等です。 |
+| `openfoam_dir` | [Find OpenFOAM Examples](#find-openfoam-examples) の **参照…** で選択した OpenFOAM インストールです。参照で指定した場合のみ書き込まれ、自動検出されたインストールは保存されません。 |
 
 ### デフォルトのケースディレクトリ設定
 
@@ -904,6 +1066,92 @@ foamMonitor の実行中、メニュー項目は **■ foamMonitor** と表示�
 - foamMonitor は Unix シェルスクリプトです（`foamMonitor` が `PATH` 上にある必要があります）。Windows ではメニュー項目は無効です。
 - 指定したファイルが存在しない場合や foamMonitor がエラーで終了した場合（例: gnuplot がインストールされていない）は警告ダイアログにエラー内容が表示されます。
 - 新しい gnuplot バージョンで非推奨となった `reread` コマンドは起動時に自動的にパッチされます。インストールされている gnuplot のバージョンに関係なく、gnuplot ウィンドウが正しくリフレッシュされます。
+
+## Restore 0/ from 0.orig
+
+**Tools > Restore 0/ from 0.orig** を選択すると、`0.orig/` から `0/` フィールドディレクトリを再作成できます。確認ダイアログが表示され、`0/` を削除して `0.orig/` の新しいコピーで置き換えること、`0/` に直接加えた編集はすべて破棄されることが警告されます。**Yes** をクリックすると続行します。コマンドは Terminal タブで実行され（`rm -rf 0 && cp -r 0.orig 0`）、自動的にそのタブへ切り替わります。このアクションはケースが開かれていて、`0.orig/` が存在し、ターミナルパネルが存在する場合（`no-terminal` バリアントでは存在しません）にのみ利用できます。
+
+## Run blockMesh
+
+**Tools > Run blockMesh** を選択すると、ケースディレクトリで `blockMesh` を実行できます。ケースに既に数値の結果ディレクトリがある場合、確認ダイアログにそれらが一覧表示され、`blockMesh` の再実行がそれらの結果を無効にする可能性があると警告されます。**Yes** をクリックすると続行します。コマンドは Terminal タブで実行され（自動的にそのタブへ切り替わります）、出力はケースディレクトリの `log.blockMesh` にも保存されます。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用できます。
+
+## Run snappyHexMesh
+
+**Tools > Run snappyHexMesh** を選択すると、ケースディレクトリで `snappyHexMesh -overwrite` を実行できます。**Run blockMesh** と同様に、ケースに既に数値の結果ディレクトリがある場合は再メッシュがそれらを無効にする可能性があると警告する確認ダイアログが表示されます。コマンドは Terminal タブで実行され（自動的にそのタブへ切り替わります）、出力は `log.snappyHexMesh` にも保存されます。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用できます。
+
+## Run topoSet
+
+**Tools > Run topoSet** を選択すると、ケースディレクトリで `system/topoSetDict` を読み込む `topoSet` を実行できます。**Run blockMesh** と同様に、ケースに既に数値の結果ディレクトリがある場合は再実行がそれらを無効にする可能性があると警告する確認ダイアログが表示されます。コマンドは Terminal タブで実行され（自動的にそのタブへ切り替わります）、出力は `log.topoSet` にも保存されます。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用できます。
+
+## Run setFields
+
+**Tools > Run setFields** を選択すると、ケースディレクトリで `system/setFieldsDict` を読み込む `setFields` を実行できます。コマンドは Terminal タブで実行され（自動的にそのタブへ切り替わります）、出力は `log.setFields` にも保存されます。
+
+`setFields` は `0/` の場ファイルを直接書き換えるため、設定済みの場に対して再実行すると値が重ねて適用されます（辞書のボックスを動かしても、既に満たされた `alpha.water` 領域は満たされたままです）。そのため、ケースに `0.orig/` バックアップがある場合は三択が提示されます:
+
+- **0/ を復元してから実行** — 先に `0/` を `0.orig/` から復元し（`rm -rf 0 && cp -r 0.orig 0`）、クリーンな初期場に対して `setFields` を実行します。チュートリアルの標準的なワークフローです。
+- **そのまま実行** — 現在の `0/` に対してそのまま `setFields` を実行します。
+- **キャンセル**
+
+`0.orig/` ディレクトリがない場合は、`0/` が直接書き換えられることを伝える通常の確認ダイアログが表示されます。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用できます。
+
+## Run checkMesh
+
+**Tools > Run checkMesh** を選択すると、ケースディレクトリで `checkMesh` を実行し、メッシュ品質（非直交性、歪度、アスペクト比など）を検証できます。**Run blockMesh** や **Run snappyHexMesh** の後に実行するのが典型的です。`checkMesh` はメッシュを読むだけなので、確認ダイアログなしで即座に実行されます。コマンドは Terminal タブで実行され（自動的にそのタブへ切り替わります）、出力は `log.checkMesh` にも保存され、[View Log Summary](#view-log-summary) で確認できます。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用できます。
+
+## Run Allrun Script
+
+**Tools > Run Allrun Script** を選択すると、ケースの `./Allrun` スクリプト — 通常はメッシュ生成・フィールド初期化・ソルバー本体までのワークフロー全体 — を Terminal タブで実行できます（自動的にそのタブへ切り替わります）。ケースに `Allrun` スクリプトがない場合は警告ダイアログが表示されます。ソルバー実行には長時間かかることがあるため、まず確認ダイアログが表示されます。なお Simple ターミナルモードでは実行中のジョブを中断できません（xterm ターミナルは Ctrl+C に対応しています）。
+
+ケースに既に `log.*` ファイルがある場合は別のダイアログが表示されます。OpenFOAM の Allrun ヘルパー関数（`runApplication`/`runParallel`）は `log.*` ファイルが既に存在するステップをスキップする（「already run … remove log file to re-run」）ため、実行済みのケースで `./Allrun` をそのまま実行しても何も起きないように見えることがあります。ダイアログは既存のログファイルを列挙し、3 つの選択肢を提示します: **クリーンしてから実行**（`foamCleanTutorials && ./Allrun` を送信 — 標準的な `./Allclean && ./Allrun` イディオム。[Clean Case](#clean-case-foamcleantutorials) を参照）、**そのまま実行**（`./Allrun` をそのまま送信し、実行済みステップはスキップされます）、**キャンセル**。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用できます。
+
+`Allrun` の各ステップはそれぞれ `log.<アプリケーション>` ファイルを書き出すため、[View Log Summary](#view-log-summary) や [foamMonitor](#foammonitor-ランチャー) は通常どおり結果に対して利用できます。
+
+## Open Mesh in ParaView
+
+**Tools > Open Mesh in ParaView…** を選択すると、BlockMesh 3D パネルのブロックトポロジプレビューの代わりに、実際に生成されたメッシュを ParaView で表示できます。`paraFoam` が `PATH` 上にあれば `paraFoam -case <ケースディレクトリ>` を起動し、なければ `paraview` の単純起動にフォールバックします。どちらも見つからない場合は、警告ダイアログでその旨が表示されます。このアクションはケースが開かれていればいつでも利用でき、FoDE 内で `blockMesh` を実行済みである必要はありません。
+
+## Run Allclean Script
+
+**Tools > Run Allclean Script** を選択すると、ケースの `./Allclean` スクリプトを Terminal タブで実行できます（自動的にそのタブへ切り替わります）。ケースに `Allclean` スクリプトがない場合は警告ダイアログが表示されます。ある場合は、生成されたメッシュ・時刻ディレクトリ・ログファイルなどの結果が削除されることを警告する確認ダイアログが表示されます。削除がディスクに反映されると、ファイルリストは自動的に更新されます。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用できます。
+
+なお、[Clean Case (foamCleanTutorials)](#clean-case-foamcleantutorials) はケースに `./Allclean` がある場合それを実行するため、このアクションはスクリプト自体を明示的に実行したい場合のためのものです。
+
+## Clean Case (foamCleanTutorials)
+
+**Tools > Clean Case (foamCleanTutorials)** を選択すると、OpenFOAM 標準の `foamCleanTutorials` スクリプトを Terminal タブで実行してケースをクリーンできます（自動的にそのタブへ切り替わります）。生成されたメッシュ（`constant/polyMesh`）、時刻ディレクトリ、`processor*/` 分割、`postProcessing/`、`log.*` ファイルなどの生成物を削除します。ケースに応じて次の 2 つの挙動があり、いずれも確認ダイアログに明記されます。
+
+- ケースに独自の `Allclean`（または `Allwclean`）スクリプトがある場合、`foamCleanTutorials` は組み込みのクリーン処理の代わりにそのスクリプトを実行します。
+- それ以外で `0.orig/` ディレクトリが存在する場合、`0/` も削除されます（`foamCleanTutorials` のデフォルト `-auto` モード — 標準的なチュートリアルの慣例です。[Restore 0/ from 0.orig](#restore-0-from-0orig) または **Run Allrun Script** で再作成できます）。
+
+クリーン後、ファイルリストと[メッシュインジケーター](#メッシュ有無古さのインジケーター)は自動的に更新されます。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用でき、ターミナルで OpenFOAM 環境が source 済みである必要があります（**Run blockMesh** と同じです）。
+
+## View Log Summary
+
+**Tools > View Log Summary…** を選択すると、`log.*` ファイルの生テキストの代わりに要約レポートを表示できます。特に `log.snappyHexMesh` で有用です。細分化・スナッピング・レイヤー追加の反復出力が繰り返されるため、数千行に達することがあります。ダイアログはケースディレクトリ内で最も新しく更新された `log.*` ファイルを初期選択します（**Browse…** で別のファイル、ケースディレクトリ外のファイルも選択できます）。2 つのタブがあります。
+
+- **Summary** — `blockMesh` の場合は `Mesh Information` と `Patches` ブロック。`snappyHexMesh` の場合は最終的なセル・面・点数、細分化カテゴリごとの反復回数、スナッピングの緩和反復回数、最終的なパッチ別レイヤー厚テーブル、メッシュ品質チェックの結果。`topoSet` の場合はセル・面・点セットごとに 1 行で、適用されたソースと最終サイズを表示します。繰り返される警告（反復ごとの変位警告など）は件数付きの 1 行にまとめられ、致命的エラーは常に全文表示されます。それ以外のユーティリティのログはヘッダーと末尾約 20 行にフォールバックします。
+- **Raw Log** — 要約で省略された内容を確認できるよう、加工していないファイル内容をそのまま表示します。
+
+[Find OpenFOAM Examples](#find-openfoam-examples) と同様に — そして FoDE の他のダイアログとは異なり — このダイアログは**非モーダル**です。ツリー・エディタ・ターミナルでの作業を続けながらメインウィンドウの横に表示したままにできるため、辞書の設定内容とログの結果を見比べながら作業できます。このアクションはケースが開かれていればいつでも利用でき、ターミナルパネルや FoDE 内でのメッシュコマンド実行を必要としません。既存の `log.*` ファイルであれば動作します。
+
+## Find OpenFOAM Examples
+
+**Tools > Find OpenFOAM Examples…** を選択すると、ローカルの OpenFOAM インストールからキーワードや設定の実際の使用例を検索できます。「`nOuterCorrectors` は実際どう使うのか」「`forces` の function object には何を書くのか」といった、従来は `find`/`grep` の知識が必要だった疑問に答えるための機能です。ダイアログは 2 つの検索対象を持ち、それぞれチェックボックスで切り替えられます。
+
+- **チュートリアル** — インストールの `tutorials/` ディレクトリに同梱されている約 550 の例題ケース。
+- **caseDicts テンプレート** — `etc/caseDicts/` 配下の厳選ファイル。`controlDict` の `functions {}` ブロックで `#includeFunc <名前>` として利用できる `postProcessing/` の function object テンプレートや、`annotated/` 配下の注釈付き例題辞書を含みます。
+
+**インストールの選択。** 上部のセレクタには、マシン上で見つかった OpenFOAM インストールが一覧表示されます。FoDE を環境設定済みのシェルから起動した場合はその環境（`WM_PROJECT_DIR`/`FOAM_TUTORIALS`/`FOAM_ETC`）が、さらに `/usr/lib/openfoam/`、`/opt/`、`~/OpenFOAM/` から自動検出されたインストールが新しい順に並びます。**参照…** で任意のディレクトリ（インストールルートまたは `tutorials/` ディレクトリそのもの）を指定でき、その選択は `app_config.json`（`openfoam_dir` キー）に保存されて次回も初期選択されます。
+
+**検索。** キーワードを入力し（行単位・大文字小文字を区別せずに一致）、Enter または **検索** をクリックします。ファイル名ドロップダウンで検索対象を 1 つの辞書ファイル（`controlDict`、`fvSchemes` など）に絞り込めます。「すべてのファイル」のままにするとすべてを検索します。検索はバックグラウンドで実行されキャンセルも可能で、結果は 200 ファイルまでに制限されます。一致はチュートリアルケースごと（caseDicts はテンプレートフォルダごと）にグループ化され、最初の一致行がスニペットとして表示されます。
+
+**結果の利用。** 一致を選択すると、ファイル全体が読み取り専用のシンタックスハイライト付きプレビューに表示され、最初の一致行までスクロールします。そこから:
+
+- **ファイルをコピー** / **選択範囲をコピー** — ファイル全体、またはプレビュー内で選択したテキストだけをクリップボードにコピーします（選択範囲をコピーは何かを選択すると有効になります）。自分のケースの Editor タブへの貼り付けなどに使えます。
+- **このケースと比較** — 一致がチュートリアルケース内にある場合に有効になります。ワンクリックでそのケースが既存の[ケース比較](#ケース比較)ビューの参照ケースとして読み込まれ、自分のケースとの差分を確認しながら、右クリックの **この値を使用** で個々の設定を取り込めます。ケースが開かれていない場合は、先にケースを開くよう案内されます。
+
+このダイアログは**非モーダル**です。メインウィンドウの横に開いたまま、例を参照しながら編集を続けられます。検索するだけならケースを開いている必要はありません。
 
 ## ツリーキーフィルターとエディタ同期
 
@@ -1079,7 +1327,7 @@ OpenCFD/ESI Group（openfoam.com）と OpenFOAM Foundation（openfoam.org）の 
 両方のツリーは同じカラースキーム（後述の「[ツリーオーバーレイ](#ツリーオーバーレイ)」参照）でハイライトされます。参照ペインでは追加で **薄緑色** を使用し、参照ケースにのみ存在して現在のファイルには存在しないキーを示します。
 
 **参照ケースから値を適用する:**  
-参照ペインの任意のリーフノードを右クリックし、**Use this value** を選択します。対応するノードの値が現在のケースのツリーに即座に適用されます（キーが存在しない場合は挿入されます）。変更後、差分ハイライトは自動的に更新されます。
+参照ペインの任意のリーフノードを右クリックし、**Use this value** を選択します。対応するノードの値が現在のケースのツリーに即座に適用されます。キーが存在しない場合は挿入され、そのキーを囲むブロック自体が存在しない場合（例: `functions {}` ブロックがないケース）も、不足している親辞書が自動的に作成されます。`#includeFunc …` のような名前を持たないエントリは対象ブロックの末尾に追加されます（同一のエントリが既にある場合はメッセージを表示してスキップします）。拒否されるのは、囲むキーが現在のケースに存在するものの辞書ではない、という名前衝突の場合だけです。変更後、差分ハイライトは自動的に更新されます。
 
 **サイドバイサイドの切り替え:**  
 差分バーの **Side by side** チェックボックスで参照ペインの表示・非表示を切り替えられます。チェックを外すと参照ペインは単に折りたたまれるのではなく完全に非表示になり、スプリッターの隙間も消えます。比較モードを終了せずに表示を制御できます。現在のケースのツリーは常に表示され、編集可能です。
@@ -1250,7 +1498,7 @@ This offering is not approved or endorsed by OpenCFD Limited, producer and distr
 ## 謝辞
 
 - [PySide6 (Qt for Python)](https://doc.qt.io/qtforpython/) — GUI フレームワーク（LGPL v3）。
-- [pyVista](https://pyvista.org/) / [VTK](https://vtk.org/) — `blockMeshDict` の 3D ビューア（BSD-3-Clause、オプション）。
+- [pyVista](https://pyvista.org/) / [VTK](https://vtk.org/) — `blockMeshDict`、`topoSetDict`、`snappyHexMeshDict` ジオメトリの 3D ビューア（BSD-3-Clause、オプション）。
 - [xterm.js](https://xtermjs.org/) — ターミナルパネルで使用するターミナルエミュレータ（MIT）。初回起動時に jsDelivr から自動ダウンロードされ `ui/xterm/` にキャッシュされます。
 - [pytest](https://pytest.org/) / [pytest-qt](https://pytest-qt.readthedocs.io/) — テストフレームワーク（開発時のみ）。
 - [PyInstaller](https://pyinstaller.org/) — スタンドアロン実行ファイルのビルドに使用。

@@ -4,16 +4,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
+# Group key for files directly at the case root (Allrun, Allclean, …).
+ROOT_GROUP = "."
+
 _PARENT_ORDER = {
     "system": 0,
     "constant": 1,
     "0": 2,
     "0.orig": 3,
+    ROOT_GROUP: 1000,  # case-root scripts sort last
 }
 
 
 def _group_name(path: str, case_dir: str | None = None) -> str:
-    """Return the group key: 'system', 'constant', 'system/region1', etc."""
+    """Return the group key: 'system', 'constant', 'system/region1', ROOT_GROUP, etc."""
     p = Path(path)
     if case_dir:
         try:
@@ -21,6 +25,7 @@ def _group_name(path: str, case_dir: str | None = None) -> str:
             parts = rel.parent.parts
             if parts:
                 return "/".join(parts)
+            return ROOT_GROUP
         except ValueError:
             pass
     return p.parent.name or ""

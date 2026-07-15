@@ -2,6 +2,7 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+from .app_config_manager import AppConfigManager
 from .constants import (
     APP_CONFIG_FILE,
     JSON_ENSURE_ASCII,
@@ -13,7 +14,6 @@ from .defaults import (
     DEFAULT_WINDOW_HEIGHT,
     DEFAULT_WINDOW_WIDTH,
 )
-from .app_config_manager import AppConfigManager
 
 __all__ = [
     "APP_CONFIG_FILE",

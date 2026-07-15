@@ -11,6 +11,12 @@ from services.case_files_config import CaseFilesConfig
 
 
 @dataclasses.dataclass
+class DiffState:
+    case_dir: str | None = None
+    parsed_roots: dict[str, FoamNode] = dataclasses.field(default_factory=dict)
+
+
+@dataclasses.dataclass
 class FoamMonitorState:
     proc: subprocess.Popen | None = None
     script_tmp: str | None = None
@@ -49,8 +55,7 @@ class AppState:
     parsed_roots: dict[str, FoamNode] = dataclasses.field(default_factory=dict)
 
     # ── diff / comparison state ───────────────────────────────────────────────
-    diff_case_dir: str | None = None
-    diff_parsed_roots: dict[str, FoamNode] = dataclasses.field(default_factory=dict)
+    diff: DiffState = dataclasses.field(default_factory=DiffState)
 
     # ── foamMonitor state ─────────────────────────────────────────────────────
     foam_monitor: FoamMonitorState = dataclasses.field(default_factory=FoamMonitorState)

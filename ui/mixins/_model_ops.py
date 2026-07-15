@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QMessageBox
 
 from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser
@@ -16,6 +15,8 @@ from i18n import tr
 from ui.layout_constants import (
     BLOCKMESH_DICT_NAME as _BLOCKMESH_DICT_NAME,
     TOPOSET_DICT_NAME as _TOPOSET_DICT_NAME,
+    SNAPPY_HEX_MESH_DICT_NAME as _SNAPPY_HEX_MESH_DICT_NAME,
+    SETFIELDS_DICT_NAME as _SETFIELDS_DICT_NAME,
     STATUS_SHORT as _STATUS_SHORT,
     STATUS_WARNING as _STATUS_WARNING,
     TREE_EXPAND_DEPTH as _TREE_EXPAND_DEPTH,
@@ -38,14 +39,24 @@ class _ModelOpsMixin:
         self.editor_panel.set_text(write_root(self.state.current_root))
         self._mark_dirty()
         if self.state.current_file:
-            self.boundary_panel.update_field(self.state.current_file, self.state.current_root)
-            if self.block_mesh_panel is not None and Path(self.state.current_file).name == _BLOCKMESH_DICT_NAME:
-                self.block_mesh_panel.update_block_mesh(self.state.current_file, self.state.current_root)
-            if self.block_mesh_panel is not None and Path(self.state.current_file).name == _TOPOSET_DICT_NAME:
-                self.block_mesh_panel.update_topo_set(self.state.current_file, self.state.current_root)
+            self._update_viewer_panels(self.state.current_file, self.state.current_root)
         self._resize_tree_columns()
         self.on_tree_selection()
         self.statusBar().showMessage(tr("Tree changes applied to text editor"), _STATUS_SHORT)
+
+    def _update_viewer_panels(self, path: str, root: FoamNode) -> None:
+        """Refresh the boundary table and the 3-D viewer for one file's tree."""
+        self.boundary_panel.update_field(path, root)
+        if self.block_mesh_panel is None:
+            return
+        update = {
+            _BLOCKMESH_DICT_NAME: self.block_mesh_panel.update_block_mesh,
+            _TOPOSET_DICT_NAME: self.block_mesh_panel.update_topo_set,
+            _SNAPPY_HEX_MESH_DICT_NAME: self.block_mesh_panel.update_snappy_hex_mesh,
+            _SETFIELDS_DICT_NAME: self.block_mesh_panel.update_set_fields,
+        }.get(Path(path).name)
+        if update is not None:
+            update(path, root)
 
     def _on_tree_data_changed(self, top_left, bottom_right, roles) -> None:
         # Catches edits made directly in the tree view (inline cell editing), which
@@ -127,11 +138,7 @@ class _ModelOpsMixin:
     def _confirm_discard_if_needed(self) -> bool:
         if not self.state.text_dirty:
             return True
-        reply = QMessageBox.question(
-            self,
+        return self._confirm(
             tr("Unsaved Changes"),
             tr("Text editor has unsaved changes. Discard them?"),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
         )
-        return reply == QMessageBox.Yes

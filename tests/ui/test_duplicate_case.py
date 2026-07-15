@@ -100,6 +100,25 @@ class TestWhatIsCopied:
         assert copied == expected
 
 
+# ── case-root scripts ─────────────────────────────────────────────────────────
+
+class TestRootScriptsCopied:
+    def test_allrun_copied_with_exec_bit(self, tmp_path):
+        """Case-root All* scripts are copied and stay executable"""
+        src = tmp_path / "src"
+        _make_case(src, ["system/controlDict"])
+        script = src / "Allrun"
+        script.write_text("#!/bin/sh\n", encoding="utf-8")
+        script.chmod(0o755)
+        dest = tmp_path / "dest"
+
+        copy_visible_files(str(src), dest)
+
+        copied = dest / "Allrun"
+        assert copied.exists()
+        assert copied.stat().st_mode & 0o111, "exec bit must be preserved"
+
+
 # ── file content preservation ─────────────────────────────────────────────────
 
 class TestFileContents:

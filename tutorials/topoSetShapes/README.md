@@ -3,9 +3,10 @@
 A minimal case whose `system/topoSetDict` exercises every geometry source that the
 BlockMesh 3-D panel can overlay. Open the case, open `system/blockMeshDict` (the mesh
 renders), then open `system/topoSetDict` and use the **"topoSet ▾"** menu in the panel
-toolbar — the **"Show topoSet geometry"** toggle enables the overlay, and each shape
-below has its own checkbox so you can isolate or hide it individually — to see all
-nine shapes drawn inside the 3×3×3 domain.
+toolbar — the **"Show topoSet geometry"** toggle enables the overlay, each shape
+below has its own checkbox so you can isolate or hide it individually, and
+**Show all shapes** / **Hide all shapes** switch every checkbox at once — to see all
+fourteen shapes drawn inside the 3×3×3 domain.
 
 ### Mesh
 
@@ -31,6 +32,11 @@ colours each shape by its `action`: **new** = steel-blue, **add** = green,
 | `coneRing` | `coneAnnulusToCell`     | new      | hollow cone                    |
 | `core`     | `boxToCell`             | subset   | box, intersection with the set |
 | `tilted`   | `rotatedBoxToCell`      | add      | oriented box (`origin` + `i`/`j`/`k`) |
+| `slab`     | `boxToCell`             | add      | box via the `min`/`max` key pair |
+| `twinBoxes`| `boxToCell`             | new      | two boxes from one `boxes ( … )` list |
+| `shell`    | `sphereToCell`          | new      | hollow sphere via `origin` + `innerRadius` |
+| `probes`   | `nearestToCell`         | new      | three points drawn as labelled markers |
+| `midPlane` | `planeToFaceZone`       | new      | plane drawn as a disc sized to the scene bounds |
 
 The `ball` entry demonstrates top-level `$variable` resolution (`ballX`/`ballY`/`ballZ`,
 `ballR`) and `spike` demonstrates inline `#eval{ }` resolution; both are evaluated before
@@ -40,5 +46,6 @@ extraction.
 
 The dict also has a `coreFaces` entry (`cellToFace`, promoting `core`'s cells to their
 boundary faces). It carries no drawable geometry, so it isn't overlaid in the 3-D view —
-it's listed greyed-out in the **"topoSet ▾"** menu as *"coreFaces · cellToFace (no geometry)"*
-so its presence in the dict is still visible.
+it's listed greyed-out under the **"Non-geometric sources (1)"** submenu of the
+**"topoSet ▾"** menu as *"coreFaces · cellToFace (no geometry)"* so its presence in
+the dict is still visible.

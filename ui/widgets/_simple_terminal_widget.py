@@ -86,7 +86,9 @@ class SimpleTerminalWidget(QWidget):
 
     def set_working_directory(self, path: str) -> None:
         self._cwd = path
-        if self._process.state() == QProcess.Running:
+        # QProcess buffers writes made while still Starting and flushes them
+        # once the shell is up, so only skip when the process is not running.
+        if self._process.state() != QProcess.NotRunning:
             self._execute(f"cd {shlex.quote(path)}")
 
     def run_command(self, cmd: str) -> None:

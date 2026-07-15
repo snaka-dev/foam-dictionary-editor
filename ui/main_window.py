@@ -91,7 +91,17 @@ class MainWindow(
         self._foam_monitor_action: QAction | None = None
         self._restore_0dir_action: QAction | None = None
         self._run_blockmesh_action: QAction | None = None
+        self._run_snappyhexmesh_action: QAction | None = None
+        self._run_topo_set_action: QAction | None = None
+        self._run_setfields_action: QAction | None = None
+        self._run_checkmesh_action: QAction | None = None
+        self._run_allrun_action: QAction | None = None
+        self._run_allclean_action: QAction | None = None
+        self._clean_case_action: QAction | None = None
         self._open_paraview_action: QAction | None = None
+        self._view_log_summary_action: QAction | None = None
+        self._log_summary_dialog = None
+        self._find_examples_dialog = None
 
         self._build_ui()
         self.setAcceptDrops(True)
@@ -253,6 +263,10 @@ class MainWindow(
         self._tree_bm_splitter = QSplitter(Qt.Horizontal)
         self._tree_bm_splitter.addWidget(right_upper_splitter)
         self._tree_bm_splitter.setMinimumSize(0, 0)
+        # Neither the tree side nor the BlockMesh panel may snap closed when
+        # the handle is dragged past a pane's minimum width (also applies to
+        # the panel when it is reparented in later for side-by-side mode).
+        self._tree_bm_splitter.setChildrenCollapsible(False)
 
         self.upper_tabs = QTabWidget()
         self.upper_tabs.addTab(self._tree_bm_splitter, tr("Tree"))
@@ -408,38 +422,99 @@ class MainWindow(
             view_menu.addAction(self._blockmesh_action)
 
         tools_menu = menubar.addMenu(tr("Tools"))
-        self._foam_monitor_action = QAction(tr("foamMonitor…"), self)
-        self._foam_monitor_action.setEnabled(False)
-        self._foam_monitor_action.setToolTip(
-            tr("Launch foamMonitor to plot residuals or other data with gnuplot")
-        )
-        self._foam_monitor_action.triggered.connect(self._on_foam_monitor_clicked)
-        tools_menu.addAction(self._foam_monitor_action)
 
+        def _tool_act(label: str, tooltip: str, slot, enabled: bool = False) -> QAction:
+            action = QAction(label, self)
+            action.setEnabled(enabled)
+            action.setToolTip(tooltip)
+            action.triggered.connect(slot)
+            tools_menu.addAction(action)
+            return action
+
+        self._foam_monitor_action = _tool_act(
+            tr("foamMonitor…"),
+            tr("Launch foamMonitor to plot residuals or other data with gnuplot"),
+            self._on_foam_monitor_clicked,
+        )
         tools_menu.addSeparator()
-        self._restore_0dir_action = QAction(tr("Restore 0/ from 0.orig"), self)
-        self._restore_0dir_action.setEnabled(False)
-        self._restore_0dir_action.setToolTip(
-            tr("Delete 0/ and replace it with a fresh copy of 0.orig/")
+        self._restore_0dir_action = _tool_act(
+            tr("Restore 0/ from 0.orig"),
+            tr("Delete 0/ and replace it with a fresh copy of 0.orig/"),
+            self._on_restore_0dir_clicked,
         )
-        self._restore_0dir_action.triggered.connect(self._on_restore_0dir_clicked)
-        tools_menu.addAction(self._restore_0dir_action)
-
-        self._run_blockmesh_action = QAction(tr("Run blockMesh"), self)
-        self._run_blockmesh_action.setEnabled(False)
-        self._run_blockmesh_action.setToolTip(
-            tr("Send 'blockMesh' to the terminal panel")
+        self._run_blockmesh_action = _tool_act(
+            tr("Run blockMesh"),
+            tr("Send 'blockMesh' to the terminal panel"),
+            self._on_run_blockmesh_clicked,
         )
-        self._run_blockmesh_action.triggered.connect(self._on_run_blockmesh_clicked)
-        tools_menu.addAction(self._run_blockmesh_action)
-
-        self._open_paraview_action = QAction(tr("Open Mesh in ParaView…"), self)
-        self._open_paraview_action.setEnabled(False)
-        self._open_paraview_action.setToolTip(
-            tr("Open the case's generated mesh in ParaView (paraFoam)")
+        self._run_snappyhexmesh_action = _tool_act(
+            tr("Run snappyHexMesh"),
+            tr("Send 'snappyHexMesh -overwrite' to the terminal panel"),
+            self._on_run_snappyhexmesh_clicked,
         )
-        self._open_paraview_action.triggered.connect(self._on_open_paraview_clicked)
-        tools_menu.addAction(self._open_paraview_action)
+        self._run_topo_set_action = _tool_act(
+            tr("Run topoSet"),
+            tr("Send 'topoSet' to the terminal panel"),
+            self._on_run_topo_set_clicked,
+        )
+        self._run_setfields_action = _tool_act(
+            tr("Run setFields"),
+            tr(
+                "Send 'setFields' to the terminal panel — sets initial field "
+                "regions in 0/ from system/setFieldsDict"
+            ),
+            self._on_run_setfields_clicked,
+        )
+        self._run_checkmesh_action = _tool_act(
+            tr("Run checkMesh"),
+            tr("Send 'checkMesh' to the terminal panel to validate the mesh"),
+            self._on_run_checkmesh_clicked,
+        )
+        self._run_allrun_action = _tool_act(
+            tr("Run Allrun Script"),
+            tr(
+                "Send './Allrun' to the terminal panel — runs the case's full "
+                "workflow, including the solver"
+            ),
+            self._on_run_allrun_clicked,
+        )
+        self._open_paraview_action = _tool_act(
+            tr("Open Mesh in ParaView…"),
+            tr("Open the case's generated mesh in ParaView (paraFoam)"),
+            self._on_open_paraview_clicked,
+        )
+        tools_menu.addSeparator()
+        self._run_allclean_action = _tool_act(
+            tr("Run Allclean Script"),
+            tr("Send './Allclean' to the terminal panel to clean the case"),
+            self._on_run_allclean_clicked,
+        )
+        self._clean_case_action = _tool_act(
+            tr("Clean Case (foamCleanTutorials)"),
+            tr(
+                "Clean the case with foamCleanTutorials; runs ./Allclean "
+                "when the case has one"
+            ),
+            self._on_clean_case_clicked,
+        )
+        tools_menu.addSeparator()
+        self._view_log_summary_action = _tool_act(
+            tr("View Log Summary…"),
+            tr("Show a condensed summary of a log.* file (blockMesh, snappyHexMesh, topoSet, setFields, checkMesh, ...)"),
+            self._on_view_log_summary_clicked,
+        )
+        # Users reasonably look for "View Log Summary" under View, so the same
+        # QAction is listed there too (one action, two menus — enablement and
+        # behaviour stay in sync automatically).
+        view_menu.addSeparator()
+        view_menu.addAction(self._view_log_summary_action)
+        tools_menu.addSeparator()
+        _tool_act(
+            tr("Find OpenFOAM Examples…"),
+            tr("Search example usages in the OpenFOAM tutorials and etc/caseDicts templates"),
+            self._on_find_examples_clicked,
+            enabled=True,
+        )
 
         help_menu = menubar.addMenu(tr("Help"))
         help_menu.addAction(tr("About Foam Dictionary Editor (FoDE)...")).triggered.connect(self.show_about)

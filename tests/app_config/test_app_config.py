@@ -521,3 +521,34 @@ class TestFeatureFlags:
         mgr1.save()
         mgr2 = AppConfigManager(config_path=str(config_path))
         assert mgr2.get_feature("syntax_highlighting") is False
+
+
+class TestOpenfoamDir:
+    def test_default_is_none(self, manager):
+        assert manager.get_openfoam_dir() is None
+
+    def test_set_get(self, manager):
+        manager.set_openfoam_dir("/usr/lib/openfoam/openfoam2606")
+        assert manager.get_openfoam_dir() == "/usr/lib/openfoam/openfoam2606"
+
+    def test_persists_across_reload(self, config_path):
+        mgr1 = AppConfigManager(config_path=str(config_path))
+        mgr1.set_openfoam_dir("/opt/openfoam12")
+        mgr1.save()
+        mgr2 = AppConfigManager(config_path=str(config_path))
+        assert mgr2.get_openfoam_dir() == "/opt/openfoam12"
+
+    def test_unset_not_written_to_json(self, config_path, manager):
+        manager.save()
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+        assert "openfoam_dir" not in data
+
+    def test_reset_clears(self, manager):
+        manager.set_openfoam_dir("/opt/openfoam12")
+        manager.reset()
+        assert manager.get_openfoam_dir() is None
+
+    def test_broken_json_clears(self, config_path):
+        config_path.write_text("{ broken", encoding="utf-8")
+        mgr = AppConfigManager(config_path=str(config_path))
+        assert mgr.get_openfoam_dir() is None

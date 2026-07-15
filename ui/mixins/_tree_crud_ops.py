@@ -156,7 +156,7 @@ class _TreeCrudOpsMixin:
     def _tree_add_child_entry(self, node: FoamNode) -> None:
         position = len(node.children)
         new_node = FoamNode(name="newKey", node_type="word", value="newValue", modified=True)
-        parent_src_idx = self.state.current_model._index_of_node(node)
+        parent_src_idx = self.state.current_model.index_of_node(node)
         self.tree.expand(self._to_proxy(parent_src_idx))
         src_index = self.state.current_model.insert_node(node, position, new_node)
         new_index = self._to_proxy(src_index)
@@ -172,7 +172,7 @@ class _TreeCrudOpsMixin:
         node.parent = None
         new_node = copy.deepcopy(node)
         node.parent = orig_parent
-        self.state.current_model._attach_parents(new_node, None)
+        self.state.current_model.attach_parents(new_node, None)
         new_node.modified = True
         src_index = self.state.current_model.insert_node(parent_node, position, new_node)
         new_index = self._to_proxy(src_index)
@@ -257,35 +257,70 @@ class _TreeCrudOpsMixin:
 
     def _apply_comparison_value(self, b_node: FoamNode) -> None:
         """Apply a leaf value from the reference case tree to the current tree."""
-        # Build key path: walk b_node up to root (parent is None).
-        path: list[str] = []
-        current = b_node
-        while current is not None and current.parent is not None:
-            if current.name:
-                path.append(current.name)
-            current = current.parent
-        path.reverse()
-
-        if not path:
+        if b_node.parent is None:
             return
 
-        parent_path, leaf_key = path[:-1], path[-1]
+        # Build the named ancestor path of b_node (unnamed ancestors are
+        # skipped). The leaf itself is handled separately below because it may
+        # be unnamed (e.g. a "#includeFunc ..." directive_entry).
+        parent_path: list[str] = []
+        current = b_node.parent
+        while current is not None and current.parent is not None:
+            if current.name:
+                parent_path.append(current.name)
+            current = current.parent
+        parent_path.reverse()
 
-        # Walk to the parent dictionary in the current tree.
+        # Walk to the parent dictionary in the current tree, creating missing
+        # dictionaries on the way so an entry can be adopted even when its
+        # enclosing block (e.g. functions {}) does not exist in this case yet.
         parent_node = self.state.current_root
         for key in parent_path:
             found = next((c for c in parent_node.children if c.name == key), None)
             if found is None:
+                found = FoamNode(name=key, node_type="dictionary", modified=True)
+                self._mark_parent_modified(parent_node)
+                self.state.current_model.insert_node(
+                    parent_node, len(parent_node.children), found
+                )
+            elif found.node_type != "dictionary":
                 self.statusBar().showMessage(
-                    tr("Cannot apply: '{path}' not found in current case").format(
-                        path='/'.join(parent_path)
-                    ),
+                    tr(
+                        "Cannot apply: '{path}' is not a dictionary in the current case"
+                    ).format(path='/'.join(parent_path)),
                     _STATUS_WARNING,
                 )
                 return
             parent_node = found
 
-        existing = next((c for c in parent_node.children if c.name == leaf_key), None)
+        if b_node.name:
+            leaf_key = b_node.name
+            existing = next(
+                (c for c in parent_node.children if c.name == leaf_key), None
+            )
+        else:
+            # Unnamed entry: match by content, never by (empty) name — an
+            # empty-name lookup would wrongly grab the first unnamed sibling.
+            leaf_key = str(b_node.value)
+            duplicate = next(
+                (
+                    c
+                    for c in parent_node.children
+                    if not c.name
+                    and c.node_type == b_node.node_type
+                    and c.value == b_node.value
+                ),
+                None,
+            )
+            if duplicate is not None:
+                self.statusBar().showMessage(
+                    tr("'{key}' is already present in the current case").format(
+                        key=leaf_key
+                    ),
+                    _STATUS_SHORT,
+                )
+                return
+            existing = None
 
         if existing is not None:
             # Overwrite type and value directly to handle cross-type changes.
@@ -296,7 +331,7 @@ class _TreeCrudOpsMixin:
                 else b_node.value
             )
             existing.modified = True
-            src_idx = self.state.current_model._index_of_node(existing)
+            src_idx = self.state.current_model.index_of_node(existing)
             row_start = self.state.current_model.index(src_idx.row(), 0, src_idx.parent())
             row_end = self.state.current_model.index(
                 src_idx.row(), FoamTreeModel.COL_VALUE, src_idx.parent()

@@ -6,7 +6,6 @@ import dataclasses
 import re
 from pathlib import Path
 
-
 TARGET_FILES = [
     "system/blockMeshDict",
     "system/changeDictionaryDict",
@@ -65,6 +64,10 @@ PHASE_FILE_BASES = [
 ]
 
 FIELD_DIRS = ("0", "0.orig")
+
+# Case-root script files (Allrun, Allrun.pre, Allclean, …) are auto-listed so
+# the scripts run from the Tools menu can be inspected/edited in the app.
+ROOT_SCRIPT_GLOB = "All*"
 
 
 def detect_regions(case_dir: str) -> list[str]:
@@ -153,6 +156,9 @@ def detect_poly_mesh(case_dir: str) -> PolyMeshInfo | None:
     except OSError:
         header = ""
     match = _OWNER_NOTE_RE.search(header)
+    n_points: int | None
+    n_cells: int | None
+    n_faces: int | None
     if match:
         n_points, n_cells, n_faces = (int(g) for g in match.groups())
     else:
@@ -212,18 +218,27 @@ def list_case_files(
                         _add(str(sub_path))
 
     # Extra directories: flat or recursive scan depending on the flag.
+    # Hidden entries (dotfiles like .foam-editor-files.json, dirs like .git/)
+    # are always skipped — the app's own config must not become editable.
     for rel_dir, recursive in (extra_dirs or []):
         d = base / rel_dir
         if not d.is_dir():
             continue
         if recursive:
             for path in sorted(d.rglob("*"), key=lambda p: (str(p.parent), p.name.lower())):
+                if any(part.startswith(".") for part in path.relative_to(d).parts):
+                    continue
                 if path.is_file():
                     _add(str(path))
         else:
             for path in sorted(d.iterdir(), key=lambda p: p.name.lower()):
-                if path.is_file():
+                if path.is_file() and not path.name.startswith("."):
                     _add(str(path))
+
+    # Case-root scripts (Allrun, Allclean, …)
+    for path in sorted(base.glob(ROOT_SCRIPT_GLOB), key=lambda p: p.name.lower()):
+        if path.is_file():
+            _add(str(path))
 
     # MultiRegion: region target files and their phase variants
     regions = detect_regions(case_dir)
@@ -237,12 +252,12 @@ def list_case_files(
 
 
 def list_directory_files(case_dir: str, subdir: str) -> list[str]:
-    """Return absolute paths of all files directly inside case_dir/subdir/."""
+    """Return absolute paths of all non-hidden files directly inside case_dir/subdir/."""
     d = Path(case_dir) / subdir
     if not d.is_dir():
         return []
     return [
         str(p)
         for p in sorted(d.iterdir(), key=lambda p: p.name.lower())
-        if p.is_file()
+        if p.is_file() and not p.name.startswith(".")
     ]

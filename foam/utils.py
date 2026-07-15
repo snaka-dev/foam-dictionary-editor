@@ -35,6 +35,25 @@ def is_large_non_foam_file(path: str | Path) -> tuple[bool, int]:
         return False, size
 
 
+def is_script_text(text: str) -> bool:
+    """Return True when text is a shell/interpreter script (shebang line)."""
+    return text.startswith("#!")
+
+
+def is_log_filename(name: str) -> bool:
+    """Return True for solver/utility run logs by the ``log.<app>`` convention."""
+    return name.startswith("log.")
+
+
+def is_script_path(path: str | Path) -> bool:
+    """Return True when the file at path starts with a shebang (``#!``)."""
+    try:
+        with open(path, "rb") as f:
+            return f.read(2) == b"#!"
+    except OSError:
+        return False
+
+
 def read_foam_file(path: str | Path) -> str:
     """Read a file as text, trying UTF-8 then falling back to latin-1.
 
@@ -136,6 +155,31 @@ def classify_simple_value(text: str) -> tuple[NodeType, object]:
     if is_number(text):
         return "scalar", float(text)
     return "word", text
+
+
+def format_leaf_value(node_type: NodeType, value) -> str:
+    """Format a leaf node's value as it appears in the dictionary source.
+
+    Shared by foam/writer.py (serialisation) and model/tree_model.py (Value
+    column display) so the two cannot drift for the common leaf types.
+    Structural and display-only types (dictionary, field_value, the
+    nonuniform_list summary, …) are handled by the callers.
+    """
+    if node_type in {"vector", "scalar_list"}:
+        return "(" + " ".join(format_scalar(x) for x in value) + ")"
+    if node_type == "box_pair":
+        p1, p2 = value
+        return (
+            "(" + " ".join(format_scalar(x) for x in p1) + ") "
+            "(" + " ".join(format_scalar(x) for x in p2) + ")"
+        )
+    if node_type == "int_list":
+        return "(" + " ".join(str(x) for x in value) + ")"
+    if node_type == "raw_list":
+        return "(" + str(value) + ")"
+    if node_type == "scalar":
+        return format_scalar(value)
+    return "" if value is None else str(value)
 
 
 def format_embedded_value(value_type: NodeType, value, raw_value) -> str:

@@ -18,7 +18,7 @@ CONFIG_FILE = Path(__file__).resolve().parent.parent / SCHEMA_CONFIG_FILE
 def load_schema_config() -> dict:
     """Load schema configuration from the config file."""
     if CONFIG_FILE.exists():
-        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+        with open(CONFIG_FILE, encoding="utf-8") as f:
             return json.load(f)
     return get_default_schema_config()
 

@@ -33,6 +33,35 @@ TRANSLATIONS: dict[str, str] = {
     "Show Type Column": "型列を表示",
     "BlockMesh 3-D Panel": "BlockMesh 3Dパネル",
     "BlockMesh 3-D Panel  (unavailable: xterm active)": "BlockMesh 3Dパネル（利用不可: xterm使用中）",
+    "Tools": "ツール",
+    "Launch foamMonitor to plot residuals or other data with gnuplot":
+        "foamMonitor を起動し、残差などのデータを gnuplot でプロットします",
+    "Restore 0/ from 0.orig": "0/ を 0.orig から復元",
+    "Delete 0/ and replace it with a fresh copy of 0.orig/":
+        "0/ を削除し、0.orig/ の新しいコピーで置き換えます",
+    "Run blockMesh": "blockMesh を実行",
+    "Send 'blockMesh' to the terminal panel":
+        "'blockMesh' をターミナルパネルに送信します",
+    "Run snappyHexMesh": "snappyHexMesh を実行",
+    "Send 'snappyHexMesh -overwrite' to the terminal panel":
+        "'snappyHexMesh -overwrite' をターミナルパネルに送信します",
+    "Run topoSet": "topoSet を実行",
+    "Send 'topoSet' to the terminal panel":
+        "'topoSet' をターミナルパネルに送信します",
+    "Run setFields": "setFields を実行",
+    "Send 'setFields' to the terminal panel — sets initial field "
+    "regions in 0/ from system/setFieldsDict":
+        "'setFields' をターミナルパネルに送信します — system/setFieldsDict に"
+        "従って 0/ の初期場の領域を設定します",
+    "Run checkMesh": "checkMesh を実行",
+    "Send 'checkMesh' to the terminal panel to validate the mesh":
+        "'checkMesh' をターミナルパネルに送信し、メッシュを検証します",
+    "Open Mesh in ParaView…": "メッシュを ParaView で開く…",
+    "Open the case's generated mesh in ParaView (paraFoam)":
+        "ケースの生成済みメッシュを ParaView (paraFoam) で開きます",
+    "View Log Summary…": "ログ要約を表示…",
+    "Show a condensed summary of a log.* file (blockMesh, snappyHexMesh, topoSet, setFields, checkMesh, ...)":
+        "log.* ファイル (blockMesh, snappyHexMesh, topoSet, setFields, checkMesh, ...) の要約を表示します",
     "Help": "ヘルプ",
     "About Foam Dictionary Editor (FoDE)...": "Foam Dictionary Editor (FoDE) について...",
     "Keyboard Shortcuts...": "キーボードショートカット...",
@@ -75,6 +104,8 @@ TRANSLATIONS: dict[str, str] = {
 
     # ── diff bar ──────────────────────────────────────────────────────────────
     "Side by side": "並べて表示",
+    "Show BlockMesh 3-D view alongside the tree (side-by-side)":
+        "BlockMesh 3D ビューをツリーの横に並べて表示します",
     "Clear": "クリア",
     "Select Reference Case Directory": "参照ケースディレクトリを選択",
     "Comparing with: <b>{name}</b>  ({directory})": "{name} と比較中  ({directory})",
@@ -94,7 +125,9 @@ TRANSLATIONS: dict[str, str] = {
     "Entry is hidden by the current filter": "エントリが現在のフィルタで非表示になっています",
     "Apply Text to Tree to re-enable jump-to-line": "「テキストをツリーに適用」で行ジャンプを再有効にしてください",
     "No source location — entry was added or modified in the tree": "ソース位置なし — エントリはツリーで追加または変更されました",
-    "Cannot apply: '{path}' not found in current case": "適用できません: '{path}' が現在のケースに見つかりません",
+    "Cannot apply: '{path}' is not a dictionary in the current case":
+        "適用できません: '{path}' は現在のケースでは辞書ではありません",
+    "'{key}' is already present in the current case": "'{key}' は現在のケースに既に存在します",
     "Applied '{key}' from reference case": "参照ケースから '{key}' を適用しました",
     "Inserted '{key}' from reference case": "参照ケースから '{key}' を挿入しました",
     "Case reloaded: {path}": "ケースを再読み込みしました: {path}",
@@ -104,6 +137,11 @@ TRANSLATIONS: dict[str, str] = {
     "Parsed: {path} — {n} unrecognized {entries}": "解析しました: {path} — {n} 件の未認識{entries}",
     "Parsed successfully: {path}": "正常に解析しました: {path}",
     "Parse warning: {e}": "解析時の警告: {e}",
+    "Script file — text editing only: {path}": "スクリプトファイル — テキスト編集のみ: {path}",
+    "Script file — tree editing unavailable": "スクリプトファイルのためツリー編集は利用できません",
+    "Text file — no dictionary tree: {path}": "テキストファイル — 辞書ツリーはありません: {path}",
+    "Text file — tree editing unavailable": "テキストファイルのためツリー編集は利用できません",
+    "case root": "ケースルート",
     "Saved: {path}": "保存しました: {path}",
     "Saved: {path} — {n} unrecognized {entries}": "保存しました: {path} — {n} 件の未認識{entries}",
     "Saved and parsed: {path}": "保存して解析しました: {path}",
@@ -113,7 +151,7 @@ TRANSLATIONS: dict[str, str] = {
     "File name must not be empty.": "ファイル名を入力してください。",
     "File name must not contain path separators.": "ファイル名にパス区切り文字を含めないでください。",
     "File already exists: {name}": "ファイルが既に存在します: {name}",
-    "Created: {group}/{filename}": "作成しました: {group}/{filename}",
+    "Created: {name}": "作成しました: {name}",
     "Backup created: {rel}{suffix}": "バックアップを作成しました: {rel}{suffix}",
     " (includes unsaved edits)": " (未保存の編集を含む)",
     "Removed from extra files: {name}": "追加ファイルから削除しました: {name}",
@@ -134,14 +172,12 @@ TRANSLATIONS: dict[str, str] = {
     # ── QMessageBox titles ────────────────────────────────────────────────────
     "Unsaved Changes": "未保存の変更",
     "No Case Open": "ケースが開かれていません",
-    "Reload Case": "ケースの再読み込み",
     "Destination Already Exists": "保存先が既に存在します",
     "Duplicate Error": "複製エラー",
     "Save As Error": "名前を付けて保存エラー",
     "Duplicate Complete": "複製完了",
     "Possibly Not an OpenFOAM Case": "OpenFOAMケースではない可能性があります",
     "Directory Saved": "ディレクトリを保存しました",
-    "Reset Window Size": "ウィンドウサイズをリセット",
     "Size Reset": "サイズをリセットしました",
     "Case Library Empty": "ケースライブラリが空です",
     "Select Library": "ライブラリを選択",
@@ -155,7 +191,6 @@ TRANSLATIONS: dict[str, str] = {
     "Saved with Parse Warning": "解析警告付きで保存",
     "Save Error": "保存エラー",
     "Save All - Partial Failure": "すべて保存 - 部分的な失敗",
-    "Reset File List": "ファイルリストをリセット",
     "New File": "新しいファイル",
     "Duplicate File": "ファイルを複製",
     "Backup Error": "バックアップエラー",
@@ -181,7 +216,12 @@ TRANSLATIONS: dict[str, str] = {
     "Invalid Directory": "無効なディレクトリ",
     "Already Added": "既に追加済み",
     "Missing URL": "URLが入力されていません",
-    "No Case Open": "ケースが開かれていません",
+    "No 0.orig/ to restore": "復元元の 0.orig/ がありません",
+    "Restore 0/ from 0.orig/?": "0/ を 0.orig/ から復元しますか?",
+    "Re-run blockMesh?": "blockMesh を再実行しますか?",
+    "Re-run snappyHexMesh?": "snappyHexMesh を再実行しますか?",
+    "Re-run topoSet?": "topoSet を再実行しますか?",
+    "ParaView not found": "ParaView が見つかりません",
 
     # ── QMessageBox messages ──────────────────────────────────────────────────
     "Text editor has unsaved changes. Discard them?": "テキストエディタに未保存の変更があります。破棄しますか？",
@@ -242,7 +282,6 @@ TRANSLATIONS: dict[str, str] = {
     "Could not delete file:\n{e}": "ファイルを削除できませんでした:\n{e}",
     "Some files could not be deleted:\n{errors}": "一部のファイルを削除できませんでした:\n{errors}",
     "Could not copy case files:\n{e}": "ケースファイルをコピーできませんでした:\n{e}",
-    "Could not remove existing directory:\n{e}": "既存のディレクトリを削除できませんでした:\n{e}",
     "The selected directory does not contain 'system' or 'constant':\n\n{directory}\n\n"
     "This may not be a valid OpenFOAM case.\nOpen anyway?":
         "選択したディレクトリには 'system' または 'constant' が含まれていません:\n\n{directory}\n\n"
@@ -278,6 +317,32 @@ TRANSLATIONS: dict[str, str] = {
     "New patch name:": "新しいパッチ名:",
     "Patch '{name}' already exists in the boundary view.": "パッチ '{name}' は境界ビューに既に存在します。",
     "Open": "開く",
+    "This case has no 0.orig/ directory to restore 0/ from.":
+        "このケースには 0/ の復元元となる 0.orig/ ディレクトリがありません。",
+    "This will delete 0/ and replace it with a fresh copy of "
+    "0.orig/, discarding any edits made directly to 0/. Continue?":
+        "0/ を削除して 0.orig/ の新しいコピーで置き換え、0/ に直接加えた編集を"
+        "破棄します。続行しますか?",
+    "This case already has results in: {dirs}.\n"
+    "Re-running blockMesh will regenerate the mesh and may "
+    "invalidate those results. Continue?":
+        "このケースには既に結果があります: {dirs}\n"
+        "blockMesh を再実行するとメッシュが再生成され、これらの結果が無効になる"
+        "可能性があります。続行しますか?",
+    "This case already has results in: {dirs}.\n"
+    "Re-running snappyHexMesh will regenerate the mesh and may "
+    "invalidate those results. Continue?":
+        "このケースには既に結果があります: {dirs}\n"
+        "snappyHexMesh を再実行するとメッシュが再生成され、これらの結果が無効になる"
+        "可能性があります。続行しますか?",
+    "This case already has results in: {dirs}.\n"
+    "Re-running topoSet will regenerate cell/face sets and may "
+    "invalidate those results. Continue?":
+        "このケースには既に結果があります: {dirs}\n"
+        "topoSet を再実行するとセル/面セットが再生成され、これらの結果が無効になる"
+        "可能性があります。続行しますか?",
+    "Neither paraFoam nor paraview could be found on PATH.":
+        "PATH 上に paraFoam も paraview も見つかりませんでした。",
 
     # ── context-menu items ────────────────────────────────────────────────────
     "Copy Value\tCtrl+C": "値をコピー\tCtrl+C",
@@ -285,13 +350,10 @@ TRANSLATIONS: dict[str, str] = {
     "Add Entry After": "後にエントリを追加",
     "Add Child Entry": "子エントリを追加",
     "Duplicate": "複製",
-    "Rename Boundary...": "境界をリネーム...",
     "Comment Out": "コメントアウト",
     "Restore from Comment": "コメントから復元",
-    "Delete": "削除",
     "Edit": "編集",
     "Create Entry": "エントリを作成",
-    "Delete Entry": "エントリを削除",
     "Copy": "コピー",
     "Paste": "貼り付け",
     "Rename Boundary...": "境界名を変更...",
@@ -324,7 +386,6 @@ TRANSLATIONS: dict[str, str] = {
     # ── boundary view panel ───────────────────────────────────────────────────
     "Transpose": "転置",
     "Swap rows (fields) and columns (patches)": "行（フィールド）と列（パッチ）を入れ替え",
-    "Auto-scroll editor": "エディタ自動スクロール",
     "When checked, clicking a cell opens its file in the editor\nand scrolls to that boundary entry.":
         "チェックすると、セルのクリックでエディタにファイルを開き、その境界エントリへスクロールします。",
     "Copy Table": "テーブルをコピー",
@@ -332,9 +393,7 @@ TRANSLATIONS: dict[str, str] = {
     "Lines per cell:": "セルあたりの行数:",
     "Number of lines to display per cell": "セルあたりの表示行数",
     "Delete BoundaryField  '{patch}'": "BoundaryField '{patch}' を削除",
-    "Delete BoundaryField": "BoundaryField を削除",
-    "Rename Boundary  '{patch}'...": "境界 '{patch}' をリネーム...",
-    "Rename Boundary...": "境界名を変更...",
+    "Rename Boundary  '{patch}'...": "境界名 '{patch}' を変更...",
     "Add BoundaryField...": "BoundaryField を追加...",
 
     # ── file list panel ───────────────────────────────────────────────────────
@@ -343,6 +402,7 @@ TRANSLATIONS: dict[str, str] = {
 
     # ── dialogs ───────────────────────────────────────────────────────────────
     "About Foam Dictionary Editor (FoDE)": "Foam Dictionary Editor (FoDE) について",
+    "Version {v}": "バージョン {v}",
     "Close": "閉じる",
     "Cancel": "キャンセル",
     "OK": "OK",
@@ -395,7 +455,6 @@ TRANSLATIONS: dict[str, str] = {
     'Rename "{name}" to:': '"{name}" を次の名前に変更:',
     "Apply to:": "適用先:",
     "Rename ({n} file{s})": "{n} 件{s}のファイルをリネーム",
-    "No matching boundary entries found in loaded files.": "読み込まれたファイルに一致するバウンダリエントリが見つかりません。",
     "Save as New Case": "新しいケースとして保存",
     "Unsaved edits in the current session are written into the new case.\n"
     "The original case is not modified.":
@@ -435,7 +494,6 @@ TRANSLATIONS: dict[str, str] = {
     "OpenFOAM Foundation  (openfoam.org)": "OpenFOAM Foundation  (openfoam.org)",
     "Double-click a link to open it in your browser.": "リンクをダブルクリックしてブラウザで開きます。",
     "Add": "追加",
-    "Edit": "編集",
     "Remove": "削除",
     "Move Up": "上へ移動",
     "Move Down": "下へ移動",
@@ -466,7 +524,6 @@ TRANSLATIONS: dict[str, str] = {
     "Parse failed: {e}": "解析に失敗しました: {e}",
     "Reloaded text from current tree": "現在のツリーからテキストを再読み込みしました",
     "Vertex coordinates updated": "頂点座標を更新しました",
-    "File was saved as text, but tree refresh failed.\n\n{e}": "ファイルをテキストとして保存しましたが、ツリーの更新に失敗しました。\n\n{e}",
     "All files in '{group}' are already in the file list.":
         "'{group}' 内のすべてのファイルはすでにファイルリストにあります。",
     "Add files from '{group}'": "'{group}' からファイルを追加",
@@ -476,4 +533,130 @@ TRANSLATIONS: dict[str, str] = {
     "Open OpenFOAM Case from Library": "ライブラリから OpenFOAM ケースを開く",
     "Select Source Case from Library": "ライブラリからソースケースを選択",
     "Select Default Case Directory": "デフォルトケースディレクトリを選択",
+
+    # ── generate keywords dialog ──────────────────────────────────────────────
+    "Generate OpenFOAM Keywords…": "OpenFOAM キーワードを生成…",
+    "Scans the selected OpenFOAM installation (etc/caseDicts/, src/ and\n"
+    "applications/ sources) and writes app_config/foam_keywords.json,\n"
+    "which overrides the bundled foam_keywords.default.json.":
+        "選択した OpenFOAM インストール (etc/caseDicts/、src/ と applications/ の\n"
+        "ソース) をスキャンし、app_config/foam_keywords.json に書き出します。\n"
+        "このファイルは同梱の foam_keywords.default.json より優先されます。",
+    "Installation:": "インストール:",
+    "No OpenFOAM installation found — browse to one, or source "
+    "your OpenFOAM environment and reopen this dialog.":
+        "OpenFOAM のインストールが見つかりません — 参照ボタンで指定するか、"
+        "OpenFOAM 環境を source してからダイアログを開き直してください。",
+    "This file overrides the bundled foam_keywords.default.json.":
+        "このファイルは同梱の foam_keywords.default.json より優先されます。",
+
+    # ── find OpenFOAM examples dialog ─────────────────────────────────────────
+    "Find OpenFOAM Examples…": "OpenFOAM の例を検索…",
+    "Find OpenFOAM Examples": "OpenFOAM の例を検索",
+    "Search example usages in the OpenFOAM tutorials and etc/caseDicts templates":
+        "OpenFOAM のチュートリアルと etc/caseDicts テンプレートから使用例を検索します",
+    "OpenFOAM installation:": "OpenFOAM インストール:",
+    "No OpenFOAM installation found — browse to one to enable searching.":
+        "OpenFOAM のインストールが見つかりません — 参照ボタンで指定すると検索できます。",
+    "Keyword or setting, e.g. #includeFunc": "キーワードまたは設定 (例: #includeFunc)",
+    "All files": "すべてのファイル",
+    "Tutorials": "チュートリアル",
+    "caseDicts templates": "caseDicts テンプレート",
+    "Search": "検索",
+    "File": "ファイル",
+    "First match": "最初の一致",
+    "Compare with this case": "このケースと比較",
+    "Copy File": "ファイルをコピー",
+    "Copy Selection": "選択範囲をコピー",
+    "Browse…": "参照…",
+    "Select OpenFOAM Installation Directory": "OpenFOAM インストールディレクトリを選択",
+    "Not an OpenFOAM directory (no tutorials/ or etc/caseDicts/).":
+        "OpenFOAM のディレクトリではありません (tutorials/ も etc/caseDicts/ もありません)。",
+    "Select an OpenFOAM installation first.": "先に OpenFOAM インストールを選択してください。",
+    "Enter a search keyword.": "検索キーワードを入力してください。",
+    "Select at least one source to search.": "検索対象を 1 つ以上選択してください。",
+    "Searching…": "検索中…",
+    "Cancelling…": "キャンセル中…",
+    "{count} matching file(s) found.": "{count} 件のファイルが一致しました。",
+    "No matches found.": "一致するものが見つかりませんでした。",
+    "Search failed: {msg}": "検索に失敗しました: {msg}",
+    "Could not read file: {msg}": "ファイルを読み込めませんでした: {msg}",
+    "{path}  ({count} matching line(s))": "{path}  ({count} 行が一致)",
+    "Selection copied.": "選択範囲をコピーしました。",
+    "File contents copied.": "ファイルの内容をコピーしました。",
+    "No case open": "ケースが開かれていません",
+    "Open a case first, then compare it with the example case.":
+        "先にケースを開いてから、例のケースと比較してください。",
+
+    # ── Allrun / Allclean / clean case (Tools menu) ───────────────────────────
+    "Run Allrun Script": "Allrun スクリプトを実行",
+    "Send './Allrun' to the terminal panel — runs the case's full "
+    "workflow, including the solver":
+        "'./Allrun' をターミナルパネルに送信します — ソルバーを含む"
+        "ケースの全ワークフローを実行します",
+    "Run Allclean Script": "Allclean スクリプトを実行",
+    "Send './Allclean' to the terminal panel to clean the case":
+        "'./Allclean' をターミナルパネルに送信してケースをクリーンします",
+    "Clean Case (foamCleanTutorials)": "ケースをクリーン (foamCleanTutorials)",
+    "Clean the case with foamCleanTutorials; runs ./Allclean "
+    "when the case has one":
+        "foamCleanTutorials でケースをクリーンします。ケースに ./Allclean が"
+        "あればそれを実行します",
+    "No Allrun script": "Allrun スクリプトがありません",
+    "This case has no Allrun script to run.":
+        "このケースには実行する Allrun スクリプトがありません。",
+    "No Allclean script": "Allclean スクリプトがありません",
+    "This case has no Allclean script to run.":
+        "このケースには実行する Allclean スクリプトがありません。",
+    "Case already run?": "ケースは実行済みですか?",
+    "This case already has log files: {logs}.\n"
+    "OpenFOAM's Allrun helpers skip any step whose log.* file "
+    "exists, so those steps will not re-run.\n"
+    "Clean the case first to re-run the whole workflow?":
+        "このケースには既にログファイルがあります: {logs}\n"
+        "OpenFOAM の Allrun ヘルパーは log.* ファイルが存在するステップを"
+        "スキップするため、それらのステップは再実行されません。\n"
+        "先にケースをクリーンして、ワークフロー全体を再実行しますか?",
+    "Clean, then run": "クリーンしてから実行",
+    "Run anyway": "そのまま実行",
+    "Run setFields?": "setFields を実行しますか?",
+    "setFields modifies the field files in 0/ in place, so "
+    "re-running it on already-set fields compounds the values.\n"
+    "Restore 0/ from 0.orig/ first to start from clean initial "
+    "fields?":
+        "setFields は 0/ の場ファイルを直接書き換えるため、設定済みの場に"
+        "対して再実行すると値が重ねて適用されます。\n"
+        "先に 0/ を 0.orig/ から復元し、クリーンな初期場から始めますか?",
+    "Restore 0/, then run": "0/ を復元してから実行",
+    "setFields modifies the field files in 0/ in place "
+    "(this case has no 0.orig/ backup to restore from). "
+    "Continue?":
+        "setFields は 0/ の場ファイルを直接書き換えます"
+        "（このケースには復元元となる 0.orig/ がありません）。続行しますか?",
+    "Run Allrun script?": "Allrun スクリプトを実行しますか?",
+    "This runs the case's full workflow, which may include a "
+    "long-running solver. In Simple terminal mode a running "
+    "job cannot be interrupted. Continue?":
+        "ケースの全ワークフローを実行します。長時間かかるソルバーが含まれる"
+        "場合があります。Simple ターミナルモードでは実行中のジョブを中断"
+        "できません。続行しますか?",
+    "Run Allclean script?": "Allclean スクリプトを実行しますか?",
+    "This removes the generated mesh, time directories, log files "
+    "and other results from the case. Continue?":
+        "生成されたメッシュ、時刻ディレクトリ、ログファイルなどの結果を"
+        "ケースから削除します。続行しますか?",
+    "Clean case?": "ケースをクリーンしますか?",
+    "This cleans the case with foamCleanTutorials, removing the "
+    "generated mesh, time directories, processor*/ decompositions, "
+    "postProcessing/ and log.* files.":
+        "foamCleanTutorials でケースをクリーンし、生成されたメッシュ、"
+        "時刻ディレクトリ、processor*/ 分割、postProcessing/、log.* ファイルを"
+        "削除します。",
+    "This case has its own Allclean script, which will be run instead.":
+        "このケースには独自の Allclean スクリプトがあり、代わりにそれが実行されます。",
+    "0/ will also be removed because 0.orig/ exists "
+    "(use 'Restore 0/ from 0.orig' to recreate it).":
+        "0.orig/ が存在するため 0/ も削除されます"
+        "（'Restore 0/ from 0.orig' で再作成できます）。",
+    "Continue?": "続行しますか?",
 }

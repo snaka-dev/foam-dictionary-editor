@@ -10,8 +10,15 @@ from pathlib import Path
 from PySide6.QtCore import QRegularExpression
 from PySide6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat
 
-_KW_FILE = Path(__file__).parent.parent.parent / "app_config" / "foam_keywords.json"
+_APP_CONFIG_DIR = Path(__file__).parent.parent.parent / "app_config"
+_KW_FILE = _APP_CONFIG_DIR / "foam_keywords.json"                  # user-generated (gitignored)
+_KW_DEFAULT_FILE = _APP_CONFIG_DIR / "foam_keywords.default.json"  # shipped baseline
 _VALID_KW_RE = re.compile(r"^[A-Za-z]\w+$")
+
+# Numbers: guarded on both sides so digits glued to identifiers (patch names
+# like "wall0", "inlet-1", "0wall") are not partially highlighted, while
+# standalone numbers ("0.05", "-1e-05", "(0 1 0)") still match.
+_NUMBER_RE = r"(?<![\w.])(?<![\w.][-+])[-+]?\d+(\.\d*)?([eE][-+]?\d+)?(?![\w.])"
 
 
 def _fmt(color: str, bold: bool = False, italic: bool = False) -> QTextCharFormat:
@@ -36,21 +43,33 @@ _KEYWORD_RE = (
     r")\b"
 )
 
-def _load_foam_keywords() -> frozenset[str]:
-    """Load the user-generated keyword list from app_config/foam_keywords.json.
+# Shell mode: OpenFOAM RunFunctions/CleanFunctions helpers + core sh keywords — blue bold
+_SHELL_KEYWORD_RE = (
+    r"\b(runApplication|runParallel|restore0Dir|cleanCase0?|foamCleanTutorials"
+    r"|getApplication|getNumberOfProcessors|canCompile|isTest|foamDictionary"
+    r"|if|then|else|elif|fi|for|in|do|done|case|esac|while|until"
+    r"|exit|cd|source|set|echo|rm|cp|mv|mkdir|touch|export"
+    r")\b"
+)
 
-    Returns an empty set silently when the file is absent or malformed.
-    Run tools/generate_foam_keywords.py to (re)generate the file from an
-    installed OpenFOAM environment.
+def _load_foam_keywords() -> frozenset[str]:
+    """Load the keyword list: the user-generated foam_keywords.json when present,
+    otherwise the shipped foam_keywords.default.json.
+
+    Returns an empty set silently when both files are absent or malformed.
+    Run tools/generate_foam_keywords.py (or Settings > Generate OpenFOAM
+    Keywords…) to (re)generate the user file from an OpenFOAM installation.
     """
-    try:
-        data = json.loads(_KW_FILE.read_text())
-        return frozenset(
-            w for w in data.get("keywords", [])
-            if isinstance(w, str) and _VALID_KW_RE.match(w)
-        )
-    except Exception:
-        return frozenset()
+    for path in (_KW_FILE, _KW_DEFAULT_FILE):
+        try:
+            data = json.loads(path.read_text())
+            return frozenset(
+                w for w in data.get("keywords", [])
+                if isinstance(w, str) and _VALID_KW_RE.match(w)
+            )
+        except Exception:
+            continue
+    return frozenset()
 
 
 def _collect_schema_keywords() -> frozenset[str]:
@@ -106,11 +125,25 @@ class FoamHighlighter(QSyntaxHighlighter):
     def __init__(self, document):
         super().__init__(document)
         self._enabled = True
+        self._mode = "foam"
         self._comment_fmt = _fmt("#808080", italic=True)
+        self._rules = self._build_rules()
+        self._bc_start = QRegularExpression(r"/\*")
+        self._bc_end   = QRegularExpression(r"\*/")
+
+    def _build_rules(self) -> list[tuple[QRegularExpression, QTextCharFormat]]:
+        """Build the inline rule list for the current mode (later rules win)."""
         kw_rules = _build_value_kw_rules()
-        self._n_kw_rules = len(kw_rules)
-        self._rules: list[tuple[QRegularExpression, QTextCharFormat]] = (
-            [(QRegularExpression(r"[-+]?\d+(\.\d*)?([eE][-+]?\d+)?"), _fmt("#008080"))]
+        if self._mode == "shell":
+            return kw_rules + [
+                (QRegularExpression(_SHELL_KEYWORD_RE), _fmt("#0000CC", bold=True)),
+                (QRegularExpression(r"\$\{?\w+\}?"),    _fmt("#CC6600")),
+                (QRegularExpression(r'"[^"]*"'),         _fmt("#006400")),
+                (QRegularExpression(r"'[^']*'"),         _fmt("#006400")),
+                (QRegularExpression(r"#.*"),             self._comment_fmt),
+            ]
+        return (
+            [(QRegularExpression(_NUMBER_RE), _fmt("#008080"))]
             + kw_rules
             + [
                 (QRegularExpression(_KEYWORD_RE),         _fmt("#0000CC", bold=True)),
@@ -120,14 +153,20 @@ class FoamHighlighter(QSyntaxHighlighter):
                 (QRegularExpression(r"//.*"),              self._comment_fmt),
             ]
         )
-        self._bc_start = QRegularExpression(r"/\*")
-        self._bc_end   = QRegularExpression(r"\*/")
 
     def reload_keywords(self) -> None:
         """Rebuild value-keyword rules from the current JSON + schema state and rehighlight."""
-        kw_rules = _build_value_kw_rules()
-        self._rules[1 : 1 + self._n_kw_rules] = kw_rules
-        self._n_kw_rules = len(kw_rules)
+        self._rules = self._build_rules()
+        self.rehighlight()
+
+    def set_mode(self, mode: str) -> None:
+        """Switch between "foam" (dictionary) and "shell" (Allrun script) rules."""
+        if mode not in ("foam", "shell"):
+            raise ValueError(f"unknown highlighter mode: {mode!r}")
+        if mode == self._mode:
+            return
+        self._mode = mode
+        self._rules = self._build_rules()
         self.rehighlight()
 
     def highlightBlock(self, text: str) -> None:
@@ -140,6 +179,11 @@ class FoamHighlighter(QSyntaxHighlighter):
             while it.hasNext():
                 m = it.next()
                 self.setFormat(m.capturedStart(), m.capturedLength(), fmt)
+
+        if self._mode == "shell":
+            # No /* */ block comments in shell scripts.
+            self.setCurrentBlockState(0)
+            return
 
         # Multi-line block comment (highest priority — grey overrides inline rules)
         self.setCurrentBlockState(0)

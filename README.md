@@ -6,7 +6,7 @@ A GUI editor for OpenFOAM dictionary files, built with Python and PySide6.
 
 [Demo movie link at YouTube](https://youtu.be/L22fQW3NSUk)
 
-> 📄 **Now accepted in [*SoftwareX*](https://www.sciencedirect.com/journal/softwarex)** (Elsevier) — citation & link coming soon.
+> 📄 **Now published in [*SoftwareX*](https://doi.org/10.1016/j.softx.2026.102852)** (Elsevier) — see [Citation](#citation).
 
 ## What is FoDE?
 
@@ -34,7 +34,7 @@ An internet connection is recommended on first launch — xterm.js (the terminal
 | `xterm.css` | `https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/css/xterm.css` |
 | `xterm-addon-fit.js` | `https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.11.0/lib/addon-fit.js` |
 
-**Optional — BlockMesh 3-D viewer** (Linux/macOS): install `pyvista` and `pyvistaqt` to enable the interactive 3-D geometry panel for `blockMeshDict`:
+**Optional — BlockMesh 3-D viewer** (Linux/macOS): install `pyvista` and `pyvistaqt` to enable the interactive 3-D geometry panel for `blockMeshDict` (also overlays `topoSetDict`, `snappyHexMeshDict`, and `setFieldsDict` geometry when those files are open):
 
 ```bash
 pip install pyvista pyvistaqt
@@ -72,71 +72,57 @@ Without these packages the BlockMesh tab shows an install prompt and the 3-D vie
 
 ## Key Features
 
-**File management**
-- Opens common dictionary files automatically (`controlDict`, `fvSchemes`, `fvSolution`, `blockMeshDict`, `snappyHexMeshDict`, and more)
-- Detects multiRegion case structures and field directories (`0/`, `0.orig/`) automatically
-- Add extra directories to the file list — all files inside are scanned automatically, just like `0/`. Each directory can be scanned flat (direct files only) or recursively (all subdirectories). Useful for custom field directories (`initial/`), restart time steps (`0.5/`), or deep subdirectories (`lagrangian/chemkin/`)
-- Add, create, duplicate, backup, or delete files from the file panel
-- Reload the current case from disk with the **Reload Case** button in the top bar or **Case > Reload Case** — discards all in-memory edits; prompts if files are unsaved
-- Delete the `0/` directory from disk via right-click on the `0` header — available only when `0.orig` exists
-- Save the current state as a new case, or duplicate an existing one
-- File list automatically refreshes after changes made outside the app (e.g. via the Terminal panel), with a manual refresh button as a fallback
+Each heading links to the full documentation in [USER_GUIDE.md](USER_GUIDE.md).
 
-**Tree and text editing**
-- Structured tree view for browsing and editing dictionary entries
-- Raw text editor always available as a fallback
-- Sync between tree and text in both directions
+**[File management](USER_GUIDE.md#file-list-behavior)**
+- Lists common dictionary files automatically (`controlDict`, `fvSchemes`, `fvSolution`, `blockMeshDict`, `snappyHexMeshDict`, and more) plus everything under `0/` and `0.orig/` and the case-root `All*` scripts (`Allrun`, `Allclean`, … — editable as plain text); detects multiRegion case structures
+- Add extra files or whole directories (scanned flat or recursively) to the file list — useful for custom field directories, restart time steps, or deep subdirectories
+- Create, duplicate, back up, or delete files from the file panel; reload the case from disk at any time
+- File list auto-refreshes after changes made outside the app (e.g. via the Terminal); a `constant/polyMesh` indicator shows the cell count, marked stale when `blockMeshDict` has changed since the mesh was generated
+- Save the current state as a new case, or duplicate an existing one
+
+**[Tree and text editing](USER_GUIDE.md#tree-and-text-workflow)**
+- Structured tree view and a raw text editor, synced in both directions
+- OpenFOAM syntax highlighting (toggleable; the keyword list can be regenerated from your own installation) and code folding
 - Add, duplicate, comment out, or delete tree entries via right-click
 
-**Boundary condition view**
-- See all boundary conditions across all field variables in one table
-- Click a cell to open its file in the editor and jump to the patch entry (toggleable with **Auto-scroll editor**)
-- Edit, create, delete, copy, and paste patch entries directly in the table
-- Add or delete a patch across all field files in one step
+**[Boundary condition view](USER_GUIDE.md#boundary-view)**
+- All boundary conditions across all field variables in one table — no switching between field files
+- Edit, create, delete, copy, and paste patch entries directly in the table; add, delete, or rename a patch across all field files in one step
+- Click a cell to jump to the patch entry in the editor; copy the whole table as Markdown or CSV
 
-**Schema help**
+**[Schema help](USER_GUIDE.md#detail-pane)**
 - Built-in descriptions and valid choices for common settings (`controlDict`, `fvSchemes`, `fvSolution`, `blockMeshDict`, `snappyHexMeshDict`)
 - Extend with your own schema modules (plain Python files)
 
-**BlockMesh 3-D viewer** *(requires pyvista / pyvistaqt)*
-- Interactive 3-D preview of `blockMeshDict` geometry (vertices, block edges, boundary faces)
-- Boundary faces colour-coded by patch type (wall, inlet, outlet, symmetry, …)
-- Load and overlay STL / OBJ geometry files
-- Toggle visibility of vertices, vertex labels, block edges, block labels, boundary faces, axes, grid, and dimension text
-- Color blocks: each hex block rendered in a distinct colour from a qualitative palette; Solid blocks: semi-transparent solid block faces (opacity 0.25)
-- Adjustable label font size (spin box) shared between vertex labels and block labels
-- View direction buttons (+X/−X/+Y/−Y/+Z/−Z/Iso) for quick camera positioning
-- Mouse hint bar below the 3-D view (drag = rotate, Shift+drag = pan, scroll = zoom); full reference in **Help > Keyboard Shortcuts…**
-- Vertices table (index | X | Y | Z) alongside the 3-D view; click a row to highlight the vertex, double-click a coordinate cell to edit it — change writes back to the FoamNode tree and text editor instantly
-- Available as the **BlockMesh** tab when the `blockmesh` feature is enabled (always visible in the `no-terminal-blockmesh` variant; visible in the `standard` variant only when Simple terminal mode is active); can also be toggled via **View > BlockMesh 3-D Panel**
+**[BlockMesh 3-D viewer](USER_GUIDE.md#blockmesh-panel)** *(requires pyvista / pyvistaqt)*
+- Interactive 3-D preview of `blockMeshDict` geometry — vertices, blocks, and boundary faces colour-coded by patch type — with `$variable` and `#eval` references resolved automatically
+- Overlays `topoSetDict` action geometry, `snappyHexMeshDict` `geometry {}` shapes (classified as surface / region / geometry-only), and `setFieldsDict` regions (labelled with their `fieldValues`), each with per-shape visibility toggles; shapes larger than the block mesh are clipped in the view and marked "✂ clipped"
+- Vertices table beside the 3-D view: edit a coordinate and see the change instantly; a Preview mode explores variable-based vertices without touching the file
+- Load STL/OBJ overlays, and export topoSet/snappyHexMesh/setFields shapes as STL files
+- **⊞** side-by-side mode shows the 3-D view next to the tree while editing `blockMeshDict`, `topoSetDict`, `snappyHexMeshDict`, or `setFieldsDict`
 
-**Integrated terminal**
-- Full PTY xterm.js terminal (Linux/macOS with `QtWebEngineWidgets`) — default in `standard` variant
-- Simple QProcess-based fallback also available; activating it shows the BlockMesh 3-D panel
-- Toggle between the two modes at runtime with the checkbox in the Terminal tab
-- Automatically switches to the case directory when a case is opened
-- Omitted entirely in the `no-terminal` and `no-terminal-blockmesh` variants (Windows-friendly)
-- **foamMonitor launcher** — **Tools > foamMonitor…** opens a dialog to launch `foamMonitor` and plot residuals or postProcessing data with gnuplot; select **■ foamMonitor** again to stop
-- **Restore 0/ from 0.orig** — **Tools > Restore 0/ from 0.orig** sends `rm -rf 0 && cp -r 0.orig 0` to the terminal; always asks for confirmation first, since it discards any edits made directly to `0/`
-- **Run blockMesh** — **Tools > Run blockMesh** sends `blockMesh` to the terminal (output also saved to `log.blockMesh`); asks for confirmation first if the case already has solver results
-- **Open Mesh in ParaView** — **Tools > Open Mesh in ParaView…** launches `paraFoam` (or `paraview` as a fallback) against the current case to view the actual generated mesh, as an alternative to the BlockMesh 3-D panel's block-topology preview
+**[Integrated terminal](USER_GUIDE.md#terminal-tab)**
+- Full PTY xterm.js terminal (Linux/macOS) with a simple QProcess-based fallback, switchable at runtime; automatically changes to the case directory when a case is opened
+- Omitted entirely in the `no-terminal` variants (Windows-friendly)
 
-**Case comparison**
-- **Case > Compare with Case...** — select a reference case directory to compare against the currently open case
-- A diff bar below the action bar shows the reference path, a colour legend, and a **Side by side** toggle; click **Clear** to exit compare mode
-- **Side-by-side view**: a reference-case tree panel opens to the right of the main tree; right-click any entry in it to **Use this value** and apply it directly to the current case
-- Tree overlay — current case (left pane): light yellow = value changed, light blue = key only in current file; reference pane (right): light yellow = value changed, light green = key only in reference
-- Hover a highlighted row in either pane to see the counterpart value in the tooltip
-- File list markers: `≠N` (amber) for files with differences, `≠0` (gray) for checked-and-identical, nothing for unvisited; capped at `≠50+`. Markers are computed immediately for all files when comparison starts
-- **Changed files only** filter checkbox in the file list: hides files with no differences
+**[Tools menu](USER_GUIDE.md#foammonitor-launcher)**
+- Run `blockMesh`, `snappyHexMesh`, `topoSet`, `setFields`, or `checkMesh` in the terminal with one click (output saved to `log.*`), or restore `0/` from `0.orig`
+- Run the case's `Allrun`/`Allclean` scripts, or clean the case back to a pristine state with `foamCleanTutorials`
+- Launch `foamMonitor` to plot residuals with gnuplot while the solver runs
+- Open the generated mesh in ParaView
+- View a condensed summary of a `log.*` file instead of scrolling through thousands of raw lines
+- Find OpenFOAM examples: search an installation's `tutorials/` and `etc/caseDicts/` templates for real usage of a keyword, preview hits, and load one into the compare view
+
+**[Case comparison](USER_GUIDE.md#case-comparison)**
+- Compare the open case against any reference case: colour-coded diff overlay in the tree, `≠N` markers in the file list, and a changed-files-only filter
+- Side-by-side reference tree with right-click **Use this value** to adopt individual settings
 
 **UI language**
-- **Settings > Language** — switch between English and 日本語. Takes effect after restarting the application.
-- Additional languages can be added by dropping a single translation file into `i18n/`.
+- **Settings > Language** — switch between English and 日本語 (takes effect after restart); add more languages by dropping a translation file into `i18n/`
 
-**Reference links**
-- **Help > Resources...** provides links to official OpenFOAM documentation
-- **My Links** tab: add, edit, reorder, and remove personal reference links; double-click to open in browser
+**[Reference links](USER_GUIDE.md#resources-dialog)**
+- **Help > Resources...** — official OpenFOAM documentation links, plus a personal **My Links** list
 
 ## Full Reference
 
@@ -165,7 +151,13 @@ The `cavity/` cases, `snappyMultiRegionHeater`, and `damBreak` are from the Open
 
 ## Citation
 
-A paper describing FoDE has been **accepted for publication in [*SoftwareX*](https://www.sciencedirect.com/journal/softwarex)** (Elsevier) and is currently in production. Full citation details and a link to the article will be added here once it is published.
+Citation is not required, but if FoDE has been useful in your research, a citation is welcome and helps support continued development:
+
+> Shinji Nakagawa,
+> Foam Dictionary Editor: A GUI-based open-source tool for OpenFOAM case configuration,
+> *SoftwareX*, Volume 35, 2026, 102852, ISSN 2352-7110,
+> [https://doi.org/10.1016/j.softx.2026.102852](https://doi.org/10.1016/j.softx.2026.102852)
+> ([ScienceDirect](https://www.sciencedirect.com/science/article/pii/S2352711026003444))
 
 ## License
 
@@ -178,7 +170,7 @@ This offering is not approved or endorsed by OpenCFD Limited, producer and distr
 ## Acknowledgements
 
 - [PySide6 (Qt for Python)](https://doc.qt.io/qtforpython/) — GUI framework (LGPL v3)
-- [pyVista](https://pyvista.org/) / [VTK](https://vtk.org/) — 3-D viewer for `blockMeshDict` (BSD-3-Clause, optional)
+- [pyVista](https://pyvista.org/) / [VTK](https://vtk.org/) — 3-D viewer for `blockMeshDict`, `topoSetDict`, and `snappyHexMeshDict` geometry (BSD-3-Clause, optional)
 - [xterm.js](https://xtermjs.org/) — Terminal emulator used in the Terminal panel (MIT). Downloaded automatically from jsDelivr on first launch and cached in `ui/xterm/`
 - [pytest](https://pytest.org/) / [pytest-qt](https://pytest-qt.readthedocs.io/) — Test framework (development only)
 

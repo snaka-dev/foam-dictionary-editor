@@ -17,7 +17,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from model.file_list_model import FileListModel
+from foam.utils import is_log_filename
+from model.file_list_model import FileListModel, ROOT_GROUP
 from services.case_loader import (
     FIELD_DIRS,
     PolyMeshInfo,
@@ -40,6 +41,10 @@ _SYMLINK_MARKER = " ⇢"
 _TIME_DIRS_ROLE = Qt.UserRole + 4
 # True on group-header items that correspond to a user-added extra directory.
 _EXTRA_DIR_HEADER_ROLE = Qt.UserRole + 5
+# True on file items with no dictionary tree (run logs); rendered dimmed.
+_TEXT_ONLY_ROLE = Qt.UserRole + 6
+
+_TEXT_ONLY_FG = QColor("#888888")
 
 _EXTRA_DIR_HEADER_COLOR = QColor("#6644AA")
 _DIFF_NONE_FG = QColor("#888888")    # gray  — visited, no diffs
@@ -55,10 +60,35 @@ def _diff_suffix(count: int | None) -> str:
     return f"  ≠{count}"
 
 
-def display_file_name(path: str) -> str:
+def group_display_name(group: str) -> str:
+    """Human-readable group name: the case-root sentinel '.' shows as 'case root'."""
+    return tr("case root") if group == ROOT_GROUP else group
+
+
+def display_file_name(path: str, case_dir: str | None = None) -> str:
     p = Path(path)
+    if case_dir is not None and p.parent == Path(case_dir):
+        return p.name  # case-root file: no parent prefix
     parent = p.parent.name
     return f"{parent}/{p.name}" if parent else p.name
+
+
+def _item_label(
+    path: str,
+    *,
+    symlink: bool,
+    dirty: bool = False,
+    diff_count: int | None = None,
+    case_dir: str | None = None,
+) -> str:
+    """Build a file row's display text with its symlink/dirty/diff markers."""
+    label = f"  {display_file_name(path, case_dir)}"
+    if symlink:
+        label += _SYMLINK_MARKER
+    if dirty:
+        label += " *"
+    label += _diff_suffix(diff_count)
+    return label
 
 
 
@@ -161,7 +191,12 @@ class FileListPanel(QWidget):
                 for path in group_paths:
                     p = Path(path)
                     self._list.addItem(
-                        _make_item(path, is_extra=self._model.is_extra_file(path), is_symlink=p.is_symlink())
+                        _make_item(
+                            path,
+                            is_extra=self._model.is_extra_file(path),
+                            is_symlink=p.is_symlink(),
+                            case_dir=case_dir,
+                        )
                     )
 
             if case_dir:
@@ -187,6 +222,15 @@ class FileListPanel(QWidget):
         if item is not None:
             self._list.setCurrentItem(item)
             self._list.scrollToItem(item)
+
+    def file_paths(self) -> list[str]:
+        """Absolute paths of all file rows, in display order (headers excluded)."""
+        paths = []
+        for i in range(self._list.count()):
+            path = self._list.item(i).data(Qt.UserRole)
+            if path:
+                paths.append(path)
+        return paths
 
     def mark_dirty(self, path: str, dirty: bool) -> None:
         self._model.mark_dirty(path, dirty)
@@ -243,13 +287,15 @@ class FileListPanel(QWidget):
         diff_count = self._model.diff_count(path)
         is_extra = bool(item.data(_EXTRA_FILE_ROLE))
 
-        label = f"  {display_file_name(path)}"
-        if item.data(_SYMLINK_ROLE):
-            label += _SYMLINK_MARKER
-        if dirty:
-            label += " *"
-        label += _diff_suffix(diff_count)
-        item.setText(label)
+        item.setText(
+            _item_label(
+                path,
+                symlink=bool(item.data(_SYMLINK_ROLE)),
+                dirty=dirty,
+                diff_count=diff_count,
+                case_dir=self._model.case_dir,
+            )
+        )
 
         if dirty:
             color = QColor("#CC6600")
@@ -257,6 +303,8 @@ class FileListPanel(QWidget):
             color = _DIFF_HAS_FG
         elif diff_count == 0:
             color = _DIFF_NONE_FG
+        elif item.data(_TEXT_ONLY_ROLE):
+            color = _TEXT_ONLY_FG
         elif is_extra:
             color = _EXTRA_FILE_COLOR
         else:
@@ -320,14 +368,15 @@ class FileListPanel(QWidget):
             # Header row: offer to create or add files in this directory.
             if self._model.case_dir is None:
                 return
+            shown = group_display_name(group)
             menu = QMenu(self.window())
-            new_action = menu.addAction(tr("New file in '{group}'...").format(group=group))
-            add_action = menu.addAction(tr("Add files from '{group}'...").format(group=group))
+            new_action = menu.addAction(tr("New file in '{group}'...").format(group=shown))
+            add_action = menu.addAction(tr("Add files from '{group}'...").format(group=shown))
 
             remove_dir_action = None
             if item.data(_EXTRA_DIR_HEADER_ROLE):
                 menu.addSeparator()
-                remove_dir_action = menu.addAction(tr("Remove '{group}' from file list").format(group=group))
+                remove_dir_action = menu.addAction(tr("Remove '{group}' from file list").format(group=shown))
 
             dup_dir_action = None
             counterpart = None
@@ -343,10 +392,12 @@ class FileListPanel(QWidget):
                 menu.addSeparator()
                 delete_0_action = menu.addAction(tr("Delete '0' directory..."))
 
+            if menu.isEmpty():
+                return
             chosen = menu.exec(self._list.viewport().mapToGlobal(pos))
-            if chosen == new_action:
+            if new_action is not None and chosen == new_action:
                 self.create_file_requested.emit(self._model.case_dir, group)
-            elif chosen == add_action:
+            elif add_action is not None and chosen == add_action:
                 self.add_file_requested.emit(self._model.case_dir, group)
             elif remove_dir_action is not None and chosen == remove_dir_action:
                 self.remove_extra_dir_requested.emit(group)
@@ -397,6 +448,8 @@ def _has_unlisted_files(
         return False
     if group in FIELD_DIRS:
         return False  # field dirs always load all files
+    if group == ROOT_GROUP:
+        return False  # case root deliberately lists only All* scripts
     if extra_dir_set and group in extra_dir_set:
         return False  # extra dirs also load all files
     for f in list_directory_files(case_dir, group):
@@ -451,7 +504,8 @@ def _make_mesh_indicator(info: PolyMeshInfo) -> QListWidgetItem:
 def _make_header(
     group_name: str, has_unlisted: bool = False, is_extra_dir: bool = False
 ) -> QListWidgetItem:
-    label = f"{group_name} [+]" if has_unlisted else group_name
+    shown_name = group_display_name(group_name)
+    label = f"{shown_name} [+]" if has_unlisted else shown_name
     item = QListWidgetItem(label)
     font = QFont(item.font())
     font.setBold(True)
@@ -465,14 +519,18 @@ def _make_header(
     return item
 
 
-def _make_item(path: str, is_extra: bool = False, is_symlink: bool = False) -> QListWidgetItem:
-    label = f"  {display_file_name(path)}"
-    if is_symlink:
-        label += _SYMLINK_MARKER
-    item = QListWidgetItem(label)
+def _make_item(
+    path: str,
+    is_extra: bool = False,
+    is_symlink: bool = False,
+    case_dir: str | None = None,
+) -> QListWidgetItem:
+    item = QListWidgetItem(_item_label(path, symlink=is_symlink, case_dir=case_dir))
     item.setData(Qt.UserRole, path)
     item.setData(_EXTRA_FILE_ROLE, is_extra)
     item.setData(_SYMLINK_ROLE, is_symlink)
+    is_text_only = is_log_filename(Path(path).name)
+    item.setData(_TEXT_ONLY_ROLE, is_text_only)
 
     tooltip = path
     if is_symlink:
@@ -484,7 +542,9 @@ def _make_item(path: str, is_extra: bool = False, is_symlink: bool = False) -> Q
             tooltip += f"\n{arrow} (symlink)"
     item.setToolTip(tooltip)
 
-    if is_extra:
+    if is_text_only:
+        item.setForeground(_TEXT_ONLY_FG)
+    elif is_extra:
         item.setForeground(_EXTRA_FILE_COLOR)
     if is_symlink:
         font = QFont(item.font())

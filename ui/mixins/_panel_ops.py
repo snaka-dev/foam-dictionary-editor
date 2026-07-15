@@ -7,7 +7,12 @@ from pathlib import Path
 from PySide6.QtCore import QTimer
 
 from i18n import tr
-from ui.layout_constants import BLOCKMESH_DICT_NAME as _BLOCKMESH_DICT_NAME
+from ui.layout_constants import (
+    BLOCKMESH_DICT_NAME as _BLOCKMESH_DICT_NAME,
+    TOPOSET_DICT_NAME as _TOPOSET_DICT_NAME,
+    SNAPPY_HEX_MESH_DICT_NAME as _SNAPPY_HEX_MESH_DICT_NAME,
+    SETFIELDS_DICT_NAME as _SETFIELDS_DICT_NAME,
+)
 
 
 class _PanelOpsMixin:
@@ -24,7 +29,7 @@ class _PanelOpsMixin:
                 idx = self.upper_tabs.indexOf(self.block_mesh_panel)
                 if idx < 0:
                     self.upper_tabs.addTab(self.block_mesh_panel, tr("BlockMesh"))
-            QTimer.singleShot(0, self.block_mesh_panel._init_plotter)
+            QTimer.singleShot(0, self.block_mesh_panel.init_plotter)
         else:
             self.block_mesh_panel.shutdown()
             idx = self.upper_tabs.indexOf(self.block_mesh_panel)
@@ -48,7 +53,7 @@ class _PanelOpsMixin:
             self.block_mesh_panel.show()   # explicit; removeTab hides the widget
             # Defer setSizes until the layout pass after show() has run.
             QTimer.singleShot(0, lambda: self._tree_bm_splitter.setSizes([1, 1]))
-            QTimer.singleShot(0, self.block_mesh_panel._init_plotter)
+            QTimer.singleShot(0, self.block_mesh_panel.init_plotter)
         else:
             # addTab reparents the panel from the splitter back to upper_tabs.
             self.upper_tabs.addTab(self.block_mesh_panel, tr("BlockMesh"))
@@ -56,9 +61,15 @@ class _PanelOpsMixin:
     def _update_bm_side_by_side_btn(self) -> None:
         if self._bm_side_by_side_btn is None:
             return
-        is_bm_file = bool(
+        is_3d_viewable_file = bool(
             self.state.current_file
-            and Path(self.state.current_file).name == _BLOCKMESH_DICT_NAME
+            and Path(self.state.current_file).name
+            in (
+                _BLOCKMESH_DICT_NAME,
+                _TOPOSET_DICT_NAME,
+                _SNAPPY_HEX_MESH_DICT_NAME,
+                _SETFIELDS_DICT_NAME,
+            )
         )
         xterm_active = (
             self.terminal_panel is not None and self.terminal_panel.use_xterm
@@ -66,7 +77,7 @@ class _PanelOpsMixin:
         bm_panel_on = (
             self._blockmesh_action is None or self._blockmesh_action.isChecked()
         )
-        enabled = is_bm_file and not xterm_active and bm_panel_on
+        enabled = is_3d_viewable_file and not xterm_active and bm_panel_on
         self._bm_side_by_side_btn.setEnabled(enabled)
         if not enabled and self.state.bm_side_by_side:
             self._on_toggle_bm_side_by_side(False)
@@ -98,5 +109,5 @@ class _PanelOpsMixin:
                 idx = self.upper_tabs.indexOf(self.block_mesh_panel)
                 if idx < 0:
                     self.upper_tabs.addTab(self.block_mesh_panel, tr("BlockMesh"))
-                QTimer.singleShot(300, self.block_mesh_panel._init_plotter)
+                QTimer.singleShot(300, self.block_mesh_panel.init_plotter)
         self._update_bm_side_by_side_btn()

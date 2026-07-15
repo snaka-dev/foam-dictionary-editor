@@ -6,11 +6,20 @@ import importlib
 from pathlib import Path
 
 _language = "en"
+# Translation table of the active language, loaded once by set_language().
+_translations: dict[str, str] = {}
 
 
 def set_language(lang: str) -> None:
-    global _language
+    global _language, _translations
     _language = lang
+    _translations = {}
+    if lang != "en":
+        try:
+            mod = importlib.import_module(f"i18n.{lang}")
+            _translations = getattr(mod, "TRANSLATIONS", {})
+        except ImportError:
+            pass
 
 
 def get_language() -> str:
@@ -37,8 +46,4 @@ def tr(text: str) -> str:
     """Return the translation of text in the current language, or text itself."""
     if _language == "en":
         return text
-    try:
-        mod = importlib.import_module(f"i18n.{_language}")
-        return mod.TRANSLATIONS.get(text, text)
-    except ImportError:
-        return text
+    return _translations.get(text, text)

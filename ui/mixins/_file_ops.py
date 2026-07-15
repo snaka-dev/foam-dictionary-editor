@@ -9,15 +9,14 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 
+from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser, ParseError
 from i18n import tr
-from foam.utils import read_foam_file, is_large_non_foam_file
+from foam.utils import read_foam_file, is_large_non_foam_file, is_log_filename, is_script_text
 from services.case_files_config import CaseFilesConfig
 from services.case_loader import FIELD_DIRS, list_case_files
 from ui.panels.file_list_panel import display_file_name
 from ui.layout_constants import (
-    BLOCKMESH_DICT_NAME as _BLOCKMESH_DICT_NAME,
-    TOPOSET_DICT_NAME as _TOPOSET_DICT_NAME,
     STATUS_NORMAL as _STATUS_NORMAL,
     STATUS_WARNING as _STATUS_WARNING,
     STATUS_SHORT as _STATUS_SHORT,
@@ -53,10 +52,12 @@ class _FileOpsMixin:
         self.state.file_dirty.clear()
         self.state.parsed_roots.clear()
         if self.block_mesh_panel is not None:
-            self.block_mesh_panel._topo_shapes = []
+            self.block_mesh_panel.clear()
         self._clear_current_file()
         if self.terminal_panel is not None:
             self.terminal_panel.set_working_directory(directory)
+        if self._log_summary_dialog is not None:
+            self._log_summary_dialog.set_case_dir(directory)
         self._stop_foam_monitor()
         QTimer.singleShot(0, self._reload_boundary_panel)
 
@@ -90,11 +91,7 @@ class _FileOpsMixin:
         root = _parser.parse()
         self.state.parsed_roots[path] = root
         self._load_tree(root)
-        self.boundary_panel.update_field(path, root)
-        if self.block_mesh_panel is not None and Path(path).name == _BLOCKMESH_DICT_NAME:
-            self.block_mesh_panel.update_block_mesh(path, root)
-        if self.block_mesh_panel is not None and Path(path).name == _TOPOSET_DICT_NAME:
-            self.block_mesh_panel.update_topo_set(path, root)
+        self._update_viewer_panels(path, root)
         self._update_bm_side_by_side_btn()
         return _parser
 
@@ -145,6 +142,19 @@ class _FileOpsMixin:
             self.file_list_panel.mark_dirty(path, self.state.text_dirty)
             self.statusBar().showMessage(tr("Loaded: {path}").format(path=path), _STATUS_NORMAL)
 
+            if is_script_text(text) or is_log_filename(Path(path).name):
+                # Shell script (Allrun, …) or run log: text editing only, no tree.
+                self.state.parsed_roots.pop(path, None)
+                self._load_tree(FoamNode(name="root", node_type="dictionary"))
+                self._update_bm_side_by_side_btn()
+                self.detail_panel.show_empty()
+                message = (
+                    tr("Script file — text editing only: {path}")
+                    if is_script_text(text)
+                    else tr("Text file — no dictionary tree: {path}")
+                )
+                self.statusBar().showMessage(message.format(path=path), _STATUS_NORMAL)
+                return
             try:
                 _parser = self._parse_and_update(path, text)
                 self.detail_panel.show_empty()
@@ -182,6 +192,9 @@ class _FileOpsMixin:
             self.file_list_panel.mark_dirty(self.state.current_file, False)
             self._reload_file_list()
             self.statusBar().showMessage(tr("Saved: {path}").format(path=self.state.current_file), _STATUS_NORMAL)
+
+            if is_script_text(text) or is_log_filename(Path(self.state.current_file).name):
+                return  # shell script or run log: no tree to refresh
 
             try:
                 _parser = self._parse_and_update(self.state.current_file, text)

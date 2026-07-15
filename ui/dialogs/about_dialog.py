@@ -12,6 +12,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from _version import get_version
 from i18n import tr
 
 _APP_NAME = "Foam Dictionary Editor (FoDE)"
@@ -55,6 +57,13 @@ class AboutDialog(QDialog):
         name_label.setStyleSheet("font-size: 16px; font-weight: bold;")
         name_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(name_label)
+
+        # ── version ───────────────────────────────────────────────────────────
+        version_label = QLabel(tr("Version {v}").format(v=get_version()))
+        version_label.setAlignment(Qt.AlignCenter)
+        version_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        version_label.setStyleSheet("color: #777777; font-size: 12px;")
+        layout.addWidget(version_label)
 
         # ── description ───────────────────────────────────────────────────────
         desc_label = QLabel(_DESCRIPTION)

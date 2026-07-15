@@ -2,6 +2,9 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any, Callable
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (
@@ -25,7 +28,11 @@ from PySide6.QtWidgets import (
 
 from foam.block_mesh_extractor import extract_block_mesh_data
 from foam.nodes import FoamNode
+from foam.set_fields_extractor import SetFieldsShape, extract_set_fields_data
+from foam.snappy_hex_mesh_extractor import extract_snappy_hex_mesh_data
 from foam.topo_set_extractor import TopoShape, extract_topo_set_data
+from ui.dialogs.export_stl_dialog import ExportStlDialog
+from ui.widgets.flow_layout import FlowLayout
 
 try:
     import pyvista as pv
@@ -52,6 +59,8 @@ _MOUSE_HINT_TOOLTIP = (
 
 from ui.panels.block_mesh_renderer import (
     _ACTION_COLORS,
+    _SET_FIELDS_REGION_COLOR,
+    _SNAPPY_CATEGORY_COLORS,
     BlockMeshRenderer,
     RenderSettings,
 )
@@ -83,6 +92,150 @@ class _StaysOpenMenu(QMenu):
         super().mouseReleaseEvent(event)
 
 
+class _ShapeOverlayMenu:
+    """One checkable shape-overlay menu (`topoSet ▾` / `snappyHexMesh ▾`).
+
+    Owns the master toggle, the Show/Hide-all actions, a static colour legend,
+    and the rebuildable per-shape (and optional location-point) toggles plus
+    the "Non-geometric sources" submenu. ``on_changed`` runs after every
+    visibility change so the owner can re-render.
+    """
+
+    def __init__(
+        self,
+        parent: QWidget,
+        *,
+        master_label: str,
+        legend_title: str,
+        legend: dict[str, str],
+        shape_row: Callable[[Any], tuple[QIcon, str]],
+        info_row: Callable[[Any], str],
+        on_changed: Callable[[], None],
+        location_row: Callable[[tuple], str] | None = None,
+    ) -> None:
+        self._shape_row = shape_row
+        self._info_row = info_row
+        self._location_row = location_row
+        self._on_changed = on_changed
+
+        self.shapes: list = []
+        self.non_geometric: list = []
+        self.locations: list = []
+        self.shape_actions: list[QAction] = []
+        self.location_actions: list[QAction] = []
+        self.info_actions: list[QAction] = []
+        self.info_menu: QMenu | None = None
+
+        self.menu = _StaysOpenMenu(parent)
+        self.master = QAction(master_label, self.menu, checkable=True, checked=True)
+        self.menu.addAction(self.master)
+        self.show_all = QAction("Show all shapes", self.menu)
+        self.hide_all = QAction("Hide all shapes", self.menu)
+        self.menu.addAction(self.show_all)
+        self.menu.addAction(self.hide_all)
+        self.menu.addSeparator()
+
+        # Static legend mapping each row label to its overlay colour.
+        legend_header = QAction(legend_title, self.menu)
+        legend_header.setEnabled(False)
+        self.menu.addAction(legend_header)
+        self.legend_actions: list[QAction] = []
+        for label, color in legend.items():
+            act = QAction(_color_swatch(color), label, self.menu)
+            act.setEnabled(False)
+            self.menu.addAction(act)
+            self.legend_actions.append(act)
+        self.menu.addSeparator()
+
+        self.master.toggled.connect(self._on_master_toggled)
+        self.show_all.triggered.connect(lambda: self.set_all(True))
+        self.hide_all.triggered.connect(lambda: self.set_all(False))
+
+    def _on_master_toggled(self, on: bool) -> None:
+        for act in (
+            self.shape_actions + self.location_actions + [self.show_all, self.hide_all]
+        ):
+            act.setEnabled(on)
+        self._on_changed()
+
+    def set_all(self, checked: bool) -> None:
+        """Check/uncheck every per-shape toggle with a single change callback."""
+        for act in self.shape_actions + self.location_actions:
+            act.blockSignals(True)
+            act.setChecked(checked)
+            act.blockSignals(False)
+        self._on_changed()
+
+    def rebuild(
+        self, shapes: list, non_geometric: list, locations: list | None = None
+    ) -> None:
+        """Repopulate the per-shape toggles from freshly extracted data.
+
+        The master action, Show/Hide all, legend, and separator persist; the
+        per-shape/location toggles and the "Non-geometric sources" submenu are
+        rebuilt so each renderable entry can be shown or hidden individually.
+        Non-geometric sources are listed for awareness but never rendered;
+        they are collapsed into a submenu so a source-rich dict (60+ actions)
+        keeps the renderable toggles readable at the top level.
+        """
+        for act in self.shape_actions + self.location_actions:
+            self.menu.removeAction(act)
+            act.deleteLater()
+        self.shape_actions = []
+        self.location_actions = []
+        self.info_actions = []
+        if self.info_menu is not None:
+            self.menu.removeAction(self.info_menu.menuAction())
+            self.info_menu.deleteLater()
+            self.info_menu = None
+
+        self.shapes = list(shapes)
+        self.non_geometric = list(non_geometric)
+        self.locations = list(locations or [])
+
+        master_on = self.master.isChecked()
+        for shape in self.shapes:
+            icon, text = self._shape_row(shape)
+            act = QAction(icon, text, self.menu, checkable=True, checked=True)
+            act.setEnabled(master_on)
+            act.toggled.connect(self._on_changed)
+            self.menu.addAction(act)
+            self.shape_actions.append(act)
+
+        if self._location_row is not None:
+            for location in self.locations:
+                act = QAction(
+                    self._location_row(location), self.menu, checkable=True, checked=True
+                )
+                act.setEnabled(master_on)
+                act.toggled.connect(self._on_changed)
+                self.menu.addAction(act)
+                self.location_actions.append(act)
+
+        if self.non_geometric:
+            self.info_menu = QMenu(
+                f"Non-geometric sources ({len(self.non_geometric)})", self.menu
+            )
+            for shape in self.non_geometric:
+                act = QAction(self._info_row(shape), self.info_menu)
+                act.setEnabled(False)
+                self.info_menu.addAction(act)
+                self.info_actions.append(act)
+            self.menu.addMenu(self.info_menu)
+
+    def visible_shapes(self) -> list:
+        """Return the shapes currently selected for display."""
+        if not self.master.isChecked():
+            return []
+        return [s for s, a in zip(self.shapes, self.shape_actions) if a.isChecked()]
+
+    def visible_locations(self) -> list:
+        """Return the location points currently selected for display."""
+        if not self.master.isChecked():
+            return []
+        return [p for p, a in zip(self.locations, self.location_actions) if a.isChecked()]
+
+
 class BlockMeshPanel(QWidget):
     """3-D viewer for blockMeshDict geometry (pyVista / VTK).
 
@@ -103,8 +256,6 @@ class BlockMeshPanel(QWidget):
         super().__init__(parent)
         self._data = None
         self._stl_meshes: list = []
-        self._topo_shapes: list[TopoShape] = []
-        self._topo_non_geometric: list[TopoShape] = []
         self._plotter: "QtInteractor | None" = None
         self._renderer: "BlockMeshRenderer | None" = None
         self._plotter_layout: QVBoxLayout | None = None
@@ -116,12 +267,10 @@ class BlockMeshPanel(QWidget):
         self._preview_btn: "QPushButton | None" = None
         self._preview_banner: "QLabel | None" = None
         self._vtx_info_bar: "QWidget | None" = None
-        self._show_topo: "QAction | None" = None
-        self._topo_menu: "QMenu | None" = None
-        self._topo_sep: "QAction | None" = None
-        self._topo_legend_actions: list[QAction] = []
-        self._topo_shape_actions: list[QAction] = []
-        self._topo_info_actions: list[QAction] = []
+        self._topo: "_ShapeOverlayMenu | None" = None
+        self._snappy: "_ShapeOverlayMenu | None" = None
+        self._set_fields: "_ShapeOverlayMenu | None" = None
+        self._export_stl_act: "QAction | None" = None
 
         if not _PYVISTA_OK:
             lbl = QLabel(
@@ -137,7 +286,7 @@ class BlockMeshPanel(QWidget):
     # ── UI construction ───────────────────────────────────────────────────────
 
     def _build_controls(self) -> None:
-        row1, row2, refresh_btn, load_stl_act = self._build_geometry_toolbar()
+        toolbar, refresh_btn, load_stl_act = self._build_geometry_toolbar()
         vtx_group = self._build_vertex_table()
 
         plotter_container = QWidget()
@@ -154,6 +303,7 @@ class BlockMeshPanel(QWidget):
         hint_label = QLabel(_MOUSE_HINT)
         hint_label.setStyleSheet("color: #888888; font-size: 11px; font-style: italic;")
         hint_label.setToolTip(_MOUSE_HINT_TOOLTIP)
+        hint_label.setWordWrap(True)
 
         self._preview_banner = QLabel(
             "Preview mode — changes shown in 3-D view only. "
@@ -163,13 +313,17 @@ class BlockMeshPanel(QWidget):
             "background: #FFF3CD; color: #856404; "
             "padding: 3px 8px; border: 1px solid #FFEEBA; border-radius: 3px;"
         )
+        self._preview_banner.setWordWrap(True)
         self._preview_banner.setVisible(False)
+
+        # Explicit floor so the side-by-side splitter handle stops at a
+        # still-usable width instead of snapping the pane closed.
+        self.setMinimumWidth(150)
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(4, 4, 4, 4)
         main_layout.setSpacing(2)
-        main_layout.addLayout(row1)
-        main_layout.addLayout(row2)
+        main_layout.addLayout(toolbar)
         main_layout.addWidget(self._preview_banner)
         main_layout.addWidget(splitter, 1)
         main_layout.addWidget(hint_label)
@@ -178,14 +332,11 @@ class BlockMeshPanel(QWidget):
         self._preview_btn.clicked.connect(self._on_preview_toggled)
         load_stl_act.triggered.connect(self._load_stl)
         self._clear_stl_act.triggered.connect(self._clear_stl)
+        self._export_stl_act.triggered.connect(self._export_shapes_stl)
         self._act_vtx_table.triggered.connect(lambda checked: vtx_group.setVisible(checked))
         self._vtx_table.itemSelectionChanged.connect(self._on_vertex_selected)
         self._vtx_table.cellChanged.connect(self._on_cell_changed)
         self._show_boundary.toggled.connect(self._render)
-        self._show_topo.toggled.connect(self._render)
-        self._show_topo.toggled.connect(
-            lambda on: [a.setEnabled(on) for a in self._topo_shape_actions]
-        )
         for act in (self._show_vertices, self._show_labels,
                     self._show_edges, self._show_block_labels,
                     self._color_blocks, self._solid_blocks,
@@ -194,7 +345,12 @@ class BlockMeshPanel(QWidget):
         self._label_font_size.valueChanged.connect(self._render)
 
     def _build_geometry_toolbar(self) -> tuple:
-        """Build the two toolbar rows; set geometry-visibility action attrs."""
+        """Build the wrapping toolbar; set geometry-visibility action attrs.
+
+        All controls live in a single FlowLayout that reflows onto more
+        lines as the panel narrows, so the toolbar never dictates a large
+        minimum panel width.
+        """
         vtx_menu = _StaysOpenMenu(self)
         self._show_vertices  = QAction("Vertices",       vtx_menu, checkable=True, checked=True)
         self._show_labels    = QAction("Vertex labels",  vtx_menu, checkable=True, checked=False)
@@ -226,32 +382,75 @@ class BlockMeshPanel(QWidget):
         self._show_boundary = QCheckBox("Boundary faces")
         self._show_boundary.setChecked(True)
 
-        self._topo_menu = _StaysOpenMenu(self)
-        self._show_topo = QAction(
-            "Show topoSet geometry", self._topo_menu, checkable=True, checked=True
+        self._topo = _ShapeOverlayMenu(
+            self,
+            master_label="Show topoSet geometry",
+            legend_title="Action colours",
+            legend={a: _ACTION_COLORS[a] for a in ("new", "add", "subtract", "subset", "invert")},
+            shape_row=lambda s: (
+                _color_swatch(_ACTION_COLORS.get(s.action, "gray")),
+                f"{s.label or '(unnamed)'}  ·  {s.source}",
+            ),
+            info_row=lambda s: f"{s.label or '(unnamed)'}  ·  {s.source}  (no geometry)",
+            on_changed=self._render,
         )
-        self._topo_menu.addAction(self._show_topo)
-        self._topo_menu.addSeparator()
-
-        # Static legend mapping each action to its overlay colour.
-        legend_header = QAction("Action colours", self._topo_menu)
-        legend_header.setEnabled(False)
-        self._topo_menu.addAction(legend_header)
-        self._topo_legend_actions = []
-        for action in ("new", "add", "subtract", "subset", "invert"):
-            act = QAction(_color_swatch(_ACTION_COLORS[action]), action, self._topo_menu)
-            act.setEnabled(False)
-            self._topo_menu.addAction(act)
-            self._topo_legend_actions.append(act)
-        self._topo_sep = self._topo_menu.addSeparator()
 
         topo_btn = QToolButton()
         topo_btn.setText("topoSet ▾")
         topo_btn.setPopupMode(QToolButton.InstantPopup)
-        topo_btn.setMenu(self._topo_menu)
+        topo_btn.setMenu(self._topo.menu)
         topo_btn.setToolTip(
             "Show geometry sources from topoSetDict, or toggle individual shapes\n"
             "(load topoSetDict to populate)"
+        )
+
+        self._snappy = _ShapeOverlayMenu(
+            self,
+            master_label="Show snappyHexMesh geometry",
+            legend_title="Category colours",
+            legend={
+                c: _SNAPPY_CATEGORY_COLORS[c] for c in ("surface", "region", "geometry")
+            },
+            shape_row=lambda s: (
+                _color_swatch(_SNAPPY_CATEGORY_COLORS.get(s.category, "gray")),
+                f"{s.name}  ·  {s.geo_type}  {s.level or s.mode or ''}".strip(),
+            ),
+            info_row=lambda s: f"{s.name}  ·  {s.geo_type}  (no geometry)",
+            location_row=lambda location: f"📍 {location[1]}",
+            on_changed=self._render,
+        )
+
+        snappy_btn = QToolButton()
+        snappy_btn.setText("snappyHexMesh ▾")
+        snappy_btn.setPopupMode(QToolButton.InstantPopup)
+        snappy_btn.setMenu(self._snappy.menu)
+        snappy_btn.setToolTip(
+            "Show geometry/refinementSurfaces/refinementRegions from\n"
+            "snappyHexMeshDict, or toggle individual shapes\n"
+            "(load snappyHexMeshDict to populate)"
+        )
+
+        self._set_fields = _ShapeOverlayMenu(
+            self,
+            master_label="Show setFields regions",
+            legend_title="Region colour",
+            legend={"region": _SET_FIELDS_REGION_COLOR},
+            shape_row=lambda s: (
+                _color_swatch(_SET_FIELDS_REGION_COLOR),
+                f"{s.label or '(no fieldValues)'}  ·  {s.source}",
+            ),
+            info_row=lambda s: f"{s.label or '(no fieldValues)'}  ·  {s.source}  (no geometry)",
+            on_changed=self._render,
+        )
+
+        set_fields_btn = QToolButton()
+        set_fields_btn.setText("setFields ▾")
+        set_fields_btn.setPopupMode(QToolButton.InstantPopup)
+        set_fields_btn.setMenu(self._set_fields.menu)
+        set_fields_btn.setToolTip(
+            "Show region sources from setFieldsDict, or toggle individual shapes\n"
+            "(load setFieldsDict to populate). Regions larger than the block mesh\n"
+            "are clipped in the view and marked '✂ clipped'."
         )
 
         scale_menu = _StaysOpenMenu(self)
@@ -271,6 +470,13 @@ class BlockMeshPanel(QWidget):
         load_stl_act = stl_menu.addAction("Load STL / OBJ…")
         self._clear_stl_act = stl_menu.addAction("Clear STL")
         self._clear_stl_act.setEnabled(False)
+        stl_menu.addSeparator()
+        self._export_stl_act = stl_menu.addAction("Export Shapes as STL…")
+        self._export_stl_act.setEnabled(False)
+        self._export_stl_act.setToolTip(
+            "Save topoSetDict / snappyHexMeshDict / setFieldsDict shapes as\n"
+            "individual STL files (load one of those dicts to populate)"
+        )
 
         stl_btn = QToolButton()
         stl_btn.setText("STL ▾")
@@ -279,29 +485,32 @@ class BlockMeshPanel(QWidget):
 
         refresh_btn = QPushButton("Refresh")
 
-        row1 = QHBoxLayout()
-        row1.addWidget(vtx_btn)
-        row1.addWidget(blk_btn)
-        row1.addWidget(self._show_boundary)
-        row1.addWidget(topo_btn)
-        row1.addSpacing(12)
-        row1.addWidget(refresh_btn)
-        row1.addWidget(stl_btn)
-        row1.addStretch()
-
         self._label_font_size = QSpinBox()
         self._label_font_size.setRange(6, 32)
         self._label_font_size.setValue(10)
         self._label_font_size.setToolTip("Font size for vertex and block labels")
         self._label_font_size.setFixedWidth(52)
 
-        row2 = QHBoxLayout()
-        row2.addWidget(scale_btn)
-        row2.addSpacing(16)
-        row2.addWidget(QLabel("Label size:"))
-        row2.addWidget(self._label_font_size)
-        row2.addSpacing(16)
-        row2.addWidget(QLabel("View:"))
+        # "Label size:" and its spinbox wrap as one unit.
+        label_size_group = QWidget()
+        label_size_layout = QHBoxLayout(label_size_group)
+        label_size_layout.setContentsMargins(0, 0, 0, 0)
+        label_size_layout.setSpacing(4)
+        label_size_layout.addWidget(QLabel("Label size:"))
+        label_size_layout.addWidget(self._label_font_size)
+
+        toolbar = FlowLayout()
+        toolbar.addWidget(vtx_btn)
+        toolbar.addWidget(blk_btn)
+        toolbar.addWidget(self._show_boundary)
+        toolbar.addWidget(topo_btn)
+        toolbar.addWidget(snappy_btn)
+        toolbar.addWidget(set_fields_btn)
+        toolbar.addWidget(refresh_btn)
+        toolbar.addWidget(stl_btn)
+        toolbar.addWidget(scale_btn)
+        toolbar.addWidget(label_size_group)
+        toolbar.addWidget(QLabel("View:"))
         for _label, _fn, _kw in [
             ("+X", "view_yz",        {"negative": False}),
             ("-X", "view_yz",        {"negative": True}),
@@ -316,10 +525,9 @@ class BlockMeshPanel(QWidget):
             _btn.clicked.connect(
                 lambda _=False, f=_fn, k=_kw: self._set_view(f, **k)
             )
-            row2.addWidget(_btn)
-        row2.addStretch()
+            toolbar.addWidget(_btn)
 
-        return row1, row2, refresh_btn, load_stl_act
+        return toolbar, refresh_btn, load_stl_act
 
     def _build_vertex_table(self) -> "QGroupBox":
         """Build the vertex table with the variable-preview info bar; return the group box."""
@@ -365,7 +573,7 @@ class BlockMeshPanel(QWidget):
         vtx_inner.addWidget(self._vtx_table)
         return vtx_group
 
-    def _init_plotter(self) -> None:
+    def init_plotter(self) -> None:
         if self._plotter is not None or self._plotter_layout is None:
             return
         self._plotter = QtInteractor(self)
@@ -382,7 +590,7 @@ class BlockMeshPanel(QWidget):
         if not _PYVISTA_OK:
             return
         if self._plotter is None:
-            self._init_plotter()
+            self.init_plotter()
         else:
             self._plotter.render()
 
@@ -405,69 +613,39 @@ class BlockMeshPanel(QWidget):
         if not _PYVISTA_OK:
             return
         data = extract_topo_set_data(root)
-        self._topo_shapes = data.shapes
-        self._topo_non_geometric = data.non_geometric
-        self._rebuild_topo_menu()
+        self._topo.rebuild(data.shapes, data.non_geometric)
+        self._update_export_stl_enabled()
         if self._plotter is not None:
             self._render()
 
-    def _rebuild_topo_menu(self) -> None:
-        """Repopulate the per-shape toggles in the `topoSet ▾` menu.
-
-        The master action and separator persist; only the per-shape toggles and
-        the greyed non-geometric info entries are rebuilt so each renderable
-        entry can be shown or hidden individually.
-        """
-        if self._topo_menu is None:
+    def update_snappy_hex_mesh(self, path: str, root: FoamNode) -> None:
+        if not _PYVISTA_OK:
             return
-        for act in self._topo_shape_actions + self._topo_info_actions:
-            self._topo_menu.removeAction(act)
-            act.deleteLater()
-        self._topo_shape_actions = []
-        self._topo_info_actions = []
-        master_on = self._show_topo is not None and self._show_topo.isChecked()
-        for shape in self._topo_shapes:
-            label = shape.label or "(unnamed)"
-            act = QAction(
-                _color_swatch(_ACTION_COLORS.get(shape.action, "gray")),
-                f"{label}  ·  {shape.source}",
-                self._topo_menu,
-                checkable=True,
-                checked=True,
-            )
-            act.setEnabled(master_on)
-            act.toggled.connect(self._render)
-            self._topo_menu.addAction(act)
-            self._topo_shape_actions.append(act)
+        case_dir = str(Path(path).parent.parent)
+        data = extract_snappy_hex_mesh_data(root, case_dir)
+        self._snappy.rebuild(data.shapes, data.non_geometric, data.location_points)
+        self._update_export_stl_enabled()
+        if self._plotter is not None:
+            self._render()
 
-        # Non-geometric sources: listed for awareness but never rendered.
-        for shape in self._topo_non_geometric:
-            label = shape.label or "(unnamed)"
-            act = QAction(
-                f"{label}  ·  {shape.source}  (no geometry)",
-                self._topo_menu,
-            )
-            act.setEnabled(False)
-            self._topo_menu.addAction(act)
-            self._topo_info_actions.append(act)
-
-    def _visible_topo_shapes(self) -> list[TopoShape]:
-        """Return the topoSet shapes currently selected for display."""
-        if not (self._show_topo and self._show_topo.isChecked()):
-            return []
-        if not self._topo_shape_actions:        # not yet rebuilt → show all
-            return list(self._topo_shapes)
-        return [
-            s
-            for s, a in zip(self._topo_shapes, self._topo_shape_actions)
-            if a.isChecked()
-        ]
+    def update_set_fields(self, path: str, root: FoamNode) -> None:
+        if not _PYVISTA_OK:
+            return
+        data = extract_set_fields_data(root)
+        self._set_fields.rebuild(data.shapes, data.non_geometric)
+        self._update_export_stl_enabled()
+        if self._plotter is not None:
+            self._render()
 
     def clear(self) -> None:
         self._data = None
-        self._topo_shapes = []
-        self._topo_non_geometric = []
-        self._rebuild_topo_menu()
+        if self._topo is not None:
+            self._topo.rebuild([], [])
+        if self._snappy is not None:
+            self._snappy.rebuild([], [], [])
+        if self._set_fields is not None:
+            self._set_fields.rebuild([], [])
+        self._update_export_stl_enabled()
         self._selected_vertex = None
         if self._vtx_table is not None:
             self._vtx_table.setRowCount(0)
@@ -624,10 +802,21 @@ class BlockMeshPanel(QWidget):
     def _render(self) -> None:
         if self._renderer is None:
             return
-        if self._data is None and not self._topo_shapes:
+        has_overlay = (
+            self._topo.shapes or self._snappy.shapes or self._snappy.locations
+            or self._set_fields.shapes
+        )
+        if self._data is None and not has_overlay:
             return
-        topo = self._visible_topo_shapes()
-        self._renderer.render(self._data, self._make_settings(), self._stl_meshes, topo)
+        self._renderer.render(
+            self._data,
+            self._make_settings(),
+            self._stl_meshes,
+            self._topo.visible_shapes(),
+            self._snappy.visible_shapes(),
+            self._snappy.visible_locations(),
+            self._set_fields.visible_shapes(),
+        )
 
     # ── STL loading ───────────────────────────────────────────────────────────
 
@@ -651,3 +840,52 @@ class BlockMeshPanel(QWidget):
         self._stl_meshes.clear()
         self._clear_stl_act.setEnabled(False)
         self._render()
+
+    # ── STL export ────────────────────────────────────────────────────────────
+
+    def _exportable_topo_shapes(self) -> list[TopoShape]:
+        """topoSet shapes that produce a meaningful STL surface.
+
+        Point markers have no surface and a planeToFaceZone disc's extent is
+        display-only, so neither is offered for export.
+        """
+        return [
+            s for s in self._topo.shapes
+            if not ({"points", "planePoint"} & s.geometry.keys())
+        ]
+
+    def _exportable_set_fields_shapes(self) -> list[SetFieldsShape]:
+        """setFields regions that produce a meaningful STL surface (unclipped)."""
+        return [
+            s for s in self._set_fields.shapes
+            if not ({"points", "planePoint"} & s.geometry.keys())
+        ]
+
+    def _update_export_stl_enabled(self) -> None:
+        if self._export_stl_act is not None:
+            self._export_stl_act.setEnabled(
+                bool(
+                    self._exportable_topo_shapes()
+                    or self._snappy.shapes
+                    or self._exportable_set_fields_shapes()
+                )
+            )
+
+    def _export_shapes_stl(self) -> None:
+        exportable = self._exportable_topo_shapes()
+        set_fields_exportable = self._exportable_set_fields_shapes()
+        if not _PYVISTA_OK or not (
+            exportable or self._snappy.shapes or set_fields_exportable
+        ):
+            return
+        topo_visible = {id(s) for s in self._topo.visible_shapes()}
+        snappy_visible = {id(s) for s in self._snappy.visible_shapes()}
+        set_fields_visible = {id(s) for s in self._set_fields.visible_shapes()}
+        dlg = ExportStlDialog(
+            exportable, topo_visible,
+            self._snappy.shapes, snappy_visible,
+            self,
+            set_fields_shapes=set_fields_exportable,
+            set_fields_visible=set_fields_visible,
+        )
+        dlg.exec()

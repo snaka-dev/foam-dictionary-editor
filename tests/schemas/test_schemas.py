@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 import json
+
 import pytest
+
 from schemas._base import (
-    ChoiceItem,
-    KeySchema,
     FOUNDATION_V13,
     OPENCFD_SERIES,
+    ChoiceItem,
+    KeySchema,
     _versions_text,
 )
 from schemas.builtin import get_default_schema_config
@@ -17,7 +19,8 @@ from schemas.config_store import (
     save_schema_config,
 )
 from schemas.registry import SchemaRegistry
-
+from schemas.snappy_hex_mesh_dict import SCHEMAS as SNAPPY_SCHEMAS
+from schemas.snappy_hex_mesh_dict import TARGET_FILE as SNAPPY_TARGET_FILE
 
 # ── fixtures ──────────────────────────────────────────────────────────────────
 
@@ -260,6 +263,16 @@ class TestSchemaRegistryLookup:
 
     def test_schema_note_empty_when_absent(self, registry):
         assert registry.schema_note_text("/case/system/controlDict", "writeFormat") == ""
+
+
+class TestSnappyHexMeshDictPackageSplit:
+    """schemas/snappy_hex_mesh_dict/ is split into subdomain submodules merged in __init__.py."""
+
+    def test_target_file_unchanged(self):
+        assert SNAPPY_TARGET_FILE == "snappyHexMeshDict"
+
+    def test_entry_count_unchanged(self):
+        assert len(SNAPPY_SCHEMAS) == 70
 
 
 class TestSchemaRegistryContextLookup:

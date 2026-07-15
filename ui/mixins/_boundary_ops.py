@@ -18,6 +18,33 @@ from ui.layout_constants import (
 )
 
 
+def _find_boundary_field(root: FoamNode) -> FoamNode | None:
+    """Return root's 'boundaryField' dictionary child, or None."""
+    return next(
+        (n for n in root.children if n.name == "boundaryField" and n.node_type == "dictionary"),
+        None,
+    )
+
+
+def _append_new_patch(boundary_field: FoamNode, patch_name: str) -> FoamNode:
+    """Append an empty, modified patch dictionary to boundary_field."""
+    patch = FoamNode(name=patch_name, node_type="dictionary", modified=True)
+    patch.leading_trivia = ["\n"]
+    patch.parent = boundary_field
+    boundary_field.children.append(patch)
+    boundary_field.modified = True
+    return patch
+
+
+def _set_patch_children(patch: FoamNode, children: list[FoamNode]) -> None:
+    """Replace patch's children, reparent them, and force regeneration."""
+    patch.children = children
+    for child in children:
+        child.parent = patch
+    patch.modified = True
+    patch.raw_text = ""
+
+
 class _BoundaryOpsMixin:
     """Boundary view population and patch-level edit operations."""
 
@@ -109,11 +136,7 @@ class _BoundaryOpsMixin:
             except Exception as e:
                 QMessageBox.warning(self, tr("Parse Error"), tr("Could not parse patch content:\n{e}").format(e=e))
                 return
-            live_patch.children = new_children
-            for child in new_children:
-                child.parent = live_patch
-            live_patch.modified = True
-            live_patch.raw_text = ""
+            _set_patch_children(live_patch, new_children)
 
         self._apply_boundary_root_change(path, root)
         self.statusBar().showMessage(tr("Boundary updated: {file} / {patch}").format(file=Path(path).name, patch=patch_name), _STATUS_SHORT)
@@ -138,22 +161,13 @@ class _BoundaryOpsMixin:
             QMessageBox.warning(self, tr("Parse Error"), tr("Could not parse patch content:\n{e}").format(e=e))
             return
 
-        boundary_field = next(
-            (n for n in root.children if n.name == "boundaryField" and n.node_type == "dictionary"),
-            None,
-        )
+        boundary_field = _find_boundary_field(root)
         if boundary_field is None:
             QMessageBox.warning(self, tr("Error"), tr("No boundaryField found in {field}.").format(field=field_name))
             return
 
-        new_patch = FoamNode(name=patch_name, node_type="dictionary", modified=True)
-        new_patch.leading_trivia = ["\n"]
-        new_patch.parent = boundary_field
-        new_patch.children = new_children
-        for child in new_children:
-            child.parent = new_patch
-        boundary_field.children.append(new_patch)
-        boundary_field.modified = True
+        new_patch = _append_new_patch(boundary_field, patch_name)
+        _set_patch_children(new_patch, new_children)
 
         self._apply_boundary_root_change(path, root)
         self.statusBar().showMessage(tr("Created boundary: {field} / {patch}").format(field=field_name, patch=patch_name), _STATUS_SHORT)
@@ -170,24 +184,13 @@ class _BoundaryOpsMixin:
 
         live_patch = extract_boundary(root).get(patch_name)
         if live_patch is None:
-            boundary_field = next(
-                (n for n in root.children if n.name == "boundaryField" and n.node_type == "dictionary"),
-                None,
-            )
+            boundary_field = _find_boundary_field(root)
             if boundary_field is None:
                 QMessageBox.warning(self, tr("Paste Error"), tr("No boundaryField in {file}.").format(file=Path(path).name))
                 return
-            live_patch = FoamNode(name=patch_name, node_type="dictionary", modified=True)
-            live_patch.leading_trivia = ["\n"]
-            live_patch.parent = boundary_field
-            boundary_field.children.append(live_patch)
-            boundary_field.modified = True
+            live_patch = _append_new_patch(boundary_field, patch_name)
 
-        live_patch.children = new_children
-        for child in new_children:
-            child.parent = live_patch
-        live_patch.modified = True
-        live_patch.raw_text = ""
+        _set_patch_children(live_patch, new_children)
 
         self._apply_boundary_root_change(path, root)
         self.statusBar().showMessage(tr("Pasted to {file} / {patch}").format(file=Path(path).name, patch=patch_name), _STATUS_SHORT)
@@ -196,10 +199,7 @@ class _BoundaryOpsMixin:
         root = self.state.parsed_roots.get(path)
         if root is None:
             return
-        boundary_field = next(
-            (n for n in root.children if n.name == "boundaryField" and n.node_type == "dictionary"),
-            None,
-        )
+        boundary_field = _find_boundary_field(root)
         if boundary_field is None:
             return
         patch_node = next((c for c in boundary_field.children if c.name == patch_name), None)
@@ -270,22 +270,15 @@ class _BoundaryOpsMixin:
             return
 
         file_list = "\n".join(f"  • {Path(p).name}" for p in sorted(affected, key=lambda p: Path(p).name))
-        reply = QMessageBox.question(
-            self,
+        if not self._confirm(
             tr("Delete BoundaryField"),
             tr("Delete '{patch}' from {n} file(s)?\n\n{files}").format(patch=patch_name, n=len(affected), files=file_list),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if reply != QMessageBox.Yes:
+        ):
             return
 
         for path in affected:
             root = self.state.parsed_roots[path]
-            boundary_field = next(
-                (n for n in root.children if n.name == "boundaryField" and n.node_type == "dictionary"),
-                None,
-            )
+            boundary_field = _find_boundary_field(root)
             if boundary_field is None:
                 continue
             patch_node = next((c for c in boundary_field.children if c.name == patch_name), None)
@@ -302,39 +295,25 @@ class _BoundaryOpsMixin:
         targets = [
             path for path, root in self.state.parsed_roots.items()
             if patch_name not in extract_boundary(root)
-            and any(
-                n.name == "boundaryField" and n.node_type == "dictionary"
-                for n in root.children
-            )
+            and _find_boundary_field(root) is not None
         ]
         if not targets:
             return
 
-        reply = QMessageBox.question(
-            self,
+        if not self._confirm(
             tr("Add BoundaryField"),
             tr("An empty entry will be added to {n} field file(s).\nEdit each cell to add boundary condition content.\n\nProceed?").format(n=len(targets)),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if reply != QMessageBox.Yes:
+        ):
             return
 
         added: list[str] = []
         for path in targets:
             root = self.state.parsed_roots[path]
-            boundary_field = next(
-                (n for n in root.children if n.name == "boundaryField" and n.node_type == "dictionary"),
-                None,
-            )
+            boundary_field = _find_boundary_field(root)
             if boundary_field is None:
                 continue
 
-            new_patch = FoamNode(name=patch_name, node_type="dictionary", modified=True)
-            new_patch.leading_trivia = ["\n"]
-            new_patch.parent = boundary_field
-            boundary_field.children.append(new_patch)
-            boundary_field.modified = True
+            _append_new_patch(boundary_field, patch_name)
             self._apply_boundary_root_change(path, root)
             added.append(path)
 

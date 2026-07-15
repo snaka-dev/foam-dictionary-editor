@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from foam.utils import is_script_text
 from ui.widgets.code_editor import CodeEditor
 
 _SPACING_LARGE = 16
@@ -61,9 +62,22 @@ class EditorPanel(QWidget):
 
     def set_text(self, text: str) -> None:
         self._updating_programmatically = True
+        # Shebang → shell-script highlighting (Allrun etc.), else OpenFOAM rules.
+        self._editor.set_shell_mode(is_script_text(text))
         self._editor.setPlainText(text)
         self._updating_programmatically = False
         self._update_cursor_status()
+
+    def reload_highlighting(self) -> None:
+        """Reload the highlighter's keyword list without emitting user_text_changed.
+
+        QSyntaxHighlighter.rehighlight() fires the document's textChanged even
+        though only formatting changed, so the guard is required to keep the
+        file from being marked dirty.
+        """
+        self._updating_programmatically = True
+        self._editor.reload_highlighting()
+        self._updating_programmatically = False
 
     def get_text(self) -> str:
         return self._editor.toPlainText()

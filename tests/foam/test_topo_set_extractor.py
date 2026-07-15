@@ -417,3 +417,166 @@ def test_unresolvable_geometric_source_not_listed_as_non_geometric():
     data = extract_topo_set_data(root)
     assert data.shapes == []
     assert data.non_geometric == []
+
+
+# ── box syntax variants ────────────────────────────────────────────────────────
+
+def test_box_min_max():
+    src = _action(_entry(
+        name="slab", type="cellSet", action="new", source="boxToCell",
+        min="(0 0 0)", max="(1 2 3)",
+    ))
+    shapes = extract_topo_set_data(_parse(src)).shapes
+    assert len(shapes) == 1
+    assert shapes[0].geometry["box"] == [[0.0, 0.0, 0.0], [1.0, 2.0, 3.0]]
+
+
+def test_box_min_without_max_skipped():
+    src = _action(_entry(
+        name="slab", type="cellSet", action="new", source="boxToCell",
+        min="(0 0 0)",
+    ))
+    data = extract_topo_set_data(_parse(src))
+    assert data.shapes == []
+    assert data.non_geometric == []
+
+
+def test_boxes_list():
+    src = _action(_entry(
+        name="twin", type="cellSet", action="new", source="boxToCell",
+        boxes="( (0 0 0) (1 1 1)  (2 0 0) (3 1 1) )",
+    ))
+    shapes = extract_topo_set_data(_parse(src)).shapes
+    assert len(shapes) == 1
+    assert shapes[0].geometry["boxes"] == [
+        [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]],
+        [[2.0, 0.0, 0.0], [3.0, 1.0, 1.0]],
+    ]
+
+
+def test_boxes_list_odd_vector_count_skipped():
+    src = _action(_entry(
+        name="twin", type="cellSet", action="new", source="boxToCell",
+        boxes="( (0 0 0) (1 1 1)  (2 0 0) )",
+    ))
+    data = extract_topo_set_data(_parse(src))
+    assert data.shapes == []
+    assert data.non_geometric == []
+
+
+def test_boxes_list_with_vars():
+    src = VARS_HEADER + "actions\n(\n" + _entry(
+        name="twin", type="cellSet", action="new", source="boxToCell",
+        boxes="( ($xMin 0 0) ($xMax $yMax 1) )",
+    ) + ");\n"
+    shapes = extract_topo_set_data(_parse(src)).shapes
+    assert len(shapes) == 1
+    assert shapes[0].geometry["boxes"] == [[[-0.01, 0.0, 0.0], [0.01, 0.009, 1.0]]]
+
+
+# ── sphere syntax variants ─────────────────────────────────────────────────────
+
+def test_sphere_origin_alias_stored_as_centre():
+    src = _action(_entry(
+        name="ball", type="cellSet", action="new", source="sphereToCell",
+        origin="(1 2 3)", radius="0.5",
+    ))
+    shapes = extract_topo_set_data(_parse(src)).shapes
+    assert len(shapes) == 1
+    g = shapes[0].geometry
+    assert pytest.approx(g["centre"]) == [1.0, 2.0, 3.0]
+    assert "origin" not in g          # must not clash with rotatedBox dispatch
+
+
+def test_sphere_inner_radius():
+    src = _action(_entry(
+        name="shell", type="cellSet", action="new", source="sphereToCell",
+        origin="(0 0 0)", radius="0.5", innerRadius="0.2",
+    ))
+    shapes = extract_topo_set_data(_parse(src)).shapes
+    assert shapes[0].geometry["innerRadius"] == pytest.approx(0.2)
+
+
+def test_sphere_without_inner_radius_has_no_key():
+    src = _action(_entry(
+        name="ball", type="cellSet", action="new", source="sphereToCell",
+        centre="(0 0 0)", radius="0.5",
+    ))
+    shapes = extract_topo_set_data(_parse(src)).shapes
+    assert "innerRadius" not in shapes[0].geometry
+
+
+# ── point-carrying sources ─────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("source", ["nearestToCell", "nearestToPoint"])
+def test_nearest_points(source):
+    src = _action(_entry(
+        name="near", type="cellSet", action="new", source=source,
+        points="( (0 0 0) (1 1 1) )",
+    ))
+    shapes = extract_topo_set_data(_parse(src)).shapes
+    assert len(shapes) == 1
+    assert shapes[0].geometry["points"] == [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]
+
+
+def test_region_to_cell_inside_points():
+    src = _action(_entry(
+        name="region", type="cellSet", action="new", source="regionToCell",
+        insidePoints="( (0.5 0.5 0.5) )", set="other",
+    ))
+    shapes = extract_topo_set_data(_parse(src)).shapes
+    assert len(shapes) == 1
+    assert shapes[0].geometry["points"] == [[0.5, 0.5, 0.5]]
+
+
+def test_region_to_cell_single_inside_point():
+    src = _action(_entry(
+        name="region", type="cellSet", action="new", source="regionToCell",
+        insidePoint="(0.5 0.5 0.5)",
+    ))
+    shapes = extract_topo_set_data(_parse(src)).shapes
+    assert len(shapes) == 1
+    assert shapes[0].geometry["points"] == [[0.5, 0.5, 0.5]]
+
+
+def test_region_to_face_near_point():
+    src = _action(_entry(
+        name="regionFace", type="faceSet", action="new", source="regionToFace",
+        set="someFaces", nearPoint="(1 0 0)",
+    ))
+    shapes = extract_topo_set_data(_parse(src)).shapes
+    assert len(shapes) == 1
+    assert shapes[0].geometry["points"] == [[1.0, 0.0, 0.0]]
+
+
+def test_point_source_without_points_dropped():
+    src = _action(_entry(
+        name="near", type="cellSet", action="new", source="nearestToCell",
+    ))
+    data = extract_topo_set_data(_parse(src))
+    assert data.shapes == []
+    assert data.non_geometric == []
+
+
+# ── planeToFaceZone ────────────────────────────────────────────────────────────
+
+def test_plane_to_face_zone():
+    src = _action(_entry(
+        name="mid", type="faceZoneSet", action="new", source="planeToFaceZone",
+        point="(0.05 0 0)", normal="(1 0 0)", option="closest",
+    ))
+    shapes = extract_topo_set_data(_parse(src)).shapes
+    assert len(shapes) == 1
+    g = shapes[0].geometry
+    assert pytest.approx(g["planePoint"]) == [0.05, 0.0, 0.0]
+    assert pytest.approx(g["planeNormal"]) == [1.0, 0.0, 0.0]
+
+
+def test_plane_missing_normal_dropped():
+    src = _action(_entry(
+        name="mid", type="faceZoneSet", action="new", source="planeToFaceZone",
+        point="(0.05 0 0)",
+    ))
+    data = extract_topo_set_data(_parse(src))
+    assert data.shapes == []
+    assert data.non_geometric == []

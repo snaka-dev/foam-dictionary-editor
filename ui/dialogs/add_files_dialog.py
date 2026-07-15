@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from services.case_loader import list_directory_files
+from ui.panels.file_list_panel import group_display_name
 from i18n import tr
 
 _DIALOG_WIDTH = 400
@@ -33,7 +34,8 @@ class AddFilesDialog(QDialog):
         parent=None,
     ):
         super().__init__(parent)
-        self.setWindowTitle(tr("Add files from '{group}'").format(group=group))
+        shown = group_display_name(group)
+        self.setWindowTitle(tr("Add files from '{group}'").format(group=shown))
         self.resize(_DIALOG_WIDTH, _DIALOG_HEIGHT)
 
         all_files = list_directory_files(case_dir, group)
@@ -42,7 +44,7 @@ class AddFilesDialog(QDialog):
         layout = QVBoxLayout(self)
 
         if unloaded:
-            layout.addWidget(QLabel(tr("Select files to add from '{group}':").format(group=group)))
+            layout.addWidget(QLabel(tr("Select files to add from '{group}':").format(group=shown)))
 
             sel_row = QHBoxLayout()
             select_all_btn = QPushButton(tr("Select All"))
@@ -78,7 +80,7 @@ class AddFilesDialog(QDialog):
             self._add_btn.clicked.connect(self.accept)
             cancel_btn.clicked.connect(self.reject)
         else:
-            layout.addWidget(QLabel(tr("All files in '{group}' are already in the file list.").format(group=group)))
+            layout.addWidget(QLabel(tr("All files in '{group}' are already in the file list.").format(group=shown)))
             bottom = QHBoxLayout()
             bottom.addStretch()
             close_btn = QPushButton(tr("Close"))

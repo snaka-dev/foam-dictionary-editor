@@ -18,7 +18,7 @@ so that users can try FoDE on real cases and reproduce the worked tutorials.
 | `oneBlocks-vars/`                 | Derived from `cavity` (custom `blockMeshDict`)                   | `icoFoam`            | As `oneBlocks` but uses variable definitions and compact face notation `(block face)` |
 | `nineBlocks/`                     | Derived from `cavity` (custom `blockMeshDict`)                   | `icoFoam`            | 3×3 multi-block case; tests multi-block `blockMeshDict` and regex boundary patches    |
 | `nineBlocks-vars/`                | Derived from `cavity` (custom `blockMeshDict`)                   | `icoFoam`            | As `nineBlocks` but uses variable definitions and compact face notation                |
-| `topoSetShapes/`                  | Custom (single 3×3×3 block + `topoSetDict`)                      | `icoFoam`            | Tests `topoSetDict` geometry overlay in the 3-D viewer (box/sphere/cylinder/cone family, `$var`/`#eval`) |
+| `topoSetShapes/`                  | Custom (single 3×3×3 block + `topoSetDict`)                      | `icoFoam`            | Tests `topoSetDict` geometry overlay in the 3-D viewer (box incl. `min`/`max` and `boxes` forms, sphere incl. hollow `origin`+`innerRadius`, cylinder/cone family, point markers, `planeToFaceZone`, `$var`/`#eval`) |
 
 The `cavity/` subdirectories, `snappyMultiRegionHeater`, and `damBreak` are
 taken unchanged from the standard tutorial set distributed with OpenFOAM

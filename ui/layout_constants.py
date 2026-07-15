@@ -20,6 +20,8 @@ SPLITTER_COMPARISON_WIDTH = 400
 # ── Well-known file names ───────────────────────────────────────────────────
 BLOCKMESH_DICT_NAME = "blockMeshDict"
 TOPOSET_DICT_NAME = "topoSetDict"
+SNAPPY_HEX_MESH_DICT_NAME = "snappyHexMeshDict"
+SETFIELDS_DICT_NAME = "setFieldsDict"
 
 # ── Tree view ────────────────────────────────────────────────────────────────
 TREE_EXPAND_DEPTH = 2

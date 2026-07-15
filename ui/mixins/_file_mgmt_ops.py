@@ -21,7 +21,7 @@ from services.case_loader import list_case_files
 from ui.dialogs.add_files_dialog import AddFilesDialog
 from ui.dialogs.clean_backups_dialog import CleanBackupsDialog, find_backup_files
 from ui.dialogs.manage_extra_files_dialog import ManageExtraFilesDialog
-from ui.panels.file_list_panel import display_file_name
+from ui.panels.file_list_panel import display_file_name, group_display_name
 from ui.layout_constants import (
     STATUS_NORMAL as _STATUS_NORMAL,
     STATUS_SHORT as _STATUS_SHORT,
@@ -36,7 +36,9 @@ class _FileManagementOpsMixin:
         filename, ok = QInputDialog.getText(
             self,
             tr("New File"),
-            tr("File name (will be created in {group}/):").format(group=group),
+            tr("File name (will be created in {group}/):").format(
+                group=group_display_name(group)
+            ),
         )
         if not ok:
             return
@@ -65,7 +67,8 @@ class _FileManagementOpsMixin:
             self.state.case_files_config.save()
 
         self._reload_file_list()
-        self.statusBar().showMessage(tr("Created: {group}/{filename}").format(group=group, filename=filename), _STATUS_SHORT)
+        created_rel = str(Path(group) / filename)  # normalizes './x' to 'x' for case root
+        self.statusBar().showMessage(tr("Created: {name}").format(name=created_rel), _STATUS_SHORT)
         self.file_list_panel.select_file(str(target))
 
     def _on_add_file_requested(self, case_dir: str, group: str) -> None:

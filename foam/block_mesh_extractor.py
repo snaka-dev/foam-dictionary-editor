@@ -17,6 +17,9 @@ class BlockMeshData:
     hex_blocks: list[list[int]]
     # patch_name → (patch_type, list_of_face_vertex_lists)
     boundary_faces: dict[str, tuple[str, list[list[int]]]] = field(default_factory=dict)
+    # Exterior block faces not claimed by any boundary patch — blockMesh's
+    # implicit defaultFaces patch (type "empty" unless defaultPatch overrides).
+    default_faces: list[list[int]] = field(default_factory=list)
     scale: float = 1.0
 
 
@@ -103,6 +106,36 @@ def _expand_compact_faces(
                     new_faces.append([block[i] for i in _HEX_FACE_VERTICES[face_idx]])
         expanded[patch_name] = (patch_type, new_faces)
     return expanded
+
+
+def _compute_default_faces(
+    hex_blocks: list[list[int]],
+    boundary_faces: dict[str, tuple[str, list[list[int]]]],
+) -> list[list[int]]:
+    """Return exterior block faces not claimed by any boundary patch.
+
+    blockMesh collects these into its implicit defaultFaces patch. Quasi-2-D
+    cases (e.g. damBreak) leave their large front/back faces unlisted in
+    boundary, so without this the 3-D viewer draws no visible boundary at all.
+    Expects boundary_faces already expanded to 4-vertex form. A face shared by
+    two blocks is interior; fully collapsed faces (degenerate blocks) are
+    skipped.
+    """
+    seen: dict[frozenset[int], tuple[list[int], int]] = {}
+    for block in hex_blocks:
+        for local in _HEX_FACE_VERTICES:
+            face = [block[i] for i in local]
+            key = frozenset(face)
+            if len(key) < 3:
+                continue
+            prev = seen.get(key)
+            seen[key] = (face, (prev[1] + 1) if prev else 1)
+    claimed = {
+        frozenset(f)
+        for _patch_type, faces in boundary_faces.values()
+        for f in faces
+    }
+    return [face for key, (face, n) in seen.items() if n == 1 and key not in claimed]
 
 
 def _extract_boundary_from_tree(boundary_node: FoamNode) -> dict[str, tuple[str, list[list[int]]]]:
@@ -259,6 +292,8 @@ def extract_block_mesh_data(root: FoamNode) -> BlockMeshData:
     # Expand compact (blockIndex, faceIndex) notation to 4-vertex lists
     boundary_faces = _expand_compact_faces(boundary_faces, hex_blocks)
 
+    default_faces = _compute_default_faces(hex_blocks, boundary_faces)
+
     # Apply scale factor to vertex coordinates
     if scale != 1.0:
         vertices = [[coord * scale for coord in v] for v in vertices]
@@ -267,5 +302,6 @@ def extract_block_mesh_data(root: FoamNode) -> BlockMeshData:
         vertices=vertices,
         hex_blocks=hex_blocks,
         boundary_faces=boundary_faces,
+        default_faces=default_faces,
         scale=scale,
     )

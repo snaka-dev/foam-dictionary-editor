@@ -2,10 +2,9 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
-from app_config.constants import JSON_INDENT
+from app_config.json_io import load_json, save_json
 
 _CONFIG_FILENAME = ".foam-editor-files.json"
 
@@ -23,23 +22,21 @@ class CaseFilesConfig:
         self._load()
 
     def _load(self) -> None:
-        if not self._path.exists():
-            return
-        try:
-            data = json.loads(self._path.read_text(encoding="utf-8"))
-            self._extra_files = [str(f) for f in data.get("extra_files", [])]
-            self._extra_dirs = []
-            for d in data.get("extra_dirs", []):
-                if isinstance(d, dict):
-                    self._extra_dirs.append(
-                        (str(d.get("path", "")), bool(d.get("recursive", False)))
-                    )
-                else:
-                    # Backward compat: old format stored plain strings (non-recursive).
-                    self._extra_dirs.append((str(d), False))
-        except (json.JSONDecodeError, IOError):
+        data = load_json(self._path)
+        if data is None:
             self._extra_files = []
             self._extra_dirs = []
+            return
+        self._extra_files = [str(f) for f in data.get("extra_files", [])]
+        self._extra_dirs = []
+        for d in data.get("extra_dirs", []):
+            if isinstance(d, dict):
+                self._extra_dirs.append(
+                    (str(d.get("path", "")), bool(d.get("recursive", False)))
+                )
+            else:
+                # Backward compat: old format stored plain strings (non-recursive).
+                self._extra_dirs.append((str(d), False))
 
     def save(self) -> None:
         data: dict = {"extra_files": self._extra_files}
@@ -47,10 +44,7 @@ class CaseFilesConfig:
             data["extra_dirs"] = [
                 {"path": p, "recursive": r} for p, r in self._extra_dirs
             ]
-        self._path.write_text(
-            json.dumps(data, indent=JSON_INDENT, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        save_json(self._path, data)
 
     def get_extra_files(self) -> list[str]:
         return list(self._extra_files)

@@ -9,7 +9,7 @@ from foam.nodes import BOOL_WORDS, NON_KEY_EDITABLE, STRING_TYPES, FoamNode
 from foam.utils import (
     classify_simple_value,
     format_embedded_value,
-    format_scalar,
+    format_leaf_value,
     is_int,
     is_number,
     parse_box_pair,
@@ -35,7 +35,7 @@ class FoamTreeModel(QAbstractItemModel):
         super().__init__(parent)
         self.root = root
         self._diff: dict[FoamNode, tuple[str, FoamNode | None]] | None = None
-        self._attach_parents(self.root, None)
+        self.attach_parents(self.root, None)
 
     def columnCount(self, parent=QModelIndex()):
         return 3
@@ -173,7 +173,7 @@ class FoamTreeModel(QAbstractItemModel):
         return node.children
 
     def insert_node(self, parent_node: FoamNode, position: int, new_node: FoamNode) -> QModelIndex:
-        parent_index = self._index_of_node(parent_node)
+        parent_index = self.index_of_node(parent_node)
         self.beginInsertRows(parent_index, position, position)
         new_node.parent = parent_node
         parent_node.children.insert(position, new_node)
@@ -187,7 +187,7 @@ class FoamTreeModel(QAbstractItemModel):
             row = siblings.index(node)
         except ValueError:
             return
-        parent_index = self._index_of_node(parent_node)
+        parent_index = self.index_of_node(parent_node)
         self.beginRemoveRows(parent_index, row, row)
         siblings.pop(row)
         node.parent = None
@@ -226,7 +226,7 @@ class FoamTreeModel(QAbstractItemModel):
         for row in range(n):
             self._emit_datachanged_recursive(self.index(row, 0, parent))
 
-    def _index_of_node(self, node: FoamNode) -> QModelIndex:
+    def index_of_node(self, node: FoamNode) -> QModelIndex:
         if node is self.root or node is None:
             return QModelIndex()
         parent_node = node.parent if node.parent is not None else self.root
@@ -237,11 +237,11 @@ class FoamTreeModel(QAbstractItemModel):
             return QModelIndex()
         return self.createIndex(row, 0, node)
 
-    def _attach_parents(self, node: FoamNode, parent: FoamNode | None):
+    def attach_parents(self, node: FoamNode, parent: FoamNode | None):
         node.parent = parent
         for child in self._child_list(node):
             if isinstance(child, FoamNode):
-                self._attach_parents(child, node)
+                self.attach_parents(child, node)
 
     def _column_value(self, node: FoamNode, column: int):
         if column == self.COL_KEY:
@@ -282,40 +282,13 @@ class FoamTreeModel(QAbstractItemModel):
                 f"{format_embedded_value(data.get('value_type'), data.get('value'), data.get('raw_value'))}"
             ).strip()
 
-        if t == "bool":
-            return str(node.value)
-
         if t == "nonuniform_list":
             parts = str(node.value).split(None, 3)
             list_type = parts[1] if len(parts) > 1 else "List"
             count_str = parts[2] if len(parts) > 2 and parts[2] != "(" else "?"
             return f"nonuniform {list_type} ({count_str} values)"
 
-        if t in {"directive_entry", "unknown_raw_entry", "macro_entry"}:
-            return str(node.value)
-
-        if t == "box_pair":
-            p1, p2 = node.value
-            left = "(" + " ".join(format_scalar(x) for x in p1) + ")"
-            right = "(" + " ".join(format_scalar(x) for x in p2) + ")"
-            return f"{left} {right}"
-
-        if t in {"vector", "scalar_list"}:
-            return "(" + " ".join(format_scalar(x) for x in node.value) + ")"
-
-        if t == "int_list":
-            return "(" + " ".join(str(x) for x in node.value) + ")"
-
-        if t == "raw_list":
-            return "(" + str(node.value) + ")"
-
-        if t in STRING_TYPES:
-            return str(node.value)
-
-        if t in {"int", "scalar"}:
-            return format_scalar(node.value)
-
-        return "" if node.value is None else str(node.value)
+        return format_leaf_value(t, node.value)
 
     def _tooltip(self, node: FoamNode) -> str:
         if node.node_type == "field_value":

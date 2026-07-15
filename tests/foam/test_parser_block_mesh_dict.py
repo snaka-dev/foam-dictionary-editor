@@ -149,6 +149,74 @@ def test_extract_boundary_faces():
     assert data.boundary_faces["frontAndBack"] == ("empty", [[0, 3, 2, 1], [4, 5, 6, 7]])
 
 
+def test_default_faces_empty_when_boundary_covers_all():
+    root = OpenFoamParser(BLOCK_MESH_DICT).parse()
+    data = extract_block_mesh_data(root)
+    assert data.default_faces == []
+
+
+def test_default_faces_collects_unassigned_exterior_faces():
+    # Drop the frontAndBack patch: its two faces become blockMesh's implicit
+    # defaultFaces and must be reported so the 3-D viewer can draw them.
+    src = BLOCK_MESH_DICT.replace(
+        """    frontAndBack
+    {
+        type empty;
+        faces
+        (
+            (0 3 2 1)
+            (4 5 6 7)
+        );
+    }
+""",
+        "",
+    )
+    data = extract_block_mesh_data(OpenFoamParser(src).parse())
+    assert "frontAndBack" not in data.boundary_faces
+    assert {frozenset(f) for f in data.default_faces} == {
+        frozenset({0, 1, 2, 3}),
+        frozenset({4, 5, 6, 7}),
+    }
+
+
+def test_default_faces_claimed_in_any_rotation():
+    # A boundary face listed with a different vertex ordering/rotation than the
+    # canonical hex face table must still count as claimed.
+    src = BLOCK_MESH_DICT.replace("(0 3 2 1)", "(1 0 3 2)")
+    data = extract_block_mesh_data(OpenFoamParser(src).parse())
+    assert data.default_faces == []
+
+
+def test_default_faces_skip_interior_faces():
+    src = """
+FoamFile { version 2.0; format ascii; class dictionary; object blockMeshDict; }
+vertices
+(
+    (0 0 0) (1 0 0) (1 1 0) (0 1 0)
+    (0 0 1) (1 0 1) (1 1 1) (0 1 1)
+    (2 0 0) (2 1 0) (2 0 1) (2 1 1)
+);
+blocks
+(
+    hex (0 1 2 3 4 5 6 7) (1 1 1) simpleGrading (1 1 1)
+    hex (1 8 9 2 5 10 11 6) (1 1 1) simpleGrading (1 1 1)
+);
+boundary
+(
+);
+"""
+    data = extract_block_mesh_data(OpenFoamParser(src).parse())
+    # 12 block faces total, the shared one (1 2 6 5) appears twice → interior.
+    assert len(data.default_faces) == 10
+    assert frozenset({1, 2, 6, 5}) not in {frozenset(f) for f in data.default_faces}
+
+
+def test_default_faces_no_boundary_at_all():
+    src = BLOCK_MESH_DICT.split("boundary")[0]
+    data = extract_block_mesh_data(OpenFoamParser(src).parse())
+    assert len(data.default_faces) == 6
+
+
 def test_parse_vertices_public_api():
     from foam.block_mesh_extractor import parse_vertices
     raw = "(0 0 0) (1 0 0) (1 1 0) (0 1 0)"

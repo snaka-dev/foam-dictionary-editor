@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from schemas._base import (
-    ChoiceItem, KeySchema,
-    FOUNDATION_V13, OPENCFD_SERIES,
+    FOUNDATION_V13,
+    OPENCFD_SERIES,
+    ChoiceItem,
+    KeySchema,
 )
 
 TARGET_FILE = "blockMeshDict"

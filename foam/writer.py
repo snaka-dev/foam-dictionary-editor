@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import re
 
-from foam.nodes import STRING_TYPES, FoamNode
-from foam.utils import format_embedded_value, format_scalar
+from foam.nodes import FoamNode
+from foam.utils import format_embedded_value, format_leaf_value
 
 MAX_CONSECUTIVE_NEWLINES = 3
 
@@ -117,38 +117,9 @@ def _write_simple_entry(node: FoamNode, indent: int = 0) -> str:
 
 
 def _format_value(node: FoamNode) -> str:
-    if node.node_type in {"vector", "scalar_list"}:
-        return "(" + " ".join(format_scalar(x) for x in node.value) + ")"
-
-    if node.node_type == "box_pair":
-        p1, p2 = node.value
-        return (
-            "(" + " ".join(format_scalar(x) for x in p1) + ") "
-            "(" + " ".join(format_scalar(x) for x in p2) + ")"
-        )
-
-    if node.node_type == "int_list":
-        return "(" + " ".join(str(x) for x in node.value) + ")"
-
-    if node.node_type == "raw_list":
-        return "(" + str(node.value) + ")"
-
     if node.node_type == "field_value":
         return _format_field_value_dict(node.value)
-
-    if node.node_type in STRING_TYPES:
-        return str(node.value)
-
-    if node.node_type in {"bool", "nonuniform_list"}:
-        return str(node.value)
-
-    if node.node_type == "int":
-        return str(node.value)
-
-    if node.node_type == "scalar":
-        return format_scalar(node.value)
-
-    return "" if node.value is None else str(node.value)
+    return format_leaf_value(node.node_type, node.value)
 
 
 def _format_field_value_dict(data: dict) -> str:

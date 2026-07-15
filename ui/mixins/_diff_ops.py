@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QFileDialog
 
 from foam.diff import diff_trees, diff_trees_reverse
 from foam.parser import OpenFoamParser
-from foam.utils import read_foam_file, is_large_non_foam_file
+from foam.utils import read_foam_file, is_large_non_foam_file, is_log_filename, is_script_path
 from i18n import tr
 from ui.layout_constants import (
     SPLITTER_COMPARISON_WIDTH,
@@ -44,7 +44,11 @@ class _DiffOpsMixin:
         )
         if not directory:
             return
-        self.state.diff_case_dir = directory
+        self._start_comparison_with(directory)
+
+    def _start_comparison_with(self, directory: str) -> None:
+        """Set *directory* as the reference case and show the comparison UI."""
+        self.state.diff.case_dir = directory
         name = Path(directory).name or directory
         self._diff_path_label.setText(
             tr("Comparing with: <b>{name}</b>  ({directory})").format(name=name, directory=directory)
@@ -56,8 +60,8 @@ class _DiffOpsMixin:
         self._side_by_side_cb.setChecked(True)
 
     def _clear_diff(self) -> None:
-        self.state.diff_case_dir = None
-        self.state.diff_parsed_roots.clear()
+        self.state.diff.case_dir = None
+        self.state.diff.parsed_roots.clear()
         self._diff_bar.hide()
         self.state.current_model.clear_diff()
         self.comparison_panel.clear()
@@ -71,15 +75,20 @@ class _DiffOpsMixin:
         self.statusBar().showMessage(tr("Diff cleared."), _STATUS_SHORT)
 
     def _recompute_diff(self) -> None:
-        if not self.state.diff_case_dir or not self.state.current_file or not self.state.current_case_dir:
+        if not self.state.diff.case_dir or not self.state.current_file or not self.state.current_case_dir:
             return
         try:
             rel = Path(self.state.current_file).relative_to(Path(self.state.current_case_dir))
         except ValueError:
             return
-        other_path = Path(self.state.diff_case_dir) / rel
+        if is_script_path(self.state.current_file) or is_log_filename(rel.name):
+            # Shell scripts and run logs have no meaningful dictionary tree to diff.
+            self.state.current_model.clear_diff()
+            self.comparison_panel.clear()
+            return
+        other_path = Path(self.state.diff.case_dir) / rel
         other_key = str(other_path)
-        if other_key not in self.state.diff_parsed_roots:
+        if other_key not in self.state.diff.parsed_roots:
             if not other_path.exists():
                 self.state.current_model.clear_diff()
                 self.comparison_panel.clear()
@@ -88,18 +97,18 @@ class _DiffOpsMixin:
                 )
                 return
             try:
-                self.state.diff_parsed_roots[other_key] = OpenFoamParser(
+                self.state.diff.parsed_roots[other_key] = OpenFoamParser(
                     read_foam_file(other_key)
                 ).parse()
             except Exception:
                 self.state.current_model.clear_diff()
                 self.comparison_panel.clear()
                 return
-        other_root = self.state.diff_parsed_roots[other_key]
+        other_root = self.state.diff.parsed_roots[other_key]
         diff_map = diff_trees(self.state.current_root, other_root)
         rev_diff_map = diff_trees_reverse(other_root, self.state.current_root)
         self.state.current_model.set_diff(diff_map)
-        case_name = Path(self.state.diff_case_dir).name or self.state.diff_case_dir
+        case_name = Path(self.state.diff.case_dir).name or self.state.diff.case_dir
         self.comparison_panel.load(other_root, rev_diff_map, case_name)
         n = len(diff_map)
         self.file_list_panel.mark_diff(self.state.current_file, n)
@@ -109,24 +118,17 @@ class _DiffOpsMixin:
         )
 
     def _precompute_all_diff_counts(self) -> None:
-        if not self.state.diff_case_dir or not self.state.current_case_dir:
+        if not self.state.diff.case_dir or not self.state.current_case_dir:
             return
         case_path = Path(self.state.current_case_dir)
-        diff_path = Path(self.state.diff_case_dir)
-        paths = [
-            item.data(Qt.UserRole)
-            for item in (
-                self.file_list_panel._list.item(i)
-                for i in range(self.file_list_panel._list.count())
-            )
-            if item.data(Qt.UserRole)
-        ]
+        diff_path = Path(self.state.diff.case_dir)
+        paths = self.file_list_panel.file_paths()
         self._precompute_diff_step(paths, 0, case_path, diff_path)
 
     def _precompute_diff_step(
         self, paths: list, idx: int, case_path: Path, diff_path: Path
     ) -> None:
-        if not self.state.diff_case_dir:
+        if not self.state.diff.case_dir:
             return
         if idx >= len(paths):
             self.file_list_panel.set_diff_filter_enabled(True)
@@ -140,9 +142,12 @@ class _DiffOpsMixin:
         except ValueError:
             advance()
             return
+        if is_script_path(path) or is_log_filename(rel.name):
+            advance()  # shell scripts and run logs have no dictionary tree to diff
+            return
         other_path = diff_path / rel
         other_key = str(other_path)
-        if other_key not in self.state.diff_parsed_roots:
+        if other_key not in self.state.diff.parsed_roots:
             if not other_path.exists():
                 self.file_list_panel.mark_diff(path, 0)
                 advance()
@@ -151,13 +156,13 @@ class _DiffOpsMixin:
                 advance()
                 return
             try:
-                self.state.diff_parsed_roots[other_key] = OpenFoamParser(
+                self.state.diff.parsed_roots[other_key] = OpenFoamParser(
                     read_foam_file(other_key)
                 ).parse()
             except Exception:
                 advance()
                 return
-        other_root = self.state.diff_parsed_roots[other_key]
+        other_root = self.state.diff.parsed_roots[other_key]
         if path == self.state.current_file:
             a_root = self.state.current_root
         elif path in self.state.parsed_roots:

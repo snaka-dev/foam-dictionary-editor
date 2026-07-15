@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from schemas._base import (
-    ChoiceItem, KeySchema,
-    FOUNDATION_V13, OPENCFD_SERIES,
+    FOUNDATION_V13,
+    OPENCFD_SERIES,
+    ChoiceItem,
+    KeySchema,
 )
 
 TARGET_FILE = "controlDict"
@@ -39,7 +41,10 @@ SCHEMAS: dict[str, KeySchema] = {
         label="Stop At",
         description="Controls how the simulation decides when to stop.",
         supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
-        note="These are the standard values documented in Foundation v13 and used across major OpenFOAM distributions.",
+        note=(
+            "These are the standard values documented in Foundation v13 and used "
+            "across major OpenFOAM distributions."
+        ),
         choices=(
             ChoiceItem(
                 "endTime",
@@ -68,7 +73,10 @@ SCHEMAS: dict[str, KeySchema] = {
         label="Write Control",
         description="Controls when result data is written to disk.",
         supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
-        note="This key is common to both major distributions; solver-specific runtime behavior can still vary.",
+        note=(
+            "This key is common to both major distributions; solver-specific "
+            "runtime behavior can still vary."
+        ),
         choices=(
             ChoiceItem(
                 "timeStep",
@@ -182,9 +190,15 @@ SCHEMAS: dict[str, KeySchema] = {
     "graphFormat": KeySchema(
         key="graphFormat",
         label="Graph Format",
-        description="Controls the output format used for graph-like data written by applications or function objects.",
+        description=(
+            "Controls the output format used for graph-like data written by "
+            "applications or function objects."
+        ),
         supported_in=(FOUNDATION_V13,),
-        note="Included from Foundation v13 user guide. Verify exact availability in your OpenCFD release if you plan to constrain values strictly.",
+        note=(
+            "Included from Foundation v13 user guide. Verify exact availability "
+            "in your OpenCFD release if you plan to constrain values strictly."
+        ),
         choices=(
             ChoiceItem("raw", "Write raw ASCII columns.", supported_in=(FOUNDATION_V13,)),
             ChoiceItem("gnuplot", "Write data in gnuplot format.", supported_in=(FOUNDATION_V13,)),
@@ -198,7 +212,10 @@ SCHEMAS: dict[str, KeySchema] = {
         label="Run-Time Modifiable",
         description="Controls whether dictionaries can be re-read during the run.",
         supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
-        note="Foundation v13 examples use yes; OpenCFD examples commonly show true. Both forms are often accepted as dictionary switches.",
+        note=(
+            "Foundation v13 examples use yes; OpenCFD examples commonly show true. "
+            "Both forms are often accepted as dictionary switches."
+        ),
         choices=(
             ChoiceItem(
                 "true",
@@ -226,9 +243,15 @@ SCHEMAS: dict[str, KeySchema] = {
     "adjustTimeStep": KeySchema(
         key="adjustTimeStep",
         label="Adjust Time Step",
-        description="Controls whether the solver adjusts deltaT during the run, usually based on a Courant-number limit.",
+        description=(
+            "Controls whether the solver adjusts deltaT during the run, "
+            "usually based on a Courant-number limit."
+        ),
         supported_in=(FOUNDATION_V13,),
-        note="Documented in Foundation v13 user guide. OpenCFD cases often also use this entry, but check your target release and solver.",
+        note=(
+            "Documented in Foundation v13 user guide. OpenCFD cases often also use "
+            "this entry, but check your target release and solver."
+        ),
         choices=(
             ChoiceItem("yes", "Enable automatic time-step adjustment.", supported_in=(FOUNDATION_V13,)),
             ChoiceItem("no", "Disable automatic time-step adjustment.", supported_in=(FOUNDATION_V13,)),

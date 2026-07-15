@@ -92,7 +92,16 @@ FOAM_MONITOR_OPS_METHODS = [
 TOOLS_OPS_METHODS = [
     "_on_restore_0dir_clicked",
     "_on_run_blockmesh_clicked",
+    "_on_run_snappyhexmesh_clicked",
+    "_on_run_topo_set_clicked",
+    "_on_run_setfields_clicked",
+    "_on_run_checkmesh_clicked",
+    "_on_run_allrun_clicked",
+    "_on_run_allclean_clicked",
+    "_on_clean_case_clicked",
     "_on_open_paraview_clicked",
+    "_on_find_examples_clicked",
+    "_on_example_compare_requested",
     "_update_tools_actions",
 ]
 
@@ -167,6 +176,7 @@ BOUNDARY_OPS_METHODS = [
 DIFF_OPS_METHODS = [
     "_on_side_by_side_toggled",
     "_compare_with_case",
+    "_start_comparison_with",
     "_clear_diff",
     "_recompute_diff",
     "_precompute_all_diff_counts",
@@ -352,6 +362,7 @@ CORE_METHODS = [
 MODEL_OPS_METHODS = [
     "_save_current_buffer",
     "_after_model_edit",
+    "_update_viewer_panels",
     "_load_tree",
     "_clear_current_file",
     "_write_root_to_buffer",
@@ -362,6 +373,7 @@ MODEL_OPS_METHODS = [
 ]
 
 UI_OPS_METHODS = [
+    "_confirm",
     "_build_language_menu",
     "_on_language_changed",
     "open_schema_manager",

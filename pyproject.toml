@@ -7,6 +7,6 @@ select = ["E", "F", "I", "UP"]
 
 [tool.mypy]
 python_version = "3.10"
-files = ["foam", "model"]
+files = ["foam", "model", "app_config", "schemas", "services", "ui/app_state.py"]
 ignore_missing_imports = true
 warn_unused_ignores = true

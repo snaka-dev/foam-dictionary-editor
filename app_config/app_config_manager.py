@@ -2,12 +2,10 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
-from typing import Optional
 
-from app_config.constants import JSON_INDENT
+from app_config.json_io import load_json, save_json
 
 
 class AppConfigManager:
@@ -17,37 +15,38 @@ class AppConfigManager:
         if config_path is None:
             config_path = str(Path(__file__).parent.parent / "app_config.json")
         self._config_path = Path(config_path)
-        self._window_size: Optional[list[int]] = None
-        self._default_case_dir: Optional[str] = None
+        self._window_size: list[int] | None = None
+        self._default_case_dir: str | None = None
         self._case_library_dirs: list[str] = []
         self._user_links: list[dict] = []
         self._features: dict[str, bool] = {}
         self._language: str = "en"
+        self._openfoam_dir: str | None = None
         self._load()
 
     def _load(self) -> None:
-        if not self._config_path.exists():
-            return
-        try:
-            data = json.loads(self._config_path.read_text(encoding="utf-8"))
-            self._window_size = data.get("window_size", None)
-            self._default_case_dir = data.get("default_case_dir", None)
-            self._case_library_dirs = data.get("case_library_dirs", [])
-            self._user_links = data.get("user_links", [])
-            self._features = data.get("features", {})
-            self._language = data.get("language", "en")
-        except (json.JSONDecodeError, IOError) as e:
-            print(f"Warning: Failed to load config file: {e}")
+        data = load_json(self._config_path)
+        if data is None:
+            if self._config_path.exists():
+                print("Warning: Failed to load config file: invalid JSON")
             self._window_size = None
             self._default_case_dir = None
             self._case_library_dirs = []
             self._user_links = []
             self._features = {}
+            self._openfoam_dir = None
+            return
+        self._window_size = data.get("window_size", None)
+        self._default_case_dir = data.get("default_case_dir", None)
+        self._case_library_dirs = data.get("case_library_dirs", [])
+        self._user_links = data.get("user_links", [])
+        self._features = data.get("features", {})
+        self._language = data.get("language", "en")
+        self._openfoam_dir = data.get("openfoam_dir", None)
 
     def save(self) -> None:
         try:
-            self._config_path.parent.mkdir(parents=True, exist_ok=True)
-            data = {
+            data: dict[str, object] = {
                 "window_size": self._window_size,
                 "default_case_dir": self._default_case_dir,
                 "case_library_dirs": self._case_library_dirs,
@@ -57,11 +56,10 @@ class AppConfigManager:
                 data["features"] = self._features
             if self._language != "en":
                 data["language"] = self._language
-            self._config_path.write_text(
-                json.dumps(data, indent=JSON_INDENT, ensure_ascii=False),
-                encoding="utf-8",
-            )
-        except IOError as e:
+            if self._openfoam_dir:
+                data["openfoam_dir"] = self._openfoam_dir
+            save_json(self._config_path, data)
+        except OSError as e:
             print(f"Warning: Failed to save config file: {e}")
 
     def reset(self) -> None:
@@ -71,6 +69,7 @@ class AppConfigManager:
         self._user_links = []
         self._features = {}
         self._language = "en"
+        self._openfoam_dir = None
 
     def delete_config_file(self) -> None:
         try:
@@ -82,7 +81,7 @@ class AppConfigManager:
 
     # ── window size ───────────────────────────────────────────────────────────
 
-    def get_window_size(self) -> Optional[list[int]]:
+    def get_window_size(self) -> list[int] | None:
         return self._window_size
 
     def get_window_size_or_default(self, default_w: int, default_h: int) -> tuple[int, int]:
@@ -100,13 +99,13 @@ class AppConfigManager:
 
     # ── default case directory ────────────────────────────────────────────────
 
-    def get_default_case_dir(self) -> Optional[str]:
+    def get_default_case_dir(self) -> str | None:
         return self._default_case_dir
 
     def get_default_case_dir_or_default(self, default: str) -> str:
         return self._default_case_dir if self._default_case_dir is not None else default
 
-    def set_default_case_dir(self, path: Optional[str]) -> None:
+    def set_default_case_dir(self, path: str | None) -> None:
         self._default_case_dir = path
 
     # ── case library ──────────────────────────────────────────────────────────
@@ -163,3 +162,11 @@ class AppConfigManager:
 
     def set_language(self, lang: str) -> None:
         self._language = lang
+
+    def get_openfoam_dir(self) -> str | None:
+        """Return the user-chosen OpenFOAM installation directory, if any."""
+        return self._openfoam_dir
+
+    def set_openfoam_dir(self, path: str | None) -> None:
+        """Set the OpenFOAM installation directory. Does not auto-save."""
+        self._openfoam_dir = path

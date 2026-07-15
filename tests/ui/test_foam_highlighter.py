@@ -193,6 +193,38 @@ def test_float_teal(rec):
     assert _color_at(log, 3) == "#008080"
 
 
+def test_negative_exponent_teal(rec):
+    text = "startTime -1e-05;"
+    log = rec.highlight(text)
+    assert _color_at(log, text.index("-1e-05")) == "#008080"
+
+
+def test_vector_components_teal(rec):
+    text = "value (0 1 0);"
+    for pos in (text.index("0"), text.index("1"), text.rindex("0")):
+        log = rec.highlight(text)
+        assert _color_at(log, pos) == "#008080"
+
+
+def test_digit_in_patch_name_not_number(rec):
+    """Trailing digits of identifiers like 'wall0' must not be teal."""
+    text = "myPatch wall0;"
+    log = rec.highlight(text)
+    assert _color_at(log, text.index("0")) != "#008080"
+
+
+def test_digit_after_hyphen_in_name_not_number(rec):
+    text = "myPatch inlet-1;"
+    log = rec.highlight(text)
+    assert _color_at(log, text.index("1")) != "#008080"
+
+
+def test_leading_digit_of_identifier_not_number(rec):
+    text = "myPatch 0wall;"
+    log = rec.highlight(text)
+    assert _color_at(log, text.index("0")) != "#008080"
+
+
 # ---------------------------------------------------------------------------
 # value keywords (BC types, scheme words, solver names) — dark-cyan #007070
 # ---------------------------------------------------------------------------
@@ -255,10 +287,65 @@ def test_build_value_kw_rules_chunked(qapp):
         assert qre.isValid(), f"chunk pattern invalid: {qre.errorString()}"
 
 
-def test_json_keywords_loaded(qapp):
-    kw = _load_foam_keywords()
-    assert "zeroGradient" in kw   # in baseline foam_keywords.json
-    assert "icoFoam" in kw        # in baseline foam_keywords.json
+def test_json_keywords_loaded(qapp, tmp_path, monkeypatch):
+    """The shipped default list is loaded when no user file exists."""
+    import ui.widgets._foam_highlighter as mod
+
+    monkeypatch.setattr(mod, "_KW_FILE", tmp_path / "absent.json")
+    kw = mod._load_foam_keywords()
+    assert "zeroGradient" in kw   # in baseline foam_keywords.default.json
+    assert "icoFoam" in kw        # in baseline foam_keywords.default.json
+    # controlDict keys collected by the dictionary-read-call scan
+    assert "application" in kw
+    assert "writePrecision" in kw
+    assert "timePrecision" in kw
+
+
+def test_loader_prefers_user_file(qapp, tmp_path, monkeypatch):
+    import json
+    import ui.widgets._foam_highlighter as mod
+
+    user = tmp_path / "foam_keywords.json"
+    default = tmp_path / "foam_keywords.default.json"
+    user.write_text(json.dumps({"keywords": ["userWord"]}))
+    default.write_text(json.dumps({"keywords": ["defaultWord"]}))
+    monkeypatch.setattr(mod, "_KW_FILE", user)
+    monkeypatch.setattr(mod, "_KW_DEFAULT_FILE", default)
+    kw = mod._load_foam_keywords()
+    assert "userWord" in kw
+    assert "defaultWord" not in kw
+
+
+def test_loader_falls_back_to_default(qapp, tmp_path, monkeypatch):
+    import json
+    import ui.widgets._foam_highlighter as mod
+
+    default = tmp_path / "foam_keywords.default.json"
+    default.write_text(json.dumps({"keywords": ["defaultWord"]}))
+    monkeypatch.setattr(mod, "_KW_FILE", tmp_path / "absent.json")
+    monkeypatch.setattr(mod, "_KW_DEFAULT_FILE", default)
+    assert "defaultWord" in mod._load_foam_keywords()
+
+
+def test_loader_empty_when_both_missing(qapp, tmp_path, monkeypatch):
+    import ui.widgets._foam_highlighter as mod
+
+    monkeypatch.setattr(mod, "_KW_FILE", tmp_path / "a.json")
+    monkeypatch.setattr(mod, "_KW_DEFAULT_FILE", tmp_path / "b.json")
+    assert mod._load_foam_keywords() == frozenset()
+
+
+def test_controldict_keys_darkcyan(qapp, tmp_path, monkeypatch):
+    """controlDict keys from the shipped default list are highlighted."""
+    import ui.widgets._foam_highlighter as mod
+
+    monkeypatch.setattr(mod, "_KW_FILE", tmp_path / "absent.json")
+    doc = QTextDocument()
+    rec = _Rec(doc)
+    for kw in ("application", "writePrecision", "timePrecision"):
+        text = f"{kw} value;"
+        log = rec.highlight(text)
+        assert _color_at(log, 0) == "#007070", f"{kw!r} should be dark-cyan"
 
 
 def test_json_keywords_filter_rejects_special_chars(qapp, tmp_path, monkeypatch):
@@ -298,8 +385,9 @@ def test_ascii_binary_blue(rec):
 # ---------------------------------------------------------------------------
 
 def test_plain_word_no_color(rec):
-    log = rec.highlight("nu 1e-6;")
-    # 'nu' is a plain identifier — no special colour
+    # 'myOwnWord' is a plain identifier — no special colour ('nu' no longer
+    # qualifies: the dictionary-read-call scan collects it as a real keyword)
+    log = rec.highlight("myOwnWord 1e-6;")
     assert _color_at(log, 0) is None
 
 
@@ -315,6 +403,66 @@ def test_comment_overrides_keyword(rec):
 def test_block_comment_overrides_macro(rec):
     log = rec.highlight("/* $var */")
     assert _color_at(log, 3) == "#808080"   # '$var' inside block comment → grey
+
+
+# ---------------------------------------------------------------------------
+# shell mode (Allrun / Allclean scripts)
+# ---------------------------------------------------------------------------
+
+def test_shell_hash_comment_grey(rec):
+    rec.set_mode("shell")
+    log = rec.highlight("#!/bin/sh")
+    assert _color_at(log, 0) == "#808080"
+
+
+def test_shell_runfunction_blue(rec):
+    rec.set_mode("shell")
+    log = rec.highlight("runApplication blockMesh")
+    assert _color_at(log, 0) == "#0000cc"
+
+
+def test_shell_utility_name_darkcyan(rec):
+    rec.set_mode("shell")
+    text = "runApplication blockMesh"
+    log = rec.highlight(text)
+    assert _color_at(log, text.index("blockMesh")) == "#007070"
+
+
+def test_shell_variable_orange(rec):
+    rec.set_mode("shell")
+    log = rec.highlight("echo $case")
+    assert _color_at(log, 5) == "#cc6600"
+
+
+def test_shell_single_quoted_string_green(rec):
+    rec.set_mode("shell")
+    log = rec.highlight("echo 'hello'")
+    assert _color_at(log, 6) == "#006400"
+
+
+def test_shell_comment_overrides_keywords(rec):
+    rec.set_mode("shell")
+    log = rec.highlight("# runApplication blockMesh")
+    assert _color_at(log, 2) == "#808080"
+
+
+def test_shell_no_block_comment_state(rec):
+    """/* is not a comment opener in shell mode — no multi-line state."""
+    rec.set_mode("shell")
+    rec.highlight("/* just punctuation")
+    assert rec.document().findBlockByNumber(0).userState() == 0
+
+
+def test_mode_switch_back_to_foam(rec):
+    rec.set_mode("shell")
+    rec.set_mode("foam")
+    log = rec.highlight("// comment")
+    assert _color_at(log, 0) == "#808080"
+
+
+def test_set_mode_rejects_unknown(rec):
+    with pytest.raises(ValueError):
+        rec.set_mode("python")
 
 
 # ---------------------------------------------------------------------------

@@ -21,6 +21,17 @@ from ui.panels.file_list_panel import display_file_name
 class _UiOpsMixin:
     """Tree view helpers, label/title updates, and auxiliary dialog launchers."""
 
+    # ── shared dialogs ────────────────────────────────────────────────────────
+
+    def _confirm(self, title: str, message: str) -> bool:
+        """Show a Yes/No confirmation dialog defaulting to No."""
+        reply = QMessageBox.question(
+            self, title, message,
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        return reply == QMessageBox.Yes
+
     # ── help dialogs ──────────────────────────────────────────────────────────
 
     def _build_language_menu(self, parent_menu) -> None:
@@ -52,7 +63,7 @@ class _UiOpsMixin:
     def generate_foam_keywords(self) -> None:
         dlg = GenerateKeywordsDialog(self)
         dlg.exec()
-        self.editor_panel.editor.reload_highlighting()
+        self.editor_panel.reload_highlighting()
 
     def show_about(self) -> None:
         AboutDialog(self).exec()

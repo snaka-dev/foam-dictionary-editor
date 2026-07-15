@@ -23,8 +23,11 @@ from ui.panels.file_list_panel import (
     _EXTRA_FILE_ROLE,
     _HEADER_GROUP_ROLE,
     _SYMLINK_ROLE,
+    _TEXT_ONLY_FG,
+    _TEXT_ONLY_ROLE,
     _has_unlisted_files,
     _make_header,
+    group_display_name,
     _make_item,
     _make_mesh_indicator,
     _make_time_dirs_indicator,
@@ -57,6 +60,17 @@ class TestDisplayFileName:
 
     def test_constant_dir_prefix(self):
         assert display_file_name("/case/constant/transportProperties") == "constant/transportProperties"
+
+
+# ── group_display_name ────────────────────────────────────────────────────────
+
+class TestGroupDisplayName:
+    def test_root_group_shows_case_root(self):
+        assert group_display_name(".") == "case root"
+
+    def test_other_groups_pass_through(self):
+        assert group_display_name("system") == "system"
+        assert group_display_name("0.orig") == "0.orig"
 
 
 # ── _make_header ──────────────────────────────────────────────────────────────
@@ -194,6 +208,33 @@ class TestMakeItemExtraRole:
         path = str(tmp_path / "system" / "myDict")
         item = _make_item(path, is_extra=True)
         assert item.data(_EXTRA_FILE_ROLE) is True
+
+
+# ── text-only (run log) rows ──────────────────────────────────────────────────
+
+class TestTextOnlyRows:
+    def test_log_item_is_dimmed(self, tmp_path):
+        item = _make_item(str(tmp_path / "log.blockMesh"))
+        assert item.data(_TEXT_ONLY_ROLE) is True
+        assert item.foreground().color() == _TEXT_ONLY_FG
+
+    def test_log_grey_wins_over_extra_blue(self, tmp_path):
+        item = _make_item(str(tmp_path / "log.blockMesh"), is_extra=True)
+        assert item.foreground().color() == _TEXT_ONLY_FG
+
+    def test_dictionary_item_not_dimmed(self, tmp_path):
+        item = _make_item(str(tmp_path / "system" / "controlDict"))
+        assert item.data(_TEXT_ONLY_ROLE) is False
+
+    def test_dim_restored_after_dirty_cleared(self, panel, tmp_path):
+        path = str(tmp_path / "log.blockMesh")
+        (tmp_path / "log.blockMesh").write_text("", encoding="utf-8")
+        panel.load_files([path], case_dir=str(tmp_path))
+        item = panel._find_item_by_path(path)
+        panel.mark_dirty(path, True)
+        assert item.foreground().color() != _TEXT_ONLY_FG
+        panel.mark_dirty(path, False)
+        assert item.foreground().color() == _TEXT_ONLY_FG
 
 
 # ── extra files indicator ─────────────────────────────────────────────────────

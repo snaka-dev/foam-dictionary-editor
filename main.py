@@ -73,7 +73,7 @@ def main():
     if window.block_mesh_panel is not None:
         no_xterm = window.terminal_panel is None or not window.terminal_panel.use_xterm
         if no_xterm:
-            QTimer.singleShot(0, window.block_mesh_panel._init_plotter)
+            QTimer.singleShot(0, window.block_mesh_panel.init_plotter)
 
     sys.exit(app.exec())
 
