@@ -9,11 +9,12 @@ app_config/foam_keywords.default.json (see DEVELOPER.md).
 from __future__ import annotations
 
 import json
-import os
 import re
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
+
+from app_config.json_io import atomic_write_text
 
 OUTPUT = Path(__file__).parent / "foam_keywords.json"
 
@@ -48,25 +49,6 @@ _LOOKUP_RE = re.compile(
 
 def _is_keyword(tok: str) -> bool:
     return bool(_IDENTIFIER_RE.match(tok))
-
-
-def _foam_dirs() -> tuple[Path, Path, Path, str, str]:
-    """Return (foam_etc, foam_src, foam_apps, project_label, version) from environment."""
-    project = Path(os.environ.get("WM_PROJECT_DIR", ""))
-    etc = Path(os.environ.get("FOAM_ETC", ""))
-    src = Path(os.environ.get("FOAM_SRC", ""))
-    apps = Path(os.environ.get("FOAM_APP", ""))
-    if not etc.is_dir() and project.is_dir():
-        etc = project / "etc"
-    if not src.is_dir() and project.is_dir():
-        src = project / "src"
-    if not apps.is_dir() and project.is_dir():
-        apps = project / "applications"
-    label = str(project) if project.is_dir() else "unknown"
-    version = os.environ.get("WM_PROJECT_VERSION", "") or (
-        project.name if project.is_dir() else "unknown"
-    )
-    return etc, src, apps, label, version
 
 
 def _collect_node_words(node, out: set[str]) -> None:
@@ -215,18 +197,32 @@ def generate(
     Returns (keyword_count, output_path).
     Raises RuntimeError if nothing was collected (OpenFOAM not found).
     """
+    etc: Path | None
+    src: Path | None
+    apps: Path | None
     if project_dir is not None:
-        etc = project_dir / "etc"
-        src = project_dir / "src"
-        apps = project_dir / "applications"
+        root = project_dir
+
+        def _sub(name: str) -> Path | None:
+            path = root / name
+            return path if path.is_dir() else None
+
+        etc, src, apps = _sub("etc"), _sub("src"), _sub("applications")
         label = str(project_dir)
         version = project_dir.name
     else:
-        etc, src, apps, label, version = _foam_dirs()
+        # Local import: app_config is a lower layer than services; import lazily
+        # so the app_config package never depends on services at import time.
+        from services.foam_env import foam_env_dirs
+
+        dirs = foam_env_dirs()
+        etc, src, apps = dirs.etc_dir, dirs.src_dir, dirs.apps_dir
+        label = str(dirs.project_dir) if dirs.project_dir is not None else "unknown"
+        version = dirs.version or "unknown"
 
     words: set[str] = set()
 
-    if etc.is_dir():
+    if etc is not None:
         if progress:
             progress(f"Scanning caseDicts in {etc} …")
         words |= scan_casedicts(etc, progress=progress, cancelled=cancelled)
@@ -237,7 +233,7 @@ def generate(
     if cancelled and cancelled():
         raise RuntimeError("Cancelled")
 
-    if src.is_dir():
+    if src is not None:
         if progress:
             progress(f"Scanning TypeName/ClassName macros in {src} …")
         words |= scan_src_typenames(src, progress=progress, cancelled=cancelled)
@@ -248,7 +244,7 @@ def generate(
     if cancelled and cancelled():
         raise RuntimeError("Cancelled")
 
-    if src.is_dir():
+    if src is not None:
         if progress:
             progress(f"Scanning named registrations in {src} …")
         words |= scan_src_named_registrations(src, progress=progress, cancelled=cancelled)
@@ -257,7 +253,7 @@ def generate(
         raise RuntimeError("Cancelled")
 
     for lookup_dir in (src, apps):
-        if lookup_dir.is_dir():
+        if lookup_dir is not None:
             if progress:
                 progress(f"Scanning dictionary-read calls in {lookup_dir} …")
             words |= scan_src_lookup_keywords(
@@ -281,5 +277,5 @@ def generate(
         "generated": date.today().isoformat(),
         "keywords": sorted(words),
     }
-    OUTPUT.write_text(json.dumps(payload, indent=2) + "\n")
+    atomic_write_text(OUTPUT, json.dumps(payload, indent=2) + "\n")
     return len(words), OUTPUT

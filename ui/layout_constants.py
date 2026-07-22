@@ -22,6 +22,16 @@ BLOCKMESH_DICT_NAME = "blockMeshDict"
 TOPOSET_DICT_NAME = "topoSetDict"
 SNAPPY_HEX_MESH_DICT_NAME = "snappyHexMeshDict"
 SETFIELDS_DICT_NAME = "setFieldsDict"
+# Files whose sampling definitions (probes / sample lines / sample planes) feed
+# the BlockMesh viewer's `sample ▾` overlay: controlDict's functions {} block
+# plus the standalone function-object dicts.
+SAMPLING_DICT_NAMES = (
+    "controlDict",
+    "sample",
+    "probes",
+    "surfaces",
+    "singleGraph",
+)
 
 # ── Tree view ────────────────────────────────────────────────────────────────
 TREE_EXPAND_DEPTH = 2

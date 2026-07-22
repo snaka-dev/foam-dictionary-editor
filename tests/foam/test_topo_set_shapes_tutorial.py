@@ -38,7 +38,7 @@ def test_all_shapes_extracted(shapes):
 
 
 def test_every_geometry_source_covered(shapes):
-    sources = sorted(s.source for s in shapes)
+    sources = sorted(s.kind for s in shapes)
     assert sources == [
         "boxToCell",
         "boxToCell",
@@ -67,7 +67,7 @@ def test_annuli_carry_inner_radii(shapes):
 
 def test_rotated_box_extracted(shapes):
     tilted = _by_label(shapes, "tilted")
-    assert tilted.source == "rotatedBoxToCell"
+    assert tilted.kind == "rotatedBoxToCell"
     assert pytest.approx(tilted.geometry["origin"]) == [0.5, 1.6, 0.3]
     assert pytest.approx(tilted.geometry["i"]) == [0.7, 0.4, 0.0]
 
@@ -75,12 +75,12 @@ def test_rotated_box_extracted(shapes):
 def test_non_geometric_source_listed():
     root = OpenFoamParser(_TOPO_SET_DICT.read_text()).parse()
     non_geo = extract_topo_set_data(root).non_geometric
-    assert [s.source for s in non_geo] == ["cellToFace"]
+    assert [s.kind for s in non_geo] == ["cellToFace"]
 
 
 def test_sphere_uses_variable_resolution(shapes):
     ball = _by_label(shapes, "ball")
-    assert ball.source == "sphereToCell"
+    assert ball.kind == "sphereToCell"
     assert ball.action == "add"
     assert pytest.approx(ball.geometry["centre"]) == [2.2, 0.8, 0.8]
     assert ball.geometry["radius"] == pytest.approx(0.5)
@@ -88,7 +88,7 @@ def test_sphere_uses_variable_resolution(shapes):
 
 def test_true_cone_uses_eval_and_zero_radius(shapes):
     spike = _by_label(shapes, "spike")
-    assert spike.source == "coneToCell"
+    assert spike.kind == "coneToCell"
     assert spike.action == "subtract"
     assert spike.geometry["radius2"] == pytest.approx(0.0)
     # point2 z is #eval{ 0.2 + 1.4 } == 1.6
@@ -97,7 +97,7 @@ def test_true_cone_uses_eval_and_zero_radius(shapes):
 
 def test_frustum_is_truncated(shapes):
     frustum = _by_label(shapes, "frustum")
-    assert frustum.source == "coneToCell"
+    assert frustum.kind == "coneToCell"
     assert frustum.action == "invert"
     assert frustum.geometry["radius2"] == pytest.approx(0.15)
 

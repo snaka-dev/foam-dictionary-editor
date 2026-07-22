@@ -5,13 +5,16 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+from pathlib import Path
 
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QDialog, QMessageBox
 
 from i18n import tr
 from services.case_loader import detect_time_dirs
+from services.tool_options import TOOL_SPECS
 from ui.dialogs.find_examples_dialog import FindExamplesDialog
 from ui.dialogs.log_summary_dialog import LogSummaryDialog
+from ui.dialogs.run_tool_dialog import RunToolDialog
 
 
 class _ToolsOpsMixin:
@@ -24,16 +27,41 @@ class _ToolsOpsMixin:
         if idx != -1:
             self.bottom_tabs.setCurrentIndex(idx)
 
-    def _confirm_rerun_over_results(self, title: str, message: str) -> bool:
-        """Confirm re-running a mesh tool when time-dir results already exist.
+    def _rerun_over_results_warning(self, sentence: str) -> str:
+        """Pre-flight warning text for the run dialog when time-dir results exist.
 
-        ``message`` must contain a ``{dirs}`` placeholder for the result-dir
-        list. Returns True when there are no results or the user confirms.
+        Returns an empty string when the case has no time-dir results yet.
         """
         time_dirs = detect_time_dirs(self.state.current_case_dir)
         if not time_dirs:
-            return True
-        return self._confirm(title, message.format(dirs=", ".join(time_dirs)))
+            return ""
+        return (
+            tr("This case already has results in: {dirs}.").format(
+                dirs=", ".join(time_dirs)
+            )
+            + "\n"
+            + sentence
+        )
+
+    def _run_tool_with_options(
+        self,
+        tool: str,
+        warning_text: str = "",
+        prefix_option: tuple[str, str, bool] | None = None,
+    ) -> None:
+        """Show the options dialog for ``tool`` and send the composed command."""
+        dlg = RunToolDialog(
+            TOOL_SPECS[tool],
+            self.state.current_case_dir,
+            self.state.run_tool_options.get(tool),
+            warning_text,
+            prefix_option,
+            self,
+        )
+        if dlg.exec() != QDialog.Accepted:
+            return
+        self.state.run_tool_options[tool] = dlg.get_values()
+        self._run_in_terminal(dlg.get_command())
 
     # ── Tools-menu actions ────────────────────────────────────────────────────
 
@@ -61,95 +89,66 @@ class _ToolsOpsMixin:
     def _on_run_blockmesh_clicked(self) -> None:
         if not self.state.current_case_dir or self.terminal_panel is None:
             return
-        if not self._confirm_rerun_over_results(
-            tr("Re-run blockMesh?"),
-            tr(
-                "This case already has results in: {dirs}.\n"
-                "Re-running blockMesh will regenerate the mesh and may "
-                "invalidate those results. Continue?"
+        self._run_tool_with_options(
+            "blockMesh",
+            self._rerun_over_results_warning(
+                tr(
+                    "Re-running blockMesh will regenerate the mesh and may "
+                    "invalidate those results."
+                )
             ),
-        ):
-            return
-        self._run_in_terminal("blockMesh 2>&1 | tee log.blockMesh")
+        )
 
     def _on_run_snappyhexmesh_clicked(self) -> None:
         if not self.state.current_case_dir or self.terminal_panel is None:
             return
-        if not self._confirm_rerun_over_results(
-            tr("Re-run snappyHexMesh?"),
-            tr(
-                "This case already has results in: {dirs}.\n"
-                "Re-running snappyHexMesh will regenerate the mesh and may "
-                "invalidate those results. Continue?"
+        self._run_tool_with_options(
+            "snappyHexMesh",
+            self._rerun_over_results_warning(
+                tr(
+                    "Re-running snappyHexMesh will regenerate the mesh and may "
+                    "invalidate those results."
+                )
             ),
-        ):
-            return
-        self._run_in_terminal("snappyHexMesh -overwrite 2>&1 | tee log.snappyHexMesh")
+        )
 
     def _on_run_topo_set_clicked(self) -> None:
         if not self.state.current_case_dir or self.terminal_panel is None:
             return
-        if not self._confirm_rerun_over_results(
-            tr("Re-run topoSet?"),
-            tr(
-                "This case already has results in: {dirs}.\n"
-                "Re-running topoSet will regenerate cell/face sets and may "
-                "invalidate those results. Continue?"
+        self._run_tool_with_options(
+            "topoSet",
+            self._rerun_over_results_warning(
+                tr(
+                    "Re-running topoSet will regenerate cell/face sets and may "
+                    "invalidate those results."
+                )
             ),
-        ):
-            return
-        self._run_in_terminal("topoSet 2>&1 | tee log.topoSet")
+        )
 
     def _on_run_setfields_clicked(self) -> None:
         if not self.state.current_case_dir or self.terminal_panel is None:
             return
-        case_dir = self.state.current_case_dir
-        run_cmd = "setFields 2>&1 | tee log.setFields"
-        if os.path.isdir(os.path.join(case_dir, "0.orig")):
-            # setFields overwrites the 0/ field files in place, so running it
-            # twice compounds the values (e.g. an already-set alpha region).
+        warning = tr(
+            "setFields modifies the field files in 0/ in place, so re-running "
+            "it on already-set fields compounds the values."
+        )
+        prefix_option: tuple[str, str, bool] | None = None
+        if os.path.isdir(os.path.join(self.state.current_case_dir, "0.orig")):
             # Offer the standard remedy: start from a fresh 0/ copy.
-            box = QMessageBox(self)
-            box.setIcon(QMessageBox.Question)
-            box.setWindowTitle(tr("Run setFields?"))
-            box.setText(
-                tr(
-                    "setFields modifies the field files in 0/ in place, so "
-                    "re-running it on already-set fields compounds the values.\n"
-                    "Restore 0/ from 0.orig/ first to start from clean initial "
-                    "fields?"
-                )
+            prefix_option = (
+                tr("Restore 0/ from 0.orig/ first (start from clean initial fields)"),
+                "rm -rf 0 && cp -r 0.orig 0 && ",
+                True,
             )
-            restore_btn = box.addButton(tr("Restore 0/, then run"), QMessageBox.YesRole)
-            box.addButton(tr("Run anyway"), QMessageBox.NoRole)
-            cancel_btn = box.addButton(QMessageBox.Cancel)
-            box.setDefaultButton(cancel_btn)
-            box.exec()
-            clicked = box.clickedButton()
-            if clicked is None or clicked is cancel_btn:
-                return
-            if clicked is restore_btn:
-                cmd = "rm -rf 0 && cp -r 0.orig 0 && " + run_cmd
-            else:
-                cmd = run_cmd
         else:
-            if not self._confirm(
-                tr("Run setFields?"),
-                tr(
-                    "setFields modifies the field files in 0/ in place "
-                    "(this case has no 0.orig/ backup to restore from). "
-                    "Continue?"
-                ),
-            ):
-                return
-            cmd = run_cmd
-        self._run_in_terminal(cmd)
+            warning += "\n" + tr("This case has no 0.orig/ backup to restore from.")
+        self._run_tool_with_options("setFields", warning, prefix_option)
 
     def _on_run_checkmesh_clicked(self) -> None:
-        # checkMesh only reads the mesh, so no confirmation is needed.
+        # checkMesh only reads the mesh, so its dialog has no pre-flight warning.
         if not self.state.current_case_dir or self.terminal_panel is None:
             return
-        self._run_in_terminal("checkMesh 2>&1 | tee log.checkMesh")
+        self._run_tool_with_options("checkMesh")
 
     def _on_run_allrun_clicked(self) -> None:
         if not self.state.current_case_dir or self.terminal_panel is None:
@@ -279,6 +278,7 @@ class _ToolsOpsMixin:
             return
         dialog = FindExamplesDialog(parent=self)
         dialog.compare_requested.connect(self._on_example_compare_requested)
+        dialog.duplicate_requested.connect(self._on_example_duplicate_requested)
         dialog.destroyed.connect(lambda: setattr(self, "_find_examples_dialog", None))
         self._find_examples_dialog = dialog
         dialog.show()
@@ -294,6 +294,11 @@ class _ToolsOpsMixin:
         self._start_comparison_with(case_dir)
         self.raise_()
         self.activateWindow()
+
+    def _on_example_duplicate_requested(self, case_dir: str) -> None:
+        # Tutorial cases live inside the OpenFOAM installation, so never
+        # offer their (usually read-only) parent as the destination.
+        self._duplicate_case_from(case_dir, fallback_dest_parent=str(Path.home()))
 
     def _on_open_paraview_clicked(self) -> None:
         if not self.state.current_case_dir:

@@ -29,6 +29,7 @@ class _FileOpsMixin:
     # ── case directory load ───────────────────────────────────────────────────
 
     def _load_case_dir(self, directory: str) -> None:
+        previous_dir = self.state.current_case_dir
         self.state.current_case_dir = directory
         self.state.case_files_config = CaseFilesConfig(directory)
         self._update_case_label()
@@ -51,6 +52,7 @@ class _FileOpsMixin:
         self.state.file_buffers.clear()
         self.state.file_dirty.clear()
         self.state.parsed_roots.clear()
+        self._clear_undo_stacks()
         if self.block_mesh_panel is not None:
             self.block_mesh_panel.clear()
         self._clear_current_file()
@@ -59,6 +61,7 @@ class _FileOpsMixin:
         if self._log_summary_dialog is not None:
             self._log_summary_dialog.set_case_dir(directory)
         self._stop_foam_monitor()
+        self._reset_diff_for_case_dir(directory, previous_dir)
         QTimer.singleShot(0, self._reload_boundary_panel)
 
     def _reload_file_list(self) -> None:

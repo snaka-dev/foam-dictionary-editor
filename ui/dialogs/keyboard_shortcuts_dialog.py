@@ -30,6 +30,8 @@ _SECTIONS_DATA: list[tuple[str, list[tuple[str, str]]]] = [
     ("Tree", [
         ("Copy Value",         "Ctrl+C"),
         ("Paste Value",        "Ctrl+V"),
+        ("Undo Tree Edit",     "Ctrl+Z"),
+        ("Redo Tree Edit",     "Ctrl+Shift+Z"),
     ]),
     ("Application", [
         ("Open Case",          "Ctrl+O"),

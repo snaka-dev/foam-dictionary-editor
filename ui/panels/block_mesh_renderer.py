@@ -8,11 +8,18 @@ block_mesh_panel.py passes, so top-level numpy/pyvista imports are safe.
 from __future__ import annotations
 
 import dataclasses
+import gzip
+import os
+import tempfile
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pyvista as pv
 
 from foam.block_mesh_extractor import BlockMeshData
+from foam.sampling_extractor import SamplingShape
 from foam.set_fields_extractor import SetFieldsShape
 from foam.snappy_hex_mesh_extractor import SnappyShape
 from foam.topo_set_extractor import TopoShape
@@ -56,6 +63,9 @@ _LOCATION_POINT_COLOR = "black"
 # setFieldsDict regions have no topoSet action or snappy category, so they all
 # share one colour, chosen to clash with neither palette above.
 _SET_FIELDS_REGION_COLOR = "darkorange"
+
+# All sampling shapes (probes / sample lines / sample planes) share one colour.
+_SAMPLING_COLOR = "teal"
 
 # Overlay shapes larger than the block mesh are clipped (display only) to keep
 # the mesh visible; the scene label carries a mark so the cut is not mistaken
@@ -245,6 +255,33 @@ def _make_rotated_box_mesh(origin, i, j, k) -> pv.UnstructuredGrid | None:
     return _make_hex_grid(pts, [[0, 1, 2, 3, 4, 5, 6, 7]])
 
 
+def read_surface_mesh(path: str):
+    """Read an STL/OBJ surface, transparently decompressing gzip.
+
+    pyvista/VTK dispatch on the file extension and cannot read a gzip stream,
+    so a ``.stl.gz`` / ``.obj.gz`` file is decompressed to a temporary file
+    that carries the inner extension and read from there. A binary-STL inner
+    extension (``.stlb``) is written as ``.stl`` because VTK's STL reader,
+    which auto-detects ASCII vs binary, is not registered for ``.stlb``.
+    The temp file is removed after reading; the ``fode-surface-`` prefix
+    makes any file orphaned by a hard kill attributable to this app.
+    """
+    if path.lower().endswith(".gz"):
+        inner_suffix = Path(path[:-3]).suffix.lower()
+        if inner_suffix == ".stlb":
+            inner_suffix = ".stl"
+        with gzip.open(path, "rb") as src:
+            data = src.read()
+        fd, tmp_path = tempfile.mkstemp(prefix="fode-surface-", suffix=inner_suffix)
+        try:
+            with os.fdopen(fd, "wb") as tmp:
+                tmp.write(data)
+            return pv.read(tmp_path)
+        finally:
+            os.unlink(tmp_path)
+    return pv.read(path)
+
+
 @dataclasses.dataclass
 class RenderSettings:
     show_vertices: bool
@@ -276,12 +313,14 @@ class BlockMeshRenderer:
         snappy_shapes: list[SnappyShape] | None = None,
         location_points: list[tuple[list, str]] | None = None,
         set_fields_shapes: list[SetFieldsShape] | None = None,
+        sampling_shapes: list[SamplingShape] | None = None,
     ) -> None:
         self._plotter.clear()
         topo_shapes = topo_shapes or []
         snappy_shapes = snappy_shapes or []
         location_points = location_points or []
         set_fields_shapes = set_fields_shapes or []
+        sampling_shapes = sampling_shapes or []
         has_mesh = data is not None and bool(data.vertices)
 
         clip_bounds: list[float] | None = None
@@ -295,17 +334,22 @@ class BlockMeshRenderer:
         for stl in stl_meshes:
             self._plotter.add_mesh(stl, color="lightgray", opacity=0.4)
 
+        # Scene size for display-only extents (plane discs, sample-line tubes).
+        if has_mesh:
+            pts_arr = np.array(data.vertices, dtype=float)
+            scene_size = float(
+                np.linalg.norm(pts_arr.max(axis=0) - pts_arr.min(axis=0))
+            ) or 1.0
+        else:
+            scene_size = 1.0
+
         if topo_shapes:
-            # Scene size for display-only extents (e.g. the planeToFaceZone disc).
-            if has_mesh:
-                pts_arr = np.array(data.vertices, dtype=float)
-                scene_size = float(
-                    np.linalg.norm(pts_arr.max(axis=0) - pts_arr.min(axis=0))
-                ) or 1.0
-            else:
-                scene_size = 1.0
-            self._render_topo_shapes(
-                topo_shapes, settings.label_font_size, scene_size, clip_bounds
+            self._render_source_shapes(
+                topo_shapes,
+                lambda s: _ACTION_COLORS.get(s.action, "gray"),
+                settings.label_font_size,
+                clip_bounds,
+                plane_size=0.75 * scene_size,
             )
 
         if snappy_shapes:
@@ -314,8 +358,20 @@ class BlockMeshRenderer:
             )
 
         if set_fields_shapes:
-            self._render_set_fields_shapes(
-                set_fields_shapes, settings.label_font_size, clip_bounds
+            self._render_source_shapes(
+                set_fields_shapes,
+                lambda s: _SET_FIELDS_REGION_COLOR,
+                settings.label_font_size,
+                clip_bounds,
+            )
+
+        if sampling_shapes:
+            self._render_source_shapes(
+                sampling_shapes,
+                lambda s: _SAMPLING_COLOR,
+                settings.label_font_size,
+                clip_bounds,
+                plane_size=0.75 * scene_size,
             )
 
         if location_points:
@@ -445,30 +501,33 @@ class BlockMeshRenderer:
         if text:
             self._add_shape_label(mesh.center, text, label_font_size)
 
-    def _render_topo_shapes(
+    def _render_source_shapes(
         self,
-        shapes: list[TopoShape],
+        shapes: list[TopoShape] | list[SetFieldsShape] | list[SamplingShape],
+        color_for: Callable[[Any], str],
         label_font_size: int = 10,
-        scene_size: float = 1.0,
         clip_bounds: list[float] | None = None,
+        plane_size: float = 1.0,
     ) -> None:
+        """Render shapes carrying the shared label/kind field scheme."""
         for shape in shapes:
-            color = _ACTION_COLORS.get(shape.action, "gray")
+            color = color_for(shape)
             geo = shape.geometry
             if "points" in geo:
-                self._render_topo_points(shape, color, label_font_size)
+                self._render_point_shape(shape, color, label_font_size)
                 continue
-            mesh = self._make_shape_mesh(
-                shape.source, geo, plane_size=0.75 * scene_size
-            )
+            mesh = self._make_shape_mesh(shape.kind, geo, plane_size=plane_size)
             if mesh is None:
                 continue
             self._add_shape_mesh(
                 mesh, color, shape.label, label_font_size, clip_bounds
             )
 
-    def _render_topo_points(
-        self, shape: TopoShape | SetFieldsShape, color: str, label_font_size: int
+    def _render_point_shape(
+        self,
+        shape: TopoShape | SetFieldsShape | SamplingShape,
+        color: str,
+        label_font_size: int,
     ) -> None:
         """Draw a point-carrying source (nearestTo*, insidePoints, nearPoint)."""
         pts = np.array(shape.geometry["points"], dtype=float)
@@ -489,30 +548,12 @@ class BlockMeshRenderer:
     ) -> None:
         for shape in shapes:
             color = _SNAPPY_CATEGORY_COLORS.get(shape.category, "gray")
-            mesh = self._make_shape_mesh(shape.geo_type, shape.geometry)
+            mesh = self._make_shape_mesh(shape.kind, shape.geometry)
             if mesh is None:
                 continue
             detail = shape.level or shape.mode or ""
-            label = f"{shape.name}  {detail}".strip()
+            label = f"{shape.label}  {detail}".strip()
             self._add_shape_mesh(mesh, color, label, label_font_size, clip_bounds)
-
-    def _render_set_fields_shapes(
-        self,
-        shapes: list[SetFieldsShape],
-        label_font_size: int = 10,
-        clip_bounds: list[float] | None = None,
-    ) -> None:
-        color = _SET_FIELDS_REGION_COLOR
-        for shape in shapes:
-            if "points" in shape.geometry:
-                self._render_topo_points(shape, color, label_font_size)
-                continue
-            mesh = self._make_shape_mesh(shape.source, shape.geometry)
-            if mesh is None:
-                continue
-            self._add_shape_mesh(
-                mesh, color, shape.label, label_font_size, clip_bounds
-            )
 
     def _render_location_points(
         self, points: list[tuple[list, str]], label_font_size: int = 10
@@ -557,7 +598,13 @@ class BlockMeshRenderer:
                     geo["origin"], geo["i"], geo["j"], geo["k"]
                 )
             if "stl_path" in geo:
-                return pv.read(geo["stl_path"])
+                return read_surface_mesh(geo["stl_path"])
+            if "start" in geo:
+                # A sample line; drawn as a thin tube whose radius (derived
+                # from plane_size, i.e. the scene bounds) is display-only.
+                return pv.Line(geo["start"], geo["end"]).tube(
+                    radius=0.008 * plane_size
+                )
             if "planePoint" in geo:
                 # An infinite plane; drawn as a disc whose extent (plane_size)
                 # is display-only, sized by the caller from the scene bounds.

@@ -103,7 +103,7 @@ def test_non_geometric_source_listed_disabled(qapp):
     assert panel._topo.info_menu.title() == "Non-geometric sources (1)"
     assert act in panel._topo.info_menu.actions()
     # It is not one of the renderable shapes.
-    assert all(s.source != "cellToFace" for s in panel._topo.shapes)
+    assert all(s.kind != "cellToFace" for s in panel._topo.shapes)
 
 
 def test_show_all_hide_all(qapp):

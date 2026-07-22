@@ -110,7 +110,7 @@ pip install pyvista pyvistaqt
 - ソルバー実行中に `foamMonitor` を起動して gnuplot で残差をプロット
 - 生成されたメッシュを ParaView で表示
 - 数千行の生ログをスクロールする代わりに `log.*` ファイルの要約レポートを表示
-- OpenFOAM の使用例検索: インストールの `tutorials/` ケースと `etc/caseDicts/` テンプレートからキーワードの実際の使用例を検索し、プレビューからそのまま比較ビューへ読み込める
+- OpenFOAM の使用例検索: インストールの `tutorials/` ケースと `etc/caseDicts/` テンプレートからキーワードの実際の使用例を検索し、プレビューからそのまま比較ビューへ読み込んだり、チュートリアルケースを複製して自分のケースの出発点にしたりできる
 
 **[ケース比較](USER_GUIDE_ja.md#ケース比較)**
 - 開いているケースを任意の参照ケースと比較: ツリーの色分け差分オーバーレイ、ファイル一覧の `≠N` マーカー、差分ありファイルのみの絞り込みフィルター
@@ -126,6 +126,7 @@ pip install pyvista pyvistaqt
 
 すべてのパネル・メニュー・操作手順の詳細については [USER_GUIDE_ja.md](USER_GUIDE_ja.md) を参照してください。
 プロジェクト構成・開発環境のセットアップ・テストについては [DEVELOPER_ja.md](DEVELOPER_ja.md) を参照してください。
+アプリの注釈付きスクリーンショットについては [docs/SCREENSHOTS_ja.md](docs/SCREENSHOTS_ja.md) を参照してください。
 
 ## サンプルケース
 

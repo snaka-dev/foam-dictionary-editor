@@ -7,10 +7,8 @@ from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import (
-    QComboBox,
     QDialog,
     QDialogButtonBox,
-    QFileDialog,
     QHBoxLayout,
     QLabel,
     QPlainTextEdit,
@@ -18,13 +16,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from app_config import get_app_config
 from i18n import tr
-from services.example_search import (
-    FoamInstallation,
-    discover_installations,
-    installation_from_dir,
-)
+from ui.widgets.installation_selector import InstallationSelector
 
 
 class _GeneratorThread(QThread):
@@ -79,11 +72,12 @@ class GenerateKeywordsDialog(QDialog):
 
         install_row = QHBoxLayout()
         install_row.addWidget(QLabel(tr("Installation:")))
-        self._install_combo = QComboBox()
-        install_row.addWidget(self._install_combo, 1)
-        browse_btn = QPushButton(tr("Browse…"))
-        browse_btn.clicked.connect(self._on_browse_installation)
-        install_row.addWidget(browse_btn)
+        self._install_selector = InstallationSelector()
+        self._install_selector.installations_available.connect(
+            self._on_installations_available
+        )
+        self._install_selector.error.connect(self._append)
+        install_row.addWidget(self._install_selector, 1)
         layout.addLayout(install_row)
 
         self._log = QPlainTextEdit()
@@ -108,19 +102,12 @@ class GenerateKeywordsDialog(QDialog):
         self._cancel_btn.clicked.connect(self._on_cancel)
         self._close_btn.clicked.connect(self.accept)
 
-        self._populate_installations()
+        self._install_selector.refresh()
 
     # ── installations ─────────────────────────────────────────────────────────
 
-    def _populate_installations(self) -> None:
-        cfg = get_app_config()
-        saved = cfg.get_openfoam_dir()
-        extra_roots = [saved] if saved else []
-        installations = discover_installations(extra_roots=extra_roots)
-        self._install_combo.clear()
-        for installation in installations:
-            self._install_combo.addItem(installation.label, installation)
-        if not installations:
+    def _on_installations_available(self, available: bool) -> None:
+        if not available:
             self._append(
                 tr(
                     "No OpenFOAM installation found — browse to one, or source "
@@ -129,26 +116,7 @@ class GenerateKeywordsDialog(QDialog):
             )
 
     def _current_project_dir(self) -> Path | None:
-        data = self._install_combo.currentData()
-        return data.root if isinstance(data, FoamInstallation) else None
-
-    def _on_browse_installation(self) -> None:
-        directory = QFileDialog.getExistingDirectory(
-            self, tr("Select OpenFOAM Installation Directory")
-        )
-        if not directory:
-            return
-        installation = installation_from_dir(Path(directory))
-        if installation is None:
-            self._append(
-                tr("Not an OpenFOAM directory (no tutorials/ or etc/caseDicts/).")
-            )
-            return
-        cfg = get_app_config()
-        cfg.set_openfoam_dir(directory)
-        cfg.save()
-        self._install_combo.insertItem(0, installation.label, installation)
-        self._install_combo.setCurrentIndex(0)
+        return self._install_selector.current_root()
 
     # ── slots ─────────────────────────────────────────────────────────────────
 

@@ -15,9 +15,10 @@ _KW_FILE = _APP_CONFIG_DIR / "foam_keywords.json"                  # user-genera
 _KW_DEFAULT_FILE = _APP_CONFIG_DIR / "foam_keywords.default.json"  # shipped baseline
 _VALID_KW_RE = re.compile(r"^[A-Za-z]\w+$")
 
-# Numbers: guarded on both sides so digits glued to identifiers (patch names
-# like "wall0", "inlet-1", "0wall") are not partially highlighted, while
-# standalone numbers ("0.05", "-1e-05", "(0 1 0)") still match.
+# Numbers and keywords alike are guarded on both sides so tokens glued to
+# identifiers (patch names like "wall0", "inlet-1", "0wall") or dotted names
+# (set names like "y0.1") are not partially highlighted, while standalone
+# matches ("0.05", "-1e-05", "(0 1 0)", "off") still work.
 _NUMBER_RE = r"(?<![\w.])(?<![\w.][-+])[-+]?\d+(\.\d*)?([eE][-+]?\d+)?(?![\w.])"
 
 
@@ -35,21 +36,21 @@ _IN_COMMENT = 1  # block user-state: inside /* */ comment
 
 # Structural / boolean keywords — blue bold
 _KEYWORD_RE = (
-    r"\b(FoamFile"
+    r"(?<![\w.])(FoamFile"
     r"|true|false|on|off|yes|no"
     r"|uniform|nonuniform"
     r"|ascii|binary"
     r"|latestTime|firstTime|startTime|adjustableRunTime|timeStep|runTime|clockTime|cpuTime"
-    r")\b"
+    r")(?![\w.])"
 )
 
 # Shell mode: OpenFOAM RunFunctions/CleanFunctions helpers + core sh keywords — blue bold
 _SHELL_KEYWORD_RE = (
-    r"\b(runApplication|runParallel|restore0Dir|cleanCase0?|foamCleanTutorials"
+    r"(?<![\w.])(runApplication|runParallel|restore0Dir|cleanCase0?|foamCleanTutorials"
     r"|getApplication|getNumberOfProcessors|canCompile|isTest|foamDictionary"
     r"|if|then|else|elif|fi|for|in|do|done|case|esac|while|until"
     r"|exit|cd|source|set|echo|rm|cp|mv|mkdir|touch|export"
-    r")\b"
+    r")(?![\w.])"
 )
 
 def _load_foam_keywords() -> frozenset[str]:
@@ -109,7 +110,7 @@ def _build_value_kw_rules() -> list[tuple["QRegularExpression", "QTextCharFormat
     all_kw = sorted(_load_foam_keywords() | _collect_schema_keywords())
     rules = []
     for i in range(0, max(len(all_kw), 1), _KW_CHUNK):
-        pat = r"\b(" + "|".join(all_kw[i : i + _KW_CHUNK]) + r")\b"
+        pat = r"(?<![\w.])(" + "|".join(all_kw[i : i + _KW_CHUNK]) + r")(?![\w.])"
         rules.append((QRegularExpression(pat), _VALUE_KW_FMT))
     return rules
 

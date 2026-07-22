@@ -16,6 +16,7 @@ from ui.layout_constants import (
     SPLITTER_DETAIL_WIDTH,
     SPLITTER_TREE_WIDTH,
     STATUS_SHORT as _STATUS_SHORT,
+    STATUS_WARNING as _STATUS_WARNING,
 )
 
 
@@ -58,6 +59,20 @@ class _DiffOpsMixin:
         self._recompute_diff()
         QTimer.singleShot(0, self._precompute_all_diff_counts)
         self._side_by_side_cb.setChecked(True)
+
+    def _reset_diff_for_case_dir(self, directory: str, previous_dir: str | None) -> None:
+        """Reconcile comparison state after _load_case_dir.
+
+        Opening a different case clears the comparison (the reference was
+        chosen for the old case); reloading the same case re-arms it so the
+        diff bar and the file-list diff marks survive a reload.
+        """
+        if not self.state.diff.case_dir:
+            return
+        if directory != previous_dir:
+            self._clear_diff()
+        else:
+            self._start_comparison_with(self.state.diff.case_dir)
 
     def _clear_diff(self) -> None:
         self.state.diff.case_dir = None
@@ -103,6 +118,10 @@ class _DiffOpsMixin:
             except Exception:
                 self.state.current_model.clear_diff()
                 self.comparison_panel.clear()
+                self.statusBar().showMessage(
+                    tr("Diff: could not parse {rel} in the reference case.").format(rel=rel),
+                    _STATUS_WARNING,
+                )
                 return
         other_root = self.state.diff.parsed_roots[other_key]
         diff_map = diff_trees(self.state.current_root, other_root)
@@ -126,16 +145,23 @@ class _DiffOpsMixin:
         self._precompute_diff_step(paths, 0, case_path, diff_path)
 
     def _precompute_diff_step(
-        self, paths: list, idx: int, case_path: Path, diff_path: Path
+        self, paths: list, idx: int, case_path: Path, diff_path: Path, failures: int = 0
     ) -> None:
         if not self.state.diff.case_dir:
             return
         if idx >= len(paths):
             self.file_list_panel.set_diff_filter_enabled(True)
+            if failures:
+                self.statusBar().showMessage(
+                    tr("Diff: {n} reference file(s) could not be parsed and were skipped.")
+                    .format(n=failures),
+                    _STATUS_WARNING,
+                )
             return
         path = paths[idx]
         advance = lambda: QTimer.singleShot(  # noqa: E731
-            0, lambda: self._precompute_diff_step(paths, idx + 1, case_path, diff_path)
+            0,
+            lambda: self._precompute_diff_step(paths, idx + 1, case_path, diff_path, failures),
         )
         try:
             rel = Path(path).relative_to(case_path)
@@ -160,6 +186,7 @@ class _DiffOpsMixin:
                     read_foam_file(other_key)
                 ).parse()
             except Exception:
+                failures += 1  # picked up by the advance closure
                 advance()
                 return
         other_root = self.state.diff.parsed_roots[other_key]

@@ -57,6 +57,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 | Configure application settings | [Application settings](#application-settings) |
 | Switch the UI language (English / 日本語) | Settings > Language |
 | Open help links or reference sites | [Resources dialog](#resources-dialog) |
+| See annotated screenshots of the app | [Screenshot gallery](docs/SCREENSHOTS.md) |
 
 ## Contents
 
@@ -257,6 +258,7 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, a *
 - Case > Reload Case.
 - Case > Duplicate Case...
 - Case > Duplicate from Case Library...
+- Case > Find OpenFOAM Examples… — the same action as Tools > Find OpenFOAM Examples…, listed here too because it can duplicate a tutorial case as the starting point for a new case. See [Find OpenFOAM Examples](#find-openfoam-examples).
 - Case > Save as New Case...
 - Case > Clean Backup Files...
 - Case > Compare with Case...
@@ -286,17 +288,17 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, a *
 
 - Tools > foamMonitor… — launch `foamMonitor` to plot residuals or other time-series data with gnuplot. See [foamMonitor launcher](#foammonitor-launcher).
 - Tools > Restore 0/ from 0.orig — recreate `0/` from `0.orig/`, discarding any edits made directly to `0/`. See [Restore 0/ from 0.orig](#restore-0-from-0orig).
-- Tools > Run blockMesh — run `blockMesh` in the case directory. See [Run blockMesh](#run-blockmesh).
-- Tools > Run snappyHexMesh — run `snappyHexMesh -overwrite` in the case directory. See [Run snappyHexMesh](#run-snappyhexmesh).
-- Tools > Run topoSet — run `topoSet` in the case directory. See [Run topoSet](#run-toposet).
-- Tools > Run setFields — run `setFields` in the case directory, offering to restore `0/` from `0.orig/` first. See [Run setFields](#run-setfields).
-- Tools > Run checkMesh — run `checkMesh` in the case directory. See [Run checkMesh](#run-checkmesh).
+- Tools > Run blockMesh… — choose options and run `blockMesh` in the case directory. See [Run blockMesh](#run-blockmesh).
+- Tools > Run snappyHexMesh… — choose options and run `snappyHexMesh` in the case directory. See [Run snappyHexMesh](#run-snappyhexmesh).
+- Tools > Run topoSet… — choose options and run `topoSet` in the case directory. See [Run topoSet](#run-toposet).
+- Tools > Run setFields… — choose options and run `setFields` in the case directory, offering to restore `0/` from `0.orig/` first. See [Run setFields](#run-setfields).
+- Tools > Run checkMesh… — choose options and run `checkMesh` in the case directory. See [Run checkMesh](#run-checkmesh).
 - Tools > Run Allrun Script — run the case's `./Allrun` script, including the solver. See [Run Allrun Script](#run-allrun-script).
 - Tools > Open Mesh in ParaView… — open the current case in ParaView. See [Open Mesh in ParaView](#open-mesh-in-paraview).
 - Tools > Run Allclean Script — run the case's `./Allclean` script. See [Run Allclean Script](#run-allclean-script).
 - Tools > Clean Case (foamCleanTutorials) — clean the case with `foamCleanTutorials`. See [Clean Case (foamCleanTutorials)](#clean-case-foamcleantutorials).
 - Tools > View Log Summary… — show a condensed summary of a `log.*` file. See [View Log Summary](#view-log-summary).
-- Tools > Find OpenFOAM Examples… — search the OpenFOAM tutorials and `etc/caseDicts` templates for usage examples of a keyword. See [Find OpenFOAM Examples](#find-openfoam-examples).
+- Tools > Find OpenFOAM Examples… — search the OpenFOAM tutorials and `etc/caseDicts` templates for usage examples of a keyword; also listed in the Case menu. See [Find OpenFOAM Examples](#find-openfoam-examples).
 
 **Help menu:**
 
@@ -680,9 +682,10 @@ All controls sit in a single toolbar at the top of the panel. The toolbar *wraps
 | **topoSet ▾** | Drop-down menu for the `topoSetDict` overlay: a master **Show topoSet geometry** toggle, **Show all shapes** / **Hide all shapes** actions, an action-colour legend, one checkable toggle per renderable shape, and a **Non-geometric sources (N)** submenu collecting the entries that carry no drawable geometry (see [topoSetDict overlay](#toposetdict-overlay)). |
 | **snappyHexMesh ▾** | Drop-down menu for the `snappyHexMeshDict` overlay, structured like **topoSet ▾**: a master toggle, **Show all shapes** / **Hide all shapes**, a category-colour legend, per-shape and keep-point toggles, and a **Non-geometric sources (N)** submenu (see [snappyHexMeshDict overlay](#snappyhexmeshdict-overlay)). |
 | **setFields ▾** | Drop-down menu for the `setFieldsDict` overlay, structured like **topoSet ▾**: a master **Show setFields regions** toggle, **Show all shapes** / **Hide all shapes**, the region colour legend, one checkable toggle per renderable region, and a **Non-geometric sources (N)** submenu (see [setFieldsDict overlay](#setfieldsdict-overlay)). |
+| **sample ▾** | Drop-down menu for the sampling overlay — probe points, sample lines, and sample planes from `controlDict`'s `functions {}` block or a standalone sampling dict — structured like **topoSet ▾** (see [Sampling overlay](#sampling-overlay)). |
 | **Refresh** | Re-extract geometry from the current tree and redraw. In Preview mode, also discards all preview edits and resets vertex coordinates to the tree values. |
 | **Preview** | Appears only when the `vertices` block contains variable references (`$varName`). This button is shown inside the **Vertices** panel (not in the main toolbar). Click to enter Preview mode: table cells become editable and each change immediately updates the 3-D view, but the tree and file are not modified. A yellow banner is shown while Preview mode is active. Click **Refresh** to leave Preview mode and restore the original values. |
-| **STL ▾** | Drop-down menu: **Load STL / OBJ…** loads an STL or OBJ file and displays it as a translucent grey overlay (multiple files can be loaded); **Clear STL** removes all loaded overlays (greyed out when none are loaded); **Export Shapes as STL…** opens a dialog listing every renderable `topoSetDict`/`snappyHexMeshDict`/`setFieldsDict` shape currently loaded, with a checkbox per shape (defaulting to its current visibility in the 3-D view) and a Select All / Deselect All pair. Choose an output folder and click Export to write each checked shape as its own `.stl` file, named after its label/name (greyed out when no topoSet/snappyHexMesh/setFields geometry is loaded). Point-marker shapes (e.g. `nearestToCell`) and `planeToFaceZone` discs are not offered — they have no meaningful STL surface. Exported geometry is always the full, unclipped shape, even when the 3-D view shows it clipped. |
+| **STL ▾** | Drop-down menu: **Load STL / OBJ…** loads an STL or OBJ file and displays it as a translucent grey overlay (multiple files can be loaded); gzip-compressed files (`.stl.gz`, `.obj.gz`) load directly, no manual gunzip needed; **Clear STL** removes all loaded overlays (greyed out when none are loaded); **Export Shapes as STL…** opens a dialog listing every renderable `topoSetDict`/`snappyHexMeshDict`/`setFieldsDict` shape currently loaded, with a checkbox per shape (defaulting to its current visibility in the 3-D view) and a Select All / Deselect All pair. Choose an output folder and click Export to write each checked shape as its own `.stl` file, named after its label/name (greyed out when no topoSet/snappyHexMesh/setFields geometry is loaded). Point-marker shapes (e.g. `nearestToCell`) and `planeToFaceZone` discs are not offered — they have no meaningful STL surface. Exported geometry is always the full, unclipped shape, even when the 3-D view shows it clipped. |
 
 Both the traditional 4-vertex face notation `(v0 v1 v2 v3)` and the newer compact notation `(blockIndex faceIndex)` are supported and can coexist in the same file. The compact form is automatically expanded to 4-vertex lists using the standard hex block face numbering before display.
 
@@ -729,7 +732,7 @@ When `snappyHexMeshDict` is loaded or edited, its `geometry {}` block is drawn a
 | `sphere` | `centre`/`origin`, `radius` | Sphere; if `radius` is given as a vector `(rx ry rz)` (e.g. an igloo-shaped dome), an ellipsoid is drawn instead of a true sphere |
 | `cylinder` | `point1`/`p1`, `point2`/`p2`, `radius` | Cylinder |
 | `cone` | `point1`/`p1`, `point2`/`p2`, `radius1`, `radius2` | Cone (truncated; a true cone when `radius2` is 0) |
-| `triSurfaceMesh` / `distributedTriSurfaceMesh` | `file` (or the entry's own key, if it ends in `.stl`/`.stlb`/`.obj`) | The referenced mesh, loaded automatically from `constant/triSurface/` relative to the case directory. If the file cannot be found, the entry is listed greyed-out instead of drawn. |
+| `triSurfaceMesh` / `distributedTriSurfaceMesh` | `file` (or the entry's own key, if it ends in `.stl`/`.stlb`/`.obj`) | The referenced mesh, loaded automatically from `constant/triSurface/` relative to the case directory. Found even when shipped gzip-compressed (e.g. `motorBike.obj.gz`), whether the dict references the plain name or the `.gz` name directly — no manual gunzip needed. If the file cannot be found, the entry is listed greyed-out instead of drawn. |
 | `collection` (searchableSurfaceCollection) | named sub-entries, each with `surface <name>`, `scale`, `transform { origin; rotation none; }` or `transform { origin; e1; e3; }` | Each sub-entry referencing a **box**-type base surface is drawn as its own scaled/rotated/translated box, named `<collection>.<member>` (e.g. `twoFridgeFreezers.seal`). Members referencing a non-box base, or using an unsupported/missing `transform`, are not drawn; if none of a collection's members could be resolved, the collection itself is listed greyed-out. |
 
 **Colour coding by category:**
@@ -756,9 +759,19 @@ Each shape is labelled with a summary of the entry's `fieldValues` (e.g. `alpha.
 
 The overlay is shown even when `blockMeshDict` is not loaded. Renderable regions are also offered by **STL ▾ → Export Shapes as STL…** as a third group.
 
+### Sampling overlay
+
+When `controlDict` — or one of the standalone sampling dicts `system/sample`, `system/probes`, `system/surfaces`, `system/singleGraph` (all four now appear in the file list when present) — is loaded or edited, its sampling definitions are drawn in teal on the 3-D view:
+
+- **Probe points** — `probes` / `patchProbes` / `boundaryProbes` function objects: each `probeLocations` set is drawn as point markers.
+- **Sample lines** — `sets`-type entries: each member with a `start`/`end` pair (`lineUniform`, `lineCell`, `uniform`, `face`, …) is drawn as a thin tube; `cloud`-type members with a `points` list are drawn as point markers. Both member-list syntaxes work — the dictionary form `sets { … }` and the classic parenthesised list form `sets ( y0.1 { … } … );` — as does the `.org` `singleGraph` style, whose `start`/`end` sit at the file's top level.
+- **Sample planes** — `surfaces`-type entries: `plane` and `cuttingPlane` members (direct `point`/`normal`, `basePoint`/`normalVector`, or a `pointAndNormalDict {}`) are drawn as discs whose extent is display-only, like `planeToFaceZone` in the topoSet overlay.
+
+Definitions can come from several files at once (e.g. probes in `controlDict` plus a `system/sample` file); the **sample ▾** menu shows the union, and each row is tagged with its source file in brackets. Entries that carry no drawable geometry — `patch`-type surfaces, members without resolvable coordinates, or a `sets`/`surfaces` entry whose member list is missing — are collected under **Non-geometric sources (N)**. Non-sampling function objects (`forces`, `fieldAverage`, …) are ignored entirely. Sampling shapes are not offered for STL export: points and lines have no surface, and a plane's drawn extent is display-only.
+
 ### Overlay clipping
 
-setFieldsDict regions in particular are often written far larger than the domain (e.g. damBreak's `box (0 0 -1) (0.1461 0.292 1)` on a ~0.6 m tank) — drawn at full size they dwarf the block mesh. Whenever a block mesh is loaded, every overlay shape (topoSet, snappyHexMesh, and setFields) is therefore clipped, **for display only**, to the block-mesh bounding box expanded by 10% per axis:
+setFieldsDict regions in particular are often written far larger than the domain (e.g. damBreak's `box (0 0 -1) (0.1461 0.292 1)` on a ~0.6 m tank) — drawn at full size they dwarf the block mesh. Whenever a block mesh is loaded, every overlay shape (topoSet, snappyHexMesh, setFields, and sampling) is therefore clipped, **for display only**, to the block-mesh bounding box expanded by 10% per axis:
 
 - A shape that fits inside the expanded bounds is drawn unchanged.
 - A shape that pokes out is cut down to the bounds and its scene label gains a **"✂ clipped"** mark, so the cut is not mistaken for the shape's real extent.
@@ -1074,31 +1087,31 @@ Select **Tools > Restore 0/ from 0.orig** to recreate the `0/` field directory f
 
 ## Run blockMesh
 
-Select **Tools > Run blockMesh** to run `blockMesh` in the case directory. If the case already has numeric result directories, a confirmation dialog lists them and warns that re-running `blockMesh` may invalidate those results; click **Yes** to proceed. The command runs in the Terminal tab (which is switched to automatically) and its output is also saved to `log.blockMesh` in the case directory. The action is available only when a case is open and a terminal panel is present.
+Select **Tools > Run blockMesh…** to run `blockMesh` in the case directory. An options dialog opens first — all five "Run *" actions share the same dialog layout:
+
+- **Curated options** — the tool's most common flags as checkboxes and fields. For blockMesh: an alternative dictionary (`-dict`, with a **Browse…** button that inserts a case-relative path) and a mesh region (`-region`).
+- **Extra options** — a free-text field for any other flags (e.g. `-verbose`), appended to the command as typed.
+- **Command** — a live preview of the exact command line that will be sent, so you always see (and learn) the real OpenFOAM invocation before running it.
+
+Press **Run** (the default button — pressing Enter runs with the current options) to send the command to the Terminal tab, which is switched to automatically. The output is also saved to `log.blockMesh` in the case directory; the `2>&1 | tee log.blockMesh` redirection is added automatically so [View Log Summary](#view-log-summary) always finds the log. Option values are remembered per tool for the rest of the session. If the case already has numeric result directories, the dialog lists them at the top and warns that re-running `blockMesh` may invalidate those results. The action is available only when a case is open and a terminal panel is present.
 
 ## Run snappyHexMesh
 
-Select **Tools > Run snappyHexMesh** to run `snappyHexMesh -overwrite` in the case directory. Like **Run blockMesh**, a confirmation dialog warns if the case already has numeric result directories that re-meshing may invalidate. The command runs in the Terminal tab (switched to automatically) and its output is also saved to `log.snappyHexMesh`. The action is available only when a case is open and a terminal panel is present.
+Select **Tools > Run snappyHexMesh…** to run `snappyHexMesh` in the case directory. The [options dialog](#run-blockmesh) offers `-overwrite` (checked by default — uncheck it to write the snapped mesh into new time directories instead of replacing `constant/polyMesh`), `-dict`, and `-region`, and warns at the top if the case already has numeric result directories that re-meshing may invalidate. The command runs in the Terminal tab (switched to automatically) and its output is also saved to `log.snappyHexMesh`. The action is available only when a case is open and a terminal panel is present.
 
 ## Run topoSet
 
-Select **Tools > Run topoSet** to run `topoSet` in the case directory, reading `system/topoSetDict`. Like **Run blockMesh**, a confirmation dialog warns if the case already has numeric result directories that re-running may invalidate. The command runs in the Terminal tab (switched to automatically) and its output is also saved to `log.topoSet`. The action is available only when a case is open and a terminal panel is present.
+Select **Tools > Run topoSet…** to run `topoSet` in the case directory, reading `system/topoSetDict`. The [options dialog](#run-blockmesh) offers `-dict` (e.g. a `topoSetDict.refine` variant) and `-region`, and warns at the top if the case already has numeric result directories that re-running may invalidate. The command runs in the Terminal tab (switched to automatically) and its output is also saved to `log.topoSet`. The action is available only when a case is open and a terminal panel is present.
 
 ## Run setFields
 
-Select **Tools > Run setFields** to run `setFields` in the case directory, reading `system/setFieldsDict`. The command runs in the Terminal tab (switched to automatically) and its output is also saved to `log.setFields`.
+Select **Tools > Run setFields…** to run `setFields` in the case directory, reading `system/setFieldsDict`. The [options dialog](#run-blockmesh) offers `-dict` and `-region`, and the command runs in the Terminal tab (switched to automatically) with its output also saved to `log.setFields`.
 
-`setFields` overwrites the field files in `0/` in place, so re-running it on already-set fields compounds the values (an already-filled `alpha.water` region stays filled even if the dictionary's box has moved). When the case has a `0.orig/` backup, the action therefore offers three choices:
-
-- **Restore 0/, then run** — recreate `0/` from `0.orig/` first (`rm -rf 0 && cp -r 0.orig 0`), then run `setFields` on the clean initial fields. This is the standard tutorial workflow.
-- **Run anyway** — run `setFields` on the current `0/` as-is.
-- **Cancel**
-
-Without a `0.orig/` directory, a plain confirmation notes that `0/` is modified in place. The action is available only when a case is open and a terminal panel is present.
+`setFields` overwrites the field files in `0/` in place, so re-running it on already-set fields compounds the values (an already-filled `alpha.water` region stays filled even if the dictionary's box has moved) — the dialog says so at the top. When the case has a `0.orig/` backup, the dialog therefore also shows a **Restore 0/ from 0.orig/ first** checkbox, checked by default: it prepends `rm -rf 0 && cp -r 0.orig 0 && ` to the command (visible in the preview), the standard tutorial workflow of running `setFields` on clean initial fields. Uncheck it to run on the current `0/` as-is. Without a `0.orig/` directory the warning simply notes that there is no backup to restore from. The action is available only when a case is open and a terminal panel is present.
 
 ## Run checkMesh
 
-Select **Tools > Run checkMesh** to run `checkMesh` in the case directory — typically after **Run blockMesh** or **Run snappyHexMesh** — to validate mesh quality (non-orthogonality, skewness, aspect ratio, …). `checkMesh` only reads the mesh, so it runs immediately without a confirmation dialog. The command runs in the Terminal tab (switched to automatically) and its output is also saved to `log.checkMesh`, where [View Log Summary](#view-log-summary) can pick it up. The action is available only when a case is open and a terminal panel is present.
+Select **Tools > Run checkMesh…** to run `checkMesh` in the case directory — typically after **Run blockMesh** or **Run snappyHexMesh** — to validate mesh quality (non-orthogonality, skewness, aspect ratio, …). The [options dialog](#run-blockmesh) offers `-allGeometry` and `-allTopology` (the extended non-standard check sets), `-writeSets` with a surface format (e.g. `vtk`, writing the faulty cell/face sets for inspection in ParaView), and `-region`; `checkMesh` only reads the mesh, so the dialog carries no pre-flight warning. The command runs in the Terminal tab (switched to automatically) and its output is also saved to `log.checkMesh`, where [View Log Summary](#view-log-summary) can pick it up. The action is available only when a case is open and a terminal panel is present.
 
 ## Run Allrun Script
 
@@ -1131,14 +1144,14 @@ The file list and the [mesh indicator](#mesh-presencestaleness-indicator) refres
 
 Select **Tools > View Log Summary…** to open a condensed report of a `log.*` file instead of reading the raw text — most useful for `log.snappyHexMesh`, which can run to thousands of lines of repetitive refinement/snapping/layer-iteration output. The dialog defaults to the most-recently-modified `log.*` file in the case directory (use **Browse…** to pick a different one, including outside the case directory) and shows two tabs:
 
-- **Summary** — for `blockMesh`: the `Mesh Information` and `Patches` blocks. For `snappyHexMesh`: final cell/face/point counts and iteration counts per castellation refinement category, the snapping relaxation iteration count, the final per-patch layer-thickness table, and the mesh-quality result. For `topoSet`: one condensed line per cell/face/point set, listing the sources applied and the final set size. Repeated warnings (e.g. per-iteration displacement warnings) are collapsed into one line with a count; fatal errors are always shown in full. Any other utility's log falls back to its header plus the last ~20 lines.
+- **Summary** — for `blockMesh`: the `Mesh Information` and `Patches` blocks. For `snappyHexMesh`: final cell/face/point counts and iteration counts per castellation refinement category, the snapping relaxation iteration count, the final per-patch layer-thickness table, and the mesh-quality result. For `topoSet`: one condensed line per cell/face/point set, listing the sources applied and the final set size. For a **solver log** (`log.simpleFoam`, `log.interFoam`, … — recognised by its time-loop shape, so any solver works without being on a list): the number of time steps and the simulated time range, the final `ExecutionTime`/`ClockTime`, a convergence line if the run converged (`SIMPLE solution converged in N iterations`), and the last step's residuals — initial/final residual and iteration count per field, Courant number(s), and the cumulative continuity error. A run that neither converged nor reached `End` is reported as FAILED. Repeated warnings (e.g. per-iteration displacement warnings) are collapsed into one line with a count; fatal errors are always shown in full. Any other utility's log falls back to its header plus the last ~20 lines.
 - **Raw Log** — the untouched file contents, in case the summary omits something you need.
 
 Like [Find OpenFOAM Examples](#find-openfoam-examples) — and unlike FoDE's other dialogs — this one is **non-modal**: it can stay open beside the main window while you keep working in the tree, editor, or terminal, so you can cross-reference dictionary settings against the log's results. The action is available whenever a case is open; it does not require the terminal panel or a prior FoDE-run mesh command — any existing `log.*` file works.
 
 ## Find OpenFOAM Examples
 
-Select **Tools > Find OpenFOAM Examples…** to search a local OpenFOAM installation for real usage examples of a keyword or setting — the kind of question ("how is `nOuterCorrectors` actually used?", "what goes in a `forces` function object?") that otherwise requires `find`/`grep` skills. The dialog searches two sources, each toggleable with a checkbox:
+Select **Tools > Find OpenFOAM Examples…** (also available as **Case > Find OpenFOAM Examples…**) to search a local OpenFOAM installation for real usage examples of a keyword or setting — the kind of question ("how is `nOuterCorrectors` actually used?", "what goes in a `forces` function object?") that otherwise requires `find`/`grep` skills. The dialog searches two sources, each toggleable with a checkbox:
 
 - **Tutorials** — the ~550 example cases shipped under the installation's `tutorials/` directory.
 - **caseDicts templates** — the curated files under `etc/caseDicts/`, including the `postProcessing/` function-object templates (usable in a `controlDict` `functions {}` block via `#includeFunc <name>`) and the fully annotated example dictionaries under `annotated/`.
@@ -1151,6 +1164,7 @@ Select **Tools > Find OpenFOAM Examples…** to search a local OpenFOAM installa
 
 - **Copy File** / **Copy Selection** — copy the whole file, or just the text you selected in the preview (the button enables once something is selected), e.g. to paste into the Editor tab of your own case.
 - **Compare with this case** — enabled when the hit lies inside a tutorial case. One click loads that case as the reference of the existing [Case comparison](#case-comparison) view, so you can see exactly where your case differs and adopt individual settings with the right-click **Use this value** action. FoDE asks you to open a case first if none is open.
+- **Duplicate this case…** — enabled when the hit lies inside a tutorial case. Opens the same dialog as [Duplicating a case](#duplicating-a-case) with the tutorial as the source, so you can copy it to a writable location and start your own case from it — tutorial cases inside the installation should never be edited in place. The destination defaults to your default case directory (falling back to your home directory, never the read-only installation), and after copying FoDE offers to open the new case immediately.
 
 The dialog is **non-modal**: keep it open beside the main window and copy from examples while editing. No case needs to be open just to search.
 
@@ -1189,6 +1203,12 @@ Click **Find in Tree** in the Editor toolbar (or press **Ctrl+Shift+T**) to navi
 
 Right-click any row in the center tree view to open a context menu. Items are grouped by function.
 
+### Undo and redo
+
+Tree edits are undoable: press **Ctrl+Z** while the tree has keyboard focus to revert the most recent tree change made in the current file, and **Ctrl+Shift+Z** to re-apply it (both also appear in the context menu as **Undo Tree Edit** / **Redo Tree Edit**). This covers every tree-side mutation — inline cell edits, Detail-panel applies, Paste Value, Add/Duplicate/Delete/Comment Out/Restore, **Apply Text to Tree**, vertex drags in the BlockMesh panel, and the Boundary tab's patch operations. A boundary operation that changed several field files at once (e.g. renaming a patch across `0/`) is undone as a whole — one Ctrl+Z restores every file it touched, and the status bar reports the extra files.
+
+Undo is a single history for the whole session (up to 50 steps), cleared when you open another case: Ctrl+Z reverses the most recent tree change wherever it happened, switching the view to the affected file when it is not already on screen. The bottom text editor keeps its own native Ctrl+Z for free-form typing — the tree shortcut only fires while the tree has focus. Undoing reloads the tree, so expanded/selected rows are reset.
+
 ### Value copy and paste
 
 - **Copy Value** — copies the display text from the Value column of the selected row to the system clipboard. Ctrl+C when the tree has keyboard focus does the same.
@@ -1208,7 +1228,7 @@ Ctrl+C and Ctrl+V are scoped to the tree widget and do not interfere with the te
 
 - **Comment Out** — converts the selected entry into a commented-out `unknown_raw_entry` by prepending `// ` to every non-blank line of its rendered text. The result is written back into the file as a block comment. Disabled when the entry is already commented out.
 - **Restore from Comment** — reverses **Comment Out**: strips the `// ` prefix from each line, re-parses the result, and replaces the `unknown_raw_entry` with the recovered node(s). Enabled only when every non-blank line of the entry starts with `//`.
-- **Delete** — removes the selected node after a Yes/No confirmation dialog. This cannot be undone.
+- **Delete** — removes the selected node after a Yes/No confirmation dialog.
 
 ## Bundled example cases
 
@@ -1313,7 +1333,7 @@ If the destination already exists, a confirmation prompt is shown before overwri
 
 If there are unsaved changes when **Duplicate Case** is pressed, the application asks whether to save all modified files before copying so that the duplicated case reflects the latest edits.
 
-To duplicate a case from a reference directory rather than the currently open case, use **Case > Duplicate from Case Library...** (see [Case Library](#case-library)).
+To duplicate a case from a reference directory rather than the currently open case, use **Case > Duplicate from Case Library...** (see [Case Library](#case-library)). To duplicate an OpenFOAM tutorial case found by keyword search, use the **Duplicate this case…** button in [Find OpenFOAM Examples](#find-openfoam-examples).
 
 ## Case comparison
 

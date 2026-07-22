@@ -39,23 +39,25 @@ TRANSLATIONS: dict[str, str] = {
     "Restore 0/ from 0.orig": "0/ を 0.orig から復元",
     "Delete 0/ and replace it with a fresh copy of 0.orig/":
         "0/ を削除し、0.orig/ の新しいコピーで置き換えます",
-    "Run blockMesh": "blockMesh を実行",
-    "Send 'blockMesh' to the terminal panel":
-        "'blockMesh' をターミナルパネルに送信します",
-    "Run snappyHexMesh": "snappyHexMesh を実行",
-    "Send 'snappyHexMesh -overwrite' to the terminal panel":
-        "'snappyHexMesh -overwrite' をターミナルパネルに送信します",
-    "Run topoSet": "topoSet を実行",
-    "Send 'topoSet' to the terminal panel":
-        "'topoSet' をターミナルパネルに送信します",
-    "Run setFields": "setFields を実行",
-    "Send 'setFields' to the terminal panel — sets initial field "
-    "regions in 0/ from system/setFieldsDict":
-        "'setFields' をターミナルパネルに送信します — system/setFieldsDict に"
-        "従って 0/ の初期場の領域を設定します",
-    "Run checkMesh": "checkMesh を実行",
-    "Send 'checkMesh' to the terminal panel to validate the mesh":
-        "'checkMesh' をターミナルパネルに送信し、メッシュを検証します",
+    "Run blockMesh…": "blockMesh を実行…",
+    "Choose options and run blockMesh in the terminal panel":
+        "オプションを選択して blockMesh をターミナルパネルで実行します",
+    "Run snappyHexMesh…": "snappyHexMesh を実行…",
+    "Choose options and run snappyHexMesh in the terminal panel":
+        "オプションを選択して snappyHexMesh をターミナルパネルで実行します",
+    "Run topoSet…": "topoSet を実行…",
+    "Choose options and run topoSet in the terminal panel":
+        "オプションを選択して topoSet をターミナルパネルで実行します",
+    "Run setFields…": "setFields を実行…",
+    "Choose options and run setFields in the terminal panel — sets "
+    "initial field regions in 0/ from system/setFieldsDict":
+        "オプションを選択して setFields をターミナルパネルで実行します — "
+        "system/setFieldsDict に従って 0/ の初期場の領域を設定します",
+    "Run checkMesh…": "checkMesh を実行…",
+    "Choose options and run checkMesh in the terminal panel to "
+    "validate the mesh":
+        "オプションを選択して checkMesh をターミナルパネルで実行し、"
+        "メッシュを検証します",
     "Open Mesh in ParaView…": "メッシュを ParaView で開く…",
     "Open the case's generated mesh in ParaView (paraFoam)":
         "ケースの生成済みメッシュを ParaView (paraFoam) で開きます",
@@ -112,6 +114,10 @@ TRANSLATIONS: dict[str, str] = {
     "Diff cleared.": "差分をクリアしました。",
     "Diff: {rel} not found in reference case.": "差分: {rel} が参照ケースに見つかりません。",
     "Diff: {n} difference{s} in {rel}.": "差分: {rel} に {n} 件{s}の差異。",
+    "Diff: could not parse {rel} in the reference case.":
+        "差分: 参照ケースの {rel} を解析できませんでした。",
+    "Diff: {n} reference file(s) could not be parsed and were skipped.":
+        "差分: 参照ケースの {n} 個のファイルを解析できずスキップしました。",
 
     # ── status bar ────────────────────────────────────────────────────────────
     "Tree changes applied to text editor": "ツリーの変更をテキストエディタに適用しました",
@@ -218,9 +224,6 @@ TRANSLATIONS: dict[str, str] = {
     "Missing URL": "URLが入力されていません",
     "No 0.orig/ to restore": "復元元の 0.orig/ がありません",
     "Restore 0/ from 0.orig/?": "0/ を 0.orig/ から復元しますか?",
-    "Re-run blockMesh?": "blockMesh を再実行しますか?",
-    "Re-run snappyHexMesh?": "snappyHexMesh を再実行しますか?",
-    "Re-run topoSet?": "topoSet を再実行しますか?",
     "ParaView not found": "ParaView が見つかりません",
 
     # ── QMessageBox messages ──────────────────────────────────────────────────
@@ -286,7 +289,16 @@ TRANSLATIONS: dict[str, str] = {
     "This may not be a valid OpenFOAM case.\nOpen anyway?":
         "選択したディレクトリには 'system' または 'constant' が含まれていません:\n\n{directory}\n\n"
         "有効な OpenFOAM ケースでない可能性があります。\nそれでも開きますか？",
-    "Delete '{node_name}'? This cannot be undone.": "'{node_name}' を削除しますか？この操作は元に戻せません。",
+    "Delete '{node_name}'?": "'{node_name}' を削除しますか？",
+    "Undo Tree Edit\tCtrl+Z": "ツリー編集を元に戻す\tCtrl+Z",
+    "Redo Tree Edit\tCtrl+Shift+Z": "ツリー編集をやり直す\tCtrl+Shift+Z",
+    "Undo Tree Edit": "ツリー編集を元に戻す",
+    "Redo Tree Edit": "ツリー編集をやり直す",
+    "Nothing to undo": "元に戻す操作はありません",
+    "Nothing to redo": "やり直す操作はありません",
+    "Undid tree change": "ツリーの変更を元に戻しました",
+    "Redid tree change": "ツリーの変更をやり直しました",
+    "{msg} (+{n} more file(s))": "{msg}（他 {n} ファイル）",
     "Could not parse the uncommented text:\n\n{e}": "コメントを外したテキストを解析できませんでした:\n\n{e}",
     "No entries found after removing comment markers.": "コメント記号を除去した後にエントリが見つかりませんでした。",
     "Could not apply the value to the selected node.": "選択したノードに値を適用できませんでした。",
@@ -323,24 +335,20 @@ TRANSLATIONS: dict[str, str] = {
     "0.orig/, discarding any edits made directly to 0/. Continue?":
         "0/ を削除して 0.orig/ の新しいコピーで置き換え、0/ に直接加えた編集を"
         "破棄します。続行しますか?",
-    "This case already has results in: {dirs}.\n"
+    "This case already has results in: {dirs}.":
+        "このケースには既に結果があります: {dirs}",
     "Re-running blockMesh will regenerate the mesh and may "
-    "invalidate those results. Continue?":
-        "このケースには既に結果があります: {dirs}\n"
+    "invalidate those results.":
         "blockMesh を再実行するとメッシュが再生成され、これらの結果が無効になる"
-        "可能性があります。続行しますか?",
-    "This case already has results in: {dirs}.\n"
+        "可能性があります。",
     "Re-running snappyHexMesh will regenerate the mesh and may "
-    "invalidate those results. Continue?":
-        "このケースには既に結果があります: {dirs}\n"
+    "invalidate those results.":
         "snappyHexMesh を再実行するとメッシュが再生成され、これらの結果が無効になる"
-        "可能性があります。続行しますか?",
-    "This case already has results in: {dirs}.\n"
+        "可能性があります。",
     "Re-running topoSet will regenerate cell/face sets and may "
-    "invalidate those results. Continue?":
-        "このケースには既に結果があります: {dirs}\n"
+    "invalidate those results.":
         "topoSet を再実行するとセル/面セットが再生成され、これらの結果が無効になる"
-        "可能性があります。続行しますか?",
+        "可能性があります。",
     "Neither paraFoam nor paraview could be found on PATH.":
         "PATH 上に paraFoam も paraview も見つかりませんでした。",
 
@@ -566,6 +574,7 @@ TRANSLATIONS: dict[str, str] = {
     "File": "ファイル",
     "First match": "最初の一致",
     "Compare with this case": "このケースと比較",
+    "Duplicate this case…": "このケースを複製…",
     "Copy File": "ファイルをコピー",
     "Copy Selection": "選択範囲をコピー",
     "Browse…": "参照…",
@@ -587,6 +596,29 @@ TRANSLATIONS: dict[str, str] = {
     "No case open": "ケースが開かれていません",
     "Open a case first, then compare it with the example case.":
         "先にケースを開いてから、例のケースと比較してください。",
+
+    # ── run tool options dialog (Tools menu "Run *") ──────────────────────────
+    "Run {tool}": "{tool} を実行",
+    "Run": "実行",
+    "Extra options:": "追加オプション:",
+    "Additional options (e.g. -time 0.5)": "その他のオプション（例: -time 0.5）",
+    "Command:": "コマンド:",
+    "(invalid extra options — unbalanced quote?)":
+        "（追加オプションが不正です — 引用符が閉じていない可能性があります）",
+    "Select dictionary file": "ディクショナリファイルを選択",
+    "Alternative dictionary": "代替ディクショナリ",
+    "Mesh region (multi-region case)": "メッシュリージョン（マルチリージョンケース）",
+    "Overwrite the existing mesh instead of writing a new time directory":
+        "新しい時間ディレクトリを作らず既存のメッシュを上書き",
+    "Run all geometry checks (including non-standard)":
+        "すべての形状チェックを実行（非標準を含む）",
+    "Run all topology checks (including non-standard)":
+        "すべてのトポロジーチェックを実行（非標準を含む）",
+    "Write faulty cells/faces as sets in this format":
+        "問題のあるセル/面をこの形式のセットとして書き出し",
+    "e.g. system/blockMeshDict.v2": "例: system/blockMeshDict.v2",
+    "e.g. fluid": "例: fluid",
+    "e.g. vtk": "例: vtk",
 
     # ── Allrun / Allclean / clean case (Tools menu) ───────────────────────────
     "Run Allrun Script": "Allrun スクリプトを実行",
@@ -619,20 +651,14 @@ TRANSLATIONS: dict[str, str] = {
         "先にケースをクリーンして、ワークフロー全体を再実行しますか?",
     "Clean, then run": "クリーンしてから実行",
     "Run anyway": "そのまま実行",
-    "Run setFields?": "setFields を実行しますか?",
-    "setFields modifies the field files in 0/ in place, so "
-    "re-running it on already-set fields compounds the values.\n"
-    "Restore 0/ from 0.orig/ first to start from clean initial "
-    "fields?":
+    "setFields modifies the field files in 0/ in place, so re-running "
+    "it on already-set fields compounds the values.":
         "setFields は 0/ の場ファイルを直接書き換えるため、設定済みの場に"
-        "対して再実行すると値が重ねて適用されます。\n"
-        "先に 0/ を 0.orig/ から復元し、クリーンな初期場から始めますか?",
-    "Restore 0/, then run": "0/ を復元してから実行",
-    "setFields modifies the field files in 0/ in place "
-    "(this case has no 0.orig/ backup to restore from). "
-    "Continue?":
-        "setFields は 0/ の場ファイルを直接書き換えます"
-        "（このケースには復元元となる 0.orig/ がありません）。続行しますか?",
+        "対して再実行すると値が重ねて適用されます。",
+    "Restore 0/ from 0.orig/ first (start from clean initial fields)":
+        "先に 0/ を 0.orig/ から復元する（クリーンな初期場から開始）",
+    "This case has no 0.orig/ backup to restore from.":
+        "このケースには復元元となる 0.orig/ バックアップがありません。",
     "Run Allrun script?": "Allrun スクリプトを実行しますか?",
     "This runs the case's full workflow, which may include a "
     "long-running solver. In Simple terminal mode a running "

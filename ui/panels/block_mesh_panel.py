@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 
 from foam.block_mesh_extractor import extract_block_mesh_data
 from foam.nodes import FoamNode
+from foam.sampling_extractor import SamplingData, extract_sampling_data
 from foam.set_fields_extractor import SetFieldsShape, extract_set_fields_data
 from foam.snappy_hex_mesh_extractor import extract_snappy_hex_mesh_data
 from foam.topo_set_extractor import TopoShape, extract_topo_set_data
@@ -59,11 +60,27 @@ _MOUSE_HINT_TOOLTIP = (
 
 from ui.panels.block_mesh_renderer import (
     _ACTION_COLORS,
+    _SAMPLING_COLOR,
     _SET_FIELDS_REGION_COLOR,
     _SNAPPY_CATEGORY_COLORS,
     BlockMeshRenderer,
     RenderSettings,
+    read_surface_mesh,
 )
+
+
+def _shape_key(shape) -> tuple[str, str, str]:
+    """Stable identity for an overlay shape across re-extraction.
+
+    Uses the shared label/kind fields plus the sampling-only source_file (blank
+    for the other overlays) so per-shape visibility toggles can be preserved
+    when the menu is rebuilt.
+    """
+    return (
+        getattr(shape, "source_file", ""),
+        getattr(shape, "label", ""),
+        getattr(shape, "kind", ""),
+    )
 
 
 def _color_swatch(color_name: str, size: int = 12) -> QIcon:
@@ -178,6 +195,20 @@ class _ShapeOverlayMenu:
         they are collapsed into a submenu so a source-rich dict (60+ actions)
         keeps the renderable toggles readable at the top level.
         """
+        # Remember which shapes/locations the user had hidden so a rebuild
+        # (fired on every edit of a contributing dict) does not silently
+        # re-show them. Keyed by a stable identity that survives re-extraction;
+        # this matters most for the sampling overlay, whose menu is the union
+        # of several files, so editing one must not reset another's toggles.
+        prior_shape_checked = {
+            _shape_key(s): a.isChecked()
+            for s, a in zip(self.shapes, self.shape_actions)
+        }
+        prior_loc_checked = {
+            self._location_row(loc): a.isChecked()
+            for loc, a in zip(self.locations, self.location_actions)
+        } if self._location_row is not None else {}
+
         for act in self.shape_actions + self.location_actions:
             self.menu.removeAction(act)
             act.deleteLater()
@@ -196,7 +227,8 @@ class _ShapeOverlayMenu:
         master_on = self.master.isChecked()
         for shape in self.shapes:
             icon, text = self._shape_row(shape)
-            act = QAction(icon, text, self.menu, checkable=True, checked=True)
+            checked = prior_shape_checked.get(_shape_key(shape), True)
+            act = QAction(icon, text, self.menu, checkable=True, checked=checked)
             act.setEnabled(master_on)
             act.toggled.connect(self._on_changed)
             self.menu.addAction(act)
@@ -204,8 +236,10 @@ class _ShapeOverlayMenu:
 
         if self._location_row is not None:
             for location in self.locations:
+                row = self._location_row(location)
                 act = QAction(
-                    self._location_row(location), self.menu, checkable=True, checked=True
+                    row, self.menu, checkable=True,
+                    checked=prior_loc_checked.get(row, True),
                 )
                 act.setEnabled(master_on)
                 act.toggled.connect(self._on_changed)
@@ -270,6 +304,11 @@ class BlockMeshPanel(QWidget):
         self._topo: "_ShapeOverlayMenu | None" = None
         self._snappy: "_ShapeOverlayMenu | None" = None
         self._set_fields: "_ShapeOverlayMenu | None" = None
+        self._sampling: "_ShapeOverlayMenu | None" = None
+        # Sampling definitions can come from several files at once (controlDict
+        # functions{} plus standalone system/sample etc.), so shapes are kept
+        # per source basename and the menu shows their union.
+        self._sampling_by_file: dict[str, SamplingData] = {}
         self._export_stl_act: "QAction | None" = None
 
         if not _PYVISTA_OK:
@@ -389,9 +428,9 @@ class BlockMeshPanel(QWidget):
             legend={a: _ACTION_COLORS[a] for a in ("new", "add", "subtract", "subset", "invert")},
             shape_row=lambda s: (
                 _color_swatch(_ACTION_COLORS.get(s.action, "gray")),
-                f"{s.label or '(unnamed)'}  ·  {s.source}",
+                f"{s.label or '(unnamed)'}  ·  {s.kind}",
             ),
-            info_row=lambda s: f"{s.label or '(unnamed)'}  ·  {s.source}  (no geometry)",
+            info_row=lambda s: f"{s.label or '(unnamed)'}  ·  {s.kind}  (no geometry)",
             on_changed=self._render,
         )
 
@@ -413,9 +452,9 @@ class BlockMeshPanel(QWidget):
             },
             shape_row=lambda s: (
                 _color_swatch(_SNAPPY_CATEGORY_COLORS.get(s.category, "gray")),
-                f"{s.name}  ·  {s.geo_type}  {s.level or s.mode or ''}".strip(),
+                f"{s.label}  ·  {s.kind}  {s.level or s.mode or ''}".strip(),
             ),
-            info_row=lambda s: f"{s.name}  ·  {s.geo_type}  (no geometry)",
+            info_row=lambda s: f"{s.label}  ·  {s.kind}  (no geometry)",
             location_row=lambda location: f"📍 {location[1]}",
             on_changed=self._render,
         )
@@ -437,9 +476,9 @@ class BlockMeshPanel(QWidget):
             legend={"region": _SET_FIELDS_REGION_COLOR},
             shape_row=lambda s: (
                 _color_swatch(_SET_FIELDS_REGION_COLOR),
-                f"{s.label or '(no fieldValues)'}  ·  {s.source}",
+                f"{s.label or '(no fieldValues)'}  ·  {s.kind}",
             ),
-            info_row=lambda s: f"{s.label or '(no fieldValues)'}  ·  {s.source}  (no geometry)",
+            info_row=lambda s: f"{s.label or '(no fieldValues)'}  ·  {s.kind}  (no geometry)",
             on_changed=self._render,
         )
 
@@ -451,6 +490,33 @@ class BlockMeshPanel(QWidget):
             "Show region sources from setFieldsDict, or toggle individual shapes\n"
             "(load setFieldsDict to populate). Regions larger than the block mesh\n"
             "are clipped in the view and marked '✂ clipped'."
+        )
+
+        self._sampling = _ShapeOverlayMenu(
+            self,
+            master_label="Show sampling geometry",
+            legend_title="Sampling colour",
+            legend={"probes / lines / planes": _SAMPLING_COLOR},
+            shape_row=lambda s: (
+                _color_swatch(_SAMPLING_COLOR),
+                f"{s.label or '(unnamed)'}  ·  {s.kind}  [{s.source_file}]",
+            ),
+            info_row=lambda s: (
+                f"{s.label or '(unnamed)'}  ·  {s.kind}  [{s.source_file}]"
+                "  (no geometry)"
+            ),
+            on_changed=self._render,
+        )
+
+        sampling_btn = QToolButton()
+        sampling_btn.setText("sample ▾")
+        sampling_btn.setPopupMode(QToolButton.InstantPopup)
+        sampling_btn.setMenu(self._sampling.menu)
+        sampling_btn.setToolTip(
+            "Show sampling geometry — probes, sample lines, sample planes — from\n"
+            "controlDict's functions {} block or a standalone sampling dict\n"
+            "(sample / probes / surfaces / singleGraph), or toggle individual\n"
+            "shapes (load one of those files to populate)"
         )
 
         scale_menu = _StaysOpenMenu(self)
@@ -506,6 +572,7 @@ class BlockMeshPanel(QWidget):
         toolbar.addWidget(topo_btn)
         toolbar.addWidget(snappy_btn)
         toolbar.addWidget(set_fields_btn)
+        toolbar.addWidget(sampling_btn)
         toolbar.addWidget(refresh_btn)
         toolbar.addWidget(stl_btn)
         toolbar.addWidget(scale_btn)
@@ -637,6 +704,25 @@ class BlockMeshPanel(QWidget):
         if self._plotter is not None:
             self._render()
 
+    def update_sampling(self, path: str, root: FoamNode) -> None:
+        if not _PYVISTA_OK:
+            return
+        data = extract_sampling_data(root)
+        base = Path(path).name
+        for shape in data.shapes + data.non_geometric:
+            shape.source_file = base
+        if data.shapes or data.non_geometric:
+            self._sampling_by_file[base] = data
+        else:
+            self._sampling_by_file.pop(base, None)
+        shapes = [s for d in self._sampling_by_file.values() for s in d.shapes]
+        non_geometric = [
+            s for d in self._sampling_by_file.values() for s in d.non_geometric
+        ]
+        self._sampling.rebuild(shapes, non_geometric)
+        if self._plotter is not None:
+            self._render()
+
     def clear(self) -> None:
         self._data = None
         if self._topo is not None:
@@ -645,6 +731,9 @@ class BlockMeshPanel(QWidget):
             self._snappy.rebuild([], [], [])
         if self._set_fields is not None:
             self._set_fields.rebuild([], [])
+        self._sampling_by_file.clear()
+        if self._sampling is not None:
+            self._sampling.rebuild([], [])
         self._update_export_stl_enabled()
         self._selected_vertex = None
         if self._vtx_table is not None:
@@ -804,7 +893,7 @@ class BlockMeshPanel(QWidget):
             return
         has_overlay = (
             self._topo.shapes or self._snappy.shapes or self._snappy.locations
-            or self._set_fields.shapes
+            or self._set_fields.shapes or self._sampling.shapes
         )
         if self._data is None and not has_overlay:
             return
@@ -816,6 +905,7 @@ class BlockMeshPanel(QWidget):
             self._snappy.visible_shapes(),
             self._snappy.visible_locations(),
             self._set_fields.visible_shapes(),
+            self._sampling.visible_shapes(),
         )
 
     # ── STL loading ───────────────────────────────────────────────────────────
@@ -825,12 +915,13 @@ class BlockMeshPanel(QWidget):
             return
         path, _ = QFileDialog.getOpenFileName(
             self, "Load STL / OBJ", "",
-            "STL / OBJ files (*.stl *.STL *.obj *.OBJ);;All files (*)",
+            "STL / OBJ files (*.stl *.STL *.stlb *.obj *.OBJ "
+            "*.stl.gz *.STL.gz *.obj.gz *.OBJ.gz *.stlb.gz);;All files (*)",
         )
         if not path:
             return
         try:
-            self._stl_meshes.append(pv.read(path))
+            self._stl_meshes.append(read_surface_mesh(path))
             self._clear_stl_act.setEnabled(True)
             self._render()
         except Exception as e:

@@ -62,6 +62,10 @@ def test_ui_ops_importable():
     from ui.mixins._ui_ops import _UiOpsMixin  # noqa: F401
 
 
+def test_undo_ops_importable():
+    from ui.mixins._undo_ops import _UndoOpsMixin  # noqa: F401
+
+
 # ── method ownership ──────────────────────────────────────────────────────────
 
 CASE_OPS_METHODS = [
@@ -177,6 +181,7 @@ DIFF_OPS_METHODS = [
     "_on_side_by_side_toggled",
     "_compare_with_case",
     "_start_comparison_with",
+    "_reset_diff_for_case_dir",
     "_clear_diff",
     "_recompute_diff",
     "_precompute_all_diff_counts",
@@ -188,6 +193,23 @@ PANEL_OPS_METHODS = [
     "_on_toggle_bm_side_by_side",
     "_update_bm_side_by_side_btn",
     "_on_terminal_mode_changed",
+]
+
+UNDO_OPS_METHODS = [
+    "_setup_tree_undo",
+    "_on_model_about_to_change",
+    "_commit_pending_undo",
+    "_checkpoint_for_undo",
+    "_end_undo_op",
+    "_trim_undo_stack",
+    "_undo_snapshot_of",
+    "_undo_text_for",
+    "_clear_undo_stacks",
+    "_tree_undo",
+    "_tree_redo",
+    "_undo_redo_step",
+    "_restore_undo_snapshot",
+    "_restored_dirty",
 ]
 
 
@@ -251,6 +273,12 @@ def test_panel_ops_owns_method(method):
     assert method in _PanelOpsMixin.__dict__, f"_PanelOpsMixin missing {method}"
 
 
+@pytest.mark.parametrize("method", UNDO_OPS_METHODS)
+def test_undo_ops_owns_method(method):
+    from ui.mixins._undo_ops import _UndoOpsMixin
+    assert method in _UndoOpsMixin.__dict__, f"_UndoOpsMixin missing {method}"
+
+
 # ── no cross-mixin duplicates ─────────────────────────────────────────────────
 
 def test_no_duplicate_methods_across_mixins():
@@ -266,6 +294,7 @@ def test_no_duplicate_methods_across_mixins():
     from ui.mixins._tools_ops import _ToolsOpsMixin
     from ui.mixins._model_ops import _ModelOpsMixin
     from ui.mixins._ui_ops import _UiOpsMixin
+    from ui.mixins._undo_ops import _UndoOpsMixin
 
     all_groups = [
         ("_CaseOpsMixin",           set(_CaseOpsMixin.__dict__)),
@@ -280,12 +309,13 @@ def test_no_duplicate_methods_across_mixins():
         ("_ToolsOpsMixin",          set(_ToolsOpsMixin.__dict__)),
         ("_ModelOpsMixin",          set(_ModelOpsMixin.__dict__)),
         ("_UiOpsMixin",             set(_UiOpsMixin.__dict__)),
+        ("_UndoOpsMixin",           set(_UndoOpsMixin.__dict__)),
     ]
     mixins = [
         _CaseOpsMixin, _FileOpsMixin, _FileManagementOpsMixin,
         _TreeCrudOpsMixin, _TreeSyncOpsMixin, _BoundaryOpsMixin,
         _DiffOpsMixin, _PanelOpsMixin, _FoamMonitorOpsMixin,
-        _ToolsOpsMixin, _ModelOpsMixin, _UiOpsMixin,
+        _ToolsOpsMixin, _ModelOpsMixin, _UiOpsMixin, _UndoOpsMixin,
     ]
     method_groups = [
         (name, {k for k in methods if not k.startswith("__") and callable(getattr(m, k, None))})

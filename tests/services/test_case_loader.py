@@ -77,6 +77,11 @@ class TestTargetFiles:
         files = list_case_files(str(tmp_path))
         assert files == []
 
+    def test_standalone_sampling_dicts_are_targets(self):
+        """The sampling-overlay standalone dicts are listed target files."""
+        for name in ("sample", "probes", "surfaces", "singleGraph"):
+            assert f"system/{name}" in TARGET_FILES
+
 
 # ── FIELD_DIRS: field files under 0/ and 0.orig/ ─────────────────────────────
 

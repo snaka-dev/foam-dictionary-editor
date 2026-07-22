@@ -8,15 +8,16 @@ import re
 
 from foam.nodes import FoamNode
 from foam.tree_utils import (
-    expand_evals,
     find_child,
+    resolve_box_geometry,
     resolve_cone_geometry,
     resolve_cylinder_geometry,
+    resolve_plane_geometry,
+    resolve_point_list,
     resolve_sphere_geometry,
     resolve_vector,
 )
-from foam.utils import parse_box_pair
-from foam.var_resolver import build_var_map, substitute_vars
+from foam.var_resolver import build_var_map
 
 _BOX_SOURCES = frozenset({"boxToCell", "boxToFace", "boxToPoint"})
 _SPHERE_SOURCES = frozenset({"sphereToCell", "sphereToFace", "sphereToPoint"})
@@ -51,8 +52,10 @@ _TOPO_STRUCTURAL = frozenset({"actions"})
 
 @dataclasses.dataclass
 class TopoShape:
+    # `label`/`kind` are the field names shared by all extractor shape classes
+    # (SnappyShape, SetFieldsShape): display name + geometry/source keyword.
     label: str    # value of the action's 'name' entry, or ""
-    source: str   # e.g. "boxToCell", "sphereToCell", "cylinderToCell"
+    kind: str     # source type, e.g. "boxToCell", "sphereToCell", "cylinderToCell"
     action: str   # e.g. "new", "add", "subtract", "subset", "invert"
     geometry: dict  # parsed geometry: keys depend on source type
 
@@ -72,47 +75,6 @@ def _find_action_list(root: FoamNode) -> FoamNode | None:
     return None
 
 
-def _resolve_box_pair(node: FoamNode, var_map: dict[str, str]) -> list[list[float]] | None:
-    """Return [[x,y,z],[x,y,z]] from a box_pair/raw_list node, resolving $vars."""
-    if node.node_type == "box_pair":
-        return node.value
-    if node.node_type == "raw_list":
-        # raw_list strips the outer parens; prepend '(' to restore the expected format.
-        text = expand_evals(substitute_vars(str(node.value), var_map))
-        return parse_box_pair("(" + text + ")")
-    return None
-
-
-def _scan_vectors(text: str) -> list[list[float]] | None:
-    """Parse every top-level '(x y z)' group in *text* into a float triple."""
-    vectors: list[list[float]] = []
-    for match in re.finditer(r"\(([^()]*)\)", text):
-        items = match.group(1).split()
-        if len(items) != 3:
-            return None
-        try:
-            vectors.append([float(x) for x in items])
-        except ValueError:
-            return None
-    return vectors or None
-
-
-def _resolve_point_list(node: FoamNode, var_map: dict[str, str]) -> list[list[float]] | None:
-    """Return [[x,y,z], …] from a raw_list of points, resolving $vars/#eval."""
-    if node.node_type != "raw_list":
-        return None
-    text = expand_evals(substitute_vars(str(node.value), var_map))
-    return _scan_vectors(text)
-
-
-def _resolve_box_pairs(node: FoamNode, var_map: dict[str, str]) -> list[list[list[float]]] | None:
-    """Return [[[min],[max]], …] from a raw_list of (min) (max) vector pairs."""
-    vectors = _resolve_point_list(node, var_map)
-    if vectors is None or len(vectors) < 2 or len(vectors) % 2 != 0:
-        return None
-    return [[vectors[i], vectors[i + 1]] for i in range(0, len(vectors), 2)]
-
-
 def resolve_source_geometry(
     source: str, entry: FoamNode, var_map: dict[str, str]
 ) -> dict:
@@ -125,23 +87,9 @@ def resolve_source_geometry(
     """
     geometry: dict = {}
     if source in _BOX_SOURCES:
-        node = find_child(entry, "box")
-        min_node = find_child(entry, "min")
-        max_node = find_child(entry, "max")
-        boxes_node = find_child(entry, "boxes")
-        if node is not None:
-            val = _resolve_box_pair(node, var_map)
-            if val is not None:
-                geometry["box"] = val
-        elif min_node is not None and max_node is not None:
-            mn = resolve_vector(min_node, var_map)
-            mx = resolve_vector(max_node, var_map)
-            if mn is not None and mx is not None:
-                geometry["box"] = [mn, mx]
-        elif boxes_node is not None:
-            pairs = _resolve_box_pairs(boxes_node, var_map)
-            if pairs is not None:
-                geometry["boxes"] = pairs
+        geometry = resolve_box_geometry(
+            entry, var_map, allow_box_pair=True, allow_multi=True
+        )
     elif source in _ROTATED_BOX_SOURCES:
         o_node = find_child(entry, "origin")
         i_node = find_child(entry, "i")
@@ -174,11 +122,11 @@ def resolve_source_geometry(
         if source in ("nearestToCell", "nearestToPoint"):
             pts_node = find_child(entry, "points")
             if pts_node is not None:
-                points = _resolve_point_list(pts_node, var_map)
+                points = resolve_point_list(pts_node, var_map)
         elif source == "regionToCell":
             pts_node = find_child(entry, "insidePoints")
             if pts_node is not None:
-                points = _resolve_point_list(pts_node, var_map)
+                points = resolve_point_list(pts_node, var_map)
             else:
                 single_node = find_child(entry, "insidePoint")
                 if single_node is not None:
@@ -194,14 +142,7 @@ def resolve_source_geometry(
         if points:
             geometry["points"] = points
     elif source in _PLANE_SOURCES:
-        pt_node = find_child(entry, "point")
-        n_node = find_child(entry, "normal")
-        if pt_node is not None and n_node is not None:
-            point = resolve_vector(pt_node, var_map)
-            normal = resolve_vector(n_node, var_map)
-            if point is not None and normal is not None:
-                geometry["planePoint"] = point
-                geometry["planeNormal"] = normal
+        geometry.update(resolve_plane_geometry(entry, var_map))
     return geometry
 
 
@@ -242,11 +183,11 @@ def extract_topo_set_data(root: FoamNode) -> TopoSetData:
         geometry = resolve_source_geometry(source, entry, var_map)
         if geometry:
             shapes.append(
-                TopoShape(label=label, source=source, action=action, geometry=geometry)
+                TopoShape(label=label, kind=source, action=action, geometry=geometry)
             )
         elif is_non_geometric_source(source):
             non_geometric.append(
-                TopoShape(label=label, source=source, action=action, geometry={})
+                TopoShape(label=label, kind=source, action=action, geometry={})
             )
 
     return TopoSetData(shapes=shapes, non_geometric=non_geometric)

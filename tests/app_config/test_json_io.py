@@ -2,7 +2,7 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 import pytest
 
-from app_config.json_io import load_json, save_json
+from app_config.json_io import atomic_write_text, load_json, save_json
 
 
 @pytest.fixture
@@ -38,3 +38,33 @@ class TestSaveJson:
         save_json(path, {"a": 1})
         save_json(path, {"a": 2})
         assert load_json(path) == {"a": 2}
+
+    def test_unserializable_payload_leaves_existing_file_intact(self, path):
+        save_json(path, {"a": 1})
+        with pytest.raises(TypeError):
+            save_json(path, {"a": object()})
+        assert load_json(path) == {"a": 1}
+
+
+class TestAtomicWriteText:
+    def test_writes_content_and_creates_parents(self, path):
+        atomic_write_text(path, "hello")
+        assert path.read_text(encoding="utf-8") == "hello"
+
+    def test_leaves_no_temp_sibling(self, path):
+        atomic_write_text(path, "hello")
+        assert list(path.parent.iterdir()) == [path]
+
+    def test_failed_replace_keeps_original_and_cleans_temp(self, path, monkeypatch):
+        import app_config.json_io as json_io
+
+        atomic_write_text(path, "original")
+
+        def _boom(src, dst):
+            raise OSError("simulated failure")
+
+        monkeypatch.setattr(json_io.os, "replace", _boom)
+        with pytest.raises(OSError):
+            atomic_write_text(path, "replacement")
+        assert path.read_text(encoding="utf-8") == "original"
+        assert list(path.parent.iterdir()) == [path]

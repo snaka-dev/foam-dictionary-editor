@@ -4,6 +4,7 @@
 Regions cross-referencing, locationInMesh(s), and $var / #eval resolution."""
 from __future__ import annotations
 
+import gzip
 from pathlib import Path
 
 from foam.parser import OpenFoamParser
@@ -19,7 +20,7 @@ def _parse(text: str):
 
 
 def _shape_by_name(data, name):
-    return next(s for s in data.shapes if s.name == name)
+    return next(s for s in data.shapes if s.label == name)
 
 
 # ── geometry primitives ───────────────────────────────────────────────────────
@@ -41,7 +42,7 @@ def test_box_geometry():
     """)
     data = extract_snappy_hex_mesh_data(root)
     shape = _shape_by_name(data, "box1")
-    assert shape.geo_type == "box"
+    assert shape.kind == "box"
     assert shape.geometry["box"] == [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]
     assert shape.category == "geometry"
 
@@ -108,7 +109,7 @@ def test_collection_type_is_non_geometric():
     """)
     data = extract_snappy_hex_mesh_data(root)
     assert data.shapes == []
-    assert [s.name for s in data.non_geometric] == ["twoFridgeFreezers"]
+    assert [s.label for s in data.non_geometric] == ["twoFridgeFreezers"]
 
 
 # ── collection (searchableSurfaceCollection) box members ─────────────────────
@@ -143,13 +144,13 @@ def test_collection_box_members_rotation_none_and_identity_axes():
     data = extract_snappy_hex_mesh_data(root)
     seal = _shape_by_name(data, "twoFridgeFreezers.seal")
     herring = _shape_by_name(data, "twoFridgeFreezers.herring")
-    assert seal.geo_type == "collection_box"
+    assert seal.kind == "collection_box"
     for shape, origin in ((seal, [2.0, 2.0, 0.0]), (herring, [3.5, 3.0, 0.0])):
         assert shape.geometry["origin"] == origin
         assert shape.geometry["i"] == [1.0, 0.0, 0.0]
         assert shape.geometry["j"] == [0.0, 1.0, 0.0]
         assert shape.geometry["k"] == [0.0, 0.0, 2.1]
-    assert not any(s.name == "twoFridgeFreezers" for s in data.non_geometric)
+    assert not any(s.label == "twoFridgeFreezers" for s in data.non_geometric)
 
 
 def test_collection_box_member_with_actual_rotation():
@@ -191,8 +192,8 @@ def test_collection_member_with_non_box_base_is_skipped():
         }
     """)
     data = extract_snappy_hex_mesh_data(root)
-    assert not any(s.name.startswith("coll.") for s in data.shapes)
-    assert [s.name for s in data.non_geometric if s.name == "coll"] == ["coll"]
+    assert not any(s.label.startswith("coll.") for s in data.shapes)
+    assert [s.label for s in data.non_geometric if s.label == "coll"] == ["coll"]
 
 
 def test_collection_member_missing_transform_is_skipped():
@@ -208,8 +209,8 @@ def test_collection_member_missing_transform_is_skipped():
         }
     """)
     data = extract_snappy_hex_mesh_data(root)
-    assert not any(s.name.startswith("coll.") for s in data.shapes)
-    assert [s.name for s in data.non_geometric if s.name == "coll"] == ["coll"]
+    assert not any(s.label.startswith("coll.") for s in data.shapes)
+    assert [s.label for s in data.non_geometric if s.label == "coll"] == ["coll"]
 
 
 # ── name resolution (entry key vs. `name` override) ───────────────────────────
@@ -232,7 +233,7 @@ def test_name_override_for_triSurfaceMesh(tmp_path):
     """)
     data = extract_snappy_hex_mesh_data(root, case_dir=str(case_dir))
     shape = _shape_by_name(data, "geom")
-    assert shape.geo_type == "triSurfaceMesh"
+    assert shape.kind == "triSurfaceMesh"
     assert shape.geometry["stl_path"] == str(tri_dir / "geom.stl")
     assert shape.category == "surface"
     assert shape.level == (1.0, 1.0)
@@ -247,7 +248,7 @@ def test_triSurfaceMesh_missing_file_is_non_geometric(tmp_path):
     """)
     data = extract_snappy_hex_mesh_data(root, case_dir=str(tmp_path))
     assert data.shapes == []
-    assert [s.name for s in data.non_geometric] == ["geom"]
+    assert [s.label for s in data.non_geometric] == ["geom"]
 
 
 def test_triSurfaceMesh_no_case_dir_is_non_geometric():
@@ -259,7 +260,7 @@ def test_triSurfaceMesh_no_case_dir_is_non_geometric():
     """)
     data = extract_snappy_hex_mesh_data(root)
     assert data.shapes == []
-    assert [s.name for s in data.non_geometric] == ["geom"]
+    assert [s.label for s in data.non_geometric] == ["geom"]
 
 
 def test_distributedTriSurfaceMesh_explicit_file(tmp_path):
@@ -277,6 +278,59 @@ def test_distributedTriSurfaceMesh_explicit_file(tmp_path):
     data = extract_snappy_hex_mesh_data(root, case_dir=str(case_dir))
     shape = _shape_by_name(data, "box")
     assert shape.geometry["stl_path"] == str(tri_dir / "box.obj")
+
+
+# ── gzip-compressed triSurface files ──────────────────────────────────────────
+
+def test_triSurfaceMesh_resolves_gz_sibling(tmp_path):
+    case_dir = tmp_path
+    tri_dir = case_dir / "constant" / "triSurface"
+    tri_dir.mkdir(parents=True)
+    (tri_dir / "motorBike.obj.gz").write_bytes(gzip.compress(b"# obj\n"))
+
+    root = _parse("""
+        geometry
+        {
+            motorBike.obj { type triSurfaceMesh; name motorBike; }
+        }
+    """)
+    data = extract_snappy_hex_mesh_data(root, case_dir=str(case_dir))
+    shape = _shape_by_name(data, "motorBike")
+    assert shape.geometry["stl_path"] == str(tri_dir / "motorBike.obj.gz")
+
+
+def test_triSurfaceMesh_gz_entry_key_resolves(tmp_path):
+    case_dir = tmp_path
+    tri_dir = case_dir / "constant" / "triSurface"
+    tri_dir.mkdir(parents=True)
+    (tri_dir / "motorBike.obj.gz").write_bytes(gzip.compress(b"# obj\n"))
+
+    root = _parse("""
+        geometry
+        {
+            motorBike.obj.gz { type triSurfaceMesh; name motorBike; }
+        }
+    """)
+    data = extract_snappy_hex_mesh_data(root, case_dir=str(case_dir))
+    shape = _shape_by_name(data, "motorBike")
+    assert shape.geometry["stl_path"] == str(tri_dir / "motorBike.obj.gz")
+
+
+def test_triSurfaceMesh_gz_reference_uncompressed_fallback(tmp_path):
+    case_dir = tmp_path
+    tri_dir = case_dir / "constant" / "triSurface"
+    tri_dir.mkdir(parents=True)
+    (tri_dir / "motorBike.obj").write_text("# obj\n")
+
+    root = _parse("""
+        geometry
+        {
+            motorBike.obj.gz { type triSurfaceMesh; name motorBike; }
+        }
+    """)
+    data = extract_snappy_hex_mesh_data(root, case_dir=str(case_dir))
+    shape = _shape_by_name(data, "motorBike")
+    assert shape.geometry["stl_path"] == str(tri_dir / "motorBike.obj")
 
 
 # ── refinementSurfaces / refinementRegions cross-referencing ─────────────────

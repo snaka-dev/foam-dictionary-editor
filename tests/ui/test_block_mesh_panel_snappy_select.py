@@ -83,13 +83,13 @@ def test_unchecking_one_hides_only_that_shape(qapp):
     panel = _panel_with_demo(qapp)
     # Hide the "pipe" cylinder.
     pipe_idx = next(
-        i for i, s in enumerate(panel._snappy.shapes) if s.name == "pipe"
+        i for i, s in enumerate(panel._snappy.shapes) if s.label == "pipe"
     )
     panel._snappy.shape_actions[pipe_idx].setChecked(False)
 
     visible = panel._snappy.visible_shapes()
     assert len(visible) == 3
-    assert all(s.name != "pipe" for s in visible)
+    assert all(s.label != "pipe" for s in visible)
 
 
 def test_master_toggle_hides_all(qapp):
@@ -129,7 +129,7 @@ def test_non_geometric_source_listed_disabled(qapp):
     assert "(no geometry)" in act.text()
     assert not act.isEnabled()
     # It is not one of the renderable shapes.
-    assert all(s.name != "geom" for s in panel._snappy.shapes)
+    assert all(s.label != "geom" for s in panel._snappy.shapes)
 
 
 def test_location_actions_populated_and_toggle(qapp):

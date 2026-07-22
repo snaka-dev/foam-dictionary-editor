@@ -22,8 +22,9 @@ _SET_FIELDS_STRUCTURAL = frozenset({"regions", "defaultFieldValues"})
 
 @dataclasses.dataclass
 class SetFieldsShape:
+    # `label`/`kind`: shared field names across all extractor shape classes.
     label: str      # summary of the entry's fieldValues, e.g. "alpha.water=1"
-    source: str     # e.g. "boxToCell", "sphereToCell"
+    kind: str       # source type, e.g. "boxToCell", "sphereToCell"
     geometry: dict  # parsed geometry: keys depend on source type
 
 
@@ -77,10 +78,10 @@ def extract_set_fields_data(root: FoamNode) -> SetFieldsData:
 
         geometry = resolve_source_geometry(source, entry, var_map)
         if geometry:
-            shapes.append(SetFieldsShape(label=label, source=source, geometry=geometry))
+            shapes.append(SetFieldsShape(label=label, kind=source, geometry=geometry))
         elif is_non_geometric_source(source):
             non_geometric.append(
-                SetFieldsShape(label=label, source=source, geometry={})
+                SetFieldsShape(label=label, kind=source, geometry={})
             )
 
     return SetFieldsData(shapes=shapes, non_geometric=non_geometric)

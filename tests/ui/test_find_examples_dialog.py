@@ -11,7 +11,7 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QTreeWidgetItem
 
-import ui.dialogs.find_examples_dialog as fed_module
+import ui.widgets.installation_selector as selector_module
 from services.example_search import installation_from_dir
 from ui.dialogs.find_examples_dialog import FindExamplesDialog
 
@@ -50,7 +50,7 @@ def dialog(qapp, fake_install, monkeypatch):
     installation = installation_from_dir(fake_install)
     assert installation is not None
     monkeypatch.setattr(
-        fed_module, "discover_installations", lambda **kwargs: [installation]
+        selector_module, "discover_installations", lambda **kwargs: [installation]
     )
     dlg = FindExamplesDialog()
     yield dlg
@@ -113,6 +113,7 @@ def test_tutorial_hit_enables_compare_and_fills_preview(qapp, dialog, fake_insta
     qapp.processEvents()
     assert "#includeFunc mag" in dialog._preview.toPlainText()
     assert dialog._compare_btn.isEnabled()
+    assert dialog._duplicate_btn.isEnabled()
     assert dialog._copy_btn.isEnabled()
     # The label itself may be elided; the tooltip always holds the full path.
     assert str(fake_install) in dialog._path_label.toolTip()
@@ -128,6 +129,7 @@ def test_casedicts_hit_disables_compare(qapp, dialog):
     dialog._results.setCurrentItem(template_leaf)
     qapp.processEvents()
     assert not dialog._compare_btn.isEnabled()
+    assert not dialog._duplicate_btn.isEnabled()
     assert dialog._copy_btn.isEnabled()
 
 
@@ -170,6 +172,22 @@ def test_compare_emits_case_root(qapp, dialog, fake_install):
     received: list[str] = []
     dialog.compare_requested.connect(received.append)
     dialog._on_compare()
+    expected = str(fake_install / "tutorials" / "incompressible" / "pitzDaily")
+    assert received == [expected]
+
+
+def test_duplicate_emits_case_root(qapp, dialog, fake_install):
+    _run_search(qapp, dialog, "mag")
+    tutorial_leaf = next(
+        item
+        for item in _leaf_items(dialog)
+        if item.data(0, Qt.ItemDataRole.UserRole).case_root is not None
+    )
+    dialog._results.setCurrentItem(tutorial_leaf)
+    qapp.processEvents()
+    received: list[str] = []
+    dialog.duplicate_requested.connect(received.append)
+    dialog._on_duplicate()
     expected = str(fake_install / "tutorials" / "incompressible" / "pitzDaily")
     assert received == [expected]
 

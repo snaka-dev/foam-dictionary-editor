@@ -57,7 +57,7 @@ def test_box_plain():
     assert len(shapes) == 1
     s = shapes[0]
     assert s.label == "heater"
-    assert s.source == "boxToCell"
+    assert s.kind == "boxToCell"
     assert s.action == "new"
     assert pytest.approx(s.geometry["box"][0]) == [-0.01, 0.0, -1.0]
     assert pytest.approx(s.geometry["box"][1]) == [0.01, 0.01, 1.0]
@@ -74,7 +74,7 @@ def test_sphere_plain():
     shapes = extract_topo_set_data(root).shapes
     assert len(shapes) == 1
     s = shapes[0]
-    assert s.source == "sphereToCell"
+    assert s.kind == "sphereToCell"
     assert s.action == "add"
     assert pytest.approx(s.geometry["centre"]) == [1.0, 2.0, 3.0]
     assert pytest.approx(s.geometry["radius"]) == 0.5
@@ -92,7 +92,7 @@ def test_cylinder_plain():
     shapes = extract_topo_set_data(root).shapes
     assert len(shapes) == 1
     s = shapes[0]
-    assert s.source == "cylinderToCell"
+    assert s.kind == "cylinderToCell"
     assert pytest.approx(s.geometry["p1"]) == [0.0, 0.0, -1.0]
     assert pytest.approx(s.geometry["p2"]) == [0.0, 0.0, 1.0]
     assert pytest.approx(s.geometry["radius"]) == 0.1
@@ -207,7 +207,7 @@ def test_box_face_point_variants(source):
     root = _parse(src)
     shapes = extract_topo_set_data(root).shapes
     assert len(shapes) == 1
-    assert shapes[0].source == source
+    assert shapes[0].kind == source
 
 
 @pytest.mark.parametrize("source", ["sphereToFace", "sphereToPoint"])
@@ -219,7 +219,7 @@ def test_sphere_face_point_variants(source):
     root = _parse(src)
     shapes = extract_topo_set_data(root).shapes
     assert len(shapes) == 1
-    assert shapes[0].source == source
+    assert shapes[0].kind == source
 
 
 @pytest.mark.parametrize("source", ["cylinderToFace", "cylinderToPoint", "cylinderAnnulusToCell"])
@@ -231,7 +231,7 @@ def test_cylinder_variants(source):
     root = _parse(src)
     shapes = extract_topo_set_data(root).shapes
     assert len(shapes) == 1
-    assert shapes[0].source == source
+    assert shapes[0].kind == source
 
 
 # ── cone family ───────────────────────────────────────────────────────────────
@@ -247,7 +247,7 @@ def test_cone_plain():
     shapes = extract_topo_set_data(root).shapes
     assert len(shapes) == 1
     s = shapes[0]
-    assert s.source == "coneToCell"
+    assert s.kind == "coneToCell"
     assert pytest.approx(s.geometry["p1"]) == [0.0, 0.0, 0.0]
     assert pytest.approx(s.geometry["p2"]) == [0.0, 0.0, 1.0]
     assert pytest.approx(s.geometry["radius1"]) == 0.1
@@ -277,7 +277,7 @@ def test_cone_variants(source):
     root = _parse(src)
     shapes = extract_topo_set_data(root).shapes
     assert len(shapes) == 1
-    assert shapes[0].source == source
+    assert shapes[0].kind == source
 
 
 def test_cone_missing_radius_skipped():
@@ -403,7 +403,7 @@ def test_non_geometric_source_listed_not_drawn():
     assert len(data.non_geometric) == 1
     ng = data.non_geometric[0]
     assert ng.label == "faces"
-    assert ng.source == "cellToFace"
+    assert ng.kind == "cellToFace"
     assert ng.geometry == {}
 
 

@@ -79,12 +79,12 @@ def test_unchecking_one_hides_only_that_shape(qapp):
     assert len(panel._set_fields.shape_actions) == 2
     sphere_idx = next(
         i for i, s in enumerate(panel._set_fields.shapes)
-        if s.source == "sphereToCell"
+        if s.kind == "sphereToCell"
     )
     panel._set_fields.shape_actions[sphere_idx].setChecked(False)
     visible = panel._set_fields.visible_shapes()
     assert len(visible) == 1
-    assert visible[0].source == "boxToCell"
+    assert visible[0].kind == "boxToCell"
 
 
 def test_master_toggle_hides_all(qapp):
@@ -109,7 +109,7 @@ def test_non_geometric_source_listed_disabled(qapp):
 def test_shapes_included_in_stl_export(qapp):
     panel = _panel_with(qapp, _MULTI_REGION)
     exportable = panel._exportable_set_fields_shapes()
-    assert [s.source for s in exportable] == ["boxToCell", "sphereToCell"]
+    assert [s.kind for s in exportable] == ["boxToCell", "sphereToCell"]
     assert panel._export_stl_act.isEnabled()
 
 

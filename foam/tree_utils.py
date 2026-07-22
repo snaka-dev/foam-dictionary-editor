@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 
 from foam.nodes import FoamNode
+from foam.utils import parse_box_pair
 from foam.var_resolver import eval_foam_expr, substitute_vars
 
 # Matches #eval{...} fragments inside a substituted string.
@@ -73,6 +74,84 @@ def resolve_vector(node: FoamNode, var_map: dict[str, str]) -> list[float] | Non
             except ValueError:
                 pass
     return None
+
+
+def _scan_vectors(text: str) -> list[list[float]] | None:
+    """Parse every top-level '(x y z)' group in *text* into a float triple."""
+    vectors: list[list[float]] = []
+    for match in re.finditer(r"\(([^()]*)\)", text):
+        items = match.group(1).split()
+        if len(items) != 3:
+            return None
+        try:
+            vectors.append([float(x) for x in items])
+        except ValueError:
+            return None
+    return vectors or None
+
+
+def resolve_point_list(node: FoamNode, var_map: dict[str, str]) -> list[list[float]] | None:
+    """Return [[x,y,z], …] from a raw_list of points, resolving $vars/#eval."""
+    if node.node_type != "raw_list":
+        return None
+    text = expand_evals(substitute_vars(str(node.value), var_map))
+    return _scan_vectors(text)
+
+
+def _resolve_box_pair(node: FoamNode, var_map: dict[str, str]) -> list[list[float]] | None:
+    """Return [[x,y,z],[x,y,z]] from a box_pair/raw_list node, resolving $vars."""
+    if node.node_type == "box_pair":
+        return node.value
+    if node.node_type == "raw_list":
+        # raw_list strips the outer parens; prepend '(' to restore the expected format.
+        text = expand_evals(substitute_vars(str(node.value), var_map))
+        return parse_box_pair("(" + text + ")")
+    return None
+
+
+def _resolve_box_pairs(node: FoamNode, var_map: dict[str, str]) -> list[list[list[float]]] | None:
+    """Return [[[min],[max]], …] from a raw_list of (min) (max) vector pairs."""
+    vectors = resolve_point_list(node, var_map)
+    if vectors is None or len(vectors) < 2 or len(vectors) % 2 != 0:
+        return None
+    return [[vectors[i], vectors[i + 1]] for i in range(0, len(vectors), 2)]
+
+
+def resolve_box_geometry(
+    entry: FoamNode,
+    var_map: dict[str, str],
+    *,
+    allow_box_pair: bool = False,
+    allow_multi: bool = False,
+) -> dict:
+    """Resolve a box entry into {"box": [[min],[max]]} or {"boxes": [...]}.
+
+    The plain ``min``/``max`` keyword pair is always accepted (snappyHexMesh's
+    searchableBox form). ``allow_box_pair`` additionally reads topoSet's
+    ``box (min) (max);`` single-entry form (including a ``$var`` raw_list);
+    ``allow_multi`` reads topoSet's ``boxes ( (min)(max) … );`` list form.
+    Precedence follows topoSet: box > min/max > boxes. Returns {} when no form
+    is present or a required part is unresolvable.
+    """
+    geometry: dict = {}
+    node = find_child(entry, "box") if allow_box_pair else None
+    min_node = find_child(entry, "min")
+    max_node = find_child(entry, "max")
+    boxes_node = find_child(entry, "boxes") if allow_multi else None
+    if node is not None:
+        val = _resolve_box_pair(node, var_map)
+        if val is not None:
+            geometry["box"] = val
+    elif min_node is not None and max_node is not None:
+        mn = resolve_vector(min_node, var_map)
+        mx = resolve_vector(max_node, var_map)
+        if mn is not None and mx is not None:
+            geometry["box"] = [mn, mx]
+    elif boxes_node is not None:
+        pairs = _resolve_box_pairs(boxes_node, var_map)
+        if pairs is not None:
+            geometry["boxes"] = pairs
+    return geometry
 
 
 def resolve_sphere_geometry(
@@ -141,6 +220,41 @@ def resolve_cylinder_geometry(entry: FoamNode, var_map: dict[str, str]) -> dict:
         if inner is not None:
             geometry["innerRadius"] = inner
     return geometry
+
+
+def resolve_plane_geometry(
+    entry: FoamNode,
+    var_map: dict[str, str],
+    *,
+    allow_aliases: bool = False,
+    nested_dict: str | None = None,
+) -> dict:
+    """Resolve a point-and-normal plane into {"planePoint", "planeNormal"}.
+
+    Reads ``point``/``normal`` (and, when ``allow_aliases``, the sampling
+    ``basePoint``/``normalVector`` spellings), optionally from a nested
+    dictionary named ``nested_dict`` (e.g. sampling's ``pointAndNormalDict``)
+    in addition to ``entry`` itself. Returns {} when either part is missing or
+    unresolvable. The result matches the ``planePoint``/``planeNormal`` keys
+    ``BlockMeshRenderer._make_shape_mesh`` draws as a disc.
+    """
+    holders = [entry]
+    if nested_dict is not None:
+        nested = find_child(entry, nested_dict)
+        if nested is not None:
+            holders.append(nested)
+    point_keys = ("point", "basePoint") if allow_aliases else ("point",)
+    normal_keys = ("normal", "normalVector") if allow_aliases else ("normal",)
+    for holder in holders:
+        pt_node = find_child_any(holder, *point_keys)
+        n_node = find_child_any(holder, *normal_keys)
+        if pt_node is None or n_node is None:
+            continue
+        point = resolve_vector(pt_node, var_map)
+        normal = resolve_vector(n_node, var_map)
+        if point is not None and normal is not None:
+            return {"planePoint": point, "planeNormal": normal}
+    return {}
 
 
 def resolve_cone_geometry(

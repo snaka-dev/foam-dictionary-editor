@@ -2,7 +2,6 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from app_config.json_io import load_json, save_json
@@ -112,9 +111,16 @@ class AppConfigManager:
 
     @staticmethod
     def foam_tutorials_dir() -> str | None:
-        """Return $FOAM_TUTORIALS if the env var is set and the directory exists."""
-        foam = os.environ.get("FOAM_TUTORIALS", "")
-        return foam if (foam and Path(foam).is_dir()) else None
+        """Return the tutorials dir of the sourced OpenFOAM environment, if any.
+
+        Resolved via $FOAM_TUTORIALS with a $WM_PROJECT_DIR/tutorials fallback.
+        """
+        # Local import: app_config is a lower layer than services; import lazily
+        # so the app_config package never depends on services at import time.
+        from services.foam_env import foam_env_dirs
+
+        tutorials = foam_env_dirs().tutorials_dir
+        return str(tutorials) if tutorials is not None else None
 
     def get_case_library_dirs(self) -> list[str]:
         """Return all library dirs: $FOAM_TUTORIALS (auto, if valid) then user-added."""
@@ -154,6 +160,14 @@ class AppConfigManager:
 
     def set_feature(self, name: str, value: bool) -> None:
         self._features[name] = value
+
+    def set_features(self, features: dict[str, bool]) -> None:
+        """Replace the whole feature-flag mapping.
+
+        Used by the --variant presets at startup; like any other setting the
+        mapping is persisted on the next save().
+        """
+        self._features = dict(features)
 
     # ── language ──────────────────────────────────────────────────────────────
 

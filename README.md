@@ -112,7 +112,7 @@ Each heading links to the full documentation in [USER_GUIDE.md](USER_GUIDE.md).
 - Launch `foamMonitor` to plot residuals with gnuplot while the solver runs
 - Open the generated mesh in ParaView
 - View a condensed summary of a `log.*` file instead of scrolling through thousands of raw lines
-- Find OpenFOAM examples: search an installation's `tutorials/` and `etc/caseDicts/` templates for real usage of a keyword, preview hits, and load one into the compare view
+- Find OpenFOAM examples: search an installation's `tutorials/` and `etc/caseDicts/` templates for real usage of a keyword, preview hits, load one into the compare view, or duplicate a tutorial case as the starting point for your own
 
 **[Case comparison](USER_GUIDE.md#case-comparison)**
 - Compare the open case against any reference case: colour-coded diff overlay in the tree, `≠N` markers in the file list, and a changed-files-only filter
@@ -128,6 +128,7 @@ Each heading links to the full documentation in [USER_GUIDE.md](USER_GUIDE.md).
 
 For detailed documentation of every panel, menu, and workflow, see [USER_GUIDE.md](USER_GUIDE.md).
 For project structure, dev setup, and testing, see [DEVELOPER.md](DEVELOPER.md).
+For annotated screenshots of the app, see [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md).
 
 ## Example Cases
 

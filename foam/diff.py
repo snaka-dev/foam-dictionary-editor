@@ -8,6 +8,7 @@ _RECURSE_TYPES = frozenset({
     "dictionary",
     "boundary_block", "boundary_entry",
     "region_block", "region_entry",
+    "named_dict_list", "named_dict_entry",
     "field_value_block",
     "action_list",
 })

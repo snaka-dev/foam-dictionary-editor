@@ -6,6 +6,14 @@ from pathlib import Path
 from app_config.app_config_manager import AppConfigManager
 
 
+@pytest.fixture(autouse=True)
+def _no_wm_project_dir(monkeypatch):
+    """foam_tutorials_dir falls back to $WM_PROJECT_DIR/tutorials; clear the
+    variable so these tests stay hermetic on machines with a sourced
+    OpenFOAM environment."""
+    monkeypatch.delenv("WM_PROJECT_DIR", raising=False)
+
+
 @pytest.fixture
 def config_path(tmp_path):
     return tmp_path / "app_config.json"
@@ -209,6 +217,13 @@ class TestCaseLibraryDirs:
     def test_foam_tutorials_dir_static_method_returns_none_when_dir_missing(self, monkeypatch):
         monkeypatch.setenv("FOAM_TUTORIALS", "/nonexistent/path")
         assert AppConfigManager.foam_tutorials_dir() is None
+
+    def test_foam_tutorials_dir_falls_back_to_wm_project_dir(self, tmp_path, monkeypatch):
+        project = tmp_path / "OpenFOAM-12"
+        (project / "tutorials").mkdir(parents=True)
+        monkeypatch.delenv("FOAM_TUTORIALS", raising=False)
+        monkeypatch.setenv("WM_PROJECT_DIR", str(project))
+        assert AppConfigManager.foam_tutorials_dir() == str(project / "tutorials")
 
 
 class TestSave:
@@ -514,6 +529,28 @@ class TestFeatureFlags:
         mgr = AppConfigManager(config_path=str(config_path))
         mgr.set_feature("syntax_highlighting", False)
         assert mgr.get_feature("syntax_highlighting") is False
+
+    def test_set_features_replaces_whole_mapping(self, config_path):
+        mgr = AppConfigManager(config_path=str(config_path))
+        mgr.set_feature("terminal", False)
+        mgr.set_features({"blockmesh": False})
+        assert mgr.get_feature("blockmesh") is False
+        assert mgr.get_feature("terminal") is True  # dropped by the replace
+
+    def test_set_features_persists_after_save_reload(self, config_path):
+        mgr1 = AppConfigManager(config_path=str(config_path))
+        mgr1.set_features({"terminal": False, "blockmesh": True})
+        mgr1.save()
+        mgr2 = AppConfigManager(config_path=str(config_path))
+        assert mgr2.get_feature("terminal") is False
+        assert mgr2.get_feature("blockmesh") is True
+
+    def test_set_features_copies_the_mapping(self, config_path):
+        mgr = AppConfigManager(config_path=str(config_path))
+        features = {"terminal": False}
+        mgr.set_features(features)
+        features["terminal"] = True
+        assert mgr.get_feature("terminal") is False
 
     def test_set_feature_persists_after_save_reload(self, config_path):
         mgr1 = AppConfigManager(config_path=str(config_path))

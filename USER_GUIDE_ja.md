@@ -57,6 +57,7 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 | アプリの設定を変更する | [アプリケーション設定](#アプリケーション設定) |
 | UI 言語を切り替える（English / 日本語） | Settings > Language |
 | ヘルプリンクや参照サイトを開く | [Resources ダイアログ](#resources-ダイアログ) |
+| アプリの注釈付きスクリーンショットを見る | [スクリーンショットギャラリー](docs/SCREENSHOTS_ja.md) |
 
 ## 目次
 
@@ -256,6 +257,7 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 - Case > Reload Case
 - Case > Duplicate Case...
 - Case > Duplicate from Case Library...
+- Case > Find OpenFOAM Examples… — Tools > Find OpenFOAM Examples… と同じアクションです。チュートリアルケースを複製して新しいケースの出発点にできるため、ここにも表示されます。[Find OpenFOAM Examples](#find-openfoam-examples) を参照。
 - Case > Save as New Case...
 - Case > Clean Backup Files...
 - Case > Compare with Case...
@@ -285,17 +287,17 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 
 - Tools > foamMonitor… — `foamMonitor` を起動し、残差などの時系列データを gnuplot でプロットします。[foamMonitor ランチャー](#foammonitor-ランチャー) を参照。
 - Tools > Restore 0/ from 0.orig — `0.orig/` から `0/` を再作成します。[Restore 0/ from 0.orig](#restore-0-from-0orig) を参照。
-- Tools > Run blockMesh — ケースディレクトリで `blockMesh` を実行します。[Run blockMesh](#run-blockmesh) を参照。
-- Tools > Run snappyHexMesh — ケースディレクトリで `snappyHexMesh -overwrite` を実行します。[Run snappyHexMesh](#run-snappyhexmesh) を参照。
-- Tools > Run topoSet — ケースディレクトリで `topoSet` を実行します。[Run topoSet](#run-toposet) を参照。
-- Tools > Run setFields — ケースディレクトリで `setFields` を実行します。先に `0/` を `0.orig/` から復元するかを確認します。[Run setFields](#run-setfields) を参照。
-- Tools > Run checkMesh — ケースディレクトリで `checkMesh` を実行します。[Run checkMesh](#run-checkmesh) を参照。
+- Tools > Run blockMesh… — オプションを選択してケースディレクトリで `blockMesh` を実行します。[Run blockMesh](#run-blockmesh) を参照。
+- Tools > Run snappyHexMesh… — オプションを選択してケースディレクトリで `snappyHexMesh` を実行します。[Run snappyHexMesh](#run-snappyhexmesh) を参照。
+- Tools > Run topoSet… — オプションを選択してケースディレクトリで `topoSet` を実行します。[Run topoSet](#run-toposet) を参照。
+- Tools > Run setFields… — オプションを選択してケースディレクトリで `setFields` を実行します。先に `0/` を `0.orig/` から復元するかを選べます。[Run setFields](#run-setfields) を参照。
+- Tools > Run checkMesh… — オプションを選択してケースディレクトリで `checkMesh` を実行します。[Run checkMesh](#run-checkmesh) を参照。
 - Tools > Run Allrun Script — ケースの `./Allrun` スクリプト（ソルバーを含む）を実行します。[Run Allrun Script](#run-allrun-script) を参照。
 - Tools > Open Mesh in ParaView… — 現在のケースを ParaView で開きます。[Open Mesh in ParaView](#open-mesh-in-paraview) を参照。
 - Tools > Run Allclean Script — ケースの `./Allclean` スクリプトを実行します。[Run Allclean Script](#run-allclean-script) を参照。
 - Tools > Clean Case (foamCleanTutorials) — `foamCleanTutorials` でケースをクリーンします。[Clean Case (foamCleanTutorials)](#clean-case-foamcleantutorials) を参照。
 - Tools > View Log Summary… — `log.*` ファイルの要約を表示します。[View Log Summary](#view-log-summary) を参照。
-- Tools > Find OpenFOAM Examples… — OpenFOAM のチュートリアルと `etc/caseDicts` テンプレートからキーワードの使用例を検索します。[Find OpenFOAM Examples](#find-openfoam-examples) を参照。
+- Tools > Find OpenFOAM Examples… — OpenFOAM のチュートリアルと `etc/caseDicts` テンプレートからキーワードの使用例を検索します。Case メニューにも表示されます。[Find OpenFOAM Examples](#find-openfoam-examples) を参照。
 
 **Help メニュー:**
 
@@ -588,6 +590,12 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 
 パッチが定義されているセルを右クリックして **Delete Entry** を選択すると、その特定フィールドファイルからそのパッチを削除します。全ファイルからそのパッチが無くなった場合、そのパッチの行/列もテーブルから削除されます。
 
+### 元に戻す・やり直す
+
+ツリーの編集は元に戻せます: ツリーがキーボードフォーカスを持つ状態で **Ctrl+Z** を押すと、現在のファイルで最後に行ったツリー変更が取り消され、**Ctrl+Shift+Z** で再適用されます（コンテキストメニューの **Undo Tree Edit** / **Redo Tree Edit** からも実行できます）。対象はツリー側のすべての変更 — インラインセル編集、Detail パネルの Apply、Paste Value、Add/Duplicate/Delete/Comment Out/Restore、**Apply Text to Tree**、BlockMesh パネルでの頂点ドラッグ、Boundary タブのパッチ操作 — です。複数のフィールドファイルを一度に変更する境界操作（例: `0/` 全体でのパッチ名変更）は一体として取り消されます。1 回の Ctrl+Z で触れたすべてのファイルが復元され、ステータスバーに追加ファイル数が表示されます。
+
+Undo はセッション全体で単一の履歴として保持され（最大 50 ステップ）、別のケースを開くとクリアされます: Ctrl+Z は場所を問わず最後のツリー変更を取り消し、対象ファイルが画面に表示されていない場合はそのファイルへ表示を切り替えます。下部のテキストエディタは自由入力用に自身のネイティブな Ctrl+Z を保持しています — ツリーのショートカットはツリーにフォーカスがあるときだけ発火します。Undo はツリーを再読み込みするため、行の展開・選択状態はリセットされます。
+
 ### コピー・ペースト
 
 パッチが定義されているセルを右クリックして **Copy** を選択すると、そのパッチの全内容がアプリ内クリップボードに保存されます。別のセル（`–` セルを含む）を右クリックして **Paste** を選択すると、コピーした内容が適用されます。`–` セルへのペーストは新規エントリを作成し、既存セルへのペーストは内容を置き換えます。クリップボードはアプリのセッション中に保持されます。
@@ -679,9 +687,10 @@ xterm ターミナルがアクティブな間は **⊞** ボタンが無効化�
 | **topoSet ▾** | `topoSetDict` オーバーレイ用のドロップダウンメニュー: マスタートグルの **Show topoSet geometry**、**Show all shapes** / **Hide all shapes** アクション、アクションカラーの凡例、描画可能なシェイプごとのチェック可能な表示切替、そして描画可能なジオメトリを持たないエントリをまとめた **Non-geometric sources (N)** サブメニュー（「[topoSetDict オーバーレイ](#toposetdict-オーバーレイ)」参照）。 |
 | **snappyHexMesh ▾** | `snappyHexMeshDict` オーバーレイ用のドロップダウンメニューで、構成は **topoSet ▾** と同じです: マスタートグル、**Show all shapes** / **Hide all shapes**、カテゴリカラーの凡例、シェイプごと・保持点ごとの表示切替、**Non-geometric sources (N)** サブメニュー（「[snappyHexMeshDict オーバーレイ](#snappyhexmeshdict-オーバーレイ)」参照）。 |
 | **setFields ▾** | `setFieldsDict` オーバーレイ用のドロップダウンメニューで、構成は **topoSet ▾** と同じです: マスタートグルの **Show setFields regions**、**Show all shapes** / **Hide all shapes**、領域カラーの凡例、描画可能な領域ごとの表示切替、**Non-geometric sources (N)** サブメニュー（「[setFieldsDict オーバーレイ](#setfieldsdict-オーバーレイ)」参照）。 |
+| **sample ▾** | サンプリングオーバーレイ — `controlDict` の `functions {}` ブロックまたはスタンドアロンのサンプリング辞書に定義されたプローブ点・サンプル線・サンプル平面 — 用のドロップダウンメニューで、構成は **topoSet ▾** と同じです（「[サンプリングオーバーレイ](#サンプリングオーバーレイ)」参照）。 |
 | **Refresh** | 現在のツリーからジオメトリを再抽出して再描画します。プレビューモード中はすべてのプレビュー編集を破棄してツリーの値に戻します。 |
 | **Preview** | `vertices` ブロックに変数参照（`$varName`）が含まれる場合のみ表示されます。このボタンはメインツールバーではなく **Vertices** パネル内（テーブルの上部）に表示されます。クリックするとプレビューモードになり、テーブルセルが編集可能になって各変更が即座に 3D ビューへ反映されますが、ツリーとファイルは変更されません。プレビューモード中は黄色いバナーが表示されます。**Refresh** をクリックするとプレビューモードを終了して元の値に戻ります。 |
-| **STL ▾** | ドロップダウンメニュー: **Load STL / OBJ…** で STL または OBJ ファイルを読み込み半透明グレーオーバーレイとして表示（複数ファイル読み込み可）。**Clear STL** で読み込み済みオーバーレイをすべて削除（未読み込み時はグレーアウト）。**Export Shapes as STL…** は、読み込み済みの `topoSetDict`/`snappyHexMeshDict`/`setFieldsDict` の描画可能な各シェイプをチェックボックス付きで一覧表示するダイアログを開きます（初期状態は 3D ビューでの現在の表示/非表示に対応）。Select All / Deselect All も使えます。出力先フォルダを選んで Export をクリックすると、チェックした各シェイプがそのラベル/名前にちなんだ個別の `.stl` ファイルとして書き出されます（topoSet/snappyHexMesh/setFields のジオメトリが読み込まれていない場合はグレーアウト）。点マーカーのシェイプ（`nearestToCell` など）と `planeToFaceZone` の円板は、意味のある STL サーフェスを持たないため一覧に表示されません。3D ビューでクリップ表示されているシェイプも、エクスポートされるのは常にクリップ前の完全なジオメトリです。 |
+| **STL ▾** | ドロップダウンメニュー: **Load STL / OBJ…** で STL または OBJ ファイルを読み込み半透明グレーオーバーレイとして表示（複数ファイル読み込み可）。gzip 圧縮されたファイル（`.stl.gz`、`.obj.gz`）もそのまま読み込めます（手動での解凍は不要）。**Clear STL** で読み込み済みオーバーレイをすべて削除（未読み込み時はグレーアウト）。**Export Shapes as STL…** は、読み込み済みの `topoSetDict`/`snappyHexMeshDict`/`setFieldsDict` の描画可能な各シェイプをチェックボックス付きで一覧表示するダイアログを開きます（初期状態は 3D ビューでの現在の表示/非表示に対応）。Select All / Deselect All も使えます。出力先フォルダを選んで Export をクリックすると、チェックした各シェイプがそのラベル/名前にちなんだ個別の `.stl` ファイルとして書き出されます（topoSet/snappyHexMesh/setFields のジオメトリが読み込まれていない場合はグレーアウト）。点マーカーのシェイプ（`nearestToCell` など）と `planeToFaceZone` の円板は、意味のある STL サーフェスを持たないため一覧に表示されません。3D ビューでクリップ表示されているシェイプも、エクスポートされるのは常にクリップ前の完全なジオメトリです。 |
 
 従来の 4 頂点インデックス記法 `(v0 v1 v2 v3)` と新しいコンパクト記法 `(blockIndex faceIndex)` の両方がサポートされており、同じファイル内で混在させることができます。コンパクト記法は表示前に標準的な六面体ブロック面番号を使用して 4 頂点リストに自動展開されます。
 
@@ -728,7 +737,7 @@ xterm ターミナルがアクティブな間は **⊞** ボタンが無効化�
 | `sphere` | `centre`/`origin`、`radius` | 球。`radius` がベクトル `(rx ry rz)` で与えられている場合（イグルー型のドームなど）は球ではなくだ円体として描画されます |
 | `cylinder` | `point1`/`p1`、`point2`/`p2`、`radius` | 円柱 |
 | `cone` | `point1`/`p1`、`point2`/`p2`、`radius1`、`radius2` | 円錐（円錐台。`radius2` が 0 のときは真円錐） |
-| `triSurfaceMesh` / `distributedTriSurfaceMesh` | `file`（または `.stl`/`.stlb`/`.obj` で終わるエントリ自身のキー名） | ケースディレクトリを基準に `constant/triSurface/` から自動的に読み込まれたメッシュ。ファイルが見つからない場合はグレーアウト表示され、描画されません |
+| `triSurfaceMesh` / `distributedTriSurfaceMesh` | `file`（または `.stl`/`.stlb`/`.obj` で終わるエントリ自身のキー名） | ケースディレクトリを基準に `constant/triSurface/` から自動的に読み込まれたメッシュ。gzip 圧縮された状態（例: `motorBike.obj.gz`）で配布されていても、辞書がプレーンな名前を参照していても `.gz` の名前を直接参照していても見つけられます（手動での解凍は不要）。ファイルが見つからない場合はグレーアウト表示され、描画されません |
 | `collection`（searchableSurfaceCollection） | 名前付きサブエントリ。それぞれ `surface <name>`、`scale`、`transform { origin; rotation none; }` または `transform { origin; e1; e3; }` を持つ | ベースサーフェスが **box** タイプのサブエントリのみ、スケール・回転・平行移動済みのボックスとして `<collection>.<member>`（例：`twoFridgeFreezers.seal`）の名前で個別に描画されます。ベースが box 以外、または `transform` が未対応・未指定のメンバーは描画されません。collection のメンバーが 1 つも解決できなかった場合は collection 自体がグレーアウト表示されます |
 
 **カテゴリによる色分け:**
@@ -755,9 +764,19 @@ xterm ターミナルがアクティブな間は **⊞** ボタンが無効化�
 
 `blockMeshDict` が読み込まれていない場合でもオーバーレイのみ表示できます。描画可能な領域は **STL ▾ → Export Shapes as STL…** にも 3 つ目のグループとして表示されます。
 
+### サンプリングオーバーレイ
+
+`controlDict` — またはスタンドアロンのサンプリング辞書 `system/sample`、`system/probes`、`system/surfaces`、`system/singleGraph`（この 4 つは存在すればファイル一覧に表示されるようになりました）— を読み込み・編集すると、そのサンプリング定義がティール色で 3D ビューに描画されます:
+
+- **プローブ点** — `probes` / `patchProbes` / `boundaryProbes` ファンクションオブジェクト: 各 `probeLocations` が点マーカーとして描画されます。
+- **サンプル線** — `sets` タイプのエントリ: `start`/`end` の組を持つメンバー（`lineUniform`、`lineCell`、`uniform`、`face` など）は細いチューブとして、`points` リストを持つ `cloud` タイプのメンバーは点マーカーとして描画されます。メンバーリストの 2 つの書式 — 辞書形式 `sets { … }` と従来の丸括弧リスト形式 `sets ( y0.1 { … } … );` — の両方に対応し、`start`/`end` がファイルのトップレベルに置かれる .org 系の `singleGraph` スタイルも使えます。
+- **サンプル平面** — `surfaces` タイプのエントリ: `plane` と `cuttingPlane` のメンバー（直接の `point`/`normal`、`basePoint`/`normalVector`、または `pointAndNormalDict {}`）は、topoSet オーバーレイの `planeToFaceZone` と同様に、表示専用の広がりを持つ円盤として描画されます。
+
+定義は複数のファイルから同時に取り込めます（例: `controlDict` のプローブ + `system/sample` ファイル）。**sample ▾** メニューにはその合算が表示され、各行には角括弧で元ファイル名が付きます。描画可能なジオメトリを持たないエントリ — `patch` タイプのサーフェス、座標を解決できないメンバー、メンバーリスト自体が無い `sets`/`surfaces` エントリ — は **Non-geometric sources (N)** にまとめられます。サンプリング以外のファンクションオブジェクト（`forces`、`fieldAverage` など）は完全に無視されます。サンプリングシェイプは STL エクスポートの対象外です: 点と線にはサーフェスがなく、平面の描画上の広がりは表示専用のためです。
+
 ### オーバーレイのクリップ表示
 
-特に setFieldsDict の領域は、ドメインよりはるかに大きく書かれることがよくあります（例: 約 0.6 m のタンクに対する damBreak の `box (0 0 -1) (0.1461 0.292 1)`）— そのままの大きさで描画するとブロックメッシュが極端に小さく見えてしまいます。そのため、ブロックメッシュが読み込まれている場合、すべてのオーバーレイシェイプ（topoSet、snappyHexMesh、setFields）は、ブロックメッシュのバウンディングボックスを各軸 10% 拡大した範囲に **表示上のみ** クリップされます:
+特に setFieldsDict の領域は、ドメインよりはるかに大きく書かれることがよくあります（例: 約 0.6 m のタンクに対する damBreak の `box (0 0 -1) (0.1461 0.292 1)`）— そのままの大きさで描画するとブロックメッシュが極端に小さく見えてしまいます。そのため、ブロックメッシュが読み込まれている場合、すべてのオーバーレイシェイプ（topoSet、snappyHexMesh、setFields、サンプリング）は、ブロックメッシュのバウンディングボックスを各軸 10% 拡大した範囲に **表示上のみ** クリップされます:
 
 - 拡大した範囲に収まるシェイプはそのまま描画されます。
 - はみ出すシェイプは範囲内に切り取られ、シーンラベルに **「✂ clipped」** マークが付くため、切り取られた形状を実際の大きさと見誤ることはありません。
@@ -1073,31 +1092,31 @@ foamMonitor の実行中、メニュー項目は **■ foamMonitor** と表示�
 
 ## Run blockMesh
 
-**Tools > Run blockMesh** を選択すると、ケースディレクトリで `blockMesh` を実行できます。ケースに既に数値の結果ディレクトリがある場合、確認ダイアログにそれらが一覧表示され、`blockMesh` の再実行がそれらの結果を無効にする可能性があると警告されます。**Yes** をクリックすると続行します。コマンドは Terminal タブで実行され（自動的にそのタブへ切り替わります）、出力はケースディレクトリの `log.blockMesh` にも保存されます。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用できます。
+**Tools > Run blockMesh…** を選択すると、ケースディレクトリで `blockMesh` を実行できます。まずオプションダイアログが開きます — 5 つの「Run *」アクションはすべて同じダイアログ構成を共有します:
+
+- **主要オプション** — そのツールでよく使うフラグのチェックボックスと入力欄。blockMesh の場合: 代替ディクショナリ（`-dict`。ケース相対パスを挿入する **Browse…** ボタン付き）とメッシュリージョン（`-region`）。
+- **追加オプション** — それ以外のフラグ（例: `-verbose`）を自由に書けるテキスト欄。入力したとおりコマンドに追加されます。
+- **コマンド** — 実際に送信されるコマンドラインをそのまま表示するライブプレビュー。実行前に本物の OpenFOAM の起動コマンドを常に確認（そして学習）できます。
+
+**実行**（デフォルトボタン — Enter を押すと現在のオプションで実行）を押すと、コマンドが Terminal タブに送信され、自動的にそのタブへ切り替わります。出力はケースディレクトリの `log.blockMesh` にも保存されます。`2>&1 | tee log.blockMesh` のリダイレクトは自動付与されるため、[View Log Summary](#view-log-summary) は常にログを見つけられます。オプションの値はセッション中ツールごとに記憶されます。ケースに既に数値の結果ディレクトリがある場合、ダイアログ上部にそれらが一覧表示され、`blockMesh` の再実行がそれらの結果を無効にする可能性があると警告されます。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用できます。
 
 ## Run snappyHexMesh
 
-**Tools > Run snappyHexMesh** を選択すると、ケースディレクトリで `snappyHexMesh -overwrite` を実行できます。**Run blockMesh** と同様に、ケースに既に数値の結果ディレクトリがある場合は再メッシュがそれらを無効にする可能性があると警告する確認ダイアログが表示されます。コマンドは Terminal タブで実行され（自動的にそのタブへ切り替わります）、出力は `log.snappyHexMesh` にも保存されます。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用できます。
+**Tools > Run snappyHexMesh…** を選択すると、ケースディレクトリで `snappyHexMesh` を実行できます。[オプションダイアログ](#run-blockmesh)には `-overwrite`（デフォルトでチェック — チェックを外すと `constant/polyMesh` を置き換える代わりにスナップ後のメッシュを新しい時間ディレクトリに書き出します）、`-dict`、`-region` が並び、ケースに既に数値の結果ディレクトリがある場合は再メッシュがそれらを無効にする可能性があるとダイアログ上部で警告されます。コマンドは Terminal タブで実行され（自動的にそのタブへ切り替わります）、出力は `log.snappyHexMesh` にも保存されます。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用できます。
 
 ## Run topoSet
 
-**Tools > Run topoSet** を選択すると、ケースディレクトリで `system/topoSetDict` を読み込む `topoSet` を実行できます。**Run blockMesh** と同様に、ケースに既に数値の結果ディレクトリがある場合は再実行がそれらを無効にする可能性があると警告する確認ダイアログが表示されます。コマンドは Terminal タブで実行され（自動的にそのタブへ切り替わります）、出力は `log.topoSet` にも保存されます。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用できます。
+**Tools > Run topoSet…** を選択すると、ケースディレクトリで `system/topoSetDict` を読み込む `topoSet` を実行できます。[オプションダイアログ](#run-blockmesh)には `-dict`（例: `topoSetDict.refine` のような変種）と `-region` が並び、ケースに既に数値の結果ディレクトリがある場合は再実行がそれらを無効にする可能性があるとダイアログ上部で警告されます。コマンドは Terminal タブで実行され（自動的にそのタブへ切り替わります）、出力は `log.topoSet` にも保存されます。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用できます。
 
 ## Run setFields
 
-**Tools > Run setFields** を選択すると、ケースディレクトリで `system/setFieldsDict` を読み込む `setFields` を実行できます。コマンドは Terminal タブで実行され（自動的にそのタブへ切り替わります）、出力は `log.setFields` にも保存されます。
+**Tools > Run setFields…** を選択すると、ケースディレクトリで `system/setFieldsDict` を読み込む `setFields` を実行できます。[オプションダイアログ](#run-blockmesh)には `-dict` と `-region` が並び、コマンドは Terminal タブで実行され（自動的にそのタブへ切り替わります）、出力は `log.setFields` にも保存されます。
 
-`setFields` は `0/` の場ファイルを直接書き換えるため、設定済みの場に対して再実行すると値が重ねて適用されます（辞書のボックスを動かしても、既に満たされた `alpha.water` 領域は満たされたままです）。そのため、ケースに `0.orig/` バックアップがある場合は三択が提示されます:
-
-- **0/ を復元してから実行** — 先に `0/` を `0.orig/` から復元し（`rm -rf 0 && cp -r 0.orig 0`）、クリーンな初期場に対して `setFields` を実行します。チュートリアルの標準的なワークフローです。
-- **そのまま実行** — 現在の `0/` に対してそのまま `setFields` を実行します。
-- **キャンセル**
-
-`0.orig/` ディレクトリがない場合は、`0/` が直接書き換えられることを伝える通常の確認ダイアログが表示されます。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用できます。
+`setFields` は `0/` の場ファイルを直接書き換えるため、設定済みの場に対して再実行すると値が重ねて適用されます（辞書のボックスを動かしても、既に満たされた `alpha.water` 領域は満たされたままです）— ダイアログ上部にその旨が表示されます。そのため、ケースに `0.orig/` バックアップがある場合、ダイアログにはデフォルトでチェックされた **先に 0/ を 0.orig/ から復元する** チェックボックスも表示されます: コマンドの先頭に `rm -rf 0 && cp -r 0.orig 0 && ` が付加され（プレビューにも表示されます）、クリーンな初期場に対して `setFields` を実行するチュートリアルの標準的なワークフローになります。チェックを外すと現在の `0/` に対してそのまま実行します。`0.orig/` ディレクトリがない場合は、復元元のバックアップがないことが警告に示されるだけです。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用できます。
 
 ## Run checkMesh
 
-**Tools > Run checkMesh** を選択すると、ケースディレクトリで `checkMesh` を実行し、メッシュ品質（非直交性、歪度、アスペクト比など）を検証できます。**Run blockMesh** や **Run snappyHexMesh** の後に実行するのが典型的です。`checkMesh` はメッシュを読むだけなので、確認ダイアログなしで即座に実行されます。コマンドは Terminal タブで実行され（自動的にそのタブへ切り替わります）、出力は `log.checkMesh` にも保存され、[View Log Summary](#view-log-summary) で確認できます。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用できます。
+**Tools > Run checkMesh…** を選択すると、ケースディレクトリで `checkMesh` を実行し、メッシュ品質（非直交性、歪度、アスペクト比など）を検証できます。**Run blockMesh** や **Run snappyHexMesh** の後に実行するのが典型的です。[オプションダイアログ](#run-blockmesh)には `-allGeometry` と `-allTopology`（非標準の拡張チェック群）、サーフェス形式を指定する `-writeSets`（例: `vtk` — 問題のあるセル/面セットを ParaView で調べられるように書き出します）、`-region` が並びます。`checkMesh` はメッシュを読むだけなので、ダイアログにプレフライト警告はありません。コマンドは Terminal タブで実行され（自動的にそのタブへ切り替わります）、出力は `log.checkMesh` にも保存され、[View Log Summary](#view-log-summary) で確認できます。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用できます。
 
 ## Run Allrun Script
 
@@ -1130,14 +1149,14 @@ foamMonitor の実行中、メニュー項目は **■ foamMonitor** と表示�
 
 **Tools > View Log Summary…** を選択すると、`log.*` ファイルの生テキストの代わりに要約レポートを表示できます。特に `log.snappyHexMesh` で有用です。細分化・スナッピング・レイヤー追加の反復出力が繰り返されるため、数千行に達することがあります。ダイアログはケースディレクトリ内で最も新しく更新された `log.*` ファイルを初期選択します（**Browse…** で別のファイル、ケースディレクトリ外のファイルも選択できます）。2 つのタブがあります。
 
-- **Summary** — `blockMesh` の場合は `Mesh Information` と `Patches` ブロック。`snappyHexMesh` の場合は最終的なセル・面・点数、細分化カテゴリごとの反復回数、スナッピングの緩和反復回数、最終的なパッチ別レイヤー厚テーブル、メッシュ品質チェックの結果。`topoSet` の場合はセル・面・点セットごとに 1 行で、適用されたソースと最終サイズを表示します。繰り返される警告（反復ごとの変位警告など）は件数付きの 1 行にまとめられ、致命的エラーは常に全文表示されます。それ以外のユーティリティのログはヘッダーと末尾約 20 行にフォールバックします。
+- **Summary** — `blockMesh` の場合は `Mesh Information` と `Patches` ブロック。`snappyHexMesh` の場合は最終的なセル・面・点数、細分化カテゴリごとの反復回数、スナッピングの緩和反復回数、最終的なパッチ別レイヤー厚テーブル、メッシュ品質チェックの結果。`topoSet` の場合はセル・面・点セットごとに 1 行で、適用されたソースと最終サイズを表示します。**ソルバーログ**（`log.simpleFoam`、`log.interFoam` など — タイムループの形で認識されるため、リストに載っていないソルバーでも動作します）の場合は、時間ステップ数とシミュレーション時間の範囲、最終的な `ExecutionTime`/`ClockTime`、収束した場合の収束メッセージ（`SIMPLE solution converged in N iterations`）、そして最終ステップの残差 — フィールドごとの初期・最終残差と反復回数、Courant 数、累積連続性誤差 — を表示します。収束にも `End` にも到達しなかった実行は FAILED として報告されます。繰り返される警告（反復ごとの変位警告など）は件数付きの 1 行にまとめられ、致命的エラーは常に全文表示されます。それ以外のユーティリティのログはヘッダーと末尾約 20 行にフォールバックします。
 - **Raw Log** — 要約で省略された内容を確認できるよう、加工していないファイル内容をそのまま表示します。
 
 [Find OpenFOAM Examples](#find-openfoam-examples) と同様に — そして FoDE の他のダイアログとは異なり — このダイアログは**非モーダル**です。ツリー・エディタ・ターミナルでの作業を続けながらメインウィンドウの横に表示したままにできるため、辞書の設定内容とログの結果を見比べながら作業できます。このアクションはケースが開かれていればいつでも利用でき、ターミナルパネルや FoDE 内でのメッシュコマンド実行を必要としません。既存の `log.*` ファイルであれば動作します。
 
 ## Find OpenFOAM Examples
 
-**Tools > Find OpenFOAM Examples…** を選択すると、ローカルの OpenFOAM インストールからキーワードや設定の実際の使用例を検索できます。「`nOuterCorrectors` は実際どう使うのか」「`forces` の function object には何を書くのか」といった、従来は `find`/`grep` の知識が必要だった疑問に答えるための機能です。ダイアログは 2 つの検索対象を持ち、それぞれチェックボックスで切り替えられます。
+**Tools > Find OpenFOAM Examples…**（**Case > Find OpenFOAM Examples…** からも開けます）を選択すると、ローカルの OpenFOAM インストールからキーワードや設定の実際の使用例を検索できます。「`nOuterCorrectors` は実際どう使うのか」「`forces` の function object には何を書くのか」といった、従来は `find`/`grep` の知識が必要だった疑問に答えるための機能です。ダイアログは 2 つの検索対象を持ち、それぞれチェックボックスで切り替えられます。
 
 - **チュートリアル** — インストールの `tutorials/` ディレクトリに同梱されている約 550 の例題ケース。
 - **caseDicts テンプレート** — `etc/caseDicts/` 配下の厳選ファイル。`controlDict` の `functions {}` ブロックで `#includeFunc <名前>` として利用できる `postProcessing/` の function object テンプレートや、`annotated/` 配下の注釈付き例題辞書を含みます。
@@ -1150,6 +1169,7 @@ foamMonitor の実行中、メニュー項目は **■ foamMonitor** と表示�
 
 - **ファイルをコピー** / **選択範囲をコピー** — ファイル全体、またはプレビュー内で選択したテキストだけをクリップボードにコピーします（選択範囲をコピーは何かを選択すると有効になります）。自分のケースの Editor タブへの貼り付けなどに使えます。
 - **このケースと比較** — 一致がチュートリアルケース内にある場合に有効になります。ワンクリックでそのケースが既存の[ケース比較](#ケース比較)ビューの参照ケースとして読み込まれ、自分のケースとの差分を確認しながら、右クリックの **この値を使用** で個々の設定を取り込めます。ケースが開かれていない場合は、先にケースを開くよう案内されます。
+- **このケースを複製…** — 一致がチュートリアルケース内にある場合に有効になります。そのチュートリアルをコピー元として「[ケースの複製](#ケースの複製)」と同じダイアログを開き、書き込み可能な場所へコピーして自分のケースの出発点にできます — インストール内のチュートリアルケースをその場で編集してはいけません。コピー先はデフォルトケースディレクトリ（未設定ならホームディレクトリ。読み取り専用のインストール先が提示されることはありません）が初期値になり、コピー完了後はその場で新しいケースを開くかどうかを選択できます。
 
 このダイアログは**非モーダル**です。メインウィンドウの横に開いたまま、例を参照しながら編集を続けられます。検索するだけならケースを開いている必要はありません。
 
@@ -1207,7 +1227,7 @@ Ctrl+C / Ctrl+V ショートカットはツリーウィジェット限定のス�
 
 - **Comment Out** — 選択エントリのレンダリングテキストの全非空白行先頭に `// ` を付けて `unknown_raw_entry` に変換します。すでにコメントアウト済みの場合はグレーアウトされます。
 - **Restore from Comment** — **Comment Out** の逆操作です。各行の `// ` プレフィックスを除去して再パースし、元のノードに戻します。全非空白行が `//` で始まる `unknown_raw_entry` の場合にのみ有効です。
-- **Delete** — Yes/No の確認ダイアログ後に選択ノードを削除します。元に戻せません。
+- **Delete** — Yes/No の確認ダイアログ後に選択ノードを削除します。
 
 ## 同梱サンプルケース
 
@@ -1312,7 +1332,7 @@ OpenCFD/ESI Group（openfoam.com）と OpenFOAM Foundation（openfoam.org）の 
 
 **Duplicate Case** を押した時点で未保存の変更がある場合は、コピー前にすべてのファイルを保存するかどうかを確認します。保存することで、複製先に最新の編集内容が反映されます。
 
-現在開いているケースではなく参照ディレクトリからケースを複製したい場合は、**Case > Duplicate from Case Library...** を使用してください（「[ケースライブラリ](#ケースライブラリ)」を参照）。
+現在開いているケースではなく参照ディレクトリからケースを複製したい場合は、**Case > Duplicate from Case Library...** を使用してください（「[ケースライブラリ](#ケースライブラリ)」を参照）。キーワード検索で見つけた OpenFOAM チュートリアルケースを複製するには、[Find OpenFOAM Examples](#find-openfoam-examples) の **このケースを複製…** ボタンを使用してください。
 
 ## ケース比較
 

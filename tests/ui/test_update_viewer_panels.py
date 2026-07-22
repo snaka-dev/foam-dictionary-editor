@@ -31,6 +31,9 @@ class _RecordingBlockMeshPanel:
     def update_set_fields(self, path, root):
         self.calls.append(("set_fields", path))
 
+    def update_sampling(self, path, root):
+        self.calls.append(("sampling", path))
+
     def clear(self):
         self.calls.append(("clear", ""))
 
@@ -84,6 +87,23 @@ regions
 
 _CONTROL_TEXT = """FoamFile { version 2.0; format ascii; class dictionary; object controlDict; }
 application interFoam;
+functions
+{
+    myProbes { type probes; fields (p); probeLocations ( (0.1 0.2 0.3) ); }
+}
+"""
+
+_SAMPLE_TEXT = """FoamFile { version 2.0; format ascii; class dictionary; object sample; }
+type sets;
+fields (U);
+sets
+{
+    lineA { type lineUniform; axis distance; start (0 0 0); end (1 0 0); nPoints 10; }
+}
+"""
+
+_FV_SCHEMES_TEXT = """FoamFile { version 2.0; format ascii; class dictionary; object fvSchemes; }
+ddtSchemes { default Euler; }
 """
 
 
@@ -102,6 +122,8 @@ def _make_case_file(tmp_path, name: str, text: str) -> str:
         ("topoSetDict", _TOPO_TEXT, "topo_set"),
         ("snappyHexMeshDict", _SNAPPY_TEXT, "snappy_hex_mesh"),
         ("setFieldsDict", _SET_FIELDS_TEXT, "set_fields"),
+        ("controlDict", _CONTROL_TEXT, "sampling"),
+        ("sample", _SAMPLE_TEXT, "sampling"),
     ],
 )
 def test_load_dispatches_to_matching_viewer(main_window, tmp_path, filename, text, expected):
@@ -120,7 +142,7 @@ def test_load_unrelated_dict_does_not_dispatch(main_window, tmp_path):
     win = main_window
     panel = _RecordingBlockMeshPanel()
     win.block_mesh_panel = panel
-    path = _make_case_file(tmp_path, "controlDict", _CONTROL_TEXT)
+    path = _make_case_file(tmp_path, "fvSchemes", _FV_SCHEMES_TEXT)
     win._load_case_dir(str(tmp_path))
 
     win.load_selected_file(path)

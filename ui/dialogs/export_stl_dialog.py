@@ -39,9 +39,9 @@ _SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9_-]+")
 
 @dataclasses.dataclass
 class _Entry:
-    group_label: str        # "topoSet" | "snappyHexMesh" | "setFields"
-    name: str                # display name, may be ""
-    source_or_geo_type: str  # TopoShape.source | SnappyShape.geo_type | SetFieldsShape.source
+    group_label: str  # "topoSet" | "snappyHexMesh" | "setFields"
+    name: str         # shape label, may be ""
+    kind: str         # the shape classes' shared geometry/source keyword
     geometry: dict
     default_checked: bool
 
@@ -70,21 +70,15 @@ class ExportStlDialog(QDialog):
         self.resize(_DIALOG_WIDTH, _DIALOG_HEIGHT)
 
         set_fields_visible = set_fields_visible or set()
+        groups: list[tuple[str, list, set[int]]] = [
+            ("topoSet", list(topo_shapes), topo_visible),
+            ("snappyHexMesh", list(snappy_shapes), snappy_visible),
+            ("setFields", list(set_fields_shapes or []), set_fields_visible),
+        ]
         self._entries: list[_Entry] = [
-            _Entry("topoSet", shape.label, shape.source, shape.geometry, id(shape) in topo_visible)
-            for shape in topo_shapes
-        ] + [
-            _Entry(
-                "snappyHexMesh", shape.name, shape.geo_type, shape.geometry,
-                id(shape) in snappy_visible,
-            )
-            for shape in snappy_shapes
-        ] + [
-            _Entry(
-                "setFields", shape.label, shape.source, shape.geometry,
-                id(shape) in set_fields_visible,
-            )
-            for shape in (set_fields_shapes or [])
+            _Entry(group, shape.label, shape.kind, shape.geometry, id(shape) in visible)
+            for group, shapes, visible in groups
+            for shape in shapes
         ]
 
         layout = QVBoxLayout(self)
@@ -101,7 +95,7 @@ class ExportStlDialog(QDialog):
         self._list = QListWidget()
         for entry in self._entries:
             label = entry.name or "(unnamed)"
-            item = QListWidgetItem(f"[{entry.group_label}] {label}  ·  {entry.source_or_geo_type}")
+            item = QListWidgetItem(f"[{entry.group_label}] {label}  ·  {entry.kind}")
             item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
             item.setCheckState(Qt.Checked if entry.default_checked else Qt.Unchecked)
             self._list.addItem(item)
@@ -178,7 +172,7 @@ class ExportStlDialog(QDialog):
             entry = self._entries[i]
             label = entry.name or "(unnamed)"
             try:
-                mesh = BlockMeshRenderer._make_shape_mesh(entry.source_or_geo_type, entry.geometry)
+                mesh = BlockMeshRenderer._make_shape_mesh(entry.kind, entry.geometry)
                 if mesh is None:
                     skipped.append(label)
                     continue

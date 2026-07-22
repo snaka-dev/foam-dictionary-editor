@@ -68,6 +68,25 @@ def read_foam_file(path: str | Path) -> str:
         return p.read_text(encoding="latin-1")
 
 
+def resolve_optionally_gzipped(path: Path) -> Path | None:
+    """Return the on-disk file for a surface reference, transparent to gzip.
+
+    OpenFOAM resolves a referenced file to a ``.gz`` sibling when the plain
+    name is absent (and vice versa for a name that already ends in ``.gz``).
+    Returns the actual existing path, or None when neither form exists.
+    """
+    if path.is_file():
+        return path
+    gz = path.parent / (path.name + ".gz")
+    if gz.is_file():
+        return gz
+    if path.suffix == ".gz":
+        stripped = path.parent / path.name[:-3]
+        if stripped.is_file():
+            return stripped
+    return None
+
+
 def is_int(text: str) -> bool:
     # "1.0" and "1e3" are intentionally treated as non-integer
     try:

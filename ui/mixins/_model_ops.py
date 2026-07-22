@@ -17,6 +17,7 @@ from ui.layout_constants import (
     TOPOSET_DICT_NAME as _TOPOSET_DICT_NAME,
     SNAPPY_HEX_MESH_DICT_NAME as _SNAPPY_HEX_MESH_DICT_NAME,
     SETFIELDS_DICT_NAME as _SETFIELDS_DICT_NAME,
+    SAMPLING_DICT_NAMES as _SAMPLING_DICT_NAMES,
     STATUS_SHORT as _STATUS_SHORT,
     STATUS_WARNING as _STATUS_WARNING,
     TREE_EXPAND_DEPTH as _TREE_EXPAND_DEPTH,
@@ -49,12 +50,15 @@ class _ModelOpsMixin:
         self.boundary_panel.update_field(path, root)
         if self.block_mesh_panel is None:
             return
+        name = Path(path).name
         update = {
             _BLOCKMESH_DICT_NAME: self.block_mesh_panel.update_block_mesh,
             _TOPOSET_DICT_NAME: self.block_mesh_panel.update_topo_set,
             _SNAPPY_HEX_MESH_DICT_NAME: self.block_mesh_panel.update_snappy_hex_mesh,
             _SETFIELDS_DICT_NAME: self.block_mesh_panel.update_set_fields,
-        }.get(Path(path).name)
+        }.get(name)
+        if update is None and name in _SAMPLING_DICT_NAMES:
+            update = self.block_mesh_panel.update_sampling
         if update is not None:
             update(path, root)
 
@@ -63,6 +67,10 @@ class _ModelOpsMixin:
         # call FoamTreeModel.setData() without going through _after_model_edit().
         if Qt.EditRole in roles:
             self._after_model_edit()
+            # dataChanged(EditRole) only fires on a successful setData, so this
+            # is the point at which a stashed inline-edit snapshot is known to
+            # represent a real change and can be committed to the undo stack.
+            self._commit_pending_undo()
 
     def _load_tree(self, root: FoamNode) -> None:
         self.state.current_root = root
@@ -70,6 +78,7 @@ class _ModelOpsMixin:
         self.state.current_model.edit_rejected.connect(
             lambda msg: self.statusBar().showMessage(msg, _STATUS_WARNING)
         )
+        self.state.current_model.about_to_change.connect(self._on_model_about_to_change)
         self.state.current_model.dataChanged.connect(self._on_tree_data_changed)
         self.proxy_model.setSourceModel(self.state.current_model)
         self.tree_filter_input.clear()

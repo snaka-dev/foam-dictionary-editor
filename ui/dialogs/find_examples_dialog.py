@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
-    QFileDialog,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -27,18 +26,16 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app_config import get_app_config
 from i18n import tr
 from services.example_search import (
     SOURCE_CASEDICTS,
     SOURCE_TUTORIALS,
     FoamInstallation,
     SearchHit,
-    discover_installations,
-    installation_from_dir,
     search_examples,
 )
 from ui.widgets.code_editor import CodeEditor
+from ui.widgets.installation_selector import InstallationSelector
 
 _DIALOG_WIDTH = 900
 _DIALOG_HEIGHT = 600
@@ -103,7 +100,8 @@ class _SearchThread(QThread):
 class FindExamplesDialog(QDialog):
     """Non-modal dialog to search OpenFOAM tutorials/caseDicts for examples."""
 
-    compare_requested = Signal(str)  # absolute path of a tutorial case root
+    compare_requested = Signal(str)    # absolute path of a tutorial case root
+    duplicate_requested = Signal(str)  # absolute path of a tutorial case root
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -118,11 +116,13 @@ class FindExamplesDialog(QDialog):
         # ── installation row ──────────────────────────────────────────────
         install_row = QHBoxLayout()
         install_row.addWidget(QLabel(tr("OpenFOAM installation:")))
-        self._install_combo = QComboBox()
-        install_row.addWidget(self._install_combo, 1)
-        browse_btn = QPushButton(tr("Browse…"))
-        browse_btn.clicked.connect(self._on_browse_installation)
-        install_row.addWidget(browse_btn)
+        self._install_selector = InstallationSelector()
+        self._install_selector.installations_available.connect(
+            self._on_installations_available
+        )
+        self._install_selector.error.connect(self._on_selector_error)
+        self._install_combo = self._install_selector.combo  # kept for tests
+        install_row.addWidget(self._install_selector, 1)
         layout.addLayout(install_row)
 
         self._hint_label = QLabel(
@@ -203,6 +203,10 @@ class FindExamplesDialog(QDialog):
         self._compare_btn.setEnabled(False)
         self._compare_btn.clicked.connect(self._on_compare)
         bottom_row.addWidget(self._compare_btn)
+        self._duplicate_btn = QPushButton(tr("Duplicate this case…"))
+        self._duplicate_btn.setEnabled(False)
+        self._duplicate_btn.clicked.connect(self._on_duplicate)
+        bottom_row.addWidget(self._duplicate_btn)
         self._status_label = QLabel("")
         bottom_row.addWidget(self._status_label, 1)
         close_btn = QPushButton(tr("Close"))
@@ -210,43 +214,20 @@ class FindExamplesDialog(QDialog):
         bottom_row.addWidget(close_btn)
         layout.addLayout(bottom_row)
 
-        self._populate_installations()
+        self._install_selector.refresh()
 
     # ── installations ─────────────────────────────────────────────────────
 
-    def _populate_installations(self) -> None:
-        cfg = get_app_config()
-        saved = cfg.get_openfoam_dir()
-        extra_roots = [saved] if saved else []
-        installations = discover_installations(extra_roots=extra_roots)
-        self._install_combo.clear()
-        for installation in installations:
-            self._install_combo.addItem(installation.label, installation)
-        self._hint_label.setVisible(not installations)
+    def _on_installations_available(self, available: bool) -> None:
+        self._hint_label.setVisible(not available)
+        if available:
+            self._status_label.setText("")
+
+    def _on_selector_error(self, msg: str) -> None:
+        self._status_label.setText(msg)
 
     def _current_installation(self) -> FoamInstallation | None:
-        data = self._install_combo.currentData()
-        return data if isinstance(data, FoamInstallation) else None
-
-    def _on_browse_installation(self) -> None:
-        directory = QFileDialog.getExistingDirectory(
-            self, tr("Select OpenFOAM Installation Directory")
-        )
-        if not directory:
-            return
-        installation = installation_from_dir(Path(directory))
-        if installation is None:
-            self._status_label.setText(
-                tr("Not an OpenFOAM directory (no tutorials/ or etc/caseDicts/).")
-            )
-            return
-        cfg = get_app_config()
-        cfg.set_openfoam_dir(directory)
-        cfg.save()
-        self._install_combo.insertItem(0, installation.label, installation)
-        self._install_combo.setCurrentIndex(0)
-        self._hint_label.hide()
-        self._status_label.setText("")
+        return self._install_selector.current_installation()
 
     # ── search ────────────────────────────────────────────────────────────
 
@@ -286,6 +267,7 @@ class FindExamplesDialog(QDialog):
         self._copy_btn.setEnabled(False)
         self._copy_selection_btn.setEnabled(False)
         self._compare_btn.setEnabled(False)
+        self._duplicate_btn.setEnabled(False)
         self._search_btn.hide()
         self._cancel_btn.show()
         self._cancel_btn.setEnabled(True)
@@ -366,6 +348,7 @@ class FindExamplesDialog(QDialog):
         if hit is None:
             self._copy_btn.setEnabled(False)
             self._compare_btn.setEnabled(False)
+            self._duplicate_btn.setEnabled(False)
             return
         try:
             text = hit.file.read_text(encoding="utf-8", errors="replace")
@@ -384,6 +367,7 @@ class FindExamplesDialog(QDialog):
         )
         self._copy_btn.setEnabled(True)
         self._compare_btn.setEnabled(hit.case_root is not None)
+        self._duplicate_btn.setEnabled(hit.case_root is not None)
 
     def _set_path_text(self, text: str) -> None:
         self._path_text = text
@@ -417,6 +401,12 @@ class FindExamplesDialog(QDialog):
         if hit is None or hit.case_root is None:
             return
         self.compare_requested.emit(str(hit.case_root))
+
+    def _on_duplicate(self) -> None:
+        hit = self._current_hit()
+        if hit is None or hit.case_root is None:
+            return
+        self.duplicate_requested.emit(str(hit.case_root))
 
     # ── cleanup ───────────────────────────────────────────────────────────
 

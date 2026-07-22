@@ -9,6 +9,8 @@ frustums rendered as cylinders.
 """
 from __future__ import annotations
 
+import gzip
+
 import numpy as np
 import pytest
 
@@ -24,6 +26,7 @@ from ui.panels.block_mesh_renderer import (
     _make_annular_frustum_mesh,
     _make_frustum_mesh,
     _make_rotated_box_mesh,
+    read_surface_mesh,
 )
 
 
@@ -191,6 +194,30 @@ def test_make_shape_mesh_stl_path_missing_file_returns_none():
     assert BlockMeshRenderer._make_shape_mesh(
         "triSurfaceMesh", {"stl_path": "/nonexistent/does-not-exist.stl"}
     ) is None
+
+
+_ASCII_STL = (
+    "solid box\n"
+    "facet normal 0 0 1\n outer loop\n"
+    "  vertex 0 0 0\n  vertex 1 0 0\n  vertex 0 1 0\n"
+    " endloop\nendfacet\n"
+    "endsolid box\n"
+)
+
+
+def test_make_shape_mesh_reads_gzipped_stl(tmp_path):
+    gz = tmp_path / "box.stl.gz"
+    gz.write_bytes(gzip.compress(_ASCII_STL.encode("ascii")))
+    mesh = BlockMeshRenderer._make_shape_mesh("triSurfaceMesh", {"stl_path": str(gz)})
+    assert mesh is not None
+    assert mesh.n_points == 3
+
+
+def test_read_surface_mesh_plain_passthrough(tmp_path):
+    stl = tmp_path / "box.stl"
+    stl.write_text(_ASCII_STL)
+    mesh = read_surface_mesh(str(stl))
+    assert mesh.n_points == 3
 
 
 def test_element_removal_actions_are_coloured():

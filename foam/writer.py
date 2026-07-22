@@ -30,10 +30,10 @@ def _write_node(node: FoamNode, indent: int = 0) -> str:
     if not node.modified and node.raw_text and not _has_modified_descendant(node):
         return _with_leading_trivia(node, node.raw_text)
 
-    if node.node_type in {"dictionary", "region_entry", "boundary_entry"}:
+    if node.node_type in {"dictionary", "region_entry", "boundary_entry", "named_dict_entry"}:
         return _with_leading_trivia(node, _write_dictionary(node, indent))
 
-    if node.node_type in {"region_block", "boundary_block", "action_list"}:
+    if node.node_type in {"region_block", "boundary_block", "action_list", "named_dict_list"}:
         return _with_leading_trivia(node, _write_region_block(node, indent))
 
     if node.node_type == "action_entry":

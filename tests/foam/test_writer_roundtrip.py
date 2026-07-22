@@ -256,3 +256,30 @@ regions
 
     out = write_root(root)
     assert "volScalarFieldValue alpha.water 1" in out
+
+
+def test_writer_modified_region_entry_keeps_sibling_names():
+    """Regression: regenerating one region entry must not drop sibling names.
+
+    Entry raw_text used to start at the "{" (the name token was outside the
+    captured span), so unmodified siblings of a modified entry lost their
+    names on write.
+    """
+    text = (
+        "regions\n(\n"
+        "    boxToCell\n    {\n        box (0 0 -1) (1 1 1);\n"
+        "        fieldValues ( volScalarFieldValue alpha.water 1 );\n    }\n"
+        "    sphereToCell\n    {\n        centre (0.5 0.5 0.5);\n"
+        "        radius 0.1;\n"
+        "        fieldValues ( volScalarFieldValue alpha.water 1 );\n    }\n"
+        ");\n"
+    )
+    root = OpenFoamParser(text).parse()
+    regions = root.children[0]
+    assert regions.children[0].raw_text.startswith("boxToCell")
+    regions.children[0].modified = True
+    out = write_root(root)
+    assert "sphereToCell" in out
+    reparsed = OpenFoamParser(out).parse().children[0]
+    assert reparsed.node_type == "region_block"
+    assert [c.name for c in reparsed.children] == ["boxToCell", "sphereToCell"]

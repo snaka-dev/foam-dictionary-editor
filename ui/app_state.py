@@ -25,6 +25,39 @@ class FoamMonitorState:
 
 
 @dataclasses.dataclass
+class UndoSnapshot:
+    """Pre-mutation state of every file a tree operation touches."""
+
+    texts: dict[str, str]     # path → serialized text before the mutation
+    dirty: dict[str, bool]    # path → file_dirty flag before the mutation
+
+
+@dataclasses.dataclass
+class UndoState:
+    """Snapshot-based undo/redo for tree edits.
+
+    A single global timeline (not per file): each snapshot records every file
+    the operation touched, so multi-file boundary operations undo as one step
+    and a redo branch is invalidated by *any* subsequent edit.
+    """
+
+    undo_stack: list[UndoSnapshot] = dataclasses.field(default_factory=list)
+    redo_stack: list[UndoSnapshot] = dataclasses.field(default_factory=list)
+    # Pre-mutation snapshot stashed by the model's about_to_change signal (which
+    # fires before the edit is validated). It is committed onto undo_stack only
+    # once the edit is confirmed to have changed something (see
+    # _commit_pending_undo); a rejected or value-unchanged inline edit therefore
+    # leaves the undo/redo stacks untouched.
+    pending: UndoSnapshot | None = None
+    # True while an operation that already took its explicit checkpoint runs,
+    # so the model's about_to_change signal does not stash a second (mid-state)
+    # snapshot. Reset on the next event-loop tick.
+    op_active: bool = False
+    # True while an undo/redo restore runs, so nothing re-checkpoints.
+    restoring: bool = False
+
+
+@dataclasses.dataclass
 class AppState:
     """Centralised shared state for a MainWindow session.
 
@@ -59,6 +92,12 @@ class AppState:
 
     # ── foamMonitor state ─────────────────────────────────────────────────────
     foam_monitor: FoamMonitorState = dataclasses.field(default_factory=FoamMonitorState)
+
+    # ── Tools-menu "Run *" dialogs: last-used option values per tool ──────────
+    run_tool_options: dict[str, dict] = dataclasses.field(default_factory=dict)
+
+    # ── tree-edit undo/redo ───────────────────────────────────────────────────
+    undo: UndoState = dataclasses.field(default_factory=UndoState)
 
     # ── panel state ───────────────────────────────────────────────────────────
     bm_side_by_side: bool = False

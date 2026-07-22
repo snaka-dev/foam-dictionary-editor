@@ -16,6 +16,7 @@ NodeType = Literal[
     # Structural types
     "dictionary", "field_value_block", "field_value", "region_block", "region_entry",
     "boundary_block", "boundary_entry", "action_list", "action_entry",
+    "named_dict_list", "named_dict_entry",
     "directive_entry", "macro_entry", "unknown_raw_entry",
 ]
 

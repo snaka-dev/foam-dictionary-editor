@@ -156,7 +156,9 @@ def test_boundary_entry_source_lines_set():
     boundary = root.children[0]
     patch = boundary.children[0]
     assert patch.node_type == "boundary_entry"
-    assert patch.source_line == 4
+    # The entry's span starts at its name line (so raw_text keeps the name
+    # and tree→editor highlighting covers it), not at the "{" line.
+    assert patch.source_line == 3
     assert patch.source_end_line == 6
 
 

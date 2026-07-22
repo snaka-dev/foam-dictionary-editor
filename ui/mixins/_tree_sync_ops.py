@@ -124,6 +124,7 @@ class _TreeSyncOpsMixin:
             QMessageBox.warning(self, tr("Edit Error"), tr("Field Type must not be empty."))
             return
 
+        self._checkpoint_for_undo()
         node.value["field_type"] = field_type
         node.modified = True
 
@@ -155,6 +156,7 @@ class _TreeSyncOpsMixin:
         try:
             _parser = OpenFoamParser(text)
             root = _parser.parse()
+            self._checkpoint_for_undo()
             if self.state.current_file:
                 self.state.parsed_roots[self.state.current_file] = root
                 self._update_viewer_panels(self.state.current_file, root)
@@ -199,6 +201,7 @@ class _TreeSyncOpsMixin:
         verts = parse_vertices(str(vtx_node.value))
         if idx < 0 or idx >= len(verts):
             return
+        self._checkpoint_for_undo()
         verts[idx] = xyz
         vtx_node.value = "\n" + "".join(
             f"    ({format_scalar(v[0])} {format_scalar(v[1])} {format_scalar(v[2])})\n"

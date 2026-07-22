@@ -17,14 +17,17 @@ from foam.nodes import FoamNode
 from foam.tree_utils import (
     expand_evals,
     find_child,
+    resolve_box_geometry,
     resolve_cone_geometry,
     resolve_cylinder_geometry,
     resolve_sphere_geometry,
     resolve_vector,
 )
+from foam.utils import resolve_optionally_gzipped
 from foam.var_resolver import build_var_map, substitute_vars
 
 _TRISURFACE_EXTENSIONS = (".stl", ".stlb", ".obj")
+_TRISURFACE_GZ_EXTENSIONS = tuple(ext + ".gz" for ext in _TRISURFACE_EXTENSIONS)
 
 # Matches a "((x y z) name)" pair inside locationsInMesh's raw source text.
 _LOCATION_PAIR_RE = re.compile(
@@ -38,8 +41,9 @@ _REGEX_META = frozenset(".*+?[]^$|\\")
 
 @dataclasses.dataclass
 class SnappyShape:
-    name: str                              # resolved cross-reference name
-    geo_type: str                          # e.g. "box", "sphere", "triSurfaceMesh"
+    # `label`/`kind`: shared field names across all extractor shape classes.
+    label: str                             # resolved cross-reference name
+    kind: str                              # e.g. "box", "sphere", "triSurfaceMesh"
     category: str                          # "surface" | "region" | "geometry"
     geometry: dict                         # same key convention as TopoShape.geometry
     level: tuple[float, float] | None = None      # from refinementSurfaces
@@ -107,12 +111,13 @@ def _resolve_stl_path(entry: FoamNode, entry_key: str, case_dir: str | None) -> 
     file_node = find_child(entry, "file")
     if file_node is not None and file_node.value:
         filename = _unquote(str(file_node.value))
-    elif entry_key.lower().endswith(_TRISURFACE_EXTENSIONS):
+    elif entry_key.lower().endswith(_TRISURFACE_EXTENSIONS + _TRISURFACE_GZ_EXTENSIONS):
         filename = entry_key
     else:
         return None
     path = Path(case_dir) / "constant" / "triSurface" / filename
-    return str(path) if path.is_file() else None
+    resolved = resolve_optionally_gzipped(path)
+    return str(resolved) if resolved is not None else None
 
 
 def _extract_geometry_entry(
@@ -124,13 +129,7 @@ def _extract_geometry_entry(
     geometry: dict = {}
 
     if geo_type == "box":
-        min_node = find_child(entry, "min")
-        max_node = find_child(entry, "max")
-        if min_node is not None and max_node is not None:
-            mn = resolve_vector(min_node, var_map)
-            mx = resolve_vector(max_node, var_map)
-            if mn is not None and mx is not None:
-                geometry["box"] = [mn, mx]
+        geometry = resolve_box_geometry(entry, var_map)
     elif geo_type == "sphere":
         geometry = resolve_sphere_geometry(entry, var_map, allow_vector_radius=True)
     elif geo_type == "cylinder":
@@ -224,8 +223,8 @@ def _extract_collection_members(
         k_vec = _mat_vec(rotation, [0.0, 0.0, size[2]])
 
         members.append(SnappyShape(
-            name=f"{_unquote(entry.name)}.{_unquote(sub.name)}",
-            geo_type="collection_box",
+            label=f"{_unquote(entry.name)}.{_unquote(sub.name)}",
+            kind="collection_box",
             category="geometry",
             geometry={"origin": origin_world, "i": i_vec, "j": j_vec, "k": k_vec},
         ))
@@ -282,7 +281,7 @@ def extract_snappy_hex_mesh_data(
             if not geo_type:
                 continue
             name = _resolve_name(entry)
-            shape = SnappyShape(name=name, geo_type=geo_type, category="geometry", geometry=geometry)
+            shape = SnappyShape(label=name, kind=geo_type, category="geometry", geometry=geometry)
             if geometry:
                 shapes[name] = shape
             else:
@@ -292,11 +291,11 @@ def extract_snappy_hex_mesh_data(
             members = _extract_collection_members(entry, shapes, var_map)
             if members:
                 for member in members:
-                    shapes[member.name] = member
+                    shapes[member.label] = member
             else:
                 non_geometric.append(
                     SnappyShape(
-                        name=_resolve_name(entry), geo_type="collection",
+                        label=_resolve_name(entry), kind="collection",
                         category="geometry", geometry={},
                     )
                 )

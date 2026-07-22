@@ -56,6 +56,11 @@ class _TreeCrudOpsMixin:
         can_add_child = node.node_type == "dictionary"
 
         menu = QMenu(self)
+        undo_action = menu.addAction(tr("Undo Tree Edit\tCtrl+Z"))
+        undo_action.setEnabled(bool(self.state.undo.undo_stack))
+        redo_action = menu.addAction(tr("Redo Tree Edit\tCtrl+Shift+Z"))
+        redo_action.setEnabled(bool(self.state.undo.redo_stack))
+        menu.addSeparator()
         copy_action = menu.addAction(tr("Copy Value\tCtrl+C"))
         paste_action = menu.addAction(tr("Paste Value\tCtrl+V"))
         paste_action.setEnabled(can_paste)
@@ -91,7 +96,11 @@ class _TreeCrudOpsMixin:
         delete_action.setEnabled(can_add_sibling)
 
         action = menu.exec(self.tree.viewport().mapToGlobal(pos))
-        if action == copy_action:
+        if action == undo_action:
+            self._tree_undo()
+        elif action == redo_action:
+            self._tree_redo()
+        elif action == copy_action:
             self._tree_copy_value()
         elif action == paste_action:
             self._tree_paste_value()
@@ -143,6 +152,7 @@ class _TreeCrudOpsMixin:
     # ── tree mutations ────────────────────────────────────────────────────────
 
     def _tree_add_entry_after(self, node: FoamNode) -> None:
+        self._checkpoint_for_undo()
         parent_node = node.parent if node.parent is not None else self.state.current_model.root
         position = parent_node.children.index(node) + 1
         new_node = FoamNode(name="newKey", node_type="word", value="newValue", modified=True)
@@ -154,6 +164,7 @@ class _TreeCrudOpsMixin:
         self._after_model_edit()
 
     def _tree_add_child_entry(self, node: FoamNode) -> None:
+        self._checkpoint_for_undo()
         position = len(node.children)
         new_node = FoamNode(name="newKey", node_type="word", value="newValue", modified=True)
         parent_src_idx = self.state.current_model.index_of_node(node)
@@ -166,6 +177,7 @@ class _TreeCrudOpsMixin:
         self._after_model_edit()
 
     def _tree_duplicate(self, node: FoamNode) -> None:
+        self._checkpoint_for_undo()
         parent_node = node.parent if node.parent is not None else self.state.current_model.root
         position = parent_node.children.index(node) + 1
         orig_parent = node.parent
@@ -181,6 +193,7 @@ class _TreeCrudOpsMixin:
         self._after_model_edit()
 
     def _tree_comment_out(self, node: FoamNode) -> None:
+        self._checkpoint_for_undo()
         parent_node = node.parent if node.parent is not None else self.state.current_model.root
         position = parent_node.children.index(node)
         indent = self._node_indent(node)
@@ -203,12 +216,13 @@ class _TreeCrudOpsMixin:
     def _tree_delete(self, node: FoamNode) -> None:
         reply = QMessageBox.question(
             self, tr("Delete Entry"),
-            tr("Delete '{node_name}'? This cannot be undone.").format(node_name=node.name),
+            tr("Delete '{node_name}'?").format(node_name=node.name),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
         if reply != QMessageBox.Yes:
             return
+        self._checkpoint_for_undo()
         parent_node = node.parent if node.parent is not None else self.state.current_model.root
         self._mark_parent_modified(parent_node)
         self.state.current_model.remove_node(node)
@@ -239,6 +253,7 @@ class _TreeCrudOpsMixin:
             QMessageBox.warning(self, tr("Restore Failed"), tr("No entries found after removing comment markers."))
             return
 
+        self._checkpoint_for_undo()
         parent_node = node.parent if node.parent is not None else self.state.current_model.root
         position = parent_node.children.index(node)
         self._mark_parent_modified(parent_node)
@@ -259,6 +274,7 @@ class _TreeCrudOpsMixin:
         """Apply a leaf value from the reference case tree to the current tree."""
         if b_node.parent is None:
             return
+        self._checkpoint_for_undo()
 
         # Build the named ancestor path of b_node (unnamed ancestors are
         # skipped). The leaf itself is handled separately below because it may

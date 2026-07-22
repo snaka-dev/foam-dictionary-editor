@@ -1,17 +1,19 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 """
-Tests for the Run snappyHexMesh / Run topoSet Tools-menu actions and
-_update_tools_actions' enablement logic (ui/mixins/_tools_ops.py).
+Tests for the Tools-menu "Run *" actions and _update_tools_actions' enablement
+logic (ui/mixins/_tools_ops.py).
 
-These mirror _on_run_blockmesh_clicked, which has no dedicated test of its own,
-but the exact command string sent to the terminal is worth pinning down here
-since it was hand-written (copy-pasted and adjusted) rather than shared code --
-a typo in the command or log filename would otherwise ship silently.
+The tool actions (blockMesh, snappyHexMesh, topoSet, setFields, checkMesh) go
+through RunToolDialog; these tests accept/reject the real dialog and pin down
+the exact command string sent to the terminal -- a typo in the command or log
+filename would otherwise ship silently.
 """
 from __future__ import annotations
 
-from PySide6.QtWidgets import QMessageBox, QWidget
+from PySide6.QtWidgets import QDialog, QMessageBox, QWidget
+
+from ui.dialogs.run_tool_dialog import RunToolDialog
 
 
 class _FakeTerminalPanel(QWidget):
@@ -29,29 +31,69 @@ class _FakeTerminalPanel(QWidget):
         """No-op: the main_window fixture's teardown calls this unconditionally."""
 
 
-def test_run_snappyhexmesh_sends_expected_command(main_window, tmp_path):
+def _patch_run_dialog(monkeypatch, accept=True, tweak=None):
+    """Make RunToolDialog.exec() return immediately instead of blocking.
+
+    ``tweak(dialog)`` can adjust the (fully built) dialog's widgets first,
+    standing in for the user editing options before pressing Run."""
+
+    def fake_exec(self):
+        if tweak is not None:
+            tweak(self)
+        return QDialog.Accepted if accept else QDialog.Rejected
+
+    monkeypatch.setattr(RunToolDialog, "exec", fake_exec)
+
+
+def test_run_blockmesh_sends_expected_command(main_window, tmp_path, monkeypatch):
     win = main_window
     win.state.current_case_dir = str(tmp_path)
     win.terminal_panel = _FakeTerminalPanel()
 
+    _patch_run_dialog(monkeypatch)
+    win._on_run_blockmesh_clicked()
+
+    assert win.terminal_panel.commands == ["blockMesh 2>&1 | tee log.blockMesh"]
+
+
+def test_run_snappyhexmesh_sends_expected_command(main_window, tmp_path, monkeypatch):
+    win = main_window
+    win.state.current_case_dir = str(tmp_path)
+    win.terminal_panel = _FakeTerminalPanel()
+
+    _patch_run_dialog(monkeypatch)
     win._on_run_snappyhexmesh_clicked()
 
+    # -overwrite is a curated option that defaults to checked.
     assert win.terminal_panel.commands == [
         "snappyHexMesh -overwrite 2>&1 | tee log.snappyHexMesh"
     ]
 
 
-def test_run_topo_set_sends_expected_command(main_window, tmp_path):
+def test_run_topo_set_sends_expected_command(main_window, tmp_path, monkeypatch):
     win = main_window
     win.state.current_case_dir = str(tmp_path)
     win.terminal_panel = _FakeTerminalPanel()
 
+    _patch_run_dialog(monkeypatch)
     win._on_run_topo_set_clicked()
 
     assert win.terminal_panel.commands == ["topoSet 2>&1 | tee log.topoSet"]
 
 
-def test_run_snappyhexmesh_asks_for_confirmation_when_time_dirs_exist(
+def test_run_tool_cancelled_dialog_sends_nothing(main_window, tmp_path, monkeypatch):
+    win = main_window
+    win.state.current_case_dir = str(tmp_path)
+    win.terminal_panel = _FakeTerminalPanel()
+
+    _patch_run_dialog(monkeypatch, accept=False)
+    win._on_run_snappyhexmesh_clicked()
+    win._on_run_topo_set_clicked()
+    win._on_run_blockmesh_clicked()
+    assert win.terminal_panel.commands == []
+
+
+def test_run_dialog_gets_rerun_warning_when_time_dirs_exist(
     main_window, tmp_path, monkeypatch
 ):
     (tmp_path / "0.5").mkdir()
@@ -59,97 +101,105 @@ def test_run_snappyhexmesh_asks_for_confirmation_when_time_dirs_exist(
     win.state.current_case_dir = str(tmp_path)
     win.terminal_panel = _FakeTerminalPanel()
 
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.No)
-    win._on_run_snappyhexmesh_clicked()
-    assert win.terminal_panel.commands == []
+    captured = {}
 
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.Yes)
-    win._on_run_snappyhexmesh_clicked()
+    class _FakeDialog:
+        def __init__(self, spec, case_dir, last_values=None, warning_text="",
+                     prefix_option=None, parent=None):
+            captured["warning"] = warning_text
+
+        def exec(self):
+            return QDialog.Rejected
+
+    monkeypatch.setattr("ui.mixins._tools_ops.RunToolDialog", _FakeDialog)
+    win._on_run_blockmesh_clicked()
+    assert "0.5" in captured["warning"]
+
+    (tmp_path / "0.5").rmdir()
+    win._on_run_blockmesh_clicked()
+    assert captured["warning"] == ""
+
+
+def test_run_tool_remembers_last_options(main_window, tmp_path, monkeypatch):
+    win = main_window
+    win.state.current_case_dir = str(tmp_path)
+    win.terminal_panel = _FakeTerminalPanel()
+
+    _patch_run_dialog(
+        monkeypatch, tweak=lambda dlg: dlg._extra_edit.setText("-latestTime")
+    )
+    win._on_run_checkmesh_clicked()
     assert win.terminal_panel.commands == [
-        "snappyHexMesh -overwrite 2>&1 | tee log.snappyHexMesh"
+        "checkMesh -latestTime 2>&1 | tee log.checkMesh"
     ]
 
+    # A fresh dialog restores the previous options from AppState.
+    _patch_run_dialog(monkeypatch)
+    win._on_run_checkmesh_clicked()
+    assert win.terminal_panel.commands[-1] == (
+        "checkMesh -latestTime 2>&1 | tee log.checkMesh"
+    )
 
-def test_run_topo_set_asks_for_confirmation_when_time_dirs_exist(
-    main_window, tmp_path, monkeypatch
-):
-    (tmp_path / "1").mkdir()
+
+def test_run_checkmesh_sends_expected_command(main_window, tmp_path, monkeypatch):
     win = main_window
     win.state.current_case_dir = str(tmp_path)
     win.terminal_panel = _FakeTerminalPanel()
 
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.No)
-    win._on_run_topo_set_clicked()
-    assert win.terminal_panel.commands == []
-
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.Yes)
-    win._on_run_topo_set_clicked()
-    assert win.terminal_panel.commands == ["topoSet 2>&1 | tee log.topoSet"]
-
-
-def test_run_checkmesh_sends_expected_command_without_confirmation(
-    main_window, tmp_path
-):
-    win = main_window
-    win.state.current_case_dir = str(tmp_path)
-    win.terminal_panel = _FakeTerminalPanel()
-
+    _patch_run_dialog(monkeypatch)
     win._on_run_checkmesh_clicked()
 
     assert win.terminal_panel.commands == ["checkMesh 2>&1 | tee log.checkMesh"]
 
 
-def test_run_setfields_confirms_without_0orig(main_window, tmp_path, monkeypatch):
+def test_run_setfields_without_0orig_has_no_restore_checkbox(
+    main_window, tmp_path, monkeypatch
+):
     win = main_window
     win.state.current_case_dir = str(tmp_path)
     win.terminal_panel = _FakeTerminalPanel()
 
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.No)
+    seen = {}
+    _patch_run_dialog(
+        monkeypatch, tweak=lambda dlg: seen.update(chk=dlg._prefix_chk)
+    )
     win._on_run_setfields_clicked()
-    assert win.terminal_panel.commands == []
-
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.Yes)
-    win._on_run_setfields_clicked()
+    assert seen["chk"] is None
     assert win.terminal_panel.commands == ["setFields 2>&1 | tee log.setFields"]
 
 
-def test_run_setfields_preflight_restore_then_run_with_0orig(
-    main_window, tmp_path, monkeypatch
-):
+def test_run_setfields_restore_first_with_0orig(main_window, tmp_path, monkeypatch):
     (tmp_path / "0.orig").mkdir()
     win = main_window
     win.state.current_case_dir = str(tmp_path)
     win.terminal_panel = _FakeTerminalPanel()
 
-    _patch_allrun_preflight_choice(monkeypatch, "Restore 0/, then run")
+    # The restore checkbox exists and defaults to checked when 0.orig/ exists.
+    _patch_run_dialog(monkeypatch)
     win._on_run_setfields_clicked()
     assert win.terminal_panel.commands == [
         "rm -rf 0 && cp -r 0.orig 0 && setFields 2>&1 | tee log.setFields"
     ]
 
 
-def test_run_setfields_preflight_run_anyway_with_0orig(
-    main_window, tmp_path, monkeypatch
-):
+def test_run_setfields_run_anyway_with_0orig(main_window, tmp_path, monkeypatch):
     (tmp_path / "0.orig").mkdir()
     win = main_window
     win.state.current_case_dir = str(tmp_path)
     win.terminal_panel = _FakeTerminalPanel()
 
-    _patch_allrun_preflight_choice(monkeypatch, "Run anyway")
+    _patch_run_dialog(monkeypatch, tweak=lambda dlg: dlg._prefix_chk.setChecked(False))
     win._on_run_setfields_clicked()
     assert win.terminal_panel.commands == ["setFields 2>&1 | tee log.setFields"]
 
 
-def test_run_setfields_preflight_cancel_with_0orig(
-    main_window, tmp_path, monkeypatch
-):
+def test_run_setfields_cancel_with_0orig(main_window, tmp_path, monkeypatch):
     (tmp_path / "0.orig").mkdir()
     win = main_window
     win.state.current_case_dir = str(tmp_path)
     win.terminal_panel = _FakeTerminalPanel()
 
-    _patch_allrun_preflight_choice(monkeypatch, QMessageBox.Cancel)
+    _patch_run_dialog(monkeypatch, accept=False)
     win._on_run_setfields_clicked()
     assert win.terminal_panel.commands == []
 

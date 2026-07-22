@@ -40,8 +40,7 @@ def _apply_variant(variant: str) -> None:
         print(f"Error: unknown variant '{variant}'. Valid options: {', '.join(_VALID_VARIANTS)}")
         sys.exit(1)
     features = json.loads(preset_path.read_text(encoding="utf-8")).get("features", {})
-    cfg = get_app_config()
-    cfg._features = features
+    get_app_config().set_features(features)
 
 
 def main():

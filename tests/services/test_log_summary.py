@@ -193,3 +193,151 @@ def test_format_summary_is_shorter_than_original_for_snappy_log():
     summary = parse_log(text)
     formatted = format_summary(summary)
     assert len(formatted.splitlines()) < len(text.splitlines())
+
+
+def test_steady_solver_converged():
+    body = """\
+Create time
+
+Create mesh for time = 0
+
+Starting time loop
+
+Time = 1
+
+smoothSolver:  Solving for Ux, Initial residual = 1, Final residual = 0.05, No Iterations 4
+smoothSolver:  Solving for Uy, Initial residual = 1, Final residual = 0.04, No Iterations 4
+GAMG:  Solving for p, Initial residual = 1, Final residual = 0.009, No Iterations 5
+time step continuity errors : sum local = 0.001, global = 1e-05, cumulative = 1e-05
+smoothSolver:  Solving for epsilon, Initial residual = 0.5, Final residual = 0.01, No Iterations 3
+smoothSolver:  Solving for k, Initial residual = 0.6, Final residual = 0.02, No Iterations 3
+ExecutionTime = 0.05 s  ClockTime = 0 s
+
+Time = 2
+
+smoothSolver:  Solving for Ux, Initial residual = 0.1, Final residual = 0.005, No Iterations 4
+smoothSolver:  Solving for Uy, Initial residual = 0.1, Final residual = 0.004, No Iterations 4
+GAMG:  Solving for p, Initial residual = 0.2, Final residual = 0.0009, No Iterations 5
+time step continuity errors : sum local = 0.0001, global = 1e-06, cumulative = 1.1e-05
+smoothSolver:  Solving for epsilon, Initial residual = 0.05, Final residual = 0.001, No Iterations 3
+smoothSolver:  Solving for k, Initial residual = 0.06, Final residual = 0.002, No Iterations 3
+ExecutionTime = 0.09 s  ClockTime = 0 s
+
+SIMPLE solution converged in 2 iterations
+
+End
+"""
+    summary = parse_log(_log("simpleFoam", body))
+    assert summary.utility == "simpleFoam"
+    assert summary.finished_ok is True
+    assert summary.total_time == "0.09 s (clock 0 s)"
+    names = [phase.name for phase in summary.phases]
+    assert names == ["Run", "Residuals (last step)"]
+    run = summary.phases[0].lines
+    assert "Time steps: 2 (Time = 1 → 2)" in run
+    assert "ExecutionTime: 0.09 s (clock 0 s)" in run
+    assert "SIMPLE solution converged in 2 iterations" in run
+    residuals = summary.phases[1].lines
+    assert "Ux: initial 0.1, final 0.005 (4 iter)" in residuals
+    assert "p: initial 0.2, final 0.0009 (5 iter)" in residuals
+    assert "Cumulative continuity error: 1.1e-05" in residuals
+    text = format_summary(summary)
+    assert "Result: OK" in text
+
+
+def test_transient_solver_with_courant_and_time_unit():
+    body = """\
+Starting time loop
+
+Courant Number mean: 0 max: 0
+Interface Courant Number mean: 0 max: 0
+deltaT = 0.001
+Time = 0.001s
+
+smoothSolver:  Solving for alpha.water, Initial residual = 0.1, Final residual = 1e-08, No Iterations 2
+GAMG:  Solving for p_rgh, Initial residual = 0.5, Final residual = 1e-07, No Iterations 8
+ExecutionTime = 0.5 s  ClockTime = 1 s
+
+Courant Number mean: 0.11 max: 0.85
+Interface Courant Number mean: 0.02 max: 0.4
+deltaT = 0.0012
+Time = 0.0022s
+
+smoothSolver:  Solving for alpha.water, Initial residual = 0.05, Final residual = 5e-09, No Iterations 2
+GAMG:  Solving for p_rgh, Initial residual = 0.2, Final residual = 5e-08, No Iterations 7
+ExecutionTime = 1.2 s  ClockTime = 2 s
+
+End
+
+"""
+    summary = parse_log(_log("interFoam", body))
+    assert summary.finished_ok is True
+    run = summary.phases[0].lines
+    assert "Time steps: 2 (Time = 0.001 → 0.0022)" in run
+    residuals = summary.phases[1].lines
+    assert "Courant Number: mean 0.11, max 0.85" in residuals
+    assert "Interface Courant Number: mean 0.02, max 0.4" in residuals
+    assert "alpha.water: initial 0.05, final 5e-09 (2 iter)" in residuals
+    assert summary.total_time == "1.2 s (clock 2 s)"
+
+
+def test_solver_fatal_error_marks_failed():
+    body = """\
+Starting time loop
+
+Time = 0.001
+
+smoothSolver:  Solving for Ux, Initial residual = 1, Final residual = 0.05, No Iterations 4
+ExecutionTime = 0.05 s  ClockTime = 0 s
+
+--> FOAM FATAL ERROR:
+    Maximum number of iterations exceeded
+    From function Foam::scalar
+    in file thermo.H at line 66.
+
+FOAM exiting
+"""
+    summary = parse_log(_log("rhoPimpleFoam", body))
+    assert summary.finished_ok is False
+    assert summary.errors
+    text = format_summary(summary)
+    assert "Result: FAILED" in text
+
+
+def test_solver_without_end_or_convergence_marks_failed():
+    body = """\
+Time = 1
+
+GAMG:  Solving for p, Initial residual = 1, Final residual = 0.009, No Iterations 5
+ExecutionTime = 0.05 s  ClockTime = 0 s
+"""
+    summary = parse_log(_log("simpleFoam", body))
+    assert summary.finished_ok is False
+
+
+def test_time_lines_without_residuals_do_not_trigger_solver_parser():
+    body = """\
+Create polyMesh for time = 0
+
+Time = 0
+
+    Mesh has 2 geometric (non-empty/wedge) directions (1 1 0)
+
+End
+"""
+    summary = parse_log(_log("checkMesh", body))
+    assert [phase.name for phase in summary.phases] == ["Tail"]
+
+
+def test_format_summary_is_shorter_than_original_for_solver_log():
+    step = (
+        "Time = {t}\n\n"
+        "smoothSolver:  Solving for Ux, Initial residual = 1, Final residual = 0.05, No Iterations 4\n"
+        "GAMG:  Solving for p, Initial residual = 1, Final residual = 0.009, No Iterations 5\n"
+        "ExecutionTime = 0.05 s  ClockTime = 0 s\n\n"
+    )
+    body = "".join(step.format(t=i) for i in range(1, 31)) + "End\n"
+    text = _log("simpleFoam", body)
+    summary = parse_log(text)
+    formatted = format_summary(summary)
+    assert len(formatted.splitlines()) < len(text.splitlines())

@@ -100,6 +100,10 @@ _CONTROL_DICT_TEXT = """FoamFile { version 2.0; format ascii; class dictionary; 
 application interFoam;
 """
 
+_FV_SCHEMES_TEXT = """FoamFile { version 2.0; format ascii; class dictionary; object fvSchemes; }
+ddtSchemes { default Euler; }
+"""
+
 
 def _make_case_file(tmp_path, name: str, text: str) -> str:
     system_dir = tmp_path / "system"
@@ -115,6 +119,8 @@ def _make_case_file(tmp_path, name: str, text: str) -> str:
         ("blockMeshDict", _BLOCK_MESH_DICT_TEXT),
         ("topoSetDict", _TOPO_SET_DICT_TEXT),
         ("snappyHexMeshDict", _SNAPPY_HEX_MESH_DICT_TEXT),
+        # controlDict feeds the sampling overlay, so it is 3-D viewable too.
+        ("controlDict", _CONTROL_DICT_TEXT),
     ],
 )
 def test_side_by_side_button_enabled_for_3d_viewable_dicts(
@@ -132,7 +138,7 @@ def test_side_by_side_button_enabled_for_3d_viewable_dicts(
 
 def test_side_by_side_button_disabled_for_unrelated_dict(main_window_bm, tmp_path):
     win = main_window_bm
-    path = _make_case_file(tmp_path, "controlDict", _CONTROL_DICT_TEXT)
+    path = _make_case_file(tmp_path, "fvSchemes", _FV_SCHEMES_TEXT)
     win._load_case_dir(str(tmp_path))
 
     win.load_selected_file(path)

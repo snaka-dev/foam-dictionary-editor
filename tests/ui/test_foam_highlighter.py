@@ -179,6 +179,14 @@ def test_uniform_keyword(rec):
     assert _color_at(log, idx) == "#0000cc"
 
 
+def test_structural_keyword_not_split_on_dot(rec):
+    """'off.1' must not have its 'off' prefix coloured — the dot glues it to
+    the rest of the identifier, just like the number-rule guard."""
+    text = "field off.1;"
+    log = rec.highlight(text)
+    assert _color_at(log, text.index("off")) != "#0000cc"
+
+
 # ---------------------------------------------------------------------------
 # numbers
 # ---------------------------------------------------------------------------
@@ -348,6 +356,34 @@ def test_controldict_keys_darkcyan(qapp, tmp_path, monkeypatch):
         assert _color_at(log, 0) == "#007070", f"{kw!r} should be dark-cyan"
 
 
+def test_dotted_identifier_value_keyword_not_split(qapp, tmp_path, monkeypatch):
+    """A dotted set name like 'y0.1' must not have its 'y0' prefix coloured
+    as the value keyword 'y0' — the dot glues it to the rest of the name."""
+    import ui.widgets._foam_highlighter as mod
+
+    monkeypatch.setattr(mod, "_KW_FILE", tmp_path / "absent.json")
+    doc = QTextDocument()
+    rec = _Rec(doc)
+    text = "sets ( y0.1 { } );"
+    log = rec.highlight(text)
+    idx = text.index("y0.1")
+    assert _color_at(log, idx) != "#007070"       # 'y'
+    assert _color_at(log, idx + 1) != "#007070"   # '0'
+    assert _color_at(log, idx) is None
+
+
+def test_plain_y0_still_darkcyan(qapp, tmp_path, monkeypatch):
+    """Regression guard: 'y0' on its own (not dotted) is still a real keyword."""
+    import ui.widgets._foam_highlighter as mod
+
+    monkeypatch.setattr(mod, "_KW_FILE", tmp_path / "absent.json")
+    doc = QTextDocument()
+    rec = _Rec(doc)
+    text = "name y0;"
+    log = rec.highlight(text)
+    assert _color_at(log, text.index("y0")) == "#007070"
+
+
 def test_json_keywords_filter_rejects_special_chars(qapp, tmp_path, monkeypatch):
     """Tokens with regex-special chars in the JSON must be silently dropped."""
     import json
@@ -426,6 +462,15 @@ def test_shell_utility_name_darkcyan(rec):
     text = "runApplication blockMesh"
     log = rec.highlight(text)
     assert _color_at(log, text.index("blockMesh")) == "#007070"
+
+
+def test_shell_keyword_not_split_on_dot(rec):
+    """'config.fi' must not have its 'fi' suffix coloured as the shell
+    keyword 'fi' — the dot glues it to the rest of the filename."""
+    rec.set_mode("shell")
+    text = "echo config.fi"
+    log = rec.highlight(text)
+    assert _color_at(log, text.index("fi", text.index("config"))) != "#0000cc"
 
 
 def test_shell_variable_orange(rec):

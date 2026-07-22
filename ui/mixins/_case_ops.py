@@ -123,8 +123,22 @@ class _CaseOpsMixin:
         source = self._pick_case_from_library(tr("Select Source Case from Library"))
         if not source:
             return
+        self._duplicate_case_from(source)
+
+    def _duplicate_case_from(
+        self, source: str, fallback_dest_parent: str | None = None
+    ) -> None:
+        """Show DuplicateCaseDialog for *source* and run the copy on accept.
+
+        The destination defaults to the configured default case directory;
+        when unset, *fallback_dest_parent* is offered instead (callers whose
+        source sits in a read-only location, e.g. an OpenFOAM installation's
+        tutorials, should pass a writable one), else the source's parent.
+        """
         cfg = get_app_config()
-        default_dest = cfg.get_default_case_dir() or str(Path(source).parent)
+        default_dest = (
+            cfg.get_default_case_dir() or fallback_dest_parent or str(Path(source).parent)
+        )
         dialog = DuplicateCaseDialog(source, default_dest_parent=default_dest, parent=self)
         if dialog.exec() != QDialog.Accepted:
             return

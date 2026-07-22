@@ -124,6 +124,7 @@ class _BoundaryOpsMixin:
             current_type = str(type_node.value) if type_node and type_node.value is not None else ""
             if not new_type or new_type == current_type:
                 return
+            self._checkpoint_for_undo([path])
             if type_node is not None:
                 type_node.value = new_type
                 type_node.modified = True
@@ -136,6 +137,7 @@ class _BoundaryOpsMixin:
             except Exception as e:
                 QMessageBox.warning(self, tr("Parse Error"), tr("Could not parse patch content:\n{e}").format(e=e))
                 return
+            self._checkpoint_for_undo([path])
             _set_patch_children(live_patch, new_children)
 
         self._apply_boundary_root_change(path, root)
@@ -166,6 +168,7 @@ class _BoundaryOpsMixin:
             QMessageBox.warning(self, tr("Error"), tr("No boundaryField found in {field}.").format(field=field_name))
             return
 
+        self._checkpoint_for_undo([path])
         new_patch = _append_new_patch(boundary_field, patch_name)
         _set_patch_children(new_patch, new_children)
 
@@ -188,7 +191,10 @@ class _BoundaryOpsMixin:
             if boundary_field is None:
                 QMessageBox.warning(self, tr("Paste Error"), tr("No boundaryField in {file}.").format(file=Path(path).name))
                 return
+            self._checkpoint_for_undo([path])
             live_patch = _append_new_patch(boundary_field, patch_name)
+        else:
+            self._checkpoint_for_undo([path])
 
         _set_patch_children(live_patch, new_children)
 
@@ -206,6 +212,7 @@ class _BoundaryOpsMixin:
         if patch_node is None:
             return
 
+        self._checkpoint_for_undo([path])
         boundary_field.children.remove(patch_node)
         boundary_field.modified = True
 
@@ -233,6 +240,7 @@ class _BoundaryOpsMixin:
         new_name = dlg.new_name
         selected = set(dlg.selected_paths)
 
+        self._checkpoint_for_undo(sorted(selected))
         for path in selected:
             root = roots.get(path)
             if root is None:
@@ -276,6 +284,7 @@ class _BoundaryOpsMixin:
         ):
             return
 
+        self._checkpoint_for_undo(sorted(affected))
         for path in affected:
             root = self.state.parsed_roots[path]
             boundary_field = _find_boundary_field(root)
@@ -306,6 +315,7 @@ class _BoundaryOpsMixin:
         ):
             return
 
+        self._checkpoint_for_undo(sorted(targets))
         added: list[str] = []
         for path in targets:
             root = self.state.parsed_roots[path]

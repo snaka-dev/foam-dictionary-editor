@@ -37,6 +37,7 @@ from ui.mixins._model_ops import _ModelOpsMixin
 from ui.mixins._ui_ops import _UiOpsMixin
 from ui.mixins._tree_crud_ops import _TreeCrudOpsMixin
 from ui.mixins._tree_sync_ops import _TreeSyncOpsMixin
+from ui.mixins._undo_ops import _UndoOpsMixin
 from ui.app_state import AppState
 from ui.panels.comparison_tree_panel import ComparisonTreePanel
 from ui.panels.detail_panel import DetailPanel
@@ -76,6 +77,7 @@ class MainWindow(
     _FileManagementOpsMixin,
     _TreeCrudOpsMixin,
     _TreeSyncOpsMixin,
+    _UndoOpsMixin,
     _BoundaryOpsMixin,
     _DiffOpsMixin,
     _PanelOpsMixin,
@@ -356,6 +358,7 @@ class MainWindow(
         self.comparison_panel.use_value_requested.connect(self._apply_comparison_value)
         self._connect_tree_selection()
         self._setup_tree_copy_paste()
+        self._setup_tree_undo()
         self.tree.setColumnHidden(FoamTreeModel.COL_TYPE, True)
         self.detail_panel.show_empty()
         self._update_case_label()
@@ -363,6 +366,15 @@ class MainWindow(
 
     def _build_menu_bar(self) -> None:
         menubar = self.menuBar()
+
+        # One action, two menus (Case and Tools): searching the tutorials is
+        # both a reference lookup and the entry point for starting a new case
+        # from a duplicated example.
+        self._find_examples_action = QAction(tr("Find OpenFOAM Examples…"), self)
+        self._find_examples_action.setToolTip(
+            tr("Search example usages in the OpenFOAM tutorials and etc/caseDicts templates")
+        )
+        self._find_examples_action.triggered.connect(self._on_find_examples_clicked)
 
         case_menu = menubar.addMenu(tr("Case"))
         _act(case_menu, tr("Open Case"),              "Ctrl+O",       self.open_case)
@@ -374,6 +386,7 @@ class MainWindow(
         case_menu.addSeparator()
         case_menu.addAction(tr("Duplicate Case...")).triggered.connect(self.duplicate_case)
         case_menu.addAction(tr("Duplicate from Case Library...")).triggered.connect(self.duplicate_from_library)
+        case_menu.addAction(self._find_examples_action)
         case_menu.addSeparator()
         case_menu.addAction(tr("Clean Backup Files...")).triggered.connect(self._on_clean_backups)
         case_menu.addSeparator()
@@ -443,31 +456,34 @@ class MainWindow(
             self._on_restore_0dir_clicked,
         )
         self._run_blockmesh_action = _tool_act(
-            tr("Run blockMesh"),
-            tr("Send 'blockMesh' to the terminal panel"),
+            tr("Run blockMesh…"),
+            tr("Choose options and run blockMesh in the terminal panel"),
             self._on_run_blockmesh_clicked,
         )
         self._run_snappyhexmesh_action = _tool_act(
-            tr("Run snappyHexMesh"),
-            tr("Send 'snappyHexMesh -overwrite' to the terminal panel"),
+            tr("Run snappyHexMesh…"),
+            tr("Choose options and run snappyHexMesh in the terminal panel"),
             self._on_run_snappyhexmesh_clicked,
         )
         self._run_topo_set_action = _tool_act(
-            tr("Run topoSet"),
-            tr("Send 'topoSet' to the terminal panel"),
+            tr("Run topoSet…"),
+            tr("Choose options and run topoSet in the terminal panel"),
             self._on_run_topo_set_clicked,
         )
         self._run_setfields_action = _tool_act(
-            tr("Run setFields"),
+            tr("Run setFields…"),
             tr(
-                "Send 'setFields' to the terminal panel — sets initial field "
-                "regions in 0/ from system/setFieldsDict"
+                "Choose options and run setFields in the terminal panel — sets "
+                "initial field regions in 0/ from system/setFieldsDict"
             ),
             self._on_run_setfields_clicked,
         )
         self._run_checkmesh_action = _tool_act(
-            tr("Run checkMesh"),
-            tr("Send 'checkMesh' to the terminal panel to validate the mesh"),
+            tr("Run checkMesh…"),
+            tr(
+                "Choose options and run checkMesh in the terminal panel to "
+                "validate the mesh"
+            ),
             self._on_run_checkmesh_clicked,
         )
         self._run_allrun_action = _tool_act(
@@ -509,12 +525,7 @@ class MainWindow(
         view_menu.addSeparator()
         view_menu.addAction(self._view_log_summary_action)
         tools_menu.addSeparator()
-        _tool_act(
-            tr("Find OpenFOAM Examples…"),
-            tr("Search example usages in the OpenFOAM tutorials and etc/caseDicts templates"),
-            self._on_find_examples_clicked,
-            enabled=True,
-        )
+        tools_menu.addAction(self._find_examples_action)
 
         help_menu = menubar.addMenu(tr("Help"))
         help_menu.addAction(tr("About Foam Dictionary Editor (FoDE)...")).triggered.connect(self.show_about)

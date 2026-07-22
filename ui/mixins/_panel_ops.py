@@ -12,6 +12,7 @@ from ui.layout_constants import (
     TOPOSET_DICT_NAME as _TOPOSET_DICT_NAME,
     SNAPPY_HEX_MESH_DICT_NAME as _SNAPPY_HEX_MESH_DICT_NAME,
     SETFIELDS_DICT_NAME as _SETFIELDS_DICT_NAME,
+    SAMPLING_DICT_NAMES as _SAMPLING_DICT_NAMES,
 )
 
 
@@ -69,6 +70,7 @@ class _PanelOpsMixin:
                 _TOPOSET_DICT_NAME,
                 _SNAPPY_HEX_MESH_DICT_NAME,
                 _SETFIELDS_DICT_NAME,
+                *_SAMPLING_DICT_NAMES,
             )
         )
         xterm_active = (

@@ -24,6 +24,11 @@ class FoamTreeModel(QAbstractItemModel):
     COL_VALUE = 2
 
     edit_rejected = Signal(str)
+    # Emitted at the top of setData, before any mutation, so the owner can
+    # checkpoint the pre-edit state for undo. Covers the paths that reach
+    # setData without an explicit checkpoint call: the tree view's inline
+    # delegate, Paste Value, and the detail-panel Apply handlers.
+    about_to_change = Signal()
 
     _DIFF_BG: dict[str, QColor] = {
         "changed":      QColor("#FFFACD"),  # light yellow  — value differs
@@ -119,6 +124,7 @@ class FoamTreeModel(QAbstractItemModel):
 
         node = index.internalPointer()
         column = index.column()
+        self.about_to_change.emit()
 
         if column == self.COL_KEY:
             if node.node_type in NON_KEY_EDITABLE:
@@ -268,7 +274,10 @@ class FoamTreeModel(QAbstractItemModel):
         if t == "region_block":
             return f"{len(node.children)} regions"
 
-        if t == "region_entry":
+        if t in {"region_entry", "named_dict_entry"}:
+            return f"{len(node.children)} entries"
+
+        if t == "named_dict_list":
             return f"{len(node.children)} entries"
 
         if t == "field_value_block":

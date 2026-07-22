@@ -38,6 +38,16 @@ class OpenFoamParser:
         "actions": ("action_list", "action_entry"),
     }
 
+    # Keys that MAY hold a parenthesised list of named dicts (the classic
+    # sampleDict style `sets ( y0.1 { … } … );`) but also legitimately appear
+    # as plain word lists (topoSet's `sets (setA setB);`). A lookahead decides:
+    # only `name {` content parses as a named block; anything else falls
+    # through to the ordinary value path (raw_list etc.).
+    _OPTIONAL_NAMED_BLOCK_PARAMS: dict[str, tuple[NodeType, NodeType]] = {
+        "sets":     ("named_dict_list", "named_dict_entry"),
+        "surfaces": ("named_dict_list", "named_dict_entry"),
+    }
+
     def __init__(self, text: str):
         self.text = text
         self.tokens = OpenFoamLexer(text).tokenize()
@@ -180,7 +190,27 @@ class OpenFoamParser:
         params = self._ANONYMOUS_BLOCK_PARAMS.get(key)
         if params is not None:
             return self._parse_anonymous_dict_block(key, start_index, *params)
+        params = self._OPTIONAL_NAMED_BLOCK_PARAMS.get(key)
+        if params is not None and self._looks_like_named_dict_list():
+            return self._parse_named_dict_block(key, start_index, *params)
         return None
+
+    def _looks_like_named_dict_list(self) -> bool:
+        """Non-consuming lookahead: does the LPAREN open a `name { … }` list?"""
+        saved = self.index
+        try:
+            self._expect("LPAREN")
+            self._collect_trivia()
+            if self._check("RPAREN") or self._check("EOF"):
+                return False
+            try:
+                self._parse_key()
+            except ParseError:
+                return False
+            self._collect_trivia()
+            return self._check("LBRACE")
+        finally:
+            self.index = saved
 
     def _parse_field_value_block_entry(self, key: str, start_index: int) -> FoamNode:
         self._expect("LPAREN")
@@ -244,6 +274,10 @@ class OpenFoamParser:
             if self._check("EOF"):
                 raise ParseError(f"unexpected EOF while parsing {key!r} block")
 
+            # Capture raw_text from the name token on: an entry regenerated
+            # from raw_text (unmodified sibling of a modified one) must keep
+            # its name, not start at the "{".
+            entry_start = self.index
             entry_name = self._parse_key()
             self._collect_trivia()
 
@@ -253,7 +287,7 @@ class OpenFoamParser:
                     f"but got {self.tokens[self.index].kind} at {self.tokens[self.index].pos}"
                 )
 
-            entry_node = self._parse_dictionary_entry(entry_name, self.index - 1)
+            entry_node = self._parse_dictionary_entry(entry_name, entry_start)
             entry_node.leading_trivia = inner_trivia
             entry_node.node_type = entry_type
             node.add_child(entry_node)

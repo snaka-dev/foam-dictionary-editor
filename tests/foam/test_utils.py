@@ -11,6 +11,7 @@ from foam.utils import (
     is_script_path,
     is_script_text,
     parse_box_pair,
+    resolve_optionally_gzipped,
 )
 
 
@@ -195,6 +196,33 @@ class TestParseBoxPair:
 
     def test_no_parens_returns_none(self):
         assert parse_box_pair("0 0 0 1 1 1") is None
+
+
+class TestResolveOptionallyGzipped:
+    def test_resolve_optionally_gzipped_exact(self, tmp_path):
+        p = tmp_path / "motorBike.obj"
+        p.write_bytes(b"data")
+        assert resolve_optionally_gzipped(p) == p
+
+    def test_resolve_optionally_gzipped_gz_sibling(self, tmp_path):
+        p = tmp_path / "motorBike.obj"
+        gz = tmp_path / "motorBike.obj.gz"
+        gz.write_bytes(b"data")
+        assert resolve_optionally_gzipped(p) == gz
+
+    def test_resolve_optionally_gzipped_gz_query_exact(self, tmp_path):
+        gz = tmp_path / "motorBike.obj.gz"
+        gz.write_bytes(b"data")
+        assert resolve_optionally_gzipped(gz) == gz
+
+    def test_resolve_optionally_gzipped_gz_falls_back_to_plain(self, tmp_path):
+        p = tmp_path / "motorBike.obj"
+        p.write_bytes(b"data")
+        gz = tmp_path / "motorBike.obj.gz"
+        assert resolve_optionally_gzipped(gz) == p
+
+    def test_resolve_optionally_gzipped_missing(self, tmp_path):
+        assert resolve_optionally_gzipped(tmp_path / "nope.obj") is None
 
 
 class TestFormatEmbeddedValue:

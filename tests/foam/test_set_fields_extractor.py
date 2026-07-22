@@ -42,7 +42,7 @@ def test_box_to_cell():
     data = extract_set_fields_data(_parse(src))
     assert len(data.shapes) == 1
     s = data.shapes[0]
-    assert s.source == "boxToCell"
+    assert s.kind == "boxToCell"
     assert s.geometry == {"box": [[0.0, 0.0, -1.0], [0.1461, 0.292, 1.0]]}
     assert s.label == "alpha.water=1"
 
@@ -55,7 +55,7 @@ def test_sphere_to_cell():
     data = extract_set_fields_data(_parse(src))
     assert len(data.shapes) == 1
     s = data.shapes[0]
-    assert s.source == "sphereToCell"
+    assert s.kind == "sphereToCell"
     assert s.geometry == {"centre": [0.5, 0.5, 0.0], "radius": 0.1}
 
 
@@ -76,7 +76,7 @@ def test_multiple_regions():
         _entry("sphereToCell", "        centre (2 0 0);\n        radius 0.5;\n"),
     )
     data = extract_set_fields_data(_parse(src))
-    assert [s.source for s in data.shapes] == ["boxToCell", "sphereToCell"]
+    assert [s.kind for s in data.shapes] == ["boxToCell", "sphereToCell"]
 
 
 def test_non_geometric_source_listed():
@@ -84,7 +84,7 @@ def test_non_geometric_source_listed():
     data = extract_set_fields_data(_parse(src))
     assert data.shapes == []
     assert len(data.non_geometric) == 1
-    assert data.non_geometric[0].source == "zoneToCell"
+    assert data.non_geometric[0].kind == "zoneToCell"
     assert data.non_geometric[0].label == "alpha.water=1"
 
 

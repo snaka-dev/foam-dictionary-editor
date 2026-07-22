@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from services.foam_env import foam_env_dirs
+
 Source = Literal["tutorials", "caseDicts"]
 SOURCE_TUTORIALS: Source = "tutorials"
 SOURCE_CASEDICTS: Source = "caseDicts"
@@ -91,25 +93,12 @@ def installation_from_dir(root: Path, label: str | None = None) -> FoamInstallat
     )
 
 
-def _env_dir(env: Mapping[str, str], key: str) -> Path | None:
-    """Return the env value as a Path, or None when unset/blank (Path('') is cwd)."""
-    value = env.get(key, "").strip()
-    return Path(value) if value else None
-
-
 def _installation_from_env(env: Mapping[str, str]) -> FoamInstallation | None:
     """Build an installation from FOAM_TUTORIALS/FOAM_ETC/WM_PROJECT_DIR if set."""
-    project = _env_dir(env, "WM_PROJECT_DIR")
-    if project is not None and not project.is_dir():
-        project = None
-    tutorials = _env_dir(env, "FOAM_TUTORIALS")
-    if (tutorials is None or not tutorials.is_dir()) and project is not None:
-        tutorials = project / "tutorials"
-    etc = _env_dir(env, "FOAM_ETC")
-    if (etc is None or not etc.is_dir()) and project is not None:
-        etc = project / "etc"
-    tutorials_dir = tutorials if tutorials is not None and tutorials.is_dir() else None
-    casedicts = etc / "caseDicts" if etc is not None else None
+    dirs = foam_env_dirs(env)
+    project = dirs.project_dir
+    tutorials_dir = dirs.tutorials_dir
+    casedicts = dirs.etc_dir / "caseDicts" if dirs.etc_dir is not None else None
     casedicts_dir = casedicts if casedicts is not None and casedicts.is_dir() else None
     if tutorials_dir is None and casedicts_dir is None:
         return None
