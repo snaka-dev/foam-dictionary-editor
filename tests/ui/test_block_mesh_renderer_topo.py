@@ -21,6 +21,7 @@ import pyvista as pv
 from ui.panels.block_mesh_renderer import (
     _ACTION_COLORS,
     BlockMeshRenderer,
+    _bounds_within,
     _clip_to_bounds,
     _expanded_bounds,
     _make_annular_frustum_mesh,
@@ -339,3 +340,42 @@ def test_clip_enclosing_shape_gets_stand_in_box():
     assert mark == "clipped"
     assert clipped.n_cells > 0
     assert clipped.bounds == pytest.approx(_UNIT_CLIP)
+
+
+def test_clip_asymmetric_enclosure_gets_stand_in_box():
+    # Regression: floatingObject setFieldsDict box 1 — a hollow shell that
+    # encloses the scene in x/y but is cut by a z face inside the clip range.
+    # vtkBoxClipDataSet returns a non-empty *degenerate* result whose bounds
+    # still span the huge unclipped extent, so the plain n_cells==0 fallback
+    # never fires and the shape used to render huge while labelled "clipped".
+    mesh = pv.Box(bounds=[-100.0, 100.0, -100.0, 100.0, -100.0, 0.5368])
+    clipped, mark = _clip_to_bounds(mesh, _UNIT_CLIP)
+    assert mark == "clipped"
+    assert clipped.n_cells > 0
+    assert clipped.bounds == pytest.approx(
+        [-0.1, 1.1, -0.1, 1.1, -0.1, 0.5368], abs=1e-4
+    )
+
+
+def test_clip_asymmetric_partial_still_genuinely_clipped():
+    # floatingObject setFieldsDict box 2 — partially overlapping, genuinely
+    # clippable. Must stay a real clip (not the AABB stand-in) and its bounds
+    # must lie honestly within the clip box.
+    mesh = pv.Box(bounds=[0.7, 100.0, 0.8, 100.0, -100.0, 0.65])
+    clipped, mark = _clip_to_bounds(mesh, _UNIT_CLIP)
+    assert mark == "clipped"
+    assert clipped.n_cells > 0
+    b = clipped.bounds
+    for i in range(3):
+        assert b[2 * i] >= _UNIT_CLIP[2 * i] - 1e-4
+        assert b[2 * i + 1] <= _UNIT_CLIP[2 * i + 1] + 1e-4
+
+
+def test_bounds_within_helper():
+    outer = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0]
+    # Fully inside.
+    assert _bounds_within([0.1, 0.9, 0.1, 0.9, 0.1, 0.9], outer)
+    # Overshoots one face by far more than the float32-scale epsilon.
+    assert not _bounds_within([0.1, 0.9, 0.1, 0.9, 0.1, 2.0], outer)
+    # Overshoots within the float32-scale epsilon (unit scale ~1e-4 slack).
+    assert _bounds_within([0.1, 0.9, 0.1, 0.9, 0.1, 1.0 + 1e-6], outer)

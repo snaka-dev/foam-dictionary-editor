@@ -202,6 +202,21 @@ def _expanded_bounds(pts: np.ndarray, margin: float = _CLIP_MARGIN) -> list[floa
     ]
 
 
+def _bounds_within(inner, outer, rel_eps: float = 1e-4) -> bool:
+    """True if AABB ``inner`` lies inside AABB ``outer`` (scaled slack).
+
+    VTK stores clipped points as float32, so allow a small tolerance scaled
+    to the clip box so genuine clips at the planes still count as inside.
+    """
+    span = max(outer[1] - outer[0], outer[3] - outer[2], outer[5] - outer[4], 1.0)
+    eps = span * rel_eps
+    return (
+        inner[0] >= outer[0] - eps and inner[1] <= outer[1] + eps
+        and inner[2] >= outer[2] - eps and inner[3] <= outer[3] + eps
+        and inner[4] >= outer[4] - eps and inner[5] <= outer[5] + eps
+    )
+
+
 def _clip_to_bounds(mesh, clip_bounds: list[float] | None):
     """Limit an overlay shape mesh to the clip box (display only).
 
@@ -228,10 +243,20 @@ def _clip_to_bounds(mesh, clip_bounds: list[float] | None):
         clipped = mesh.clip_box(clip_bounds, invert=False)  # keep the inside
     except Exception:
         return mesh, ""
-    if clipped is None or clipped.n_cells == 0:
+    if (
+        clipped is None
+        or clipped.n_cells == 0
+        or not _bounds_within(clipped.bounds, clip_bounds)
+    ):
         # The shape's volume encloses the clip box but its surface lies wholly
         # outside it (e.g. a huge boxToCell around the whole mesh): stand in
-        # with the AABB overlap so something meaningful is drawn.
+        # with the AABB overlap so something meaningful is drawn. VTK's box
+        # clip can also return a non-empty *degenerate* result for a hollow
+        # shell that straddles a clip plane (e.g. a box enclosing the mesh in
+        # x/y but cut by a z face inside the clip range) whose bounds still
+        # span the huge unclipped extent — the _bounds_within test above
+        # catches that case too, since a genuinely clipped result is always
+        # honestly bounded by the clip box.
         overlap = [
             max(b[0], clip_bounds[0]), min(b[1], clip_bounds[1]),
             max(b[2], clip_bounds[2]), min(b[3], clip_bounds[3]),

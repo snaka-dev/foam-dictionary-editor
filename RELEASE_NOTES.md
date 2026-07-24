@@ -1,5 +1,11 @@
 # Release Notes
 
+## v1.9.1 — 2026-07-24
+
+### Bug fixes
+
+- **BlockMesh 3-D viewer: an overlay region enclosing the mesh in two axes no longer renders full-size while labelled "✂ clipped"** — a `boxToCell`/`setFields` box (or any overlay shape) that surrounds the block mesh in x and y but is cut by the display clip box in z produced a degenerate, non-empty result from VTK's box clip whose extent stayed huge, so it drew over the whole scene despite the clip mark. The clip now verifies the clipped result actually lies inside the display box and, when it does not, stands in with the mesh/box intersection — matching the existing behaviour for a shape that fully encloses the scene.
+
 ## v1.9.0 — 2026-07-22
 
 ### New features
