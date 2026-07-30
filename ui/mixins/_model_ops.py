@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
 
@@ -10,21 +11,40 @@ from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser
 from foam.utils import read_foam_file
 from foam.writer import write_root
-from model.tree_model import FoamTreeModel
 from i18n import tr
+from model.tree_model import FoamTreeModel
 from ui.layout_constants import (
     BLOCKMESH_DICT_NAME as _BLOCKMESH_DICT_NAME,
-    TOPOSET_DICT_NAME as _TOPOSET_DICT_NAME,
-    SNAPPY_HEX_MESH_DICT_NAME as _SNAPPY_HEX_MESH_DICT_NAME,
-    SETFIELDS_DICT_NAME as _SETFIELDS_DICT_NAME,
+)
+from ui.layout_constants import (
     SAMPLING_DICT_NAMES as _SAMPLING_DICT_NAMES,
+)
+from ui.layout_constants import (
+    SETFIELDS_DICT_NAME as _SETFIELDS_DICT_NAME,
+)
+from ui.layout_constants import (
+    SNAPPY_HEX_MESH_DICT_NAME as _SNAPPY_HEX_MESH_DICT_NAME,
+)
+from ui.layout_constants import (
     STATUS_SHORT as _STATUS_SHORT,
+)
+from ui.layout_constants import (
     STATUS_WARNING as _STATUS_WARNING,
+)
+from ui.layout_constants import (
+    TOPOSET_DICT_NAME as _TOPOSET_DICT_NAME,
+)
+from ui.layout_constants import (
     TREE_EXPAND_DEPTH as _TREE_EXPAND_DEPTH,
 )
 
+if TYPE_CHECKING:
+    from ui.mixins._protocol import MainWindowProtocol as _Base
+else:
+    _Base = object
 
-class _ModelOpsMixin:
+
+class _ModelOpsMixin(_Base):
     """File buffer, dirty tracking, tree load/clear, and parse-cache helpers."""
 
     # ── buffer / tree state ───────────────────────────────────────────────────
@@ -65,7 +85,7 @@ class _ModelOpsMixin:
     def _on_tree_data_changed(self, top_left, bottom_right, roles) -> None:
         # Catches edits made directly in the tree view (inline cell editing), which
         # call FoamTreeModel.setData() without going through _after_model_edit().
-        if Qt.EditRole in roles:
+        if Qt.ItemDataRole.EditRole in roles:
             self._after_model_edit()
             # dataChanged(EditRole) only fires on a successful setData, so this
             # is the point at which a stashed inline-edit snapshot is known to
@@ -74,7 +94,9 @@ class _ModelOpsMixin:
 
     def _load_tree(self, root: FoamNode) -> None:
         self.state.current_root = root
-        self.state.current_model = FoamTreeModel(root)
+        self.state.current_model = FoamTreeModel(
+            root, read_only=self._is_read_only(self.state.current_file)
+        )
         self.state.current_model.edit_rejected.connect(
             lambda msg: self.statusBar().showMessage(msg, _STATUS_WARNING)
         )
@@ -95,6 +117,7 @@ class _ModelOpsMixin:
         self.state.current_file = None
         self.state.text_dirty = False
         self.editor_panel.set_text("")
+        self.editor_panel.set_read_only(False)
         self._load_tree(FoamNode(name="root", node_type="dictionary"))
         self._update_window_title()
         self._update_file_label()
@@ -127,7 +150,20 @@ class _ModelOpsMixin:
 
     # ── dirty tracking ────────────────────────────────────────────────────────
 
+    def _is_read_only(self, path: str | None) -> bool:
+        """True for an `#include` target outside the case directory.
+
+        The single read-only predicate. Editing such a file would change one
+        shared by every case — usually inside the OpenFOAM installation — so
+        every write path consults this. See DEVELOPER.md's "Include resolution".
+        """
+        return bool(path) and path in self.state.read_only_files
+
     def _mark_dirty(self) -> None:
+        # Never letting a read-only file go dirty is what disables the `*`
+        # marker, Save All, and the unsaved-changes prompts for it, all at once.
+        if self._is_read_only(self.state.current_file):
+            return
         self.state.text_dirty = True
         if self.state.current_file:
             self.state.file_dirty[self.state.current_file] = True
@@ -137,6 +173,8 @@ class _ModelOpsMixin:
             self.file_list_panel.mark_dirty(self.state.current_file, True)
 
     def _mark_path_dirty(self, path: str) -> None:
+        if self._is_read_only(path):
+            return
         self.state.file_dirty[path] = True
         self.file_list_panel.mark_dirty(path, True)
         if path == self.state.current_file:

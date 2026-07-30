@@ -12,6 +12,7 @@ from __future__ import annotations
 import dataclasses
 
 from foam.nodes import FoamNode
+from foam.shapes import SourceShape
 from foam.topo_set_extractor import is_non_geometric_source, resolve_source_geometry
 from foam.tree_utils import find_child
 from foam.var_resolver import build_var_map
@@ -21,11 +22,11 @@ _SET_FIELDS_STRUCTURAL = frozenset({"regions", "defaultFieldValues"})
 
 
 @dataclasses.dataclass
-class SetFieldsShape:
-    # `label`/`kind`: shared field names across all extractor shape classes.
-    label: str      # summary of the entry's fieldValues, e.g. "alpha.water=1"
-    kind: str       # source type, e.g. "boxToCell", "sphereToCell"
-    geometry: dict  # parsed geometry: keys depend on source type
+class SetFieldsShape(SourceShape):
+    # Inherits label/kind/geometry from SourceShape (see foam/shapes.py):
+    # label = summary of the entry's fieldValues, e.g. "alpha.water=1";
+    # kind = source type, e.g. "boxToCell", "sphereToCell".
+    pass
 
 
 @dataclasses.dataclass

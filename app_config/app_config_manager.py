@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app_config.defaults import DEFAULT_THEME
+from app_config.foam_env import foam_env_dirs
 from app_config.json_io import load_json, save_json
 
 
@@ -21,6 +23,7 @@ class AppConfigManager:
         self._features: dict[str, bool] = {}
         self._language: str = "en"
         self._openfoam_dir: str | None = None
+        self._theme: str = DEFAULT_THEME
         self._load()
 
     def _load(self) -> None:
@@ -34,6 +37,7 @@ class AppConfigManager:
             self._user_links = []
             self._features = {}
             self._openfoam_dir = None
+            self._theme = DEFAULT_THEME
             return
         self._window_size = data.get("window_size", None)
         self._default_case_dir = data.get("default_case_dir", None)
@@ -42,6 +46,7 @@ class AppConfigManager:
         self._features = data.get("features", {})
         self._language = data.get("language", "en")
         self._openfoam_dir = data.get("openfoam_dir", None)
+        self._theme = data.get("theme", DEFAULT_THEME)
 
     def save(self) -> None:
         try:
@@ -57,6 +62,8 @@ class AppConfigManager:
                 data["language"] = self._language
             if self._openfoam_dir:
                 data["openfoam_dir"] = self._openfoam_dir
+            if self._theme != DEFAULT_THEME:
+                data["theme"] = self._theme
             save_json(self._config_path, data)
         except OSError as e:
             print(f"Warning: Failed to save config file: {e}")
@@ -69,6 +76,7 @@ class AppConfigManager:
         self._features = {}
         self._language = "en"
         self._openfoam_dir = None
+        self._theme = DEFAULT_THEME
 
     def delete_config_file(self) -> None:
         try:
@@ -115,10 +123,6 @@ class AppConfigManager:
 
         Resolved via $FOAM_TUTORIALS with a $WM_PROJECT_DIR/tutorials fallback.
         """
-        # Local import: app_config is a lower layer than services; import lazily
-        # so the app_config package never depends on services at import time.
-        from services.foam_env import foam_env_dirs
-
         tutorials = foam_env_dirs().tutorials_dir
         return str(tutorials) if tutorials is not None else None
 
@@ -184,3 +188,13 @@ class AppConfigManager:
     def set_openfoam_dir(self, path: str | None) -> None:
         """Set the OpenFOAM installation directory. Does not auto-save."""
         self._openfoam_dir = path
+
+    # ── appearance ────────────────────────────────────────────────────────────
+
+    def get_theme(self) -> str:
+        """Return the theme mode: "system", "light", or "dark"."""
+        return self._theme
+
+    def set_theme(self, mode: str) -> None:
+        """Set the theme mode. Does not auto-save."""
+        self._theme = mode

@@ -118,12 +118,12 @@ class RunToolDialog(QDialog):
 
         # ── command preview ───────────────────────────────────────────────────
         preview_box = QFrame()
-        preview_box.setFrameShape(QFrame.StyledPanel)
+        preview_box.setFrameShape(QFrame.Shape.StyledPanel)
         preview_layout = QVBoxLayout(preview_box)
         preview_layout.setContentsMargins(8, 6, 8, 6)
         self._preview = QLabel()
         self._preview.setWordWrap(True)
-        self._preview.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self._preview.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         font = self._preview.font()
         font.setFamily("monospace")
         font.setStyleHint(font.StyleHint.Monospace)

@@ -2,8 +2,7 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtCore import QSignalBlocker
+from PySide6.QtCore import QSignalBlocker, Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
@@ -17,6 +16,8 @@ from PySide6.QtWidgets import (
 )
 
 from foam.nodes import FoamNode
+from foam.utils import format_embedded_value
+from i18n import tr
 from model.tree_model import FoamTreeModel
 from schemas import (
     choice_description_for_value,
@@ -27,7 +28,6 @@ from schemas import (
     schema_note_text,
     schema_supported_in_text,
 )
-from i18n import tr
 
 _PAGE_EMPTY = 0
 _PAGE_NORMAL = 1
@@ -38,7 +38,7 @@ class DetailPanel(QWidget):
     value_apply_requested = Signal(str)
     field_value_apply_requested = Signal(str, str)  # field_type, raw_value
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._current_file: str | None = None
         self._current_node_name: str | None = None
@@ -53,7 +53,7 @@ class DetailPanel(QWidget):
         scroll = QScrollArea()
         scroll.setWidget(self._stack)
         scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -110,7 +110,7 @@ class DetailPanel(QWidget):
 
         self._value_combo = QComboBox()
         self._value_combo.setEditable(True)
-        self._value_combo.setInsertPolicy(QComboBox.NoInsert)
+        self._value_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
         self._value_combo.setVisible(False)
         self._value_combo.currentTextChanged.connect(self._on_combo_changed)
 
@@ -178,7 +178,8 @@ class DetailPanel(QWidget):
         self._type_label.setText(node.node_type)
 
         current_value = model._display_value(node)
-        editable = model._is_value_editable(node)
+        # A read-only model is an `#include` target outside the case directory.
+        editable = model._is_value_editable(node) and not model.read_only
         parent_key = self._current_parent_key
         grandparent_key = self._current_grandparent_key
         choices = choices_for_file_key(file_path, node.name, parent_key, grandparent_key)
@@ -195,7 +196,11 @@ class DetailPanel(QWidget):
         self._key_supported_in_label.setText(key_supported_in)
         self._key_supported_in_label.setVisible(bool(key_supported_in))
 
-        key_note = schema_note_text(file_path, node.name, parent_key, grandparent_key)
+        # A directive row has no schema, so the note line is free to carry where
+        # its `#include` resolved to (or why it did not).
+        key_note = model.include_note(node) or schema_note_text(
+            file_path, node.name, parent_key, grandparent_key
+        )
         self._key_note_label.setText(key_note)
         self._key_note_label.setVisible(bool(key_note))
 
@@ -213,7 +218,7 @@ class DetailPanel(QWidget):
         self._fv_name_label.setText(data.get("field_name", "-"))
         with QSignalBlocker(self._fv_value_edit):
             self._fv_value_edit.setText(
-                model._format_embedded_value(
+                format_embedded_value(
                     data.get("value_type"),
                     data.get("value"),
                     data.get("raw_value"),
@@ -222,7 +227,9 @@ class DetailPanel(QWidget):
 
     # ── value editor helpers ──────────────────────────────────────────────────
 
-    def _show_choice_editor(self, node_name: str, current_value: str, choices: list[str], editable: bool) -> None:
+    def _show_choice_editor(
+        self, node_name: str, current_value: str, choices: list[str], editable: bool
+    ) -> None:
         with QSignalBlocker(self._value_combo):
             self._value_combo.clear()
             self._value_combo.addItems(choices)
@@ -258,8 +265,12 @@ class DetailPanel(QWidget):
     def _update_choice_help(self, node_name: str, value: str) -> None:
         parent_key = self._current_parent_key
         grandparent_key = self._current_grandparent_key
-        description = choice_description_for_value(self._current_file, node_name, value, parent_key, grandparent_key)
-        supported_in = choice_supported_in_for_value(self._current_file, node_name, value, parent_key, grandparent_key)
+        description = choice_description_for_value(
+            self._current_file, node_name, value, parent_key, grandparent_key
+        )
+        supported_in = choice_supported_in_for_value(
+            self._current_file, node_name, value, parent_key, grandparent_key
+        )
         note = choice_note_for_value(self._current_file, node_name, value, parent_key, grandparent_key)
 
         self._choice_description_label.setText(description)

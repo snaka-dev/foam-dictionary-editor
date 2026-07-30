@@ -16,7 +16,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
 from i18n import tr
+from ui.widgets._checkable_list import checked_items, set_all_check_states
 
 _BAK_RE = re.compile(r"\.bak_\d{8}_\d{6}$")
 _DIALOG_WIDTH = 560
@@ -82,9 +84,9 @@ class CleanBackupsDialog(QDialog):
         self._list = QListWidget()
         for abs_path, rel_path, size in backups:
             item = QListWidgetItem(f"{rel_path}    ({_fmt_size(size)})")
-            item.setData(Qt.UserRole, abs_path)
-            item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Checked)
+            item.setData(Qt.ItemDataRole.UserRole, abs_path)
+            item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked)
             self._list.addItem(item)
         layout.addWidget(self._list)
 
@@ -108,34 +110,21 @@ class CleanBackupsDialog(QDialog):
     def paths_to_delete(self) -> list[str]:
         return list(self._paths_to_delete)
 
-    def _checked_items(self) -> list[QListWidgetItem]:
-        return [
-            self._list.item(i)
-            for i in range(self._list.count())
-            if self._list.item(i).checkState() == Qt.Checked
-        ]
-
     def _update_delete_btn(self) -> None:
-        n = len(self._checked_items())
+        n = len(checked_items(self._list))
         self._delete_btn.setText(tr("Delete Selected ({n})").format(n=n))
         self._delete_btn.setEnabled(n > 0)
 
     def _select_all(self) -> None:
-        self._list.blockSignals(True)
-        for i in range(self._list.count()):
-            self._list.item(i).setCheckState(Qt.Checked)
-        self._list.blockSignals(False)
+        set_all_check_states(self._list, Qt.CheckState.Checked)
         self._update_delete_btn()
 
     def _deselect_all(self) -> None:
-        self._list.blockSignals(True)
-        for i in range(self._list.count()):
-            self._list.item(i).setCheckState(Qt.Unchecked)
-        self._list.blockSignals(False)
+        set_all_check_states(self._list, Qt.CheckState.Unchecked)
         self._update_delete_btn()
 
     def _on_delete(self) -> None:
         self._paths_to_delete = [
-            item.data(Qt.UserRole) for item in self._checked_items()
+            item.data(Qt.ItemDataRole.UserRole) for item in checked_items(self._list)
         ]
         self.accept()

@@ -2,14 +2,27 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+import bisect
 from pathlib import Path
 
-from foam.nodes import NodeType
+from foam.nodes import FoamNode, NodeType
 
 SCALAR_FORMAT_PRECISION = 12
 
 _LARGE_FILE_BYTES = 100 * 1024  # 100 KB
 _FOAM_SNIFF_BYTES = 512
+
+# blockMeshDict `blocks ( … );` shape keywords the parser explodes into a
+# block_list/block_entry tree (foam/parser.py's _scan_block_segments). Only
+# "hex" is included: foam/block_mesh_extractor.py's _parse_hex_blocks only
+# understands hex blocks, so any other shape word would desynchronise a
+# tree-row index from the 3-D viewer's block index. Shared with
+# foam/value_parse.py's block_entry validation.
+BLOCK_SHAPE_WORDS = frozenset({"hex"})
+
+# blockMesh accepts an optional `name <blockName>` prefix before the shape
+# word (`name sideBlock hex ( … ) …`), used by the projected-geometry cases.
+BLOCK_NAME_KEYWORD = "name"
 
 
 def is_large_non_foam_file(path: str | Path) -> tuple[bool, int]:
@@ -199,6 +212,140 @@ def format_leaf_value(node_type: NodeType, value) -> str:
     if node_type == "scalar":
         return format_scalar(value)
     return "" if value is None else str(value)
+
+
+def split_block_entry_tokens(text: str) -> list[str]:
+    """Split a normalised block_entry value into top-level tokens.
+
+    Each bare word (e.g. ``hex``, a zone name, a grading keyword, a ``$macro``
+    tail) is one token; each parenthesised group (e.g. ``(0 1 2 3 4 5 6 7)``)
+    is one token including its own parentheses, with nested parens kept
+    intact. Shared by foam/value_parse.py's block_entry validation and
+    model/tree_model.py's block_entry tooltip, so both read the same
+    shape/vertices/zone/cells/grading positions off the same split.
+    """
+    tokens: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        while i < n and text[i].isspace():
+            i += 1
+        if i >= n:
+            break
+        if text[i] == "(":
+            start, depth = i, 0
+            while i < n:
+                if text[i] == "(":
+                    depth += 1
+                elif text[i] == ")":
+                    depth -= 1
+                    if depth == 0:
+                        i += 1
+                        break
+                i += 1
+            tokens.append(text[start:i])
+        else:
+            start = i
+            while i < n and not text[i].isspace() and text[i] != "(":
+                i += 1
+            tokens.append(text[start:i])
+    return tokens
+
+
+def strip_block_name_prefix(tokens: list[str]) -> tuple[str, list[str]]:
+    """Split blockMesh's optional ``name <blockName>`` prefix off a block entry.
+
+    Returns (block_name, remaining_tokens) with the shape word first in
+    *remaining_tokens*; block_name is "" when there is no prefix. Shared by
+    block_entry validation and the tooltip so both agree on where an entry's
+    shape word starts. The parser's segment scanner applies the same rule at
+    the token level (it has no split text to work from) -- keep the two in
+    step when changing what counts as a prefix.
+    """
+    if (
+        len(tokens) >= 3
+        and tokens[0] == BLOCK_NAME_KEYWORD
+        and not tokens[1].startswith("(")
+        and tokens[2] in BLOCK_SHAPE_WORDS
+    ):
+        return tokens[1], tokens[2:]
+    return "", tokens
+
+
+def non_block_rows(parent: FoamNode) -> list[int]:
+    """Ascending rows of *parent*'s children that are not ``block_entry``.
+
+    Precomputed input for :func:`block_number` when the same list is consulted
+    for many rows (the Tree view's key column).
+    """
+    return [
+        i for i, child in enumerate(parent.children)
+        if child.node_type != "block_entry"
+    ]
+
+
+def block_number(
+    parent: FoamNode | None, row: int, skipped: list[int] | None = None
+) -> int:
+    """The 3-D viewer's block index for the ``block_entry`` at *row*.
+
+    Normally *row* itself. A ``blocks ( … )`` list may also hold
+    ``directive_entry`` children -- an ``#include`` contributing blocks
+    defined in another file -- which take a row without being a block, while
+    the viewer numbers hex entries only. Without this correction the first
+    real block below an ``#include`` would be labelled "block 1" where the
+    viewer draws a 0.
+
+    Note both sides are then numbering only the blocks written *in this file*:
+    what the ``#include`` pulls in is invisible to FoDE (in the tutorial case
+    that motivated this, it is a symlink Allrun creates at run time), so these
+    indices can differ from blockMesh's own once it resolves the include.
+    """
+    if parent is None:
+        return row
+    if skipped is None:
+        skipped = non_block_rows(parent)
+    return row - bisect.bisect_left(skipped, row)
+
+
+def describe_block_entry(text: str) -> tuple[str, str, str, str, str]:
+    """Decompose a block_entry value into (name, vertices, zone, cells, grading).
+
+    Reads positionally off split_block_entry_tokens: an optional
+    ``name <blockName>`` prefix, the shape word, the vertices group, an
+    optional zone name, an optional cells group, and an optional
+    "gradingKeyword (…)" pair. Pieces that are absent (a bare macro tail, a
+    missing group) come back as "". Used by the Tree view's block_entry
+    tooltip.
+    """
+    block_name, tokens = strip_block_name_prefix(split_block_entry_tokens(text))
+    vertices = zone = cells = grading = ""
+    i = 1  # tokens[0] is the shape word
+
+    if i < len(tokens) and tokens[i].startswith("("):
+        vertices = tokens[i][1:-1].strip()
+        i += 1
+
+    if i < len(tokens) and not tokens[i].startswith("("):
+        # A bare word here is either a zone name (followed by a cells group)
+        # or a standalone macro tail (nothing meaningful follows).
+        if i + 1 < len(tokens) and tokens[i + 1].startswith("("):
+            zone = tokens[i]
+            i += 1
+        else:
+            return block_name, vertices, zone, cells, grading
+
+    if i < len(tokens) and tokens[i].startswith("("):
+        cells = tokens[i][1:-1].strip()
+        i += 1
+
+    if (
+        i + 1 < len(tokens)
+        and not tokens[i].startswith("(")
+        and tokens[i + 1].startswith("(")
+    ):
+        grading = f"{tokens[i]} {tokens[i + 1]}"
+
+    return block_name, vertices, zone, cells, grading
 
 
 def format_embedded_value(value_type: NodeType, value, raw_value) -> str:

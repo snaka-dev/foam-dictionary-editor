@@ -6,7 +6,7 @@ from __future__ import annotations
 import pytest
 
 from foam.parser import OpenFoamParser
-from foam.topo_set_extractor import TopoShape, extract_topo_set_data
+from foam.topo_set_extractor import extract_topo_set_data
 
 
 def _parse(text: str):

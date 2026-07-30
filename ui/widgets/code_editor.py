@@ -6,17 +6,14 @@ from PySide6.QtCore import QPoint, QRect, QSize, Qt
 from PySide6.QtGui import QColor, QPainter, QTextCursor, QTextFormat
 from PySide6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
 
+from ui.theme import colors
 from ui.widgets._foam_highlighter import FoamHighlighter
-
-
-_COLOR_SPAN_HIGHLIGHT    = QColor(255, 251, 190)  # amber — node source span
-_COLOR_CURRENT_LINE      = QColor(232, 242, 254)  # blue  — cursor line
 
 _FOLD_GUTTER_W = 14  # pixel width of the clickable fold-triangle column
 
 
 class LineNumberArea(QWidget):
-    def __init__(self, editor: "CodeEditor"):
+    def __init__(self, editor: CodeEditor):
         super().__init__(editor)
         self.code_editor = editor
 
@@ -54,7 +51,7 @@ class LineNumberArea(QWidget):
 
 
 class CodeEditor(QPlainTextEdit):
-    def __init__(self, parent=None):
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
         self._span_start_line = 0
@@ -79,7 +76,7 @@ class CodeEditor(QPlainTextEdit):
         font.setPointSize(10)
         self.setFont(font)
 
-        self.setLineWrapMode(QPlainTextEdit.NoWrap)
+        self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.setTabStopDistance(self.fontMetrics().horizontalAdvance(" ") * 4)
 
     # ── public API ────────────────────────────────────────────────────────────
@@ -136,11 +133,12 @@ class CodeEditor(QPlainTextEdit):
 
     def line_number_area_paint_event(self, event):
         painter = QPainter(self.line_number_area)
-        painter.fillRect(event.rect(), QColor(245, 245, 245))
+        c = colors()
+        painter.fillRect(event.rect(), QColor(c.gutter_bg))
 
         fold_x = self.line_number_area.width() - _FOLD_GUTTER_W
         # Separator between line numbers and fold gutter
-        painter.setPen(QColor(210, 210, 210))
+        painter.setPen(QColor(c.gutter_separator))
         painter.drawLine(fold_x, event.rect().top(), fold_x, event.rect().bottom())
 
         block = self.firstVisibleBlock()
@@ -154,7 +152,7 @@ class CodeEditor(QPlainTextEdit):
         while block.isValid() and top <= event.rect().bottom():
             if block.isVisible() and bottom >= event.rect().top():
                 # Line number
-                painter.setPen(QColor(120, 120, 120))
+                painter.setPen(QColor(c.gutter_number_fg))
                 painter.drawText(
                     0, top, fold_x - 4, line_h,
                     Qt.AlignRight, str(block_number + 1),
@@ -165,7 +163,7 @@ class CodeEditor(QPlainTextEdit):
                     cy = top + line_h // 2
                     cx = fold_x + _FOLD_GUTTER_W // 2
                     painter.setPen(Qt.NoPen)
-                    painter.setBrush(QColor(90, 90, 90))
+                    painter.setBrush(QColor(c.fold_marker))
                     if block_number in self._folded:
                         # ▶ right-pointing (collapsed)
                         pts = [
@@ -210,7 +208,7 @@ class CodeEditor(QPlainTextEdit):
                 end_block = self.document().lastBlock()
             if start_block.isValid():
                 sel = QTextEdit.ExtraSelection()
-                sel.format.setBackground(_COLOR_SPAN_HIGHLIGHT)
+                sel.format.setBackground(QColor(colors().span_highlight_bg))
                 sel.format.setProperty(QTextFormat.FullWidthSelection, True)
                 cur = QTextCursor(start_block)
                 cur.setPosition(
@@ -221,7 +219,7 @@ class CodeEditor(QPlainTextEdit):
                 extra_selections.append(sel)
 
         selection = QTextEdit.ExtraSelection()
-        selection.format.setBackground(_COLOR_CURRENT_LINE)
+        selection.format.setBackground(QColor(colors().current_line_bg))
         selection.format.setProperty(QTextFormat.FullWidthSelection, True)
         selection.cursor = self.textCursor()
         selection.cursor.clearSelection()

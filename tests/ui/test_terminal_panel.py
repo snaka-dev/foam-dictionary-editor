@@ -15,8 +15,7 @@ import sys
 import pytest
 from PySide6.QtWidgets import QApplication
 
-from ui.panels.terminal_panel import SimpleTerminalWidget, TerminalPanel, _XTERM_AVAILABLE
-
+from ui.panels.terminal_panel import _XTERM_AVAILABLE, SimpleTerminalWidget, TerminalPanel
 
 # ── QApplication fixture ──────────────────────────────────────────────────────
 

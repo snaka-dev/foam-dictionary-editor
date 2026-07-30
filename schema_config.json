@@ -1,0 +1,9 @@
+{
+  "schema_modules": [
+    "schemas.control_dict",
+    "schemas.fv_schemes",
+    "schemas.fv_solution",
+    "schemas.block_mesh_dict",
+    "schemas.snappy_hex_mesh_dict"
+  ]
+}

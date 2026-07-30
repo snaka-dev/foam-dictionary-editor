@@ -45,10 +45,10 @@ class CaseLibraryDialog(QDialog):
         auto_layout = QVBoxLayout(auto_box)
         if foam:
             auto_label = QLabel(f"{foam}   <i>[$FOAM_TUTORIALS]</i>")
-            auto_label.setTextFormat(Qt.RichText)
+            auto_label.setTextFormat(Qt.TextFormat.RichText)
         else:
-            auto_label = QLabel(f"<i>{tr("$FOAM_TUTORIALS is not set or does not exist.")}</i>")
-            auto_label.setTextFormat(Qt.RichText)
+            auto_label = QLabel(f"<i>{tr('$FOAM_TUTORIALS is not set or does not exist.')}</i>")
+            auto_label.setTextFormat(Qt.TextFormat.RichText)
             auto_label.setEnabled(False)
         auto_layout.addWidget(auto_label)
         layout.addWidget(auto_box)
@@ -101,8 +101,8 @@ class CaseLibraryDialog(QDialog):
         self._list.clear()
         for path in self._dirs:
             item = QListWidgetItem(path)
-            item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Unchecked)
+            item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
             self._list.addItem(item)
         self._list.blockSignals(False)
 
@@ -110,7 +110,7 @@ class CaseLibraryDialog(QDialog):
         return [
             self._list.item(i)
             for i in range(self._list.count())
-            if self._list.item(i).checkState() == Qt.Checked
+            if self._list.item(i).checkState() == Qt.CheckState.Checked
         ]
 
     def _update_remove_btn(self) -> None:
@@ -121,14 +121,14 @@ class CaseLibraryDialog(QDialog):
     def _select_all(self) -> None:
         self._list.blockSignals(True)
         for i in range(self._list.count()):
-            self._list.item(i).setCheckState(Qt.Checked)
+            self._list.item(i).setCheckState(Qt.CheckState.Checked)
         self._list.blockSignals(False)
         self._update_remove_btn()
 
     def _deselect_all(self) -> None:
         self._list.blockSignals(True)
         for i in range(self._list.count()):
-            self._list.item(i).setCheckState(Qt.Unchecked)
+            self._list.item(i).setCheckState(Qt.CheckState.Unchecked)
         self._list.blockSignals(False)
         self._update_remove_btn()
 

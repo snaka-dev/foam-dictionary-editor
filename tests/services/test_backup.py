@@ -13,7 +13,6 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-
 # ── helpers that mirror main_window backup logic ──────────────────────────────
 
 def _make_backup_path(original: Path, timestamp: str) -> Path:

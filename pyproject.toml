@@ -5,8 +5,23 @@ line-length = 110
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
 
+[tool.ruff.lint.per-file-ignores]
+"i18n/ja.py" = ["E501"]  # translation string literals; wrapping would corrupt keys/values
+
 [tool.mypy]
 python_version = "3.10"
-files = ["foam", "model", "app_config", "schemas", "services", "ui/app_state.py"]
+files = ["foam", "model", "app_config", "schemas", "services", "ui"]
 ignore_missing_imports = true
 warn_unused_ignores = true
+
+# numpy 2.5's bundled stubs use PEP 695 `type` statements, which are only valid
+# syntax under python_version >= 3.12; this project's mypy target is 3.10 (the
+# minimum supported runtime per CLAUDE.md). Skip following numpy's own stubs
+# (follow_imports_for_stubs is needed alongside follow_imports=skip because
+# numpy ships inline/typed stubs, not a separate stub-only package, and mypy
+# only honours plain follow_imports for the latter) rather than raising the
+# whole project's target version for one dependency.
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*"]
+follow_imports = "skip"
+follow_imports_for_stubs = true

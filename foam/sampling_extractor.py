@@ -25,6 +25,7 @@ from __future__ import annotations
 import dataclasses
 
 from foam.nodes import FoamNode
+from foam.shapes import SourceShape
 from foam.tree_utils import (
     find_child,
     resolve_plane_geometry,
@@ -41,11 +42,11 @@ _PLANE_SURFACE_TYPES = frozenset({"plane", "cuttingPlane"})
 
 
 @dataclasses.dataclass
-class SamplingShape:
-    # `label`/`kind`: shared field names across all extractor shape classes.
-    label: str      # entry name, or "entry.member" for nested set/surface members
-    kind: str       # e.g. "probes", "lineUniform", "plane", "patch"
-    geometry: dict  # {"points": …} | {"start": …, "end": …} | {"planePoint": …, "planeNormal": …}
+class SamplingShape(SourceShape):
+    # Inherits label/kind/geometry from SourceShape (see foam/shapes.py):
+    # label = entry name, or "entry.member" for nested set/surface members;
+    # kind = e.g. "probes", "lineUniform", "plane", "patch"; geometry =
+    # {"points": …} | {"start": …, "end": …} | {"planePoint": …, "planeNormal": …}.
     source_file: str = ""  # basename of the defining file; filled by the UI layer
 
 

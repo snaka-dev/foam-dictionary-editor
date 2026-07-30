@@ -42,10 +42,6 @@ def _value_complexity(patch_node: FoamNode) -> str:
     return ""
 
 
-def _value_is_complex(patch_node: FoamNode) -> bool:
-    return _value_complexity(patch_node) != ""
-
-
 def _get_patch_type(patch_node: FoamNode) -> str:
     for child in patch_node.children:
         if child.name == "type":
@@ -100,18 +96,18 @@ class BoundaryEditDialog(QDialog):
 
         # Read-only info header
         info = QFormLayout()
-        info.setRowWrapPolicy(QFormLayout.DontWrapRows)
+        info.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
         for label_text, value in ((tr("Variable:"), field_name), (tr("Patch:"), patch_name)):
             key = QLabel(label_text)
-            key.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            key.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             val = QLabel(f"<b>{value}</b>")
-            val.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            val.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             info.addRow(key, val)
         layout.addLayout(info)
 
         sep = QFrame()
-        sep.setFrameShape(QFrame.HLine)
-        sep.setFrameShadow(QFrame.Sunken)
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
         layout.addWidget(sep)
 
         if not self._is_complex:
@@ -120,7 +116,7 @@ class BoundaryEditDialog(QDialog):
             layout.addWidget(QLabel(tr("Content:")))
             self._content_edit = QPlainTextEdit(_patch_inner_text(patch_node))
             font = QFont("Monospace")
-            font.setStyleHint(QFont.TypeWriter)
+            font.setStyleHint(QFont.StyleHint.TypeWriter)
             self._content_edit.setFont(font)
             self._content_edit.setMinimumHeight(160)
             layout.addWidget(self._content_edit)
@@ -134,7 +130,11 @@ class BoundaryEditDialog(QDialog):
             layout.addLayout(type_row)
 
             warn = QLabel(
-                tr("⚠ This patch contains large or binary data.\nThe full value cannot be displayed here.\nUse the Text Editor tab to edit the complete content.")
+                tr(
+                    "⚠ This patch contains large or binary data.\n"
+                    "The full value cannot be displayed here.\n"
+                    "Use the Text Editor tab to edit the complete content."
+                )
             )
             warn.setWordWrap(True)
             layout.addWidget(warn)

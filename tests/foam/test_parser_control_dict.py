@@ -138,3 +138,27 @@ def test_parse_control_dict_all_entries_present(control_dict_text):
     child_names = {child.name for child in root.children}
     for key in expected_keys:
         assert key in child_names, f"expected key '{key}' not found in parsed tree"
+
+
+def test_include_func_with_parentheses_kept_verbatim():
+    """`#includeFunc mag(U)` must survive parsing character-for-character.
+
+    foam/include_resolver.py re-parses a directive_entry's value to resolve it,
+    and services/include_scan.py keys tooltip notes on that exact string, so
+    any reflowing here would silently break include resolution.
+    """
+    text = """
+FoamFile { version 2.0; format ascii; class dictionary; object controlDict; }
+functions
+{
+    #includeFunc mag(U)
+    #includeEtc "caseDicts/postProcessing/numerical/solverInfo.cfg"
+}
+"""
+    root = OpenFoamParser(text).parse()
+    functions = find_child(root, "functions")
+    values = [c.value for c in functions.children if c.node_type == "directive_entry"]
+    assert values == [
+        "#includeFunc mag(U)",
+        '#includeEtc "caseDicts/postProcessing/numerical/solverInfo.cfg"',
+    ]

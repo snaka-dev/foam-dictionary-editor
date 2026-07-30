@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QModelIndex, Qt
 from PySide6.QtWidgets import QMessageBox
@@ -10,36 +11,49 @@ from PySide6.QtWidgets import QMessageBox
 from foam.block_mesh_extractor import parse_vertices
 from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser, ParseError
-from foam.utils import format_scalar, is_log_filename, is_script_text
+from foam.utils import block_number, format_scalar, is_log_filename, is_script_text
 from foam.writer import write_root
 from i18n import tr
 from ui.layout_constants import (
     STATUS_NORMAL as _STATUS_NORMAL,
-    STATUS_WARNING as _STATUS_WARNING,
+)
+from ui.layout_constants import (
     STATUS_SHORT as _STATUS_SHORT,
 )
+from ui.layout_constants import (
+    STATUS_WARNING as _STATUS_WARNING,
+)
+
+if TYPE_CHECKING:
+    from ui.mixins._protocol import MainWindowProtocol as _Base
+else:
+    _Base = object
 
 
-class _TreeSyncOpsMixin:
+class _TreeSyncOpsMixin(_Base):
     """Tree ↔ editor synchronisation, selection handling, and detail panel updates."""
 
     # ── editor → tree sync ────────────────────────────────────────────────────
 
     def _sync_tree_to_editor_line(self) -> None:
         if not self.state.source_lines_valid:
-            self.statusBar().showMessage(tr("Apply Text to Tree to enable editor-to-tree sync"), _STATUS_SHORT)
+            self.statusBar().showMessage(
+                tr("Apply Text to Tree to enable editor-to-tree sync"), _STATUS_SHORT
+            )
             return
 
         line = self.editor_panel.current_line_number()
         node = self._find_deepest(self.state.current_root, line)
 
         if node is None:
-            self.statusBar().showMessage(tr("No tree entry found for line {line}").format(line=line), _STATUS_SHORT)
+            self.statusBar().showMessage(
+                tr("No tree entry found for line {line}").format(line=line), _STATUS_SHORT
+            )
             return
 
         # Walk up to the nearest ancestor visible in the proxy (not filtered out).
         proxy_index = QModelIndex()
-        current = node
+        current: FoamNode | None = node
         while current is not None and current is not self.state.current_root:
             src_index = self.state.current_model.index_of_node(current)
             proxy_index = self._to_proxy(src_index)
@@ -86,6 +100,8 @@ class _TreeSyncOpsMixin:
         else:
             self.detail_panel.show_for_node(node, self.state.current_model, self.state.current_file)
 
+        self._highlight_selected_block(node, index.row())
+
         if self.state.syncing:
             return
 
@@ -95,9 +111,29 @@ class _TreeSyncOpsMixin:
                 scroll=self.editor_autoscroll_checkbox.isChecked(),
             )
         elif not self.state.source_lines_valid:
-            self.statusBar().showMessage(tr("Apply Text to Tree to re-enable jump-to-line"), _STATUS_SHORT)
+            self.statusBar().showMessage(
+                tr("Apply Text to Tree to re-enable jump-to-line"), _STATUS_SHORT
+            )
         elif node.source_line == 0:
-            self.statusBar().showMessage(tr("No source location — entry was added or modified in the tree"), _STATUS_SHORT)
+            self.statusBar().showMessage(
+                tr("No source location — entry was added or modified in the tree"), _STATUS_SHORT
+            )
+
+    def _highlight_selected_block(self, node: FoamNode, row: int) -> None:
+        """Mirror a `block N` row selection into the 3-D viewer, and only that.
+
+        The tree key and the viewer's centroid labels are both numbered off
+        the parsed order, so the number the row shows is the one the viewer
+        wants -- which is the row itself unless the list also holds an
+        `#include` (see foam.utils.block_number). Selecting anything else
+        clears the highlight, so it always reflects what is selected now
+        rather than what was last clicked.
+        """
+        if self.block_mesh_panel is None:
+            return
+        self.block_mesh_panel.set_selected_block(
+            block_number(node.parent, row) if node.node_type == "block_entry" else None
+        )
 
     def _on_value_apply(self, new_value: str) -> None:
         index = self._current_primary_index()
@@ -105,7 +141,7 @@ class _TreeSyncOpsMixin:
             return
 
         value_index = self.state.current_model.index(index.row(), 2, index.parent())
-        ok = self.state.current_model.setData(value_index, new_value, Qt.EditRole)
+        ok = self.state.current_model.setData(value_index, new_value, Qt.ItemDataRole.EditRole)
         if not ok:
             QMessageBox.warning(self, tr("Edit Error"), tr("Could not apply the value to the selected node."))
             return
@@ -129,18 +165,25 @@ class _TreeSyncOpsMixin:
         node.modified = True
 
         value_index = self.state.current_model.index(index.row(), 2, index.parent())
-        ok = self.state.current_model.setData(value_index, raw_value, Qt.EditRole)
+        ok = self.state.current_model.setData(value_index, raw_value, Qt.ItemDataRole.EditRole)
         if not ok:
             QMessageBox.warning(self, "Edit Error", "Could not apply the field value.")
             return
 
         type_index = self.state.current_model.index(index.row(), 1, index.parent())
-        self.state.current_model.dataChanged.emit(type_index, value_index, [Qt.DisplayRole, Qt.EditRole])
+        self.state.current_model.dataChanged.emit(
+            type_index, value_index, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole]
+        )
         self._after_model_edit()
 
     # ── editor ↔ tree sync ────────────────────────────────────────────────────
 
     def apply_text_to_tree(self) -> None:
+        if self._is_read_only(self.state.current_file):
+            self.statusBar().showMessage(
+                tr("Read-only file — tree editing unavailable"), _STATUS_SHORT
+            )
+            return
         text = self.editor_panel.get_text()
         is_log = self.state.current_file is not None and is_log_filename(
             Path(self.state.current_file).name

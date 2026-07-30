@@ -19,8 +19,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from services.case_files_config import DirEntry
 from i18n import tr
+from services.case_files_config import DirEntry
+from ui.widgets._checkable_list import checked_items, set_all_check_states
 
 _DIALOG_WIDTH = 520
 _DIALOG_HEIGHT = 380
@@ -91,45 +92,31 @@ class ManageExtraFilesDialog(QDialog):
 
         return w
 
-    @staticmethod
-    def _set_all_check_states(widget: QListWidget, state: Qt.CheckState) -> None:
-        widget.blockSignals(True)
-        for i in range(widget.count()):
-            widget.item(i).setCheckState(state)
-        widget.blockSignals(False)
-
     def _rebuild_files_list(self) -> None:
         self._files_list.blockSignals(True)
         self._files_list.clear()
         for path in self._files:
             item = QListWidgetItem(path)
-            item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Unchecked)
+            item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
             self._files_list.addItem(item)
         self._files_list.blockSignals(False)
 
-    def _checked_file_items(self) -> list[QListWidgetItem]:
-        return [
-            self._files_list.item(i)
-            for i in range(self._files_list.count())
-            if self._files_list.item(i).checkState() == Qt.Checked
-        ]
-
     def _update_remove_files_btn(self) -> None:
-        n = len(self._checked_file_items())
+        n = len(checked_items(self._files_list))
         self._remove_files_btn.setText(tr("Remove Selected ({n})").format(n=n))
         self._remove_files_btn.setEnabled(n > 0)
 
     def _select_all_files(self) -> None:
-        self._set_all_check_states(self._files_list, Qt.Checked)
+        set_all_check_states(self._files_list, Qt.CheckState.Checked)
         self._update_remove_files_btn()
 
     def _deselect_all_files(self) -> None:
-        self._set_all_check_states(self._files_list, Qt.Unchecked)
+        set_all_check_states(self._files_list, Qt.CheckState.Unchecked)
         self._update_remove_files_btn()
 
     def _remove_checked_files(self) -> None:
-        checked = self._checked_file_items()
+        checked = checked_items(self._files_list)
         if not checked:
             QMessageBox.warning(self, tr("No Selection"), tr("Please select a file to remove."))
             return
@@ -147,7 +134,10 @@ class ManageExtraFilesDialog(QDialog):
         layout = QVBoxLayout(w)
         layout.addWidget(
             QLabel(
-                tr("Directories scanned in full (all files loaded, like 0/).\nCheck items and click Toggle Recursive to enable/disable recursive scan.")
+                tr(
+                    "Directories scanned in full (all files loaded, like 0/).\n"
+                    "Check items and click Toggle Recursive to enable/disable recursive scan."
+                )
             )
         )
 
@@ -194,18 +184,14 @@ class ManageExtraFilesDialog(QDialog):
         for path, recursive in self._dirs:
             label = f"{path}  [recursive]" if recursive else path
             item = QListWidgetItem(label)
-            item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Unchecked)
-            item.setData(Qt.UserRole, path)
+            item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            item.setData(Qt.ItemDataRole.UserRole, path)
             self._dirs_list.addItem(item)
         self._dirs_list.blockSignals(False)
 
     def _checked_dir_paths(self) -> list[str]:
-        return [
-            self._dirs_list.item(i).data(Qt.UserRole)
-            for i in range(self._dirs_list.count())
-            if self._dirs_list.item(i).checkState() == Qt.Checked
-        ]
+        return [item.data(Qt.ItemDataRole.UserRole) for item in checked_items(self._dirs_list)]
 
     def _update_dirs_btns(self) -> None:
         n = len(self._checked_dir_paths())
@@ -214,11 +200,11 @@ class ManageExtraFilesDialog(QDialog):
         self._toggle_recursive_btn.setEnabled(n > 0)
 
     def _select_all_dirs(self) -> None:
-        self._set_all_check_states(self._dirs_list, Qt.Checked)
+        set_all_check_states(self._dirs_list, Qt.CheckState.Checked)
         self._update_dirs_btns()
 
     def _deselect_all_dirs(self) -> None:
-        self._set_all_check_states(self._dirs_list, Qt.Unchecked)
+        set_all_check_states(self._dirs_list, Qt.CheckState.Unchecked)
         self._update_dirs_btns()
 
     def _add_directory(self) -> None:
@@ -234,10 +220,16 @@ class ManageExtraFilesDialog(QDialog):
         try:
             rel = str(Path(chosen).relative_to(Path(self._case_dir)))
         except ValueError:
-            QMessageBox.warning(self, tr("Invalid Directory"), tr("Please select a directory inside the case folder."))
+            QMessageBox.warning(
+                self, tr("Invalid Directory"), tr("Please select a directory inside the case folder.")
+            )
             return
         if any(p == rel for p, _ in self._dirs):
-            QMessageBox.information(self, tr("Already Added"), tr("'{rel}' is already in the directory list.").format(rel=rel))
+            QMessageBox.information(
+                self,
+                tr("Already Added"),
+                tr("'{rel}' is already in the directory list.").format(rel=rel),
+            )
             return
         self._dirs.append((rel, False))
         self._rebuild_dirs_list()

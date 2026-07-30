@@ -12,7 +12,8 @@ foam-dictionary-editor/
 ├── docs/
 │   └── images/              # screenshots used in USER_GUIDE.md
 ├── tools/
-│   └── generate_foam_keywords.py  # CLI wrapper around app_config/keyword_generator.py; --dir picks an installation root (default: sourced environment)
+│   ├── generate_foam_keywords.py  # CLI wrapper around app_config/keyword_generator.py; --dir picks an installation root (default: sourced environment)
+│   └── roundtrip_corpus.py        # parse+write every dictionary of an installation's tutorials and count the byte-identical ones; the measurement behind the release-note round-trip figure
 ├── tutorials/               # bundled example cases (GPL-3.0, see tutorials/README.md)
 ├── main.py
 ├── _version.py              # single source of truth for the app version; get_version() adds a git dev-build suffix when run from a checkout
@@ -38,25 +39,29 @@ foam-dictionary-editor/
 │   ├── app_config_manager.py
 │   ├── constants.py
 │   ├── defaults.py
-│   └── keyword_generator.py  # scans an OpenFOAM installation (etc/caseDicts templates; TypeName/ClassName + addNamedTo* macros and dictionary-read calls — lookup("…"), get<…>("…"), readEntry("…"), … — in src/ and applications/ sources) to build foam_keywords.json (user-generated, gitignored; overrides the tracked foam_keywords.default.json baseline). Installation root via generate(project_dir=…) or the sourced environment (read through services/foam_env.foam_env_dirs, imported lazily); the output is written atomically via json_io.atomic_write_text; payload carries provenance metadata (source, version, generated, note — identifier names only, no OpenFOAM source code). Shared by tools/generate_foam_keywords.py and the Settings menu action
+│   ├── foam_env.py          # foam_env_dirs(env) → FoamEnvDirs: single source of truth for reading $WM_PROJECT_DIR/$FOAM_TUTORIALS/$FOAM_ETC/$FOAM_SRC/$FOAM_APP (fields None unless the dir exists; project-dir fallbacks); pure stdlib, no services/ dependency, so it lives here rather than in services/ despite being consumed by services/example_search.py too; shared by example_search, keyword_generator, and AppConfigManager.foam_tutorials_dir
+│   └── keyword_generator.py  # scans an OpenFOAM installation (etc/caseDicts templates; TypeName/ClassName + addNamedTo* macros and dictionary-read calls — lookup("…"), get<…>("…"), readEntry("…"), … — in src/ and applications/ sources) to build foam_keywords.json (user-generated, gitignored; overrides the tracked foam_keywords.default.json baseline). Installation root via generate(project_dir=…) or the sourced environment (read through foam_env.foam_env_dirs); the output is written atomically via json_io.atomic_write_text; payload carries provenance metadata (source, version, generated, note — identifier names only, no OpenFOAM source code). Shared by tools/generate_foam_keywords.py and the Settings menu action
 ├── foam/
 │   ├── block_mesh_extractor.py  # extracts vertices/blocks/boundary from blockMeshDict FoamNode tree; _HEX_FACE_VERTICES + _expand_compact_faces convert compact (blockIdx, faceIdx) boundary entries to 4-vertex lists; _compute_default_faces collects exterior block faces unclaimed by any patch (blockMesh's implicit defaultFaces — what quasi-2-D cases leave unlisted) into BlockMeshData.default_faces; parse_vertices() is public; delegates variable resolution to var_resolver
 │   ├── var_resolver.py          # shared variable resolution: build_var_map(root, skip_keys) iteratively resolves $vars (including negated-macro word nodes like -$xMax) and #eval{} chains of arbitrary depth; substitute_vars() and eval_foam_expr() are public helpers used by both extractors
-│   ├── topo_set_extractor.py    # extracts renderable geometry (box incl. min/max and multi-box `boxes` forms, rotated box, sphere incl. origin alias + innerRadius, cylinder, cone, point sets: nearestTo*/insidePoints/nearPoint, planeToFaceZone plane) from topoSetDict action_entry nodes; resolves $var and #eval inside raw_list / macro geometry values via var_resolver; returns TopoSetData(shapes=[TopoShape(...)]). All extractor shape classes (TopoShape/SnappyShape/SetFieldsShape) share the label/kind field scheme: display name + geometry/source keyword. The per-source geometry dispatch is exposed as resolve_source_geometry() / is_non_geometric_source(), shared with set_fields_extractor.py
-│   ├── set_fields_extractor.py  # extracts renderable region geometry from setFieldsDict's regions ( … ) list (region_block → region_entry nodes; the entry NAME is the source type — boxToCell, sphereToCell, … — there is no `source` child); reuses topo_set_extractor.resolve_source_geometry(); labels each shape with a fieldValues summary (e.g. "alpha.water=1"); returns SetFieldsData(shapes=[SetFieldsShape(...)])
-│   ├── sampling_extractor.py    # extracts renderable sampling geometry — probes probeLocations (point markers), sets-type sample lines (start/end), surfaces-type plane/cuttingPlane discs — from controlDict's functions {} block or a standalone sampling dict (system/sample, probes, surfaces, singleGraph incl. the .org root-level start/end style); both nested member-list syntaxes are structural parser nodes: the dictionary form sets {}/surfaces {} and the classic parenthesised list form sets ( name {…} ) as a named_dict_list; reuses tree_utils.resolve_plane_geometry; returns SamplingData(shapes=[SamplingShape(...)])
-│   ├── snappy_hex_mesh_extractor.py  # extracts geometry {} primitives (box, sphere incl. ellipsoid via vector radius, cylinder, cone, triSurfaceMesh/distributedTriSurfaceMesh resolved against constant/triSurface/ incl. transparent .gz sibling resolution, and box-based collection members) from snappyHexMeshDict; cross-references castellatedMeshControls.refinementSurfaces/refinementRegions (incl. regex-pattern surface names) to classify each shape surface/region/geometry; extracts locationInMesh/locationsInMesh; returns SnappyHexMeshData(shapes=[SnappyShape(...)])
+│   ├── shapes.py                # SourceShape: the label/kind/geometry base dataclass shared by every extractor shape class (TopoShape, SnappyShape, SetFieldsShape, SamplingShape) — display name + geometry/source keyword + parsed geometry dict; each subclass adds only its own extra fields (action, category/level/mode, source_file). This is what the BlockMesh panel/renderer and Export-STL code consume
+│   ├── topo_set_extractor.py    # extracts renderable geometry (box incl. min/max and multi-box `boxes` forms, rotated box, sphere incl. origin alias + innerRadius, cylinder, cone, point sets: nearestTo*/insidePoints/nearPoint, planeToFaceZone plane) from topoSetDict action_entry nodes; resolves $var and #eval inside raw_list / macro geometry values via var_resolver; returns TopoSetData(shapes=[TopoShape(...)]), TopoShape subclassing shapes.SourceShape. The per-source geometry dispatch is exposed as resolve_source_geometry() / is_non_geometric_source(), shared with set_fields_extractor.py
+│   ├── set_fields_extractor.py  # extracts renderable region geometry from setFieldsDict's regions ( … ) list (region_block → region_entry nodes; the entry NAME is the source type — boxToCell, sphereToCell, … — there is no `source` child); reuses topo_set_extractor.resolve_source_geometry(); labels each shape with a fieldValues summary (e.g. "alpha.water=1"); returns SetFieldsData(shapes=[SetFieldsShape(...)]), SetFieldsShape subclassing shapes.SourceShape with no extra fields
+│   ├── sampling_extractor.py    # extracts renderable sampling geometry — probes probeLocations (point markers), sets-type sample lines (start/end), surfaces-type plane/cuttingPlane discs — from controlDict's functions {} block or a standalone sampling dict (system/sample, probes, surfaces, singleGraph incl. the .org root-level start/end style); both nested member-list syntaxes are structural parser nodes: the dictionary form sets {}/surfaces {} and the classic parenthesised list form sets ( name {…} ) as a named_dict_list; reuses tree_utils.resolve_plane_geometry; returns SamplingData(shapes=[SamplingShape(...)]), SamplingShape subclassing shapes.SourceShape (extra field: source_file)
+│   ├── snappy_hex_mesh_extractor.py  # extracts geometry {} primitives (box, sphere incl. ellipsoid via vector radius, cylinder, cone, triSurfaceMesh/distributedTriSurfaceMesh resolved against constant/triSurface/ incl. transparent .gz sibling resolution, and box-based collection members) from snappyHexMeshDict; cross-references castellatedMeshControls.refinementSurfaces/refinementRegions (incl. regex-pattern surface names) to classify each shape surface/region/geometry; extracts locationInMesh/locationsInMesh; returns SnappyHexMeshData(shapes=[SnappyShape(...)]), SnappyShape subclassing shapes.SourceShape (extra fields: category/level/mode)
+│   ├── include_resolver.py      # Qt-free, stdlib-only: parse_include_directive() turns a directive_entry's raw text into an IncludeRef (#include/#sinclude/#includeIfPresent/#includeEtc/#includeFunc), rejecting C++ headers pulled in by a #codeStream body; resolve_include() resolves it to a ResolvedInclude, expanding $VARs and a leading <case>/<system>/<constant>/<etc> token. Takes etc_dirs as a parameter so foam/ keeps its no-dependency rule
 │   ├── tree_utils.py            # generic FoamNode helpers shared by the topo_set / snappy_hex_mesh / set_fields extractors: find_child, find_child_any, resolve_scalar, resolve_vector, resolve_point_list, expand_evals, and the shared box/sphere/cylinder/cone geometry resolvers (resolve_box_geometry covers the min/max, `box (min) (max)` pair, and multi-box `boxes` forms behind opt-in flags)
 │   ├── diff.py                  # diff_trees(a, b) and diff_trees_reverse(b, a) — compare two FoamNode trees by key name; return dict[FoamNode, DiffEntry]
 │   ├── lexer.py                 # OpenFoamLexer; _read_directive stops at '{' so #eval{...} braces become LBRACE/RBRACE tokens for correct depth tracking
 │   ├── nodes.py
 │   ├── parser.py
 │   ├── utils.py
+│   ├── value_parse.py           # Qt-free text -> typed-value validation backing FoamTreeModel.setData: parse_text_for_node_type(node_type, text) re-parses a string against a node_type (int promoting to scalar on a float-looking string, vector/int_list/scalar_list via parse_parenthesized_numbers, box_pair via foam/utils.parse_box_pair, bool word matching, string types passing through); set_node_value(node, value) is the full contract — mutates node.value/node_type/modified in place and returns whether the edit was accepted, which model/tree_model.py's setData uses verbatim to decide dataChanged vs. edit_rejected
 │   └── writer.py
 ├── model/
 │   ├── boundary_model.py   # BoundaryModel (QAbstractTableModel) + extract_boundary()
 │   ├── file_list_model.py  # FileListModel (QAbstractListModel)
-│   └── tree_model.py
+│   └── tree_model.py       # FoamTreeModel(QAbstractItemModel); setData's Value-column validation is delegated to foam/value_parse.set_node_value, keeping node_type/text parsing Qt-free
 ├── schemas/
 │   ├── __init__.py
 │   ├── _base.py
@@ -79,15 +84,23 @@ foam-dictionary-editor/
 │   ├── case_copier.py
 │   ├── case_files_config.py
 │   ├── case_loader.py       # also detect_poly_mesh() -- PolyMeshInfo(n_points, n_cells, n_faces, stale) from constant/polyMesh/owner's FoamFile note field
-│   ├── example_search.py    # discover_installations()/search_examples(): find OpenFOAM installs (foam_env env reading → well-known paths) and scan their tutorials/ + etc/caseDicts/ for a keyword, returning SearchHits (matched lines, enclosing tutorial case root)
-│   ├── foam_env.py          # foam_env_dirs(env) → FoamEnvDirs: single source of truth for reading $WM_PROJECT_DIR/$FOAM_TUTORIALS/$FOAM_ETC/$FOAM_SRC/$FOAM_APP (fields None unless the dir exists; project-dir fallbacks); shared by example_search, keyword_generator, and AppConfigManager.foam_tutorials_dir (the latter two import it lazily — app_config is a lower layer than services)
-│   ├── log_summary.py       # parse_log()/format_summary(): condense blockMesh/snappyHexMesh/topoSet and solver run logs (log.* stdout, not FoamNode dict trees; solvers detected by time-loop shape, not name) into a short LogSummary report
+│   ├── include_scan.py      # the disk half of include support: foam_etc_dirs() builds the OpenFOAM etc search path, scan_includes()/included_files() run foam/include_resolver over a case's already-listed files (a cheap regex line scan, memoised on mtime+size, one level deep and not transitive), copy_destination_for() picks where "Copy into case" puts an out-of-case include
+│   ├── example_search.py    # discover_installations()/search_examples(): find OpenFOAM installs (app_config/foam_env env reading → well-known paths) and scan their tutorials/ + etc/caseDicts/ for a keyword, returning SearchHits (matched lines, enclosing tutorial case root)
+│   ├── log_summary/         # package: parse_log()/format_summary() condense blockMesh/snappyHexMesh/topoSet and solver run logs (log.* stdout, not FoamNode dict trees; solvers detected by time-loop shape, not name) into a short LogSummary report
+│   │   ├── __init__.py          # re-exports LogSummary/LogWarning/PhaseSummary; parse_log() dispatches on utility name/shape, format_summary() renders the report
+│   │   ├── _types.py            # LogSummary/LogWarning/PhaseSummary dataclasses + generic header and FOAM Warning/FATAL ERROR parsing shared by every grammar
+│   │   ├── _block_mesh.py       # blockMesh grammar: Mesh Information block
+│   │   ├── _snappy_hex_mesh.py  # snappyHexMesh grammar: castellation/snapping/layer-addition phases, split on "Wrote mesh in" markers
+│   │   ├── _topo_set.py         # topoSet grammar: per-set source/size collapsing
+│   │   ├── _solver.py           # solver grammar: time-loop steps, residuals, Courant number, timing
+│   │   └── _generic.py          # fallback grammar: tail of an unrecognised log
 │   └── tool_options.py      # ToolSpec/ToolOption specs (TOOL_SPECS) + build_args()/build_command() for the Tools-menu "Run *" options dialogs; always tees to log.<tool>
 ├── i18n/
 │   ├── __init__.py             # tr(), set_language(), get_language(), available_languages()
 │   └── ja.py                   # Japanese translations (LANGUAGE_NAME + TRANSLATIONS dict)
 ├── ui/
 │   ├── app_state.py            # AppState dataclass: all 16 shared mutable fields (diff is a nested DiffState, undo a nested UndoState holding the global UndoSnapshot undo/redo stacks); MainWindow sets self.state = AppState()
+│   ├── theme.py               # Theme mode (system/light/dark), the readable_selection_pair() contrast rule that repairs Qt's desktop-inherited Highlight/HighlightedText pair, and the ThemeColors table every semantic UI colour resolves through via colors()
 │   ├── mixins/
 │   │   ├── _boundary_ops.py        # mixin: boundary view patch operations
 │   │   ├── _case_ops.py            # mixin: open/reload/duplicate/save-as case, settings
@@ -101,31 +114,34 @@ foam-dictionary-editor/
 │   │   ├── _tree_crud_ops.py       # mixin: tree entry CRUD (copy/paste, add, duplicate, comment out, delete, restore) and _apply_comparison_value
 │   │   ├── _tree_sync_ops.py       # mixin: editor↔tree sync (apply text to tree, reload from tree)
 │   │   ├── _undo_ops.py            # mixin: snapshot-based tree undo/redo (Ctrl+Z / Ctrl+Shift+Z scoped to the tree; one global timeline of serialized-text snapshots)
-│   │   └── _ui_ops.py              # mixin: label updates, schema manager, help dialogs, language menu, tree column toggles
+│   │   ├── _ui_ops.py              # mixin: label updates, schema manager, help dialogs, language menu, tree column toggles
+│   │   └── _protocol.py            # mypy-only MainWindowProtocol every mixin's TYPE_CHECKING base points at, so `self.tree`/`self.state`/cross-mixin calls type-check; see "Typing the ui/mixins/ split" below
 │   ├── layout_constants.py
 │   ├── main_window.py          # core: __init__, _build_ui and sub-builders, drag-and-drop (dragEnterEvent/dropEvent/eventFilter)
 │   ├── dialogs/
 │   │   ├── about_dialog.py
 │   │   ├── add_files_dialog.py
 │   │   ├── boundary_edit_dialog.py
+│   │   ├── _case_dest_dialog.py  # _CaseDestDialogBase(QDialog): shared source/destination(parent+name)/preview/copy-mode UI for DuplicateCaseDialog and SaveAsNewCaseDialog; subclasses build their own copy-mode radio group and call _finish_layout
 │   │   ├── case_library_dialog.py
 │   │   ├── clean_backups_dialog.py
-│   │   ├── duplicate_case_dialog.py
+│   │   ├── duplicate_case_dialog.py  # DuplicateCaseDialog(_CaseDestDialogBase): "_copy" name suffix, "Copy all files" checked by default
 │   │   ├── export_stl_dialog.py  # ExportStlDialog: modal checklist of loaded topoSetDict/snappyHexMeshDict shapes; writes each checked one to its own .stl via BlockMeshRenderer._make_shape_mesh
-│   │   ├── find_examples_dialog.py  # FindExamplesDialog: non-modal keyword search over an installation's tutorials/ + etc/caseDicts/ (services/example_search.py in a background QThread), syntax-highlighted preview, Copy, "Compare with this case" (emits compare_requested), and "Duplicate this case…" (emits duplicate_requested); installation picker is the shared widgets/installation_selector.InstallationSelector
+│   │   ├── find_examples_dialog.py  # FindExamplesDialog: non-modal keyword search over an installation's tutorials/ + etc/caseDicts/ (services/example_search.py in a background QThread, _SearchThread(_worker_thread._CancellableWorkerThread)), syntax-highlighted preview, Copy, "Compare with this case" (emits compare_requested), and "Duplicate this case…" (emits duplicate_requested); installation picker is the shared widgets/installation_selector.InstallationSelector
 │   │   ├── foam_monitor_dialog.py  # FoamMonitorDialog: file picker + foamMonitor option controls (log scale, grid, refresh, idle, extra flags)
-│   │   ├── generate_keywords_dialog.py  # GenerateKeywordsDialog: runs app_config/keyword_generator.py in a background QThread with progress log; installation picker is the shared widgets/installation_selector.InstallationSelector (same discovery + persisted openfoam_dir key as FindExamplesDialog)
+│   │   ├── generate_keywords_dialog.py  # GenerateKeywordsDialog: runs app_config/keyword_generator.py in a background QThread with progress log (_GeneratorThread(_worker_thread._CancellableWorkerThread)); installation picker is the shared widgets/installation_selector.InstallationSelector (same discovery + persisted openfoam_dir key as FindExamplesDialog)
 │   │   ├── keyboard_shortcuts_dialog.py
-│   │   ├── log_summary_dialog.py  # LogSummaryDialog: non-modal (like find_examples_dialog, unlike the other dialogs here) file picker + Summary/Raw Log tabs over services/log_summary.py
+│   │   ├── log_summary_dialog.py  # LogSummaryDialog: non-modal (like find_examples_dialog, unlike the other dialogs here) file picker + Summary/Raw Log tabs over services/log_summary/
 │   │   ├── manage_extra_files_dialog.py
 │   │   ├── openfoam_resources_dialog.py
 │   │   ├── rename_boundary_dialog.py  # Rename Boundary dialog + find_rename_targets() scanner
 │   │   ├── reset_settings_dialog.py
 │   │   ├── run_tool_dialog.py  # RunToolDialog: generic Tools-menu "Run *" options dialog built from services/tool_options.TOOL_SPECS — curated flag widgets, free-text extra options, live command preview, optional pre-flight warning and shell-prefix checkbox
-│   │   ├── save_as_new_case_dialog.py
-│   │   └── schema_manager_dialog.py
+│   │   ├── save_as_new_case_dialog.py  # SaveAsNewCaseDialog(_CaseDestDialogBase): "_new" name suffix, "Copy app-visible files only" checked by default, extra italic note about unsaved edits
+│   │   ├── schema_manager_dialog.py
+│   │   └── _worker_thread.py  # _CancellableWorkerThread(QThread): shared progress/finished_err signals + cancel() flag for _SearchThread (find_examples_dialog) and _GeneratorThread (generate_keywords_dialog); each subclass adds its own finished_ok signal and run()
 │   ├── panels/
-│   │   ├── block_mesh_panel.py     # 3-D viewer for blockMeshDict (pyVista/VTK, lazy init); also overlays topoSetDict (topoSet ▾ menu), snappyHexMeshDict (snappyHexMesh ▾ menu), setFieldsDict regions (setFields ▾ menu), and sampling definitions (sample ▾ menu; union of controlDict functions {} plus standalone system/sample-style dicts, kept per source basename in _sampling_by_file) geometry, each with per-shape visibility toggles, Show all/Hide all actions, and a "Non-geometric sources (N)" submenu for entries with no drawable geometry; delegates actor setup to block_mesh_renderer.BlockMeshRenderer; STL ▾ menu's "Export Shapes as STL…" opens dialogs/export_stl_dialog.ExportStlDialog
+│   │   ├── block_mesh_panel.py     # 3-D viewer for blockMeshDict (pyVista/VTK, lazy init); also overlays topoSetDict (topoSet ▾ menu), snappyHexMeshDict (snappyHexMesh ▾ menu), setFieldsDict regions (setFields ▾ menu), and sampling definitions (sample ▾ menu; union of controlDict functions {} plus standalone system/sample-style dicts, kept per source basename in _sampling_by_file) geometry, each with per-shape visibility toggles, Show all/Hide all actions, and a "Non-geometric sources (N)" submenu for entries with no drawable geometry; delegates actor setup to block_mesh_renderer.BlockMeshRenderer; STL ▾ menu holds the same per-file rows for loaded STL/OBJ surfaces (block_mesh_renderer.LoadedSurface, one palette colour each, with an Unload submenu) plus "Export Shapes as STL…", which opens dialogs/export_stl_dialog.ExportStlDialog
 │   │   ├── block_mesh_renderer.py  # BlockMeshRenderer: VTK render pipeline for blockMeshDict/topoSetDict/snappyHexMeshDict/setFieldsDict geometry via RenderSettings dataclass; _make_shape_mesh dispatches on geometry dict keys (box, boxes, centre+radius incl. list-radius ellipsoid and hollow innerRadius, p1+p2+radius, origin+i+j+k, stl_path, planePoint+planeNormal disc sized via plane_size; points returns None — drawn as markers instead) shared by all overlay sources; overlay shapes are clipped (display-only) to the block-mesh AABB expanded 10%/axis via _clip_to_bounds — labels gain "✂ clipped" / "⚠ outside block mesh" marks, an enclosing shape falls back to its AABB overlap box, and STL export stays unclipped; _render_boundary_faces also draws BlockMeshData.default_faces in fainter "empty" grey; only imported after the pyvista guard passes
 │   │   ├── boundary_view_panel.py
 │   │   ├── comparison_tree_panel.py  # read-only reference-case tree; emits use_value_requested(FoamNode)
@@ -135,6 +151,7 @@ foam-dictionary-editor/
 │   │   └── terminal_panel.py       # TerminalPanel wrapper: mode_changed signal, xterm/simple toggle logic
 │   └── widgets/
 │       ├── code_editor.py
+│       ├── _checkable_list.py          # checked_items()/set_all_check_states(): shared Select All/Deselect All + "N selected" helpers for the checkable-QListWidget pattern used by clean_backups_dialog.py and manage_extra_files_dialog.py
 │       ├── flow_layout.py              # FlowLayout(QLayout): wrapping toolbar layout — min width is the widest single item; used by the BlockMesh panel toolbar
 │       ├── installation_selector.py    # InstallationSelector(QWidget): combo + Browse… row over services/example_search.discover_installations() and the persisted openfoam_dir key; installations_available/error signals; shared by find_examples_dialog and generate_keywords_dialog
 │       ├── _foam_highlighter.py        # FoamHighlighter(QSyntaxHighlighter): OpenFOAM token colouring; loads app_config/foam_keywords.json (user-generated) or, when absent, app_config/foam_keywords.default.json (shipped baseline) in 1,000-keyword QRegularExpression chunks; the number rule (_NUMBER_RE) and all keyword rules are lookaround-guarded so digits glued to identifiers ("wall0") and keyword prefixes of dotted names ("y0" in "y0.1") are not partially coloured
@@ -142,17 +159,21 @@ foam-dictionary-editor/
 │       └── _xterm_widget.py            # PtyBackend, TerminalBridge, XtermTerminalWidget (Unix + QtWebEngine only); exports _XTERM_AVAILABLE
 └── tests/
     ├── conftest.py
-    ├── test_lint.py             # runs ruff + mypy as part of the pytest suite (scoped to foam/, model/, app_config/, schemas/, services/, ui/app_state.py)
+    ├── test_lint.py             # runs ruff + mypy (both whole-repo) as part of the pytest suite
     ├── test_version.py          # _version.get_version(): git-describe formatting (exact tag, ahead-of-tag, dirty, bare hash, no-git fallback)
     ├── foam/
+    │   ├── test_block_mesh_extractor.py
     │   ├── test_diff.py
+    │   ├── test_lexer.py
     │   ├── test_parser_block_mesh_dict.py
     │   ├── test_parser_control_dict.py
     │   ├── test_parser_fv_schemes.py
     │   ├── test_parser_fv_solution.py
+    │   ├── test_parser_block_list.py
     │   ├── test_parser_named_dict_list.py
     │   ├── test_parser_set_fields_dict.py
     │   ├── test_parser_topo_set_dict.py
+    │   ├── test_include_resolver.py
     │   ├── test_sampling_extractor.py
     │   ├── test_set_fields_extractor.py
     │   ├── test_snappy_hex_mesh_extractor.py
@@ -161,6 +182,7 @@ foam-dictionary-editor/
     │   ├── test_topo_set_shapes_tutorial.py
     │   ├── test_tree_utils.py
     │   ├── test_utils.py
+    │   ├── test_value_parse.py
     │   ├── test_var_resolver.py
     │   └── test_writer_roundtrip.py
     ├── model/
@@ -170,11 +192,13 @@ foam-dictionary-editor/
     │   └── test_tree_model.py
     ├── ui/
     │   ├── test_apply_comparison_value.py
+    │   ├── test_block_mesh_panel_load_stl.py
     │   ├── test_block_mesh_panel_sampling_select.py
     │   ├── test_block_mesh_panel_set_fields_select.py
     │   ├── test_block_mesh_panel_snappy_select.py
     │   ├── test_block_mesh_panel_topo_select.py
     │   ├── test_block_mesh_renderer_topo.py
+    │   ├── test_block_mesh_selected_block.py
     │   ├── test_bm_side_by_side_multi_dict.py
     │   ├── test_boundary_view_copy.py
     │   ├── test_case_switch_clears_block_mesh_panel.py
@@ -190,6 +214,7 @@ foam-dictionary-editor/
     │   ├── test_find_examples_dialog.py
     │   ├── test_flow_layout.py
     │   ├── test_foam_highlighter.py
+    │   ├── test_included_files.py
     │   ├── test_log_summary_dialog.py
     │   ├── test_main_window_save_refresh.py
     │   ├── test_main_window_split.py
@@ -199,6 +224,7 @@ foam-dictionary-editor/
     │   ├── test_stays_open_menu.py
     │   ├── test_terminal_panel.py
     │   ├── test_tools_ops_mesh_actions.py
+    │   ├── test_tree_block_crud.py
     │   ├── test_tree_color_lexer_dispatch.py
     │   ├── test_tree_copy_paste.py
     │   ├── test_tree_inline_edit_dirty.py
@@ -208,13 +234,14 @@ foam-dictionary-editor/
     │   ├── test_backup.py
     │   ├── test_case_copier.py
     │   ├── test_case_files_config.py
+    │   ├── test_include_scan.py
     │   ├── test_case_loader.py
     │   ├── test_example_search.py
-    │   ├── test_foam_env.py
     │   ├── test_log_summary.py
     │   └── test_tool_options.py
     ├── app_config/
     │   ├── test_app_config.py
+    │   ├── test_foam_env.py
     │   ├── test_json_io.py
     │   └── test_keyword_generator.py
     └── schemas/
@@ -238,38 +265,45 @@ Every English document has a Japanese counterpart (`*_ja.md`); any edit to one m
 One line per test file, grouped by directory. Keep this in sync when adding or removing a test file — it's the thing that drifted silently before.
 
 **`tests/foam/`**
+- `test_block_mesh_extractor.py` — `extract_block_mesh_data` output: boundary face extraction (including the regression where a `#include` among the patches cost `outlet` its name and faces), hex extraction from a `blocks` list holding an `#include` and from a list the lookahead rejects into `raw_list`, `default_faces` (fully-claimed boundary → empty, unassigned exterior faces collected, claim matching in any vertex rotation, shared inter-block faces excluded); `parse_vertices` public API (well-formed and non-triplet-tolerant); vertices/blocks extraction with inline comments and patch comments; variable resolution (`$varName`, `${varName}`, macros, negated-macro word nodes like `-$xMax`, `#eval{ expr }`, multi-level chains); compact `(blockIndex, faceIndex)` boundary face notation, including combined with negated-macro vertex variables.
 - `test_diff.py` — `diff_trees`/`diff_trees_reverse`: identical trees, changed values, keys only in one tree, nested dictionaries, anonymous node skipping, `field_value_block` entries, symmetry between the two functions.
-- `test_parser_block_mesh_dict.py` — `boundary_block`/`boundary_entry` structured parsing, round-trip writing, `extract_block_mesh_data` output; variable resolution (`$varName`, `${varName}`, macros, negated-macro word nodes like `-$xMax`, `#eval{ expr }`, multi-level chains); compact `(blockIndex, faceIndex)` boundary face notation, including combined with negated-macro vertex variables; `default_faces` extraction (fully-claimed boundary → empty, unassigned exterior faces collected, claim matching in any vertex rotation, shared inter-block faces excluded).
+- `test_lexer.py` — `foam.lexer.OpenFoamLexer`'s `//` handling: a double-slash inside a quoted string is not a comment, one after whitespace starts `LINE_COMMENT` without swallowing the preceding word, and a standalone `//` line is a comment from its first token. Also `${…}` braced macro references: the whole reference is one WORD (with a scope path, and with nested braces balanced), the tokens after it are unaffected, a plain `$macro` and a lone `{` are unchanged, an unterminated `${` runs to end of text instead of looping, and `#eval{…}` still splits into DIRECTIVE + LBRACE + body + RBRACE, which its own parsing depends on.
+- `test_parser_block_mesh_dict.py` — `boundary_block`/`boundary_entry` structured parsing (patch count/names/types/faces), round-trip writing; inline `//` and `/* */` comments between a patch name and its brace and inside `vertices` not corrupting node types; a `#include` standing among the patches becoming a `directive_entry` child instead of failing the whole block (no parse errors, patch names intact, byte-identical round-trip); `_read_parenthesized_text` skipping inline comments inside an embedded parenthesised value.
 - `test_parser_control_dict.py` — `controlDict` parsing: FoamFile header, int/scalar/word values, `#directives`, `functions` sub-dicts, and parser-failure fallback to an empty root.
-- `test_parser_fv_schemes.py` — `fvSchemes` parsing: compound values, `ddtSchemes`/`divSchemes`/`interpolationSchemes`/`snGradSchemes` blocks, presence of all top-level blocks, round-trip writing.
+- `test_parser_fv_schemes.py` — `fvSchemes` parsing: compound values, `ddtSchemes`/`divSchemes`/`interpolationSchemes`/`snGradSchemes` blocks, presence of all top-level blocks, round-trip writing, and a stray `;` closing a dictionary (`divSchemes { … };`) becoming its own node without being counted as a parse error.
 - `test_parser_fv_solution.py` — `fvSolution` parsing: macro and regex-pattern solver keys, the `PIMPLE` block, solver `tolerance`/`smoother` entries, round-trip writing.
+- `test_parser_block_list.py` — `blockMeshDict`'s `blocks ( … );` explosion: a pure `hex` list parses to `block_list`/`block_entry` with anonymous, one-line entries; the lookahead keeps an empty list, a plain macro word list, a directive-only list, and a non-`hex` leading shape (`hex2D`, `prism`) on the ordinary `raw_list` path; an `#include` *beside* hex blocks instead explodes with a `directive_entry` child — leading or in the middle of the list — and still round-trips byte-identically; variant forms parse as one entry each (zone name with `grading`, bare `$blockInfo` tail, 12-value `edgeGrading`, a block split over three lines, and blockMesh's `name <blockName> hex …` prefix — with a bare `name` word *not* splitting an entry); comment placement (inline vs. next entry's `leading_trivia`); unmodified round-trip is byte-identical and a modified entry leaves its siblings verbatim.
 - `test_parser_named_dict_list.py` — the optional named-dict-list syntax: `sets`/`surfaces` parenthesised lists of named dicts parse to `named_dict_list`/`named_dict_entry` (top-level and nested in a function-object dict), the lookahead keeps plain word/string lists (`sets (setA setB);`) and empty lists on the ordinary value path, unmodified round-trip is byte-identical, and a modified entry's siblings keep their names.
 - `test_parser_set_fields_dict.py` — `setFieldsDict` parsing: `defaultFieldValues`/`regions` field-value entries (including vector values), `box_pair` parsing, round-trip writing after an edit.
 - `test_parser_topo_set_dict.py` — `action_list`/`action_entry` structured parsing: node type, entry count, named child values, `box_pair` coordinates, source-less entries, round-trip writing, positional diff detection via `_diff_action_list`.
 - `test_snappy_hex_mesh_extractor.py` — `extract_snappy_hex_mesh_data`: `geometry` box/sphere (scalar and vector/ellipsoid radius)/cylinder/cone extraction; `name` override resolution (`geom.stl { name geom; }`); `triSurfaceMesh`/`distributedTriSurfaceMesh` file resolution against `constant/triSurface/` (explicit `file` child, implicit filename-as-key, missing file), including transparent `.gz` resolution (a plain-name entry resolving to a `.gz`-only file on disk, a `.gz`-suffixed entry key/file resolving directly, and a `.gz`-suffixed reference falling back to an uncompressed file on disk); `collection` (searchableSurfaceCollection) box members via `rotation none` and `e1`/`e3` axes (including a case that actually rotates), skipped for a non-box base or a missing/unsupported transform; `refinementSurfaces`/`refinementRegions` cross-referencing by exact name and by regex-pattern key (e.g. `"iglo.*"`); `locationInMesh` (singular) and `locationsInMesh` (plural) point extraction; `$var`/`#eval{}` resolution.
 - `test_source_lines.py` — `source_line`/`source_end_line` population for all node types.
 - `test_topo_set_extractor.py` — `extract_topo_set_data`: plain typed values for all three geometry types (box, sphere, cylinder), `$var` resolution in vectors and scalars, `#eval{...}` inside `raw_list`, chained var/eval resolution, unresolvable-variable skipping, all face/point source variants.
+- `test_include_resolver.py` — `parse_include_directive`/`resolve_include`: the five directive kinds, optional (`#sinclude`/`#includeIfPresent`) marking, trailing `;`/comment/quote stripping, `#includeFunc mag(U)` reducing to the base name, C++-header rejection by suffix and by whole-token angle bracket (with `<constant>/…` deliberately surviving), `<case>`/`<system>`/`<constant>`/`<etc>` and `$VAR` expansion, including-file-dir-before-case-dir ordering, `.gz` siblings, per-root `#includeEtc` search order, `#includeFunc` preferring `system/`, and each of the four statuses.
 - `test_sampling_extractor.py` — `extract_sampling_data`: probes in a `functions {}` block, dict-form `sets {}` line/cloud members and the parenthesised list form (in a functions {} block and at file root, sampleDict-style), `plane`/`cuttingPlane`/`patch` surface members, root-level `singleGraph`-style `start`/`end`, standalone `sample`/`probes` files, `$var` resolution, and non-sampling function objects being ignored.
 - `test_set_fields_extractor.py` — `extract_set_fields_data`: box/sphere/cylinder region extraction (entry name as source type), the `fieldValues` label summary (scalar and vector values), non-geometric source classification (`zoneToCell`), `$var` resolution, and the unresolvable-geometric-source case.
 - `test_topo_set_shapes_tutorial.py` — `extract_topo_set_data` against the bundled `tutorials/topoSetShapes` case: every geometry source is extracted and all shapes lie within the domain.
 - `test_tree_utils.py` — direct `tree_utils` resolver contracts (the extractor tests only exercise them indirectly): `find_child`/`find_child_any` alias precedence, `expand_evals`, `resolve_scalar` (scalar/int/macro/`${…}`/`#eval`), `resolve_vector` arity/numeric guards, `resolve_point_list`, the sphere/cylinder/cone resolvers with their opt-in flags, and `resolve_box_geometry` (min/max vs `box` pair vs multi-`boxes` precedence and flag gating).
 - `test_utils.py` — `is_large_non_foam_file`: small files never flagged regardless of header, large files with a `FoamFile` token in the first 512 bytes not flagged, large files without it flagged, missing files return `(False, 0)`, a header preceded by a comment is still detected.
+- `test_value_parse.py` — `parse_parenthesized_numbers`/`parse_text_for_node_type`/`set_node_value` directly (no Qt): int accept/reject and its promotion to scalar on a float-looking string, scalar accept/reject, vector/int_list/scalar_list/box_pair accept/reject, raw_list paren-stripping, bool case-insensitive accept/reject, word/string/macro/compound pass-through, an unsupported node_type rejected, and `set_node_value`'s field_value/directive_entry/unknown_raw_entry special cases plus its in-place mutation contract (rejected edits leave the node completely unchanged).
 - `test_var_resolver.py` — `build_var_map`, `substitute_vars`, `eval_foam_expr`: scalar/int seeding, macro chains, `#eval` expressions, negated-macro word nodes, unresolvable vars staying absent, `skip_keys` exclusion, dictionary node non-collection.
-- `test_writer_roundtrip.py` — `write_root`/`write_node` broadly: unmodified nodes reproduced via `raw_text`, modified word/int/scalar/vector nodes regenerated, directive/unknown-raw/macro entries preserved, nested dictionaries, excess-blank-line suppression, `field_value_block`/`region_block` round-tripping (including a field value edited inside a region), and the regression where regenerating one region entry dropped unmodified siblings' names (entry `raw_text` now starts at the name token).
+- `test_writer_roundtrip.py` — `write_root`/`write_node` broadly: unmodified nodes reproduced via `raw_text`, modified word/int/scalar/vector nodes regenerated, directive/unknown-raw/macro entries preserved, nested dictionaries, blank-line runs preserved verbatim, `field_value_block`/`region_block` round-tripping (including a field value edited inside a region), and the regression where regenerating one region entry dropped unmodified siblings' names (entry `raw_text` now starts at the name token). Also the byte-identical round-trip group over `_CORPUS_SHAPED_DICT`, a fixture shaped like a real tutorial `blockMeshDict`: the `// * * *` banner keeps its following blank line, multi-blank gaps between entries survive, the trailing `// ****` footer banner is re-emitted from `root.trailing_trivia`, a missing final newline is not invented, `x1 14; x2 6;` stays on one line, editing one entry changes only that entry's line, a node added without trivia still gets its own line, a stray `;` after a `}` stays on the brace's line rather than being broken onto its own (indented) one, and regenerating a nested node of any type reproduces its source indentation instead of doubling it (parametrized over dictionary/simple/directive/macro/region/action/field-value/deeply-nested), with a left-margin case pinning that the writer still supplies an indent when the trivia does not. A `macro_entry` group covers the two spellings that used to be parse failures: a braced `${../_bladeForces}` and a bare `$minX` with no `;` both become `macro_entry` nodes, a bare macro is not a parse error and does not swallow the trivia belonging to the entry after it, all five spellings round-trip byte-identical, `_macro_suffix` reproduces whichever terminator the source had when the node is regenerated (including alongside an inline comment), and a node the app builds with no `raw_text` still gets a `;`.
 
 **`tests/model/`**
 - `test_bool_nonuniform.py` — `bool`/`nonuniform_list` parsing and round-tripping, `FoamTreeModel` bool editing (case-insensitive, rejection signal), `nonuniform_list` display/non-editability, parser error collection for bad entries.
 - `test_boundary_model.py` — `extract_boundary()` and `BoundaryModel`: loading, field updates, per-directory boundary sets, `_is_in_dir` multi-level matching, model clearing.
 - `test_file_list_model.py` — `FileListModel`: loading, sorted groups, dirty-state and diff-state per item, extra-files handling, clearing.
-- `test_tree_model.py` — `set_diff(reverse=True)`: remaps `"only_here"` to `"only_in_ref"`, leaves `"changed"` unchanged, returns the light-green `BackgroundRole` colour, includes `"only in reference case"` in the tooltip. `FoamNode` carries `__hash__ = object.__hash__` so instances can be used as dict keys in the diff map.
+- `test_tree_model.py` — `set_diff(reverse=True)`: remaps `"only_here"` to `"only_in_ref"`, leaves `"changed"` unchanged, returns the light-green `BackgroundRole` colour, includes `"only in reference case"` in the tooltip. `FoamNode` carries `__hash__ = object.__hash__` so instances can be used as dict keys in the diff map. Block numbering: `block N` keys step over a `directive_entry` row so the first block below an `#include` still reads `block 0`, and the per-list cache behind that is dropped on an insert.
 
 **`tests/ui/`**
 - `test_apply_comparison_value.py` — `_apply_comparison_value` ("Use this value"): creating missing parent dictionaries when adopting a nested entry (e.g. `functions/forces1/rhoInf` into a case without `functions {}`), appending unnamed `#includeFunc` directives by content into an existing block without overwriting it, skipping an identical directive instead of duplicating it, the plain named-value overwrite path, and refusing when the enclosing key exists but is not a dictionary.
-- `test_block_mesh_panel_sampling_select.py` — the `sample ▾` per-shape visibility menu: population from a controlDict `functions {}` block (rows tagged with the source basename), individual/master toggling, greyed-out non-geometric entries, the multi-file union (controlDict + system/sample) with per-file replacement on reload, and `clear()` resetting `_sampling_by_file`.
+- `test_block_mesh_panel_load_stl.py` — the `STL ▾` menu's loaded surfaces: multi-file selection in one `getOpenFileNames` invocation, an unreadable file leaving the readable ones loaded (one warning naming the failures), a cancelled dialog as a no-op; then the per-file rows — one row and one palette colour per file (first is `lightgray`), individual hide vs. unload, per-row checked state surviving an unload or a re-load of the same path (which refreshes in place rather than duplicating), and a surface loaded with no `blockMeshDict` reaching the renderer (via a stub renderer) including the clearing render when the last one is unloaded.
+- `test_block_mesh_panel_sampling_select.py` — the `sample ▾` per-shape visibility menu: population from a controlDict `functions {}` block (rows tagged with the source basename), individual/master toggling, greyed-out non-geometric entries, the multi-file union (controlDict + system/sample) with per-file replacement on reload, two dicts sharing a basename in different directories staying separate (`_sampling_by_file` is keyed by full path, labelled by basename), and `clear()` resetting `_sampling_by_file`.
 - `test_block_mesh_panel_set_fields_select.py` — the `setFields ▾` per-shape visibility menu: population from the bundled damBreak tutorial's `setFieldsDict` (rows labelled with the `fieldValues` summary), individual/master toggling, greyed-out non-geometric sources, inclusion in STL export, and clearing on reload.
 - `test_block_mesh_panel_snappy_select.py` — the `snappyHexMesh ▾` per-shape visibility menu: population, individual/master toggling, the surface/region/geometry category-colour legend, greyed-out non-geometric sources, `locationInMesh`/`locationsInMesh` keep-point toggles.
 - `test_block_mesh_panel_topo_select.py` — the `topoSet ▾` per-shape visibility menu: population, individual/master toggling, Show all/Hide all, the action-colour legend, the "Non-geometric sources (N)" submenu of greyed-out entries, and the exclusion of point/plane shapes from STL export.
 - `test_block_mesh_renderer_topo.py` — `_make_shape_mesh` geometry generation for cones (true and frustum), hollow annuli, `rotatedBoxToCell`, sphere (scalar radius and vector-radius ellipsoid), and `stl_path` mesh loading (present and missing file, plus a gzip-compressed `.stl.gz` file via `read_surface_mesh`); `read_surface_mesh` plain-file passthrough; the overlay clip helpers (`_expanded_bounds` per-axis padding incl. degenerate 2-D axes; `_clip_to_bounds` fits-inside/clipped/outside/enclosing-stand-in cases).
+- `test_block_mesh_selected_block.py` — the tree → 3-D block highlight: no block highlighted initially, `set_selected_block` reaching `RenderSettings.selected_block`, clearing it, a new mesh dropping it; `_highlight_selected_block` forwarding a `block_entry` row index and clearing on any other row; and `_render_selected_block` drawing nothing for `None` or an out-of-range index (proved by passing a `None` plotter, which any `add_mesh` call would blow up on).
 - `test_bm_side_by_side_multi_dict.py` — the `⊞` side-by-side corner button (`_update_bm_side_by_side_btn`): enabled for `blockMeshDict`, `topoSetDict`, `snappyHexMeshDict`, and `controlDict` (sampling overlay); disabled for an unrelated dict (e.g. `fvSchemes`). Also asserts the tree/BlockMesh splitter panes are non-collapsible and the panel keeps its 150-px minimum width.
 - `test_flow_layout.py` — `FlowLayout` (ui/widgets/flow_layout.py): minimum width equals the widest single item, `heightForWidth` wrapping when narrowed, item order/positions after a wrap, and `takeAt` bookkeeping.
 - `test_boundary_view_copy.py` — `BoundaryViewPanel._table_data()` and Copy Table: Markdown and CSV export in both orientations.
@@ -284,6 +318,7 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 - `test_export_stl_dialog.py` — `ExportStlDialog`: row count and labelling for combined topoSet+snappyHexMesh shapes, default checked state mirrors the passed-in visibility sets, Select All/Deselect All, writing one `.stl` per checked shape (round-tripped via `pyvista.read()`), filename de-duplication on label collision, skipping (not raising on) degenerate geometry, and `_safe_filename` sanitization.
 - `test_file_list_panel.py` — the diff filter: `set_diff_filter_enabled` shows/hides and unchecks the checkbox; the filter hides zero-diff file items while always showing headers; `mark_diff` updates item visibility immediately when the filter is active.
 - `test_find_examples_dialog.py` — `FindExamplesDialog`: non-modal window modality, installation-combo population (with `discover_installations` monkeypatched to a fake install), grouped Tutorials/caseDicts results after a threaded search, preview + Compare/Duplicate-button enablement for tutorial hits vs. caseDicts hits, Copy-to-clipboard, `compare_requested`/`duplicate_requested` emitting the tutorial case root, the no-match/blank-query/no-source status messages, and the file-name filter.
+- `test_included_files.py` — `#include` support end to end in `MainWindow`, against a fake OpenFOAM `etc` tree on `tmp_path` (so it never depends on a real installation): out-of-case includes landing in the `<included>` group while in-case ones join their natural group, an already-listed target staying unmarked, the read-only contract (editor, `flags()`, `_mark_dirty`, `save_file`, `save_all_files`, backup, `apply_text_to_tree`, and the flag clearing on the next file), **Open Included File** for both in- and out-of-case targets plus the missing/optional/non-include cases, tooltip notes, and **Copy into case…** including its refusal of an existing name and of a `../` escape.
 - `test_foam_highlighter.py` — `FoamHighlighter`: comments, strings, `#directives`, `$macro` references, reserved keywords, numbers (including the lookaround guards keeping digits inside identifiers like `wall0`/`inlet-1` uncoloured), keyword rules sharing the same guards so dotted identifiers like `y0.1` (or `off.1`, shell `config.fi`) are not split, dictionary-key colouring sourced from the schema registry and the keyword JSON (user `foam_keywords.json` preferred, shipped `foam_keywords.default.json` fallback, empty set when both absent), the 1,000-keyword `QRegularExpression` chunking, the enable/disable toggle.
 - `test_log_summary_dialog.py` — `LogSummaryDialog`: non-modal window modality, defaulting to the most-recently-modified `log.*` file in the case directory and showing its summary, re-parsing when the file field changes, and the empty-case-directory fallback message.
 - `test_main_window_save_refresh.py` — first behavior-level `MainWindow` test (vs. `test_main_window_split.py`'s structural checks only): editing without saving leaves the `constant/polyMesh` mesh indicator unchanged; `save_file()`/`save_all_files()` both refresh the file list immediately so the staleness indicator updates without a full "Reload Case".
@@ -294,7 +329,8 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 - `test_stays_open_menu.py` — the toolbar dropdown menus (`Vertices ▾`, `Blocks ▾`, `Scale ▾`, `topoSet ▾`, `snappyHexMesh ▾`) staying open on checkable-item clicks while still closing for non-checkable actions.
 - `test_terminal_panel.py` — `SimpleTerminalWidget` and `TerminalPanel`: initial state, working-directory switching, cleanup, command history, the tab label, `run_command()` (including queuing before the shell is ready).
 - `test_tools_ops_mesh_actions.py` — the Tools-menu "Run *" actions and Run Allrun/Run Allclean/Clean Case: the exact command string sent to a fake terminal panel after accepting the (real, exec-patched) `RunToolDialog` for blockMesh/snappyHexMesh/topoSet/setFields/checkMesh, nothing sent on cancel, the rerun warning text passed to the dialog when time dirs exist, last-used options restored from `state.run_tool_options`, the setFields restore-0/ prefix checkbox (present + checked by default with `0.orig/`, absent without, uncheckable to "run anyway"); missing-script warnings for Allrun/Allclean; the three-way Allrun pre-flight when `log.*` files exist — clean-then-run, run-anyway, cancel; the Clean Case dialog mentioning Allclean delegation or `-auto` 0/ removal; and `_update_tools_actions()`'s enablement for all these actions plus View Log Summary (which needs a case but not a terminal).
-- `test_tree_color_lexer_dispatch.py` — `unknown_raw_entry` amber colouring, lexer `//` behaviour, the parser `_PAREN_DISPATCH` table.
+- `test_tree_block_crud.py` — Add/Duplicate/Delete on `block_entry` rows: `_new_sibling_for` producing a `block_entry` whose default value reparses as a real block (and a `word` entry for a dictionary parent), `_delete_label` naming a block by position, the written file after a block is deleted or added (siblings verbatim, list still closing on its own line, remaining blocks renumbered by position), and the end-to-end delete → editor text → Ctrl+Z round trip through a MainWindow.
+- `test_tree_color_lexer_dispatch.py` — `unknown_raw_entry` amber colouring, the parser `_PAREN_DISPATCH` table.
 - `test_tree_copy_paste.py` — tree Copy/Paste Value: round-tripping a copied value, pasting across differently-typed nodes, guards that reject unsupported node types.
 - `test_tree_undo_redo.py` — snapshot-based tree undo/redo: an inline edit undone restores the value, editor text, and clean dirty flag (and redo re-applies it); multi-step undo; a new edit clearing the redo branch; rejected edits' stray snapshots being skipped; delete/add-entry round-trips; one CRUD operation producing exactly one snapshot (no signal double-checkpoint); a multi-file snapshot restoring every file; stacks cleared on case reload; and the depth cap.
 - `test_tree_inline_edit_dirty.py` — inline Tree-panel cell edits marking the file dirty and regenerating the editor text; confirms a rejected edit leaves the file clean.
@@ -303,15 +339,16 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 **`tests/services/`**
 - `test_backup.py` — backup-file naming (`.bak_<timestamp>`) and content (captures the in-memory buffer when the file is open, the on-disk version otherwise).
 - `test_case_copier.py` — `copy_visible_files`: visible files copied with layout preserved, hidden entries (root `log.*`, time dirs, unlisted files) skipped, registered extra files and `.foam-editor-files.json` itself carried over, no-config tolerance, nested destination creation.
+- `test_include_scan.py` — `scan_includes`/`included_files`/`copy_destination_for`/`foam_etc_dirs`: hits carrying the raw directive text that the parser also stores (the tooltip lookup key), `#codeStream` C++ headers skipped, non-transitivity, the size/log/script guards, the mtime memo re-reading nothing on an unchanged file and re-reading on change, in-case vs out-of-case splitting, symlink-aware dedupe against already-listed files, the `+N more` origin label, `.gz` targets excluded, and the etc-root chain preferring the user override and degrading to `()`.
 - `test_case_files_config.py` — `TestCaseFilesConfigDirs`: `DirEntry` add/remove/update-in-place, backward-compatible loading of plain-string JSON, config reset.
 - `test_case_loader.py` — `detect_time_dirs` and `TestExtraDirs`: flat and recursive extra-directory scanning, missing-directory tolerance, duplicate suppression.
 - `test_example_search.py` — `example_search`: `installation_from_dir` on an install root / bare tutorials dir / non-install dir; `discover_installations` env-mapping injection, `extra_roots` precedence, and de-duplication; `case_root_for` ancestor walking with the `stop` boundary; `search_examples` hits in both sources (source/case_root/line_numbers/snippet fields), case-insensitivity, `file_name` and `sources` filters, `max_hits` cap, `cancelled` early exit, binary/oversized-file skipping, the 50-line-number cap, blank-query `ValueError`, and the `progress` callback.
-- `test_foam_env.py` — `foam_env_dirs`: explicit `FOAM_*` variables winning over `WM_PROJECT_DIR` fallbacks, per-subdirectory fallback only when the dir exists, invalid/blank variables treated as unset, version resolution.
 - `test_log_summary.py` — `parse_log`/`format_summary`: `blockMesh` Mesh Information/Patches extraction and fatal-error detection; `snappyHexMesh` phase splitting on `Wrote mesh in` markers, per-category refinement iteration counts, the final per-patch layer table, and warning de-duplication with a repeat count; `topoSet` multi-source set collapsing (a `Read set` checkpoint continuing the same set rather than starting a new one); solver logs — steady converged (Run/Residuals phases, converged line, total time), transient with per-name Courant lines and the ESI `Time = 0.005s` unit suffix, fatal-error and no-`End` runs marked FAILED, and a `checkMesh`-style log with `Time =` lines but no residuals staying on the generic path; the generic tail fallback for an unrecognized utility.
 - `test_tool_options.py` — `tool_options`: the expected `TOOL_SPECS` set and default commands (snappyHexMesh's default-on `-overwrite`), `build_args` bool/value/file handling in spec order, empty-value omission, shlex splitting of the extra text (unbalanced quote → `ValueError`), stale unknown flags ignored, and `build_command`'s quoting, raw prefix, and `tee log.<tool>` suffix.
 
 **`tests/app_config/`**
 - `test_app_config.py` — `AppConfigManager`: window size, default case dir, Case Library dirs (incl. the `$WM_PROJECT_DIR/tutorials` fallback), `save()`/`reset()` semantics, fallbacks when `app_config.json` is absent, combined settings, JSON structure, feature-flag handling (`set_feature`/`set_features`).
+- `test_foam_env.py` — `foam_env_dirs`: explicit `FOAM_*` variables winning over `WM_PROJECT_DIR` fallbacks, per-subdirectory fallback only when the dir exists, invalid/blank variables treated as unset, version resolution.
 - `test_json_io.py` — `load_json` missing/corrupt/valid handling; `save_json` round-trips and parent creation; `atomic_write_text` leaves no `.tmp` sibling on success and keeps the original file intact (temp cleaned up) when the final rename or serialization fails.
 - `test_keyword_generator.py` — `keyword_generator`: `scan_src_lookup_keywords()` collecting dictionary-read calls (`lookup`/`get<…>`/`readEntry`/`found`/…) from `*.C`/`*.H` with non-keyword forms rejected; `generate(project_dir=…)` over a fixture install tree — environment ignored, `version` from the dir name, provenance metadata in the payload, `RuntimeError` when nothing is collected.
 
@@ -350,13 +387,15 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 | `region_block` | `regions ( … );` |
 | `region_entry` | named `{ … }` entry inside a `region_block` |
 | `boundary_block` | `boundary ( … );` in `blockMeshDict` |
-| `boundary_entry` | named `{ … }` entry inside a `boundary_block` |
+| `boundary_entry` | named `{ … }` entry inside a `boundary_block`. A `boundary_block` may also hold `directive_entry` children: a `#include` standing in for patches (`boundary ( #include "…caseBoundary" outlet { … } );`) is parsed as its own child rather than failing the block, so the patches around it keep their structured parse |
 | `action_list` | `actions ( … );` in `topoSetDict`; `value=None`, children are `action_entry` nodes |
 | `named_dict_list` | optional parenthesised list of named dicts — `sets ( y0.1 { … } … );` / `surfaces ( … );` (classic sampleDict style); produced only when a lookahead sees `name {` after the `(`, so plain word lists (`sets (setA setB);`) keep parsing as `raw_list` |
 | `named_dict_entry` | named `{ … }` entry inside a `named_dict_list` |
 | `action_entry` | anonymous `{ … }` block inside an `action_list`; `name=""`, children are the dict entries |
+| `block_list` | `blocks ( … );` in `blockMeshDict`; `value=None`, children are `block_entry` nodes. Produced only when a lookahead sees a list whose entries all start with a word in `BLOCK_SHAPE_WORDS` (currently just `hex`, optionally behind a `name <blockName>` prefix); anything else — an empty list, a plain word list, a non-`hex` shape — keeps parsing as `raw_list`. May also hold `directive_entry` children: an `#include` contributing blocks from another file is kept as its own child so the blocks around it still get rows (a list of nothing but directives has no blocks to explode and stays `raw_list`) |
+| `block_entry` | one block inside a `block_list`; `name=""`, `value` is the whole normalised block text (`hex (…) (…) simpleGrading (…)`). Cell counts and grading stay in the value string rather than becoming children — nothing consumes them yet and the grading grammar varies too much to model. Row order matches the 3-D viewer's block index, which is why only `hex` explodes; where a `directive_entry` shares the list, `foam/utils.py`'s `block_number` subtracts it so both sides still agree (see "Block numbering with an `#include`" below) |
 | `directive_entry` | `#include`, `#inputMode`, etc.; `name=""` |
-| `macro_entry` | standalone `$macro;`; `name=""` |
+| `macro_entry` | a macro reference standing alone as a statement; `name=""`, `value` is the reference without its terminator. Four spellings, all one node type: `$p;`, a bare `$p` (OpenFOAM accepts a macro as a complete statement inside a dictionary, as in `maxX { $minX }`), and either of those braced with an optional scope path (`${../_bladeForces}`). The trailing `;` is optional at parse time and is *not* stored in `value`, so the writer reads it back off `raw_text` (`_macro_suffix`) rather than always appending one — otherwise editing a bare `$p` would silently add a `;` the file never had |
 | `unknown_raw_entry` | fallback when a parse attempt fails; raw text stored verbatim in `value` |
 
 ### Classification logic
@@ -369,6 +408,20 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 4. **`macro`** — starts with `$`.
 5. **Space-containing** — `nonuniform_list` if it begins `nonuniform List…`, otherwise `compound`.
 6. Single token: `int` → `scalar` → `bool` (token in `BOOL_WORDS`) → `word` (fallback).
+
+Before `_classify_value` runs, `_try_parse_special_parenthesized_entry` gets first refusal on
+any `key ( … );` entry. It consults four tables in order, each with its own entry shape:
+
+| Table | Entry shape | Lookahead? |
+|---|---|---|
+| `_NAMED_BLOCK_PARAMS` | `name { … }` | no — the key alone decides |
+| `_ANONYMOUS_BLOCK_PARAMS` | `{ … }` | no |
+| `_OPTIONAL_NAMED_BLOCK_PARAMS` | `name { … }` | yes — `_looks_like_named_dict_list` |
+| `_POSITIONAL_BLOCK_PARAMS` | `hex ( … ) ( … ) simpleGrading ( … )` | yes — `_looks_like_block_list` |
+
+The two lookaheads are non-consuming (they restore `self.index` in a `finally`), so a rejected
+entry falls through to the ordinary value path having consumed nothing — which is what lets
+`sets`/`blocks` be a structured block in one file and a plain `raw_list` in another.
 
 ### Re-parse triggers
 
@@ -391,13 +444,14 @@ When `_parse_entry` raises a `ParseError`, the parser backtracks to `start_index
 |---|---|---|
 | `modified` | `bool` | Set to `True` by `FoamTreeModel.setData` when a key or value changes. Drives the writer's regeneration decision. |
 | `raw_text` | `str` | The original source text for the node, captured by `_finalize_node` and `_parse_dictionary_entry`. Used verbatim by the writer for unmodified nodes. |
-| `leading_trivia` | `list[str]` | Whitespace and comments that appear before the node in the source. Restored by `_with_leading_trivia` in the writer to preserve blank lines between entries. |
+| `leading_trivia` | `list[str]` | Whitespace and comments that appear before the node in the source, including the newline that ended the *previous* entry's line. Restored by `_with_leading_trivia` in the writer to preserve blank lines between entries. See "Trivia ownership" below. |
+| `trailing_trivia` | `list[str]` | Root node only: the trivia after the last entry, i.e. the closing `// ****` footer banner and the blank lines before it. Re-emitted by `write_root`. |
 | `inline_comment` | `str` | The `// …` or `/* … */` comment immediately following the value on the same line. Collected by `_collect_inline_comment` and reproduced by the writer. |
 | `source_line` / `source_end_line` | `int` | 1-based line numbers in the original source, set by `_token_line`. Used for editor-sync highlighting. `0` means the node was added in the tree and has no source location. |
 
 ### Writer raw_text passthrough
 
-`_write_node` (`foam/writer.py:29`) skips regeneration entirely when three conditions hold:
+`_write_node` (`foam/writer.py:61`) skips regeneration entirely when three conditions hold:
 
 ```python
 if not node.modified and node.raw_text and not _has_modified_descendant(node):
@@ -407,6 +461,37 @@ if not node.modified and node.raw_text and not _has_modified_descendant(node):
 When all three are true the original source text is emitted verbatim, preserving formatting, inline comments, and exact whitespace. Only nodes where `modified=True` (or containing a modified descendant) are regenerated. A "Reload from Tree" on an unedited file therefore produces byte-identical output for every entry captured with `raw_text`.
 
 `_has_modified_descendant` recurses through `node.children` for most types. For `field_value_block` it also checks `node.value` directly (see below).
+
+### Trivia ownership
+
+The passthrough above only reproduces the source verbatim because parser and writer agree on who owns the whitespace *between* entries:
+
+> **A node's text ends at its last content character.** The newline that terminates that line is not part of the node — it belongs to whatever comes next: the following sibling's `leading_trivia`, or the enclosing block's closing brace.
+
+So `raw_text` for `scale 0.001;` ends at the `;`, and the `\n\n` separating it from the next entry is that next entry's `leading_trivia`. The consequence is that `"".join(node.leading_trivia) + node.raw_text`, concatenated over `root.children`, reconstructs the source byte for byte.
+
+Two pieces follow from this:
+
+- **`root.trailing_trivia`** (`foam/nodes.py`) holds the trivia left after the last entry — for a normal OpenFOAM dictionary, the blank lines and the closing `// ****` footer banner. It attaches to no node, so `parse()` parks it on the root and `write_root` re-emits it last. It is the only place this field is used; every other node's trailing whitespace is the next node's `leading_trivia`.
+- **`_join`** (`foam/writer.py`) concatenates rendered parts and inserts a line break only for parts that cannot space themselves — nodes added in the tree, and the writer's own synthetic braces and headers. It must not decide this by inspecting the string: the separator between two entries can legitimately be a single space (`x1 14; x2 6;`), which is indistinguishable from generated indentation. Hence `_part` passes the flag explicitly.
+
+  A node with no `leading_trivia` is *not* automatically one that needs a break. It can equally be a parsed node that abutted its predecessor with nothing between them at all — the stray `;` some dictionaries close with (`divSchemes { … };`) is its own entry and has to stay on the `}` line. `_continues_previous_line` tells the two apart by `source_line`, which only a parsed node has, and `_write_inline_entry` consults it again to suppress the indent it would otherwise prepend (`}    ;`).
+
+- **`_own_indent`** (`foam/writer.py`) decides the indentation of a node's *own first line*, and is the counterpart to the rule above. `_with_leading_trivia` already re-emits the source's indentation verbatim, so a renderer that also prepends `_indent(indent)` indents the line twice — which is exactly what regenerating a nested entry used to do: editing `nCorrectors` inside `PIMPLE { … }` moved it from four spaces to eight. Every helper that starts a line goes through `_own_indent` now (`_write_block`'s name/opener, `_write_field_value_block`, `_write_simple_entry`, `_write_inline_entry`, `_write_block_entry`); the openers and closers the writer generates *below* that first line keep the plain `_indent(indent)`, because they have no trivia of their own.
+
+  The rule is: no indent when the trivia already ends in a space or tab, or when the node continues the previous line; otherwise the generated indent — which is what a node added in the tree needs, and what an entry the source wrote at column 0 gets.
+
+`write_root` appends nothing of its own — a source file that ends without a final newline round-trips without one. **The writer has no "tidy the file on save" policy, and must not acquire one:** saving an unedited tutorial case has to leave the file byte-identical, and saving an edited one has to rewrite only the edited entries.
+
+Until this was fixed, it did neither. `write_root` force-appended `\n` to every chunk, double-counting the newline the next node's trivia already carried; two `re.sub` band-aids (`MAX_CONSECUTIVE_NEWLINES` and `re.sub(r'\n{2,}$', '\n', leading)`) papered over the doubling but were lossy — they collapsed real blank-line runs, shifted the blank line around the `// * * *` banner, and, together with `parse()` discarding the EOF trivia, dropped the footer banner outright. Every one of the 439 parseable `system/blockMeshDict` files in the OpenFOAM v2512 tutorials was rewritten on save. `tests/foam/test_writer_roundtrip.py`'s `_CORPUS_SHAPED_DICT` pins the shape the older fixtures lacked (banner, multi-blank gaps, footer), which is why the tests passed throughout.
+
+`tools/roundtrip_corpus.py` measures this over a whole OpenFOAM installation, so the figure in the release notes can be re-derived rather than taken on trust:
+
+```bash
+python3 tools/roundtrip_corpus.py --dir /usr/lib/openfoam/openfoam2512
+```
+
+It walks every file under a tutorial case's `system/`, `constant/`, `0/` and `0.orig/` and reports how many parse and how many write back identical; `--list-differing` names the ones that do not. On v2512 it reads 9620 files, parses all 9620, and round-trips all 9620. Before the trivia-ownership fix the same corpus round-tripped 286; the parseable count was 9501 until the macro-entry fix (braced `${…}` references and the optional `;`) closed the last 119.
 
 ### `field_value_block` children in `value`
 
@@ -548,6 +633,53 @@ The `FIELD_DIRS` scan (`0/`, `0.orig/`) collects direct files first and then des
 
 `manage_extra_files_dialog.py` exposes a **Toggle Recursive** button that flips the recursive flag on all selected directory items. The raw path is stored in `Qt.UserRole` on each item; the display text appends `[recursive]` when the flag is set. The `result_dirs` property returns the full `list[DirEntry]` final state, which `_file_mgmt_ops.py` uses to compute the status-bar summary (added, removed, toggled counts).
 
+## Include resolution
+
+A dictionary can pull in another file with an `#include`-family directive, and roughly half of those in the OpenFOAM tutorials point *outside* the case, into the installation's `etc/caseDicts/`. `foam/parser.py` still stores every directive as an opaque `directive_entry` (`name=""`, `value` = the raw source line) — the included content is never inlined into the including file's tree. Instead the target is resolved to a real file and listed as a **separate file**, the same way a symlinked file is.
+
+**Two layers.** `foam/include_resolver.py` is pure text→path logic, Qt-free and stdlib-only; it takes `etc_dirs` as a *parameter* so `foam/` keeps its no-dependency rule. `services/include_scan.py` is the disk half: it supplies the `etc` search path, runs the resolver over a case, and caches.
+
+`parse_include_directive(text) -> IncludeRef | None` strips a trailing comment, `;`, whitespace and one layer of quotes, then rejects anything that is not a followable include. `resolve_include(ref, source_file=…, case_dir=…, etc_dirs=…) -> ResolvedInclude` always returns a value; `path is None` means unresolved and `status` says why:
+
+| status | meaning |
+|---|---|
+| `resolved` | `path` is the on-disk file |
+| `missing_optional` | `#sinclude`/`#includeIfPresent` target absent — legal OpenFOAM, never a warning, never listed |
+| `no_installation` | an `etc`-based kind with no `etc_dirs` at all, so the UI can point at the installation picker instead of claiming the file is missing |
+| `missing` | everything else |
+
+**Resolution order** — first existing candidate wins, each passed through `foam/utils.py`'s `resolve_optionally_gzipped`:
+
+| kind | candidates, in order |
+|---|---|
+| `include` / `sinclude` / `includeIfPresent` | leading-token expansion → `<including file's dir>/target` → `<case>/target` |
+| `includeEtc` | `<root>/target` for each etc root |
+| `includeFunc` | `<case>/system/<name>` → a recursive name→path index of `<root>/caseDicts/postProcessing` per etc root |
+
+"Including file's directory first, then the case" is one rule covering every real form: `0/U` + `"include/initialConditions"` finds `0/include/…`, and `system/snappyHexMeshDict` + `"meshQualityDict"` finds `system/meshQualityDict`. Case-local `system/<name>` winning for `includeFunc` is what makes **Copy into case…** an override that needs no edit to the directive.
+
+Before that, `os.path.expandvars` runs (`$FOAM_CASE`, `${WM_PROJECT_DIR}`; an unset variable stays literal and simply misses — running without a sourced environment is not an error), then a *leading* path token is expanded, matching OpenFOAM's `fileName::expand`: `<case>`, `<system>`, `<constant>`, and `<etc>` (which yields one candidate per etc root).
+
+**The etc search path** comes from `include_scan.foam_etc_dirs()`, cached and deduped, keeping only directories that exist: `~/.OpenFOAM/<version>/` (OpenFOAM's own first location) → the user's `openfoam_dir` config key + `/etc` (set by the shared `InstallationSelector`) → `foam_env_dirs().etc_dir` → each `discover_installations()` root + `/etc`. With no installation at all it returns `()` and the two etc-based kinds report `no_installation`. Note it cannot know which OpenFOAM *version* a case targets, so a case from an older release resolves against the newest installed `etc` unless the user picks one explicitly.
+
+**Why a regex line scan, not a parse.** `scan_includes` runs on every file-list refresh, and refresh is driven by a 400 ms-debounced `QFileSystemWatcher`, so it never walks directories (it only reads the paths `list_case_files` already returned), rejects most files with a substring test (`"#include"`/`"#sinclude"`) before any regex, skips files over 512 KB plus scripts and `log.*`, and memoises per file on `(mtime, size)`. `_dedupe_key`'s `Path.resolve()` is memoised too — it walks every path component for symlinks and dominated the refresh cost before that (a 54-file case measured 4.4 ms warm, 1.5 ms after). Resolution is deduped within a scan, since a reference like `setConstraintTypes` recurs in every field file.
+
+**C++ header rejection.** A `#codeStream` body contains real `#include` lines for C++ sources, which must never reach the file list. Two rules, applied at both entry points: a whole-token angle bracket (`^<.*>$`, which `<constant>/caseSettings` escapes because it does not *end* in `>`), and a suffix in `.H/.h/.C/.cc/.cpp/.hpp/.hxx`. Measured against the v2512 tutorials this is exactly effective: every false positive there (`createTime.H`, `argList.H`, `fvCFD.H`, `setRootCase.H`, …) ends in `.H`, and no dictionary include does. It remains a heuristic rather than a proof — see "Update candidates".
+
+Across the whole v2512 tutorial corpus, 1072 of 1081 directives resolve; the nine that do not are files `Allrun` generates (`blockMeshDict.caseBlocks`, `constant/ignitionPoint`) or ones under a `0/` that only exists after `0.orig/` is copied — correctly reported missing in a pristine case.
+
+**Resolution is one level deep and not transitive**: an included file is not itself scanned.
+
+**Listing.** `services/case_loader.list_case_files` is deliberately untouched — it is the case allow-list, and `services/case_copier.copy_visible_files` relies on it (duplicating a case must not copy `/usr/lib/openfoam/…` into it), as does the Add-files dialog's `loaded_set`. Includes are appended after it by `_case_file_paths` (`ui/mixins/_file_ops.py`), which both `_load_case_dir` and `_reload_file_list` call. A target already in the list keeps its normal appearance: only rows the scan *added* get `_INCLUDED_ROLE` and the `↳` marker. Dedupe is on the resolved real path (so a symlink alias matches), while the *displayed* path stays the include's own spelling. A `.gz` resolution is reported `resolved` but excluded from the list, because `foam/utils.py`'s `read_foam_file` cannot decompress it.
+
+`model/file_list_model.py`'s `_group_name` needed one change: its `except ValueError` branch (a path not under the case dir) now returns the new `INCLUDED_GROUP` sentinel (`"<included>"`, ordered 2000 so it sorts below even `ROOT_GROUP`). An include *inside* the case succeeds at `relative_to` and lands in its natural `constant`/`system`/`0/heater` group for free — that is the whole of the grouping rule. The old `p.parent.name` fallback is kept for the `case_dir is None` path.
+
+**Read-only contract.** An out-of-case include is shown but never written to: editing one would change a file shared by every case. One predicate, `_is_read_only(path)` (`ui/mixins/_model_ops.py`), reads `state.read_only_files`, which `_case_file_paths` rebuilds on every list load. It gates nine places: `_mark_dirty`/`_mark_path_dirty` (**the real lock** — with dirty never set, the `*` marker, Save All and the unsaved-changes prompts are all dead by construction), `save_file`, `save_all_files`, `EditorPanel.set_read_only`, `FoamTreeModel.flags` (withholding `ItemIsEditable` disables inline edit *and* Paste Value), `DetailPanel._populate_normal`, the tree context menu's mutating entries, `apply_text_to_tree`, and `_create_backup`/`_on_delete_file_requested`/`_on_duplicate_file_requested` (each writes to the file or beside it). `ui/mixins/_diff_ops.py` needs no change — `_recompute_diff` and `_precompute_diff_step` already wrap `relative_to(case_path)` in `try/except ValueError`, so out-of-case files are skipped for free; that pre-existing guard is now load-bearing.
+
+**Copy into case…** (`_on_copy_into_case_requested`, `ui/mixins/_file_mgmt_ops.py`) is the escape hatch, offered only on a read-only row. `include_scan.copy_destination_for` picks the destination: `includeFunc`/`includeEtc` flatten to `system/<name>`; a plain `#include` with a relative target keeps that relative path, so it re-resolves to the copy with no edit at all. The containment check normalises the path first — `Path.relative_to` is purely lexical, so `<case>/../escaped` would otherwise pass it. Afterwards it calls `_reload_file_list()`, **not** `_load_case_dir`, which would discard every unsaved buffer.
+
+**Tree affordance.** A `directive_entry` row offers **Open Included File** in its context menu and responds to double-click on the Key/Type columns (the Value column keeps starting an inline edit, since a directive *is* value-editable). Both route to `_open_included_target`. Resolution notes reach the tooltip and the Detail panel's note line via `FoamTreeModel.set_include_notes`, populated after `_load_tree` from the already-cached scan — the model never touches the disk to paint a tooltip. Notes are keyed on the directive's exact source text, which is why `IncludeHit` carries the raw matched line rather than reconstructing it.
+
 ## Case-root scripts
 
 `list_case_files` also globs `ROOT_SCRIPT_GLOB` (`All*`) at the case root, so `Allrun`, `Allrun.pre`, `Allclean`, etc. are auto-listed — these are the scripts the Tools menu executes, and listing them also makes `copy_visible_files` carry them into duplicated cases (`shutil.copy2` preserves the exec bit). Other root files (logs, `*.foam`, results) remain hidden. `model/file_list_model.py` groups root files under the `ROOT_GROUP` (`"."`) key, sorted last; `file_list_panel.py` displays that header as "case root" (via `group_display_name`, also used in header context-menu and Add-files-dialog labels) and never adds a `[+]` marker to it (unlisted logs almost always exist at the root, so the marker would be permanently on). The header offers the same New file / Add files context-menu actions as other groups — both handlers work with `"."` because pathlib normalizes it — and `list_directory_files` filters dotfiles, so the Add dialog never offers `.foam-editor-files.json`.
@@ -613,6 +745,39 @@ paste_sc.setContext(Qt.WidgetShortcut)
 
 The same two actions appear in the context menu (**Copy Value** / **Paste Value**). Paste is disabled in the menu and silently rejected when the selected node type does not support value editing.
 
+## Block selection and CRUD
+
+`blocks ( … )` in a `blockMeshDict` reaches the tree as a `block_list` of anonymous `block_entry` rows. Two things follow from those rows being *positional*, and both are load-bearing:
+
+- The row's `block N` key is synthesised from `index.row()` (`model/tree_model.py`'s `_display_key`), not stored. Insert or delete a row and every key after it renumbers itself.
+- That same number is what `BlockMeshRenderer._render_blocks` draws at each block's centroid, because both come from the parsed order of `data.hex_blocks`. **A tree row index is a viewer block index**, with no lookup in between.
+
+### Block numbering with an `#include`
+
+The one thing that breaks "row index *is* block index" is a `block_list` that also holds a `directive_entry` — `boundary`-style, an `#include` pulling in blocks defined in another file:
+
+```
+blocks
+(
+    #include "blockMeshDict.caseBlocks"
+    hex ( 48  52  53  49  64  68  69  65) ($yc $zc $x4) simpleGrading (1 1 1)
+    …
+);
+```
+
+The directive takes a row without being a block, while `block_mesh_extractor` counts `hex` entries only — so the raw row would label the first real block `block 1` where the viewer draws a `0`. `foam/utils.py`'s `block_number(parent, row, skipped=None)` is the single correction, used by all three consumers: the model's key column and tooltip (via `_block_number`, which memoises `non_block_rows` per list and clears the cache in `insert_node`/`remove_node`, keeping the common directive-free case O(1) rather than reintroducing the O(N²) sweep the key column has to avoid), `_delete_label`, and `_highlight_selected_block`.
+
+Both sides are then numbering the blocks written *in this file* only. What the `#include` pulls in is invisible to FoDE — in `compressible/rhoPimpleFoam/laminar/helmholtzResonance`, the only tutorial written this way, `blockMeshDict.caseBlocks` is a symlink `Allrun` creates at run time, pointing at either `blockMeshDict.resolvedBlocks` (23 blocks) or `blockMeshDict.modelledBlocks` (0), and it does not exist in a pristine case. So these indices can differ from blockMesh's own once it resolves the include; what they cannot do is differ from each other, which is the invariant the tree/viewer pairing rests on.
+
+**CRUD.** Add Entry After, Duplicate and Delete are enabled on `block_entry` rows even though their parent is not a `dictionary` (`ui/mixins/_tree_crud_ops.py`'s `parent_is_block_list`). Two details are specific to blocks:
+
+- `_new_sibling_for` supplies a real `hex ( … ) ( … ) simpleGrading ( … )` rather than the `newKey / newValue` placeholder used everywhere else — a placeholder would not reparse as a block, so the row would disappear on the next Apply Text to Tree.
+- `_delete_label` names the node by position for the confirmation dialog, since `node.name` is `""`.
+
+**Comment Out stays disabled.** A `// hex …` line inside the parentheses is valid OpenFOAM but reparses as *trivia*, so the row would vanish rather than become a commented-out row the user can restore.
+
+**Highlight.** `on_tree_selection` (`ui/mixins/_tree_sync_ops.py`) forwards the selected row to `BlockMeshPanel.set_selected_block`, which stores it and re-renders; `RenderSettings.selected_block` carries it to `BlockMeshRenderer._render_selected_block`. The highlight is its own actor (a thick wireframe plus a translucent surface in `viewport_selected_block`) rather than a scalar on the shared block grid, because the blocks are drawn as a single `UnstructuredGrid` and the highlight has to show even when both **Block edges** and **Solid blocks** are off. Selecting any other row clears it, and loading another mesh drops it — the index would otherwise point into a different file's blocks. The renderer bounds-checks regardless, since the panel can be holding a different file's mesh than the tree is showing.
+
 ## Tree undo/redo
 
 `ui/mixins/_undo_ops.py` implements snapshot-based undo/redo for tree edits. Every tree mutation already ends in a full `write_root()` re-serialization, so the pre-mutation state is checkpointed as serialized *text* — one `UndoSnapshot` (`ui/app_state.py`) holding `{path: text}` and the dirty flags of every file the operation touches. Undo re-parses the snapshot and reloads the tree through the existing `_load_tree()` full-rebuild path; tree expansion/selection state is not preserved. The history is a **single global timeline** (`UndoState.undo_stack` / `redo_stack`), not per file: Ctrl+Z reverses the most recent tree operation regardless of which file is on screen — `_restore_undo_snapshot` switches the view to an affected file when the current one is not in the snapshot — and *any* new edit clears the redo branch. A boundary operation that spans several field files stores them all in one snapshot, so a single undo restores every file it touched. The stack is bounded by both a count cap (`_UNDO_DEPTH` = 50) and a total-bytes cap (`_UNDO_MAX_BYTES`), and cleared on a case change.
@@ -669,6 +834,43 @@ Any other caller that modifies config (e.g. updating the default case dir on ope
 
 `app_config.json` is written to the project root (the directory containing `main.py`). It is git-ignored. If the file does not exist, `_load()` returns without error and all properties return their defaults.
 
+## Theming and colours
+
+`ui/theme.py` is the single source of every colour the UI draws, and the only module that touches `QPalette`. It is applied once in `main.py` before `MainWindow` is constructed:
+
+```python
+apply_theme(app, get_app_config().get_theme())   # "system" | "light" | "dark"
+```
+
+**Modes.** `system` keeps the platform style and the desktop palette (so a Windows accent colour or a Linux desktop theme still shows through) and only normalises the selection pair. `light`/`dark` call `app.setStyle("Fusion")` and install FoDE's own palette, so the result does not depend on the platform style. The mode is persisted as the `theme` key in `app_config.json` (`AppConfigManager.get_theme`/`set_theme`, same no-auto-save contract as the other setters) and, like the language setting, takes effect on restart — panel stylesheets are baked in at widget construction, so a live switch would leave the window half-themed.
+
+**Why the selection pair is recomputed.** Qt reads `QPalette.Highlight` and `QPalette.HighlightedText` from the desktop independently and never checks them against each other. On Windows the fill follows the user's accent colour while the text does not, giving dark text on a saturated fill.
+
+Note that the naive repair — pick whichever of black/white has the higher WCAG contrast — *reproduces* the bug: the default Windows 11 accent `#0078d4` scores 4.64:1 against black and only 4.53:1 against white, so black wins on the numbers. Around mid luminance the numeric winner flips on noise. `readable_selection_pair` therefore encodes the desktop convention instead:
+
+1. white text whenever it clears `_MIN_CONTRAST` (4.5:1) on the fill;
+2. black text on a fill whose relative luminance exceeds `_LIGHT_FILL_LUMINANCE` (0.45) — a yellow or pastel accent, where dark text is the natural read;
+3. otherwise keep white text and darken the fill in HSV value steps, preserving hue and saturation, until it clears.
+
+`_normalise_selection` applies this to the Active, Inactive, and Disabled colour groups *unconditionally* — not only when a threshold fails — precisely because the Windows default passes the naive threshold while still being the reported problem.
+
+Because styles differ in how they paint `CE_ItemViewItem` (the Windows 11 style does not simply fill with `Highlight`), setting the palette alone does not guarantee the pair actually gets used. `item_view_qss` additionally pins both the fill and the text in an application stylesheet covering `QTreeView`/`QListWidget`/`QListView`/`QTableView`, in both the `:active` and `:!active` states.
+
+**Semantic colours.** `ThemeColors` is a frozen dataclass whose field names describe the *role* (`file_dirty_fg`, `diff_changed`, `syntax_keyword`, `banner_bg`, …), with a `_LIGHT` and a `_DARK` instance. Consumers call `colors()` at paint or populate time rather than caching at import time, which is what allows the table to be swapped. Two consequences worth knowing:
+
+- The diff legend swatches in `_build_diff_bar` and `FoamTreeModel`'s diff row backgrounds read the *same* fields, so they cannot drift apart.
+- `model/tree_model.py` and `ui/widgets/_foam_highlighter.py` both import `ui.theme`. That is a deliberate exception to the layering (`ui/theme.py` depends on nothing but PySide6, so there is no cycle) rather than duplicating the table.
+
+**Why the legend bar has its own fill.** The diff legend is styled with `legend_bg`/`legend_fg`/`legend_border`, not the `banner_*` notice colours it looks like it should share. The bar *carries* the three diff swatches, so its fill has to stay clear of every `diff_*` value: while it used `banner_bg`, the dark table had `banner_bg == diff_changed == #4A4526` and the "changed" swatch was invisible against the bar it sat on. Anything drawn behind a swatch is subject to the same constraint, which `test_diff_swatches_are_visible_on_the_legend_bar` now enforces in both tables.
+
+**The 3-D viewer.** VTK has no palette and draws its own text, so every colour it needs is named explicitly (`viewport_bg`, `viewport_text`, `viewport_grid`, `viewport_label_fg`/`_bg`, `viewport_vertex_label_fg`, `viewport_block_label_fg`) and read through `colors()` in `block_mesh_panel.init_plotter` and `block_mesh_renderer`. The dark `viewport_bg` is a mid-dark blue-grey (`#2E3238`) rather than the panel's near-black: the mesh and its overlays are drawn in saturated mid-tones that lose their hue against a very dark scene. `viewport_geometry_opacity` is a *scale factor*, not a colour — translucent faces blend toward the background, so an alpha tuned against white goes muddy on dark; `_opacity()` applies it and clamps to 1.0. Patch and overlay hues themselves (`_PATCH_COLORS`, `_ACTION_COLORS`, …) are deliberately theme-independent, since they encode meaning rather than styling.
+
+A `ForegroundRole` returned by a model is *not* a way to colour a selected row: `QStyledItemDelegate.initStyleOption` copies it into `palette.Text`, but `QCommonStyle` paints selected rows with `HighlightedText` and the override never reaches the screen.
+
+`tests/ui/test_theme.py` covers the contrast maths, the convention rule (including a regression test naming `#0078d4` explicitly), a sweep asserting no accent can produce an illegible pair, a floor of 3:1 for every foreground in both tables against that theme's `Base`, the swatch-versus-legend-fill separation described above, and a 3:1 floor for the viewport's text colours against `viewport_bg`. Note these are table-level checks: they catch a colour that cannot work, not one that merely looks wrong in place, so a change to the 3-D viewer still wants a look at the real scene (see below).
+
+Rendering the VTK panel for a visual check needs a real X display — `QT_QPA_PLATFORM=offscreen` makes `QtInteractor` abort with `BadWindow`, and `QWidget.grab()` returns black for it because it is a native child window. Use `plotter.screenshot(path)` to capture the scene itself.
+
 ## GPU / OpenGL notes
 
 The application uses two subsystems that both access the GPU on Linux:
@@ -705,17 +907,40 @@ If `pytest -q` causes import issues, running it as `python3 -m pytest -q` is saf
 
 ## Linting and type-checking
 
-Configuration lives in `pyproject.toml`. `ruff` has no repo-wide `include`/`exclude` restriction, but only `foam/`, `model/`, `app_config/`, `schemas/`, `services/`, and `ui/app_state.py` are currently clean — the rest of `ui/` has pre-existing violations not yet cleaned up, so run it scoped:
+Configuration lives in `pyproject.toml`. `ruff` covers the whole repository (no `include`/`exclude` restriction beyond its own default excludes, e.g. `.venv/`) and the whole tree is clean, so it runs unscoped:
 
 ```bash
-ruff check foam model app_config schemas services ui/app_state.py
+ruff check
 ```
 
-`mypy` is explicitly scoped to `foam/`, `model/`, `app_config/`, `schemas/`, `services/`, and `ui/app_state.py` via `[tool.mypy] files` in `pyproject.toml` — these are the pure-Python (or near-pure-Python) layers where static typing pays off most, plus the one `ui/` file this scope has been extended to cover; the rest of `ui/` is excluded because PySide6's stubs don't recognise the flattened enum-access style (`Qt.Horizontal` vs. the fully-qualified `Qt.Orientation.Horizontal`) used throughout the UI layer, which would otherwise produce hundreds of false positives.
+`i18n/ja.py`'s translation string literals (the English `tr()` keys and their Japanese values) are exempted from `E501` (line-too-long) via `[tool.ruff.lint.per-file-ignores]` in `pyproject.toml` — wrapping either one risks silently breaking the key lookup or corrupting the translated text.
+
+`mypy` covers the whole repository too: `[tool.mypy] files` in `pyproject.toml` lists `foam/`, `model/`, `app_config/`, `schemas/`, `services/`, and `ui/` (all of it). Every PySide6 attribute access in `ui/` uses the fully-qualified enum form the stubs require (e.g. `Qt.Orientation.Horizontal`, not the flattened `Qt.Horizontal`) — mixing the two styles is otherwise the single largest source of `mypy` noise in a PySide6 codebase.
 
 ```bash
 mypy
 ```
+
+A `[[tool.mypy.overrides]]` entry relaxes `numpy.*`/`numpy` to `follow_imports = "skip"` (plus `follow_imports_for_stubs = true`): numpy's bundled stubs use PEP 695 `type` statements that only parse under `python_version >= 3.12`, which conflicts with this project's `python_version = "3.10"` target (the minimum supported runtime). `ui/panels/block_mesh_*.py`'s `vtk`/`pyvista`/`pyvistaqt` imports have no stubs at all and fall back to `ignore_missing_imports = true`, so those objects type as `Any`.
+
+### Typing the `ui/mixins/` split
+
+`ui/main_window.py`'s `MainWindow` is built from thirteen mixins plus `QMainWindow` (see the `ui/mixins/` entries in "Project structure" above); each mixin is a plain class with no common base at runtime; the composition only happens once `MainWindow` inherits from all of them. That is a problem for `mypy`, which type-checks each mixin module on its own — a bare `class _FileOpsMixin:` has no way to know that `self` will ever have a `.tree`, a `.state`, or a `._load_tree()`.
+
+`ui/mixins/_protocol.py`'s `MainWindowProtocol` (a plain class inheriting `QMainWindow`, not `typing.Protocol` — mypy rejects a protocol with a non-protocol base) declares that whole combined surface: every widget/state attribute `MainWindow.__init__`/`_build_ui()` sets, and every method any mixin defines, with a signature matching the real one. Each mixin does:
+
+```python
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ui.mixins._protocol import MainWindowProtocol as _Base
+else:
+    _Base = object
+
+class _FileOpsMixin(_Base):
+    ...
+```
+
+so `_Base` is `MainWindowProtocol` while mypy is looking (giving every method in the file the full attribute/method surface) and plain `object` at runtime — an inert base that leaves the mixin's real MRO, and therefore `MainWindow`'s own MRO, unchanged. `ui/mixins/_protocol.py` must never import `ui.main_window` or any `ui.mixins.*` module: that would make the mixins' `TYPE_CHECKING` base inherit from a class that, at runtime, inherits from the mixins themselves — a genuine inheritance cycle, not just a circular *import*, which mypy rejects outright. When adding a method to a mixin that other mixins will call, add its signature to `MainWindowProtocol` too (a mismatched stub signature there surfaces as a spurious "incompatible with supertype" error on the mixin's real method).
 
 `foam/nodes.py`'s `NodeType` `Literal` is the definitive list of valid `node_type` values; `mypy` flags any assignment or comparison against a value outside that set. See the "Node types" section above for what each value means.
 
@@ -724,15 +949,25 @@ mypy
 Ideas noted for a later release, not currently scheduled:
 
 - **Side-by-side reference *text* editor in compare mode** — compare mode currently shows the reference case as a read-only *tree*; a read-only text editor of the reference file beside the main Editor tab would allow free-form copy/paste of keys and values (today the non-modal Find OpenFOAM Examples preview + "Copy Selection" covers this for example cases, but not for an arbitrary reference case). Revisit as part of a compare-mode update.
+- **Consolidate `foam/parser.py`'s four parenthesized-block dispatch tables** — `_NAMED_BLOCK_PARAMS`, `_ANONYMOUS_BLOCK_PARAMS`, `_OPTIONAL_NAMED_BLOCK_PARAMS`, and `_POSITIONAL_BLOCK_PARAMS` each drive a different lookahead/dispatch path for `(...)`-delimited blocks; they could become one table keyed by entry name with a lookahead flag distinguishing the four behaviors, instead of four separately-consulted dicts.
+- **3-D picking → tree** — the tree → 3-D direction is done (see "Block selection and CRUD" below); the reverse, clicking a block in the viewer to select its tree row, would be the first use of VTK picking in the codebase.
+- **CRUD on the other positional lists** — Add/Duplicate/Delete are now enabled for `block_entry` rows, but `region_entry`, `boundary_entry`, and `action_entry` are still gated on a `dictionary` parent (`ui/mixins/_tree_crud_ops.py`). Those three are *named*, so each needs a way to supply the name of a newly added entry — a prompt, or an inline edit on a placeholder — which is why they were not swept in with blocks.
+- **Cells/grading as `block_entry` children** — currently kept in the value string (see the node-type table). If something ever consumes them (e.g. showing cells-per-block in the 3-D panel), the additive shape is named children alongside a regenerated `value`.
+- **Decide the fate of `block_mesh_extractor.py`'s legacy raw-text boundary-block fallback** (~lines 164-250) — reachability has now been measured rather than guessed. Of the 489 `blockMeshDict` files in the v2512 tutorials, exactly one reached this path (`compressible/rhoPimpleFoam/laminar/helmholtzResonance`), and it produced *wrong* output there: the regex walker read the leading `#include` as a patch name and gave it the following patch's faces, losing `outlet`. That trigger was fixed upstream in the parser (a directive inside `boundary ( … )` is now a `directive_entry` child instead of a `ParseError`), so the fallback is at 0 hits across the corpus. It is still not provably dead — it remains a net for `boundary` blocks that fail structured parsing for other reasons — so the open question is whether to keep an untested net or delete it and let such files degrade visibly.
+- **Transitive include resolution** — `services/include_scan.py` follows includes exactly one level, from the files `list_case_files` already returns. Bounded-depth recursion with a visited set is the additive shape, and this is not hypothetical: in `compressible/rhoPimpleFoam/RAS/annularThermalMixer`, `constant/caseSettings` is itself an include target and its own `#include "<constant>/boundaryConditions"` is therefore not followed, so `constant/boundaryConditions` stays unlisted (the `constant` header shows `[+]` instead). The `etc/caseDicts/*.cfg` files also include each other.
+- **Transparent gzip reading for dictionaries** — `foam/include_resolver.py` resolves a candidate through `resolve_optionally_gzipped`, so an include *can* land on a `.stl.gz`-style compressed dictionary, but `foam/utils.py`'s `read_foam_file` cannot decompress one; such targets are therefore reported `resolved` yet deliberately excluded from the file list. A gzip branch in `read_foam_file` would close the asymmetry and also help compressed `0/` fields.
+- **`#codeStream` body awareness in the include scan** — the C++-header rejection in `parse_include_directive` (angle brackets, `.H`-family suffixes) is a heuristic that happens to be exactly effective on the v2512 tutorials, where every such include ends in `.H`. A `#{ … #}` depth tracker would be exact, but needs real lexing inside what has to stay a cheap line scan; the current failure mode is benign (an unrecognised target simply never resolves).
+- **A general directive registry** — `foam/lexer.py` still collapses every `#word` into one `DIRECTIVE` token, and `foam/include_resolver.py` is the codebase's *first* per-directive knowledge. `#remove`, `#calc`, `#codeStream`, `#eval` and the include family could grow into one table instead of the current split between the lexer's blanket token and one module that re-reads the text.
+- **Version-aware `etc` selection for includes** — `include_scan.foam_etc_dirs()` cannot know which OpenFOAM version a case targets, so a case written for an older release resolves `#includeEtc` against the newest installed `etc` unless the user picks an installation explicitly. Reading the case's `FoamFile` header version, or remembering a per-case choice, would remove the surprise.
+- **Retype `block_mesh_renderer._make_shape_mesh`'s geometry dispatch** — it currently dispatches on dict keys (`box`, `boxes`, `centre`+`radius`, `p1`+`p2`+`radius`, `origin`+`i`+`j`+`k`, `stl_path`, `planePoint`+`planeNormal`, ...) duck-typed at the call site; this was deliberately left as-is in this refactor. A typed geometry union (e.g. per-kind dataclasses) would let mypy check the dispatch instead of relying on key presence at runtime.
 
 ### Deferred review findings (undo/redo, sampling)
 
 Low-severity items surfaced by a code review of the undo/redo and sampling work and left unfixed at the time (each was judged *plausible* rather than confirmed — narrow trigger, latent, or design-hardening). Worth folding into the next change that touches these areas:
 
-- **`_restored_dirty` can spuriously mark a restored file dirty** (`ui/mixins/_undo_ops.py`) — it compares a `write_root`-serialized snapshot against the raw disk file, but a clean file cached only in `state.parsed_roots` (whose nodes have no `raw_text`) serializes to reformatted text that differs from disk, so undoing a multi-file operation can flag it dirty and stage a formatting-only rewrite on the next Save All. Compare against the in-memory buffer, or trust the snapshot's recorded flag, instead of re-reading disk.
+- **`_restored_dirty` re-reads disk to settle dirtiness** (`ui/mixins/_undo_ops.py`) — originally filed as a live defect on the theory that a root cached in `state.parsed_roots` has no `raw_text` and so re-serializes to text differing from disk. That theory does not hold: every writer of `parsed_roots` populates it from `OpenFoamParser.parse()`, which sets `raw_text`, and `tools/roundtrip_corpus.py` measures 9620/9620 v2512 tutorial files re-serializing byte-identical. `_undo_text_for` also prefers `file_buffers`, so the serialize-vs-disk comparison is only reached for files parsed straight from disk. Downgraded to a design note: comparing against the in-memory buffer would remove the I/O and the dependence on a 100% round-trip, but there is no known input that makes the current code wrong.
 - **`UndoState.op_active` reset timing is fragile** (`ui/mixins/_undo_ops.py`) — the double-checkpoint guard is cleared by `QTimer.singleShot(0, ...)`, which fires inside a nested event loop (`QMessageBox`/`QDialog.exec`). No current call site opens a dialog between its `_checkpoint_for_undo` and the mutation, so this is latent; a future op that does would let the model's `about_to_change` push a second, mid-mutation snapshot (one edit then needing two undos). Bounding the guard to the synchronous op scope (e.g. a context manager) would remove the timing coupling.
 - **No enforcement that a mutation path checkpoints for undo** (`ui/mixins/_tree_crud_ops.py`, `_tree_sync_ops.py`, `_boundary_ops.py`) — undo coverage rests on ~18 hand-placed `_checkpoint_for_undo` calls plus the `about_to_change` signal for `setData`-driven edits. A future direct-mutation path that forgets its explicit call is silently non-undoable (a later Ctrl+Z jumps past it). A single post-mutation choke point that diffs the prior serialized text, or a coverage test, would make this robust.
-- **Sampling overlay keys files by basename** (`ui/panels/block_mesh_panel.py`) — `_sampling_by_file` is keyed by `Path(path).name`, so two loaded sampling dicts sharing a basename (only reachable when the user adds an extra directory containing e.g. a second `sample`) overwrite each other's shapes and mislabel `source_file`. Key by the full path (display the basename).
 
 ## Acknowledgements
 

@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QLabel, QMenu, QTreeView, QVBoxLayout, QWidget
 
 from foam.nodes import FoamNode
 from model.tree_model import FoamTreeModel
+from ui.theme import colors
 
 _EXPAND_DEPTH = 2
 
@@ -21,29 +22,29 @@ class ComparisonTreePanel(QWidget):
 
     use_value_requested = Signal(FoamNode)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._model: FoamTreeModel | None = None
         self._type_col_visible = False  # tracks main tree's type column state
 
         self._proxy = QSortFilterProxyModel(self)
-        self._proxy.setFilterCaseSensitivity(Qt.CaseInsensitive)
+        self._proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self._proxy.setRecursiveFilteringEnabled(True)
         self._proxy.setFilterKeyColumn(FoamTreeModel.COL_KEY)
 
         self._header_label = QLabel("Reference case")
         self._header_label.setStyleSheet(
-            "QLabel { background-color: #E8F5E9; padding: 2px 6px;"
-            " border-bottom: 1px solid #A5D6A7; font-weight: bold; }"
+            f"QLabel {{ background-color: {colors().compare_header_bg}; padding: 2px 6px;"
+            f" border-bottom: 1px solid {colors().compare_header_border}; font-weight: bold; }}"
         )
 
         self._tree = QTreeView()
         self._tree.setModel(self._proxy)
         self._tree.setAlternatingRowColors(True)
         self._tree.setUniformRowHeights(True)
-        self._tree.setEditTriggers(QTreeView.NoEditTriggers)
-        self._tree.setSelectionBehavior(QTreeView.SelectRows)
-        self._tree.setContextMenuPolicy(Qt.CustomContextMenu)
+        self._tree.setEditTriggers(QTreeView.EditTrigger.NoEditTriggers)
+        self._tree.setSelectionBehavior(QTreeView.SelectionBehavior.SelectRows)
+        self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._on_context_menu)
         self._tree.setColumnHidden(FoamTreeModel.COL_TYPE, True)
 
@@ -70,7 +71,10 @@ class ComparisonTreePanel(QWidget):
         self._resize_columns()
 
     def clear(self) -> None:
-        self._proxy.setSourceModel(None)
+        # Qt's C++ QSortFilterProxyModel::setSourceModel accepts nullptr to detach
+        # the proxy, but the PySide6 stub omits `| None` from the parameter (unlike
+        # e.g. QTreeView.setModel, which does allow it) — stub gap, not a real error.
+        self._proxy.setSourceModel(None)  # type: ignore[arg-type]
         self._model = None
         self._header_label.setText("Reference case")
 

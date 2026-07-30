@@ -10,6 +10,8 @@ from pathlib import Path
 from PySide6.QtCore import QRegularExpression
 from PySide6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat
 
+from ui.theme import colors
+
 _APP_CONFIG_DIR = Path(__file__).parent.parent.parent / "app_config"
 _KW_FILE = _APP_CONFIG_DIR / "foam_keywords.json"                  # user-generated (gitignored)
 _KW_DEFAULT_FILE = _APP_CONFIG_DIR / "foam_keywords.default.json"  # shipped baseline
@@ -102,11 +104,11 @@ _VALUE_KW_FMT = None  # set lazily to avoid Qt init at import time
 _KW_CHUNK = 1000      # PCRE2 "too large" error above ~2300 tokens; 1000/chunk is safe
 
 
-def _build_value_kw_rules() -> list[tuple["QRegularExpression", "QTextCharFormat"]]:
+def _build_value_kw_rules() -> list[tuple[QRegularExpression, QTextCharFormat]]:
     """Build value-keyword rules split into PCRE2-safe chunks."""
     global _VALUE_KW_FMT
     if _VALUE_KW_FMT is None:
-        _VALUE_KW_FMT = _fmt("#007070")
+        _VALUE_KW_FMT = _fmt(colors().syntax_value_keyword)
     all_kw = sorted(_load_foam_keywords() | _collect_schema_keywords())
     rules = []
     for i in range(0, max(len(all_kw), 1), _KW_CHUNK):
@@ -127,30 +129,31 @@ class FoamHighlighter(QSyntaxHighlighter):
         super().__init__(document)
         self._enabled = True
         self._mode = "foam"
-        self._comment_fmt = _fmt("#808080", italic=True)
+        self._comment_fmt = _fmt(colors().syntax_comment, italic=True)
         self._rules = self._build_rules()
         self._bc_start = QRegularExpression(r"/\*")
         self._bc_end   = QRegularExpression(r"\*/")
 
     def _build_rules(self) -> list[tuple[QRegularExpression, QTextCharFormat]]:
         """Build the inline rule list for the current mode (later rules win)."""
+        c = colors()
         kw_rules = _build_value_kw_rules()
         if self._mode == "shell":
             return kw_rules + [
-                (QRegularExpression(_SHELL_KEYWORD_RE), _fmt("#0000CC", bold=True)),
-                (QRegularExpression(r"\$\{?\w+\}?"),    _fmt("#CC6600")),
-                (QRegularExpression(r'"[^"]*"'),         _fmt("#006400")),
-                (QRegularExpression(r"'[^']*'"),         _fmt("#006400")),
+                (QRegularExpression(_SHELL_KEYWORD_RE), _fmt(c.syntax_keyword, bold=True)),
+                (QRegularExpression(r"\$\{?\w+\}?"),    _fmt(c.syntax_macro)),
+                (QRegularExpression(r'"[^"]*"'),         _fmt(c.syntax_string)),
+                (QRegularExpression(r"'[^']*'"),         _fmt(c.syntax_string)),
                 (QRegularExpression(r"#.*"),             self._comment_fmt),
             ]
         return (
-            [(QRegularExpression(_NUMBER_RE), _fmt("#008080"))]
+            [(QRegularExpression(_NUMBER_RE), _fmt(c.syntax_number))]
             + kw_rules
             + [
-                (QRegularExpression(_KEYWORD_RE),         _fmt("#0000CC", bold=True)),
-                (QRegularExpression(r"#[A-Za-z]\w*"),     _fmt("#800080", bold=True)),
-                (QRegularExpression(r"\$\{?\w+\}?"),      _fmt("#CC6600")),
-                (QRegularExpression(r'"[^"]*"'),           _fmt("#006400")),
+                (QRegularExpression(_KEYWORD_RE),         _fmt(c.syntax_keyword, bold=True)),
+                (QRegularExpression(r"#[A-Za-z]\w*"),     _fmt(c.syntax_directive, bold=True)),
+                (QRegularExpression(r"\$\{?\w+\}?"),      _fmt(c.syntax_macro)),
+                (QRegularExpression(r'"[^"]*"'),           _fmt(c.syntax_string)),
                 (QRegularExpression(r"//.*"),              self._comment_fmt),
             ]
         )

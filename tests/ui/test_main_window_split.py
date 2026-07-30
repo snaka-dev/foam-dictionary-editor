@@ -7,10 +7,7 @@ methods assigned to it during the refactor.  No Qt event loop is required.
 """
 from __future__ import annotations
 
-import inspect
-
 import pytest
-
 
 # ── import guards ─────────────────────────────────────────────────────────────
 
@@ -140,6 +137,7 @@ TREE_CRUD_OPS_METHODS = [
     "_tree_copy_value",
     "_tree_paste_value",
     "_tree_add_entry_after",
+    "_edit_first_editable_column",
     "_tree_add_child_entry",
     "_tree_duplicate",
     "_tree_comment_out",
@@ -155,6 +153,7 @@ TREE_SYNC_OPS_METHODS = [
     "_sync_tree_to_editor_line",
     "_find_deepest",
     "on_tree_selection",
+    "_highlight_selected_block",
     "_on_value_apply",
     "_on_field_value_apply",
     "apply_text_to_tree",
@@ -282,17 +281,17 @@ def test_undo_ops_owns_method(method):
 # ── no cross-mixin duplicates ─────────────────────────────────────────────────
 
 def test_no_duplicate_methods_across_mixins():
+    from ui.mixins._boundary_ops import _BoundaryOpsMixin
     from ui.mixins._case_ops import _CaseOpsMixin
-    from ui.mixins._file_ops import _FileOpsMixin
+    from ui.mixins._diff_ops import _DiffOpsMixin
     from ui.mixins._file_mgmt_ops import _FileManagementOpsMixin
+    from ui.mixins._file_ops import _FileOpsMixin
+    from ui.mixins._foam_monitor_ops import _FoamMonitorOpsMixin
+    from ui.mixins._model_ops import _ModelOpsMixin
+    from ui.mixins._panel_ops import _PanelOpsMixin
+    from ui.mixins._tools_ops import _ToolsOpsMixin
     from ui.mixins._tree_crud_ops import _TreeCrudOpsMixin
     from ui.mixins._tree_sync_ops import _TreeSyncOpsMixin
-    from ui.mixins._boundary_ops import _BoundaryOpsMixin
-    from ui.mixins._diff_ops import _DiffOpsMixin
-    from ui.mixins._panel_ops import _PanelOpsMixin
-    from ui.mixins._foam_monitor_ops import _FoamMonitorOpsMixin
-    from ui.mixins._tools_ops import _ToolsOpsMixin
-    from ui.mixins._model_ops import _ModelOpsMixin
     from ui.mixins._ui_ops import _UiOpsMixin
     from ui.mixins._undo_ops import _UndoOpsMixin
 
@@ -338,17 +337,17 @@ def test_no_duplicate_methods_across_mixins():
 
 def test_main_window_inherits_all_mixins(qapp):
     from ui.main_window import MainWindow
+    from ui.mixins._boundary_ops import _BoundaryOpsMixin
     from ui.mixins._case_ops import _CaseOpsMixin
-    from ui.mixins._file_ops import _FileOpsMixin
+    from ui.mixins._diff_ops import _DiffOpsMixin
     from ui.mixins._file_mgmt_ops import _FileManagementOpsMixin
+    from ui.mixins._file_ops import _FileOpsMixin
+    from ui.mixins._foam_monitor_ops import _FoamMonitorOpsMixin
+    from ui.mixins._model_ops import _ModelOpsMixin
+    from ui.mixins._panel_ops import _PanelOpsMixin
+    from ui.mixins._tools_ops import _ToolsOpsMixin
     from ui.mixins._tree_crud_ops import _TreeCrudOpsMixin
     from ui.mixins._tree_sync_ops import _TreeSyncOpsMixin
-    from ui.mixins._boundary_ops import _BoundaryOpsMixin
-    from ui.mixins._diff_ops import _DiffOpsMixin
-    from ui.mixins._panel_ops import _PanelOpsMixin
-    from ui.mixins._foam_monitor_ops import _FoamMonitorOpsMixin
-    from ui.mixins._tools_ops import _ToolsOpsMixin
-    from ui.mixins._model_ops import _ModelOpsMixin
     from ui.mixins._ui_ops import _UiOpsMixin
 
     assert issubclass(MainWindow, _CaseOpsMixin)
@@ -367,6 +366,7 @@ def test_main_window_inherits_all_mixins(qapp):
 
 def test_main_window_mixins_before_qmainwindow(qapp):
     from PySide6.QtWidgets import QMainWindow
+
     from ui.main_window import MainWindow
     from ui.mixins._case_ops import _CaseOpsMixin
 

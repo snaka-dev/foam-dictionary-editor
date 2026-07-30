@@ -60,7 +60,8 @@ def main_window_bm(qapp):
         cfg.set_feature(name, value)
 
 
-_SNAPPY_HEX_MESH_DICT_TEXT = """FoamFile { version 2.0; format ascii; class dictionary; object snappyHexMeshDict; }
+_SNAPPY_HEX_MESH_DICT_TEXT = """\
+FoamFile { version 2.0; format ascii; class dictionary; object snappyHexMeshDict; }
 geometry
 {
     motorBike { type box; min (0 0 0); max (1 1 1); }
@@ -132,3 +133,43 @@ def test_switching_case_clears_snappy_and_topo_state(main_window_bm, tmp_path):
     assert panel._snappy.shape_actions == []
     assert panel._topo.shape_actions == []
     assert not panel._export_stl_act.isEnabled()
+
+
+_ASCII_STL = (
+    "solid box\n"
+    "facet normal 0 0 1\n outer loop\n"
+    "  vertex 0 0 0\n  vertex 1 0 0\n  vertex 0 1 0\n"
+    " endloop\nendfacet\n"
+    "endsolid box\n"
+)
+
+
+def test_switching_case_clears_loaded_stl_overlays(main_window_bm, tmp_path, monkeypatch):
+    """Surfaces loaded via STL ▾ > Load STL / OBJ… belong to the case they were
+    loaded for; they used to survive clear() and stay drawn over the next case."""
+    win = main_window_bm
+    panel = win.block_mesh_panel
+
+    case_a = tmp_path / "case_a"
+    case_a.mkdir()
+    _make_case_file(case_a, "controlDict", _CONTROL_DICT_TEXT)
+    win._load_case_dir(str(case_a))
+
+    stl = tmp_path / "surface.stl"
+    stl.write_text(_ASCII_STL)
+    monkeypatch.setattr(
+        block_mesh_panel.QFileDialog,
+        "getOpenFileNames",
+        staticmethod(lambda *a, **k: ([str(stl)], "")),
+    )
+    panel._load_stl()
+    assert len(panel._surfaces) == 1
+    assert panel._clear_stl_act.isEnabled()
+
+    case_b = tmp_path / "case_b"
+    case_b.mkdir()
+    _make_case_file(case_b, "controlDict", _CONTROL_DICT_TEXT)
+    win._load_case_dir(str(case_b))
+
+    assert panel._surfaces == []
+    assert not panel._clear_stl_act.isEnabled()

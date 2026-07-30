@@ -54,6 +54,24 @@ def _make_case_with_fresh_mesh(tmp_path):
     return str(dict_path)
 
 
+def _push_owner_mtime_into_past(tmp_path) -> None:
+    """Stamp constant/polyMesh/owner's mtime safely into the past.
+
+    The staleness check (services/case_loader.py) is a plain
+    dict.mtime > owner.mtime comparison, read from disk at refresh time.
+    A subsequent blockMeshDict write picks up whatever mtime the OS clock
+    reports at that instant -- not something the test can dictate -- so the
+    only deterministic way to guarantee "later" is to move the *reference*
+    file's mtime comfortably backward, by more than any plausible
+    filesystem mtime granularity/rounding (previously done by sleeping
+    briefly before saving and hoping the wall clock had advanced far enough).
+    """
+    owner_path = tmp_path / "constant" / "polyMesh" / "owner"
+    reference = os.stat(owner_path).st_mtime
+    stamp = reference - 10
+    os.utime(owner_path, (stamp, stamp))
+
+
 class TestSaveTriggersFileListRefresh:
     def test_edit_without_save_does_not_flip_stale(self, main_window, tmp_path):
         """Editing in memory only must not change the on-disk-derived indicator."""
@@ -79,7 +97,7 @@ class TestSaveTriggersFileListRefresh:
         win.load_selected_file(dict_path)
         win.editor_panel.set_text("dummy v2 edited")
         win._on_user_text_changed()
-        time.sleep(0.05)  # ensure a distinct, later mtime than the owner file
+        _push_owner_mtime_into_past(tmp_path)  # dict's imminent write must land later
 
         win.save_file()
 
@@ -96,7 +114,7 @@ class TestSaveTriggersFileListRefresh:
         win.load_selected_file(dict_path)
         win.editor_panel.set_text("dummy v2 edited")
         win._on_user_text_changed()
-        time.sleep(0.05)
+        _push_owner_mtime_into_past(tmp_path)
 
         win.save_all_files()
 

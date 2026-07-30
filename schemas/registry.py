@@ -12,6 +12,13 @@ from schemas.config_store import load_schema_config, save_schema_config
 logger = logging.getLogger(__name__)
 
 
+def _supported_in_text(obj: KeySchema | ChoiceItem | None) -> str:
+    """Format a resolved schema/choice item's `supported_in` versions, or ""."""
+    if obj is None or not obj.supported_in:
+        return ""
+    return _versions_text(obj.supported_in)
+
+
 class SchemaRegistry:
     """Manage schema configuration and runtime schema lookup tables."""
 
@@ -132,9 +139,7 @@ class SchemaRegistry:
     ) -> str:
         """Return supported version text for a file/key/value triple."""
         item = self.choice_for_value(file_path, key_name, value, parent_key, grandparent_key)
-        if item is None or not item.supported_in:
-            return ""
-        return _versions_text(item.supported_in)
+        return _supported_in_text(item)
 
     def choice_note_for_value(
         self,
@@ -157,9 +162,7 @@ class SchemaRegistry:
     ) -> str:
         """Return supported version text for a file/key pair."""
         schema = self.schema_for_file_key(file_path, key_name, parent_key, grandparent_key)
-        if schema is None or not schema.supported_in:
-            return ""
-        return _versions_text(schema.supported_in)
+        return _supported_in_text(schema)
 
     def schema_note_text(
         self,

@@ -3,24 +3,35 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QFileDialog
 
 from foam.diff import diff_trees, diff_trees_reverse
+from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser
-from foam.utils import read_foam_file, is_large_non_foam_file, is_log_filename, is_script_path
+from foam.utils import is_large_non_foam_file, is_log_filename, is_script_path, read_foam_file
 from i18n import tr
 from ui.layout_constants import (
     SPLITTER_COMPARISON_WIDTH,
     SPLITTER_DETAIL_WIDTH,
     SPLITTER_TREE_WIDTH,
+)
+from ui.layout_constants import (
     STATUS_SHORT as _STATUS_SHORT,
+)
+from ui.layout_constants import (
     STATUS_WARNING as _STATUS_WARNING,
 )
 
+if TYPE_CHECKING:
+    from ui.mixins._protocol import MainWindowProtocol as _Base
+else:
+    _Base = object
 
-class _DiffOpsMixin:
+
+class _DiffOpsMixin(_Base):
     """Diff/comparison overlay operations: open reference case, compute diffs, clear."""
 
     def _on_side_by_side_toggled(self, checked: bool) -> None:
@@ -54,7 +65,7 @@ class _DiffOpsMixin:
         self._diff_path_label.setText(
             tr("Comparing with: <b>{name}</b>  ({directory})").format(name=name, directory=directory)
         )
-        self._diff_path_label.setTextFormat(Qt.RichText)
+        self._diff_path_label.setTextFormat(Qt.TextFormat.RichText)
         self._diff_bar.show()
         self._recompute_diff()
         QTimer.singleShot(0, self._precompute_all_diff_counts)
@@ -190,6 +201,7 @@ class _DiffOpsMixin:
                 advance()
                 return
         other_root = self.state.diff.parsed_roots[other_key]
+        a_root: FoamNode | None
         if path == self.state.current_file:
             a_root = self.state.current_root
         elif path in self.state.parsed_roots:

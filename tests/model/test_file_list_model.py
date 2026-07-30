@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from model.file_list_model import FileListModel, ROOT_GROUP
+
+from model.file_list_model import INCLUDED_GROUP, ROOT_GROUP, FileListModel
 
 
 @pytest.fixture()
@@ -155,3 +156,58 @@ class TestClear:
         assert model.diff_count(path) is None
         assert model.extra_file_count == 0
         assert model.extra_dir_count == 0
+
+
+class TestIncludedFiles:
+    def test_outside_case_path_lands_in_included_group(self, model, case_dir):
+        outside = "/opt/openfoam/etc/caseDicts/setConstraintTypes"
+        model.load([outside], case_dir, included_files={outside: "0/U"})
+        assert [g for g, _ in model.sorted_groups()] == [INCLUDED_GROUP]
+
+    def test_inside_case_include_joins_natural_group(self, model, case_dir):
+        path = _paths(case_dir, "constant/caseSettings")[0]
+        model.load([path], case_dir, included_files={path: "0/U"})
+        assert [g for g, _ in model.sorted_groups()] == ["constant"]
+
+    def test_included_group_sorts_last(self, model, case_dir):
+        inside = _paths(case_dir, "system/controlDict")[0]
+        root = _paths(case_dir, "Allrun")[0]
+        outside = "/opt/openfoam/etc/caseDicts/setConstraintTypes"
+        model.load([outside, inside, root], case_dir, included_files={outside: "0/U"})
+        assert [g for g, _ in model.sorted_groups()] == ["system", ROOT_GROUP, INCLUDED_GROUP]
+
+    def test_is_read_only_true_for_outside_path(self, model, case_dir):
+        outside = "/opt/openfoam/etc/caseDicts/setConstraintTypes"
+        model.load([outside], case_dir, included_files={outside: "0/U"})
+        assert model.is_included(outside) is True
+        assert model.is_read_only(outside) is True
+
+    def test_is_read_only_false_for_inside_include(self, model, case_dir):
+        path = _paths(case_dir, "constant/caseSettings")[0]
+        model.load([path], case_dir, included_files={path: "0/U"})
+        assert model.is_included(path) is True
+        assert model.is_read_only(path) is False
+
+    def test_is_read_only_false_for_a_listed_file(self, model, case_dir):
+        # Only rows the scan added are included; a normal file is never read-only.
+        path = _paths(case_dir, "system/controlDict")[0]
+        model.load([path], case_dir)
+        assert model.is_included(path) is False
+        assert model.is_read_only(path) is False
+
+    def test_included_origin_label(self, model, case_dir):
+        path = _paths(case_dir, "constant/caseSettings")[0]
+        model.load([path], case_dir, included_files={path: "system/controlDict"})
+        assert model.included_origin(path) == "system/controlDict"
+        assert model.included_origin("/not/listed") is None
+
+    def test_clear_resets_included(self, model, case_dir):
+        path = _paths(case_dir, "constant/caseSettings")[0]
+        model.load([path], case_dir, included_files={path: "0/U"})
+        model.clear()
+        assert model.is_included(path) is False
+
+    def test_outside_path_without_case_dir_keeps_parent_name(self, model):
+        # The case_dir-less fallback is unchanged; only the ValueError branch moved.
+        model.load(["/opt/openfoam/etc/caseDicts/setConstraintTypes"], None)
+        assert [g for g, _ in model.sorted_groups()] == ["caseDicts"]

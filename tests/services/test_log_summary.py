@@ -80,7 +80,8 @@ After balancing feature refinement iteration 1 : cells:200  faces:600  points:30
 Wrote mesh in = 0.02 s.
 
 Morph iteration 0
---> FOAM Warning : Displacement (-0.0002 0.0011 9e-06) at mesh point 4370 coord (3.7 -0.4 0.06) points through the surrounding patch faces
+--> FOAM Warning : Displacement (-0.0002 0.0011 9e-06) at mesh point 4370 coord (3.7 -0.4 0.06) \
+points through the surrounding patch faces
 Smoothing displacement ...
 Iteration 0
 Iteration 10
@@ -129,9 +130,11 @@ End
 def test_snappy_hex_mesh_duplicate_warnings_are_merged():
     body = """\
 Morph iteration 0
---> FOAM Warning : Displacement (-0.0002 0.0011 9e-06) at mesh point 4370 coord (3.7 -0.4 0.06) points through the surrounding patch faces
+--> FOAM Warning : Displacement (-0.0002 0.0011 9e-06) at mesh point 4370 coord (3.7 -0.4 0.06) \
+points through the surrounding patch faces
 Morph iteration 1
---> FOAM Warning : Displacement (-0.0004 0.0025 4e-06) at mesh point 4370 coord (3.73 -0.45 0.06) points through the surrounding patch faces
+--> FOAM Warning : Displacement (-0.0004 0.0025 4e-06) at mesh point 4370 coord (3.73 -0.45 0.06) \
+points through the surrounding patch faces
 Wrote mesh in = 0.02 s.
 End
 """
@@ -186,7 +189,8 @@ def test_generic_fallback_for_unrecognized_utility():
 def test_format_summary_is_shorter_than_original_for_snappy_log():
     body = "\n".join(
         f"Feature refinement iteration {i}\n"
-        f"After balancing feature refinement iteration {i} : cells:{100 + i}  faces:{300 + i}  points:{150 + i}  unbalance:0.01"
+        f"After balancing feature refinement iteration {i} : "
+        f"cells:{100 + i}  faces:{300 + i}  points:{150 + i}  unbalance:0.01"
         for i in range(20)
     ) + "\nWrote mesh in = 0.02 s.\nEnd\n"
     text = _log("snappyHexMesh", body)

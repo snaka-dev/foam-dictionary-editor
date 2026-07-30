@@ -2,9 +2,12 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+import os
 import re
 import shutil
+from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtWidgets import (
     QDialog,
@@ -12,24 +15,33 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 
-from datetime import datetime
-
+from foam.include_resolver import ResolvedInclude
 from foam.utils import read_foam_file
 from i18n import tr
 from services.case_files_config import CaseFilesConfig
-from services.case_loader import list_case_files
+from services.case_loader import TARGET_FILES, list_case_files
+from services.include_scan import copy_destination_for, resolve_directive_text
 from ui.dialogs.add_files_dialog import AddFilesDialog
 from ui.dialogs.clean_backups_dialog import CleanBackupsDialog, find_backup_files
 from ui.dialogs.manage_extra_files_dialog import ManageExtraFilesDialog
-from ui.panels.file_list_panel import display_file_name, group_display_name
 from ui.layout_constants import (
     STATUS_NORMAL as _STATUS_NORMAL,
+)
+from ui.layout_constants import (
     STATUS_SHORT as _STATUS_SHORT,
+)
+from ui.layout_constants import (
     STATUS_WARNING as _STATUS_WARNING,
 )
+from ui.panels.file_list_panel import display_file_name, group_display_name
+
+if TYPE_CHECKING:
+    from ui.mixins._protocol import MainWindowProtocol as _Base
+else:
+    _Base = object
 
 
-class _FileManagementOpsMixin:
+class _FileManagementOpsMixin(_Base):
     """File-management operations: create, add, backup, delete, duplicate, clean."""
 
     def _on_create_file_requested(self, case_dir: str, group: str) -> None:
@@ -52,7 +64,9 @@ class _FileManagementOpsMixin:
 
         target = Path(case_dir) / group / filename
         if target.exists():
-            self.statusBar().showMessage(tr("File already exists: {name}").format(name=target.name), _STATUS_WARNING)
+            self.statusBar().showMessage(
+                tr("File already exists: {name}").format(name=target.name), _STATUS_WARNING
+            )
             return
 
         try:
@@ -79,7 +93,7 @@ class _FileManagementOpsMixin:
         loaded_set = set(list_case_files(case_dir, extra, extra_dirs or None))
 
         dialog = AddFilesDialog(case_dir, group, loaded_set, self)
-        if dialog.exec() != QDialog.Accepted:
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
         selected = dialog.selected_paths
@@ -96,10 +110,30 @@ class _FileManagementOpsMixin:
                 pass
         config.save()
         self._load_case_dir(case_dir)
-        self.statusBar().showMessage(tr("Added {n} file(s) to the file list.").format(n=len(selected)), _STATUS_SHORT)
+        self.statusBar().showMessage(
+            tr("Added {n} file(s) to the file list.").format(n=len(selected)), _STATUS_SHORT
+        )
+
+    def _read_only_refused(self, path: str) -> bool:
+        """Report and return True when ``path`` is an out-of-case include.
+
+        Every operation these guards protect writes to the file or beside it,
+        which for such a path means inside the OpenFOAM installation.
+        """
+        if not self._is_read_only(path):
+            return False
+        self.statusBar().showMessage(
+            tr("Read-only file — outside the case directory: {name}").format(
+                name=Path(path).name
+            ),
+            _STATUS_WARNING,
+        )
+        return True
 
     def _create_backup(self, path: str) -> bool:
         """Write a .bak_<timestamp> copy. Returns True on success."""
+        if self._read_only_refused(path):
+            return False
         p = Path(path)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_path = p.parent / f"{p.name}.bak_{timestamp}"
@@ -123,7 +157,9 @@ class _FileManagementOpsMixin:
 
         rel = display_file_name(str(backup_path))
         suffix = tr(" (includes unsaved edits)") if has_unsaved else ""
-        self.statusBar().showMessage(tr("Backup created: {rel}{suffix}").format(rel=rel, suffix=suffix), _STATUS_NORMAL)
+        self.statusBar().showMessage(
+            tr("Backup created: {rel}{suffix}").format(rel=rel, suffix=suffix), _STATUS_NORMAL
+        )
         return True
 
     def _on_backup_file_requested(self, path: str) -> None:
@@ -189,15 +225,20 @@ class _FileManagementOpsMixin:
         self.state.case_files_config.remove_file(rel)
         self.state.case_files_config.save()
         self._reload_file_list()
-        self.statusBar().showMessage(tr("Removed from extra files: {name}").format(name=display_file_name(abs_path)), _STATUS_SHORT)
+        self.statusBar().showMessage(
+            tr("Removed from extra files: {name}").format(name=display_file_name(abs_path)),
+            _STATUS_SHORT,
+        )
 
     def _on_delete_file_requested(self, path: str) -> None:
+        if self._read_only_refused(path):
+            return
         is_dirty = self.state.file_dirty.get(path, False) or (
             path == self.state.current_file and self.state.text_dirty
         )
 
         msg = QMessageBox(self)
-        msg.setIcon(QMessageBox.Warning)
+        msg.setIcon(QMessageBox.Icon.Warning)
         msg.setWindowTitle(tr("Delete File"))
         msg.setText(f"Delete <b>{display_file_name(path)}</b> from disk?")
         info = tr("This action cannot be undone.")
@@ -205,9 +246,9 @@ class _FileManagementOpsMixin:
             info = tr("This file has unsaved changes.\nThis action cannot be undone.")
         msg.setInformativeText(info)
 
-        backup_btn = msg.addButton(tr("Backup && Delete"), QMessageBox.ActionRole)
-        delete_btn = msg.addButton(tr("Delete"), QMessageBox.DestructiveRole)
-        cancel_btn = msg.addButton(QMessageBox.Cancel)
+        backup_btn = msg.addButton(tr("Backup && Delete"), QMessageBox.ButtonRole.ActionRole)
+        msg.addButton(tr("Delete"), QMessageBox.ButtonRole.DestructiveRole)
+        cancel_btn = msg.addButton(QMessageBox.StandardButton.Cancel)
         msg.setDefaultButton(cancel_btn)
         msg.setEscapeButton(cancel_btn)
 
@@ -240,9 +281,13 @@ class _FileManagementOpsMixin:
         self._purge_file_caches(path)
         self._reload_file_list()
         self._reload_boundary_panel()
-        self.statusBar().showMessage(tr("Deleted: {name}").format(name=display_file_name(path)), _STATUS_SHORT)
+        self.statusBar().showMessage(
+            tr("Deleted: {name}").format(name=display_file_name(path)), _STATUS_SHORT
+        )
 
     def _on_duplicate_file_requested(self, path: str) -> None:
+        if self._read_only_refused(path):
+            return  # the copy would land beside the source, outside the case
         p = Path(path)
         new_name, ok = QInputDialog.getText(
             self,
@@ -264,7 +309,9 @@ class _FileManagementOpsMixin:
 
         dest = p.parent / new_name
         if dest.exists():
-            self.statusBar().showMessage(tr("File already exists: {name}").format(name=new_name), _STATUS_WARNING)
+            self.statusBar().showMessage(
+                tr("File already exists: {name}").format(name=new_name), _STATUS_WARNING
+            )
             return
 
         if self.state.file_dirty.get(path, False):
@@ -272,12 +319,12 @@ class _FileManagementOpsMixin:
             msg.setWindowTitle(tr("Unsaved Changes"))
             msg.setText(tr("{name} has unsaved changes.").format(name=display_file_name(path)))
             msg.setInformativeText(tr("How would you like to duplicate this file?"))
-            save_btn = msg.addButton(tr("Save and Duplicate"), QMessageBox.AcceptRole)
-            msg.addButton(tr("Duplicate with Unsaved Changes"), QMessageBox.ActionRole)
-            msg.addButton(QMessageBox.Cancel)
+            save_btn = msg.addButton(tr("Save and Duplicate"), QMessageBox.ButtonRole.AcceptRole)
+            msg.addButton(tr("Duplicate with Unsaved Changes"), QMessageBox.ButtonRole.ActionRole)
+            msg.addButton(QMessageBox.StandardButton.Cancel)
             msg.exec()
             clicked = msg.clickedButton()
-            if clicked is None or msg.buttonRole(clicked) == QMessageBox.RejectRole:
+            if clicked is None or msg.buttonRole(clicked) == QMessageBox.ButtonRole.RejectRole:
                 return
             if clicked == save_btn:
                 self.save_file()
@@ -309,8 +356,101 @@ class _FileManagementOpsMixin:
                 pass
 
         self._reload_file_list()
-        self.statusBar().showMessage(tr("Duplicated: {src} → {dst}").format(src=p.name, dst=new_name), _STATUS_SHORT)
+        self.statusBar().showMessage(
+            tr("Duplicated: {src} → {dst}").format(src=p.name, dst=new_name), _STATUS_SHORT
+        )
         self.file_list_panel.select_file(str(dest))
+
+    def _on_copy_into_case_requested(self, src_path: str) -> None:
+        """Copy a read-only included file into the case so it can be edited.
+
+        Offered only for an `#include` target outside the case directory. The
+        destination follows `include_scan.copy_destination_for`, which puts the
+        copy where OpenFOAM will pick it up in preference to the original.
+        """
+        case_dir = self.state.current_case_dir
+        if not case_dir:
+            return
+        src = Path(src_path)
+        ref = None
+        if self.state.current_case_dir:
+            resolved = self._resolved_include_for(src_path)
+            ref = resolved.ref if resolved is not None else None
+        default_dest = copy_destination_for(src, Path(case_dir), ref)
+        rel_default = default_dest.relative_to(Path(case_dir))
+
+        new_rel, ok = QInputDialog.getText(
+            self,
+            tr("Copy into Case"),
+            tr("Copy {name} into the case as:").format(name=src.name),
+            text=str(rel_default),
+        )
+        if not ok:
+            return
+        new_rel = new_rel.strip()
+        if not new_rel:
+            self.statusBar().showMessage(tr("File name must not be empty."), _STATUS_WARNING)
+            return
+
+        # Normalise before the containment check: Path.relative_to is purely
+        # lexical, so "<case>/../escaped" would otherwise pass it.
+        dest = Path(os.path.normpath(Path(case_dir) / new_rel))
+        try:
+            dest.relative_to(Path(case_dir))
+        except ValueError:
+            self.statusBar().showMessage(
+                tr("Destination must be inside the case directory."), _STATUS_WARNING
+            )
+            return
+        if dest.exists():
+            self.statusBar().showMessage(
+                tr("File already exists: {name}").format(name=new_rel), _STATUS_WARNING
+            )
+            return
+
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
+        except OSError as e:
+            QMessageBox.critical(
+                self, tr("Copy Error"), tr("Could not copy file:\n{e}").format(e=e)
+            )
+            return
+
+        # Register explicitly: the include scan would re-surface the copy, but
+        # only for as long as the directive still points at it.
+        if self.state.case_files_config:
+            rel = dest.relative_to(Path(case_dir))
+            group = str(rel.parent) if rel.parent.parts else ""
+            if not self._is_auto_scan_group(group) and str(rel) not in TARGET_FILES:
+                self.state.case_files_config.add_file(str(rel))
+                self.state.case_files_config.save()
+
+        self._reload_file_list()
+        self.statusBar().showMessage(
+            tr("Copied into case: {name}").format(name=str(dest.relative_to(Path(case_dir)))),
+            _STATUS_NORMAL,
+        )
+        self.file_list_panel.select_file(str(dest))
+
+    def _resolved_include_for(self, target_path: str) -> ResolvedInclude | None:
+        """Find the directive in the open file that pulled in ``target_path``.
+
+        Used only to pick a copy destination, so a miss is harmless: the
+        fallback destination is `system/<name>`.
+        """
+        case_dir = self.state.current_case_dir
+        source = self.state.current_file
+        if not case_dir or not source:
+            return None
+        text = self.state.file_buffers.get(source)
+        if text is None:
+            return None
+        for line in text.splitlines():
+            resolved = resolve_directive_text(line, source, case_dir)
+            if resolved is not None and resolved.path == Path(target_path):
+                return resolved
+        return None
 
     def _on_duplicate_dir_requested(self, case_dir: str, src: str, dst: str) -> None:
         src_path = Path(case_dir) / src
@@ -318,19 +458,25 @@ class _FileManagementOpsMixin:
         reply = QMessageBox.question(
             self,
             tr("Duplicate Directory"),
-            tr("Duplicate '{src}/' to '{dst}/'?\n\nSource:      {src_path}\nDestination: {dst_path}").format(src=src, dst=dst, src_path=src_path, dst_path=dst_path),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            tr(
+                "Duplicate '{src}/' to '{dst}/'?\n\nSource:      {src_path}\nDestination: {dst_path}"
+            ).format(src=src, dst=dst, src_path=src_path, dst_path=dst_path),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
-        if reply != QMessageBox.Yes:
+        if reply != QMessageBox.StandardButton.Yes:
             return
         try:
             shutil.copytree(str(src_path), str(dst_path))
         except Exception as e:
-            QMessageBox.critical(self, tr("Duplicate Error"), tr("Failed to duplicate directory:\n{e}").format(e=e))
+            QMessageBox.critical(
+                self, tr("Duplicate Error"), tr("Failed to duplicate directory:\n{e}").format(e=e)
+            )
             return
         self._reload_file_list()
-        self.statusBar().showMessage(tr("Duplicated: {src} → {dst}").format(src=src+"/", dst=dst+"/"), _STATUS_SHORT)
+        self.statusBar().showMessage(
+            tr("Duplicated: {src} → {dst}").format(src=src + "/", dst=dst + "/"), _STATUS_SHORT
+        )
 
     def _on_delete_dir_requested(self, case_dir: str, group: str) -> None:
         dir_path = Path(case_dir) / group
@@ -347,11 +493,13 @@ class _FileManagementOpsMixin:
         reply = QMessageBox.warning(
             self,
             tr("Delete Directory"),
-            tr("Delete the '{group}/' directory and all its contents?\n\n{path}\n\nThis cannot be undone.").format(group=group, path=dir_path),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            tr(
+                "Delete the '{group}/' directory and all its contents?\n\n{path}\n\nThis cannot be undone."
+            ).format(group=group, path=dir_path),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
-        if reply != QMessageBox.Yes:
+        if reply != QMessageBox.StandardButton.Yes:
             return
 
         affected = [p for p in list(self.state.file_buffers) if Path(p).is_relative_to(dir_path)]
@@ -376,7 +524,7 @@ class _FileManagementOpsMixin:
 
         backups = find_backup_files(self.state.current_case_dir)
         dlg = CleanBackupsDialog(backups, parent=self)
-        if dlg.exec() != QDialog.Accepted:
+        if dlg.exec() != QDialog.DialogCode.Accepted:
             return
 
         paths = dlg.paths_to_delete

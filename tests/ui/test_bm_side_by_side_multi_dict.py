@@ -85,7 +85,8 @@ actions
 );
 """
 
-_SNAPPY_HEX_MESH_DICT_TEXT = """FoamFile { version 2.0; format ascii; class dictionary; object snappyHexMeshDict; }
+_SNAPPY_HEX_MESH_DICT_TEXT = """\
+FoamFile { version 2.0; format ascii; class dictionary; object snappyHexMeshDict; }
 geometry
 {
     motorBike { type box; min (0 0 0); max (1 1 1); }

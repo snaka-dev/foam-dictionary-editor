@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtWidgets import QDialog, QMessageBox
 
@@ -16,12 +17,19 @@ from ui.dialogs.find_examples_dialog import FindExamplesDialog
 from ui.dialogs.log_summary_dialog import LogSummaryDialog
 from ui.dialogs.run_tool_dialog import RunToolDialog
 
+if TYPE_CHECKING:
+    from ui.mixins._protocol import MainWindowProtocol as _Base
+else:
+    _Base = object
 
-class _ToolsOpsMixin:
+
+class _ToolsOpsMixin(_Base):
     # ── shared helpers ────────────────────────────────────────────────────────
 
     def _run_in_terminal(self, cmd: str) -> None:
         """Send cmd to the terminal panel and bring the terminal tab to front."""
+        # Every caller already checked `self.terminal_panel is not None`.
+        assert self.terminal_panel is not None
         self.terminal_panel.run_command(cmd)
         idx = self.bottom_tabs.indexOf(self.terminal_panel)
         if idx != -1:
@@ -32,6 +40,8 @@ class _ToolsOpsMixin:
 
         Returns an empty string when the case has no time-dir results yet.
         """
+        # Every caller already checked `self.state.current_case_dir` truthy.
+        assert self.state.current_case_dir is not None
         time_dirs = detect_time_dirs(self.state.current_case_dir)
         if not time_dirs:
             return ""
@@ -50,6 +60,8 @@ class _ToolsOpsMixin:
         prefix_option: tuple[str, str, bool] | None = None,
     ) -> None:
         """Show the options dialog for ``tool`` and send the composed command."""
+        # Every caller already checked `self.state.current_case_dir` truthy.
+        assert self.state.current_case_dir is not None
         dlg = RunToolDialog(
             TOOL_SPECS[tool],
             self.state.current_case_dir,
@@ -58,7 +70,7 @@ class _ToolsOpsMixin:
             prefix_option,
             self,
         )
-        if dlg.exec() != QDialog.Accepted:
+        if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         self.state.run_tool_options[tool] = dlg.get_values()
         self._run_in_terminal(dlg.get_command())
@@ -173,7 +185,7 @@ class _ToolsOpsMixin:
             # on a case with logs can silently do nothing. Offer the standard
             # remedy (clean first) instead of leaving the user puzzled.
             box = QMessageBox(self)
-            box.setIcon(QMessageBox.Question)
+            box.setIcon(QMessageBox.Icon.Question)
             box.setWindowTitle(tr("Case already run?"))
             box.setText(
                 tr(
@@ -183,9 +195,9 @@ class _ToolsOpsMixin:
                     "Clean the case first to re-run the whole workflow?"
                 ).format(logs=", ".join(logs))
             )
-            clean_btn = box.addButton(tr("Clean, then run"), QMessageBox.YesRole)
-            box.addButton(tr("Run anyway"), QMessageBox.NoRole)
-            cancel_btn = box.addButton(QMessageBox.Cancel)
+            clean_btn = box.addButton(tr("Clean, then run"), QMessageBox.ButtonRole.YesRole)
+            box.addButton(tr("Run anyway"), QMessageBox.ButtonRole.NoRole)
+            cancel_btn = box.addButton(QMessageBox.StandardButton.Cancel)
             box.setDefaultButton(cancel_btn)
             box.exec()
             clicked = box.clickedButton()
@@ -253,35 +265,42 @@ class _ToolsOpsMixin:
             return
         self._run_in_terminal("foamCleanTutorials")
 
+    def _show_cached_dialog(self, attr: str, factory) -> None:
+        """Get-or-create a non-modal dialog cached on ``self.<attr>``.
+
+        Shared by the log-summary and find-examples launchers below: an
+        existing instance is re-shown/raised/activated (closing it only
+        hides it, since neither dialog sets WA_DeleteOnClose), otherwise
+        *factory* builds one, which is cached and torn down via its
+        ``destroyed`` signal. See DEVELOPER.md.
+        """
+        existing = getattr(self, attr)
+        if existing is not None:
+            existing.show()
+            existing.raise_()
+            existing.activateWindow()
+            return
+        dialog = factory()
+        dialog.destroyed.connect(lambda: setattr(self, attr, None))
+        setattr(self, attr, dialog)
+        dialog.show()
+
     def _on_view_log_summary_clicked(self) -> None:
         if not self.state.current_case_dir:
             return
-        if self._log_summary_dialog is not None:
-            # Closing the dialog only hides it (QDialog.close() without
-            # WA_DeleteOnClose), so it must be re-shown here, not just raised.
-            self._log_summary_dialog.show()
-            self._log_summary_dialog.raise_()
-            self._log_summary_dialog.activateWindow()
-            return
-        dialog = LogSummaryDialog(self.state.current_case_dir, parent=self)
-        dialog.destroyed.connect(lambda: setattr(self, "_log_summary_dialog", None))
-        self._log_summary_dialog = dialog
-        dialog.show()
+        self._show_cached_dialog(
+            "_log_summary_dialog",
+            lambda: LogSummaryDialog(self.state.current_case_dir, parent=self),
+        )
 
     def _on_find_examples_clicked(self) -> None:
-        if self._find_examples_dialog is not None:
-            # Closing the dialog only hides it (QDialog.close() without
-            # WA_DeleteOnClose), so it must be re-shown here, not just raised.
-            self._find_examples_dialog.show()
-            self._find_examples_dialog.raise_()
-            self._find_examples_dialog.activateWindow()
-            return
-        dialog = FindExamplesDialog(parent=self)
-        dialog.compare_requested.connect(self._on_example_compare_requested)
-        dialog.duplicate_requested.connect(self._on_example_duplicate_requested)
-        dialog.destroyed.connect(lambda: setattr(self, "_find_examples_dialog", None))
-        self._find_examples_dialog = dialog
-        dialog.show()
+        def _make_find_examples_dialog() -> FindExamplesDialog:
+            dialog = FindExamplesDialog(parent=self)
+            dialog.compare_requested.connect(self._on_example_compare_requested)
+            dialog.duplicate_requested.connect(self._on_example_duplicate_requested)
+            return dialog
+
+        self._show_cached_dialog("_find_examples_dialog", _make_find_examples_dialog)
 
     def _on_example_compare_requested(self, case_dir: str) -> None:
         if not self.state.current_case_dir:

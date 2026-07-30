@@ -3,7 +3,6 @@
 """Tests that parser sets source_line / source_end_line on FoamNode."""
 from __future__ import annotations
 
-import pytest
 from foam.parser import OpenFoamParser
 
 
@@ -163,12 +162,66 @@ def test_boundary_entry_source_lines_set():
 
 
 def test_region_block_source_lines_set():
-    text = "regions\n(\n    boxToCell\n    {\n        box (0 0 0) (1 1 1);\n        fieldValues ( volScalarFieldValue alpha 1 );\n    }\n);\n"
+    text = (
+        "regions\n(\n    boxToCell\n    {\n        box (0 0 0) (1 1 1);\n"
+        "        fieldValues ( volScalarFieldValue alpha 1 );\n    }\n);\n"
+    )
     root = parse(text)
     regions = root.children[0]
     assert regions.node_type == "region_block"
     assert regions.source_line == 1
     assert regions.source_end_line == 8
+
+
+# ── block_list / block_entry source lines ──────────────────────────────────
+
+def test_block_entry_source_lines_single_line_each():
+    text = (
+        "blocks\n(\n"
+        "    hex (0 1 2 3 4 5 6 7) (1 1 1) simpleGrading (1 1 1)\n"
+        "    hex (1 8 9 2 5 10 11 6) (1 1 1) simpleGrading (1 1 1)\n"
+        ");\n"
+    )
+    root = parse(text)
+    blocks = root.children[0]
+    assert blocks.node_type == "block_list"
+    assert blocks.children[0].source_line == blocks.children[0].source_end_line == 3
+    assert blocks.children[1].source_line == blocks.children[1].source_end_line == 4
+
+
+def test_block_entry_source_lines_multiline_block():
+    text = (
+        "blocks\n(\n"
+        "    hex (0 3 4 1 11 14 15 12)\n"
+        "    (18 30 1)\n"
+        "    simpleGrading (0.5 1 1)\n"
+        ");\n"
+    )
+    root = parse(text)
+    blocks = root.children[0]
+    entry = blocks.children[0]
+    assert entry.source_line == 3
+    assert entry.source_end_line == 5
+
+
+def test_block_entry_source_end_line_lands_on_last_content_line_not_blank_separator():
+    text = (
+        "blocks\n(\n"
+        "    hex (0 3 4 1 11 14 15 12)\n"
+        "    (18 30 1)\n"
+        "    simpleGrading (0.5 1 1)\n"
+        "\n"
+        "    hex (3 2 5 4 14 13 16 15) (18 8 1) simpleGrading (0.5 1 1)\n"
+        ");\n"
+    )
+    root = parse(text)
+    blocks = root.children[0]
+    first, second = blocks.children
+    # First entry's span ends at its own last content line (5), not the
+    # blank separator line (6) -- the blank line belongs to the next
+    # entry's leading_trivia instead.
+    assert first.source_end_line == 5
+    assert second.source_line == 7
 
 
 def test_find_deepest_descends_into_boundary_block():

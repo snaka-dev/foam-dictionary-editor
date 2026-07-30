@@ -15,9 +15,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from i18n import tr
 from services.case_loader import list_directory_files
 from ui.panels.file_list_panel import group_display_name
-from i18n import tr
 
 _DIALOG_WIDTH = 400
 _DIALOG_HEIGHT = 300
@@ -57,10 +57,10 @@ class AddFilesDialog(QDialog):
             self._list = QListWidget()
             for path in unloaded:
                 item = QListWidgetItem(Path(path).name)
-                item.setData(Qt.UserRole, path)
+                item.setData(Qt.ItemDataRole.UserRole, path)
                 item.setToolTip(path)
-                item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
-                item.setCheckState(Qt.Unchecked)
+                item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
+                item.setCheckState(Qt.CheckState.Unchecked)
                 self._list.addItem(item)
             layout.addWidget(self._list)
 
@@ -80,7 +80,9 @@ class AddFilesDialog(QDialog):
             self._add_btn.clicked.connect(self.accept)
             cancel_btn.clicked.connect(self.reject)
         else:
-            layout.addWidget(QLabel(tr("All files in '{group}' are already in the file list.").format(group=shown)))
+            layout.addWidget(
+                QLabel(tr("All files in '{group}' are already in the file list.").format(group=shown))
+            )
             bottom = QHBoxLayout()
             bottom.addStretch()
             close_btn = QPushButton(tr("Close"))
@@ -92,7 +94,7 @@ class AddFilesDialog(QDialog):
         return [
             self._list.item(i)
             for i in range(self._list.count())
-            if self._list.item(i).checkState() == Qt.Checked
+            if self._list.item(i).checkState() == Qt.CheckState.Checked
         ]
 
     def _update_add_btn(self) -> None:
@@ -103,17 +105,17 @@ class AddFilesDialog(QDialog):
     def _select_all(self) -> None:
         self._list.blockSignals(True)
         for i in range(self._list.count()):
-            self._list.item(i).setCheckState(Qt.Checked)
+            self._list.item(i).setCheckState(Qt.CheckState.Checked)
         self._list.blockSignals(False)
         self._update_add_btn()
 
     def _deselect_all(self) -> None:
         self._list.blockSignals(True)
         for i in range(self._list.count()):
-            self._list.item(i).setCheckState(Qt.Unchecked)
+            self._list.item(i).setCheckState(Qt.CheckState.Unchecked)
         self._list.blockSignals(False)
         self._update_add_btn()
 
     @property
     def selected_paths(self) -> list[str]:
-        return [item.data(Qt.UserRole) for item in self._checked_items()]
+        return [item.data(Qt.ItemDataRole.UserRole) for item in self._checked_items()]

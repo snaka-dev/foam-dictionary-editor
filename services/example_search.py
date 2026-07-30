@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from services.foam_env import foam_env_dirs
+from app_config.foam_env import foam_env_dirs
 
 Source = Literal["tutorials", "caseDicts"]
 SOURCE_TUTORIALS: Source = "tutorials"

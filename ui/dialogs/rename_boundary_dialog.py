@@ -105,9 +105,9 @@ class RenameBoundaryDialog(QDialog):
                 label = Path(path).name
             n = len(nodes)
             item = QListWidgetItem(f"{label}    ({n} match{'es' if n != 1 else ''})")
-            item.setData(Qt.UserRole, path)
-            item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Checked)
+            item.setData(Qt.ItemDataRole.UserRole, path)
+            item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked)
             self._list.addItem(item)
         layout.addWidget(self._list)
 
@@ -140,7 +140,7 @@ class RenameBoundaryDialog(QDialog):
         return [
             self._list.item(i)
             for i in range(self._list.count())
-            if self._list.item(i).checkState() == Qt.Checked
+            if self._list.item(i).checkState() == Qt.CheckState.Checked
         ]
 
     def _update_rename_btn(self) -> None:
@@ -153,18 +153,18 @@ class RenameBoundaryDialog(QDialog):
     def _select_all(self) -> None:
         self._list.blockSignals(True)
         for i in range(self._list.count()):
-            self._list.item(i).setCheckState(Qt.Checked)
+            self._list.item(i).setCheckState(Qt.CheckState.Checked)
         self._list.blockSignals(False)
         self._update_rename_btn()
 
     def _deselect_all(self) -> None:
         self._list.blockSignals(True)
         for i in range(self._list.count()):
-            self._list.item(i).setCheckState(Qt.Unchecked)
+            self._list.item(i).setCheckState(Qt.CheckState.Unchecked)
         self._list.blockSignals(False)
         self._update_rename_btn()
 
     def _on_rename(self) -> None:
         self._new_name = self._name_edit.text().strip()
-        self._selected_paths = [item.data(Qt.UserRole) for item in self._checked_items()]
+        self._selected_paths = [item.data(Qt.ItemDataRole.UserRole) for item in self._checked_items()]
         self.accept()

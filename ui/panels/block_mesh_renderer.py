@@ -11,7 +11,7 @@ import dataclasses
 import gzip
 import os
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -21,8 +21,20 @@ import pyvista as pv
 from foam.block_mesh_extractor import BlockMeshData
 from foam.sampling_extractor import SamplingShape
 from foam.set_fields_extractor import SetFieldsShape
+from foam.shapes import SourceShape
 from foam.snappy_hex_mesh_extractor import SnappyShape
 from foam.topo_set_extractor import TopoShape
+from ui.theme import colors
+
+
+def _opacity(base: float) -> float:
+    """Scale a face opacity for the active theme, clamped to a valid alpha.
+
+    Translucent faces blend toward the scene background, so an alpha tuned
+    against white reads as muddy against the dark viewport.
+    """
+    return min(1.0, base * colors().viewport_geometry_opacity)
+
 
 _PATCH_COLORS: dict[str, str] = {
     "wall":          "#E87722",
@@ -58,11 +70,40 @@ _SNAPPY_CATEGORY_COLORS: dict[str, str] = {
     "region":   "mediumpurple",
     "geometry": "gray",
 }
-_LOCATION_POINT_COLOR = "black"
+# Keep-point markers use the viewport foreground so they stay visible in
+# both themes (a fixed black dot vanishes against the dark scene).
 
 # setFieldsDict regions have no topoSet action or snappy category, so they all
 # share one colour, chosen to clash with neither palette above.
 _SET_FIELDS_REGION_COLOR = "darkorange"
+
+# Loaded reference surfaces cycle a pale palette so several files stay
+# distinguishable, deliberately washed-out next to the saturated dict-overlay
+# colours above. "lightgray" comes first so a single loaded file looks exactly
+# as it did when every surface was grey.
+_SURFACE_COLORS: tuple[str, ...] = (
+    "lightgray", "lightsteelblue", "wheat", "thistle",
+    "darkseagreen", "lightsalmon", "paleturquoise", "khaki",
+)
+
+
+@dataclasses.dataclass
+class LoadedSurface:
+    """One STL/OBJ file loaded into the viewer as a reference overlay.
+
+    The label/kind/source_file names deliberately mirror foam/shapes.py's
+    SourceShape scheme so instances drop straight into the panel's
+    _ShapeOverlayMenu, whose row identity is (source_file, label, kind). It is
+    not a SourceShape subclass: that class's third field is a parsed geometry
+    dict, and a loaded surface carries a mesh instead, so inheriting would mean
+    dragging a permanently empty `geometry` along.
+    """
+
+    label: str        # basename, shown in the STL ▾ row
+    kind: str         # file suffix without the dot ("stl", "obj")
+    source_file: str  # full path — stable identity across menu rebuilds
+    color: str
+    mesh: Any         # pyvista mesh from read_surface_mesh()
 
 # All sampling shapes (probes / sample lines / sample planes) share one colour.
 _SAMPLING_COLOR = "teal"
@@ -321,6 +362,7 @@ class RenderSettings:
     show_bounds: bool
     label_font_size: int
     selected_vertex: int | None
+    selected_block: int | None = None
 
 
 class BlockMeshRenderer:
@@ -333,7 +375,7 @@ class BlockMeshRenderer:
         self,
         data: BlockMeshData | None,
         settings: RenderSettings,
-        stl_meshes: list,
+        surfaces: list[LoadedSurface],
         topo_shapes: list[TopoShape] | None = None,
         snappy_shapes: list[SnappyShape] | None = None,
         location_points: list[tuple[list, str]] | None = None,
@@ -350,17 +392,21 @@ class BlockMeshRenderer:
 
         clip_bounds: list[float] | None = None
         if has_mesh:
+            assert data is not None  # has_mesh implies data is not None
             pts = np.array(data.vertices, dtype=float)
             clip_bounds = _expanded_bounds(pts)
             self._render_points(pts, data, settings)
             self._render_blocks(pts, data, settings)
             self._render_boundary_faces(pts, data, settings)
 
-        for stl in stl_meshes:
-            self._plotter.add_mesh(stl, color="lightgray", opacity=0.4)
+        for surface in surfaces:
+            self._plotter.add_mesh(
+                surface.mesh, color=surface.color, opacity=_opacity(0.4)
+            )
 
         # Scene size for display-only extents (plane discs, sample-line tubes).
         if has_mesh:
+            assert data is not None  # has_mesh implies data is not None
             pts_arr = np.array(data.vertices, dtype=float)
             scene_size = float(
                 np.linalg.norm(pts_arr.max(axis=0) - pts_arr.min(axis=0))
@@ -403,6 +449,7 @@ class BlockMeshRenderer:
             self._render_location_points(location_points, settings.label_font_size)
 
         if has_mesh:
+            assert data is not None  # has_mesh implies data is not None
             self._render_scale_indicators(pts, data, settings)
 
         self._plotter.reset_camera()
@@ -433,7 +480,7 @@ class BlockMeshRenderer:
                 pts,
                 [str(i) for i in range(len(verts))],
                 font_size=settings.label_font_size,
-                text_color="black",
+                text_color=colors().viewport_vertex_label_fg,
                 shape=None,
                 show_points=False,
                 always_visible=True,
@@ -450,11 +497,12 @@ class BlockMeshRenderer:
                 centroids,
                 [str(i) for i in range(len(data.hex_blocks))],
                 font_size=settings.label_font_size,
-                text_color="darkblue",
+                text_color=colors().viewport_block_label_fg,
                 shape=None,
                 show_points=False,
                 always_visible=True,
             )
+        self._render_selected_block(pts, data, settings)
         if not (settings.show_edges or settings.solid_blocks):
             return
         grid = _make_hex_grid(pts, data.hex_blocks)
@@ -471,7 +519,28 @@ class BlockMeshRenderer:
         if settings.show_edges:
             self._plotter.add_mesh(grid, style="wireframe", line_width=2, **color_kw)
         if settings.solid_blocks:
-            self._plotter.add_mesh(grid, style="surface", opacity=0.25, **color_kw)
+            self._plotter.add_mesh(grid, style="surface", opacity=_opacity(0.25), **color_kw)
+
+    def _render_selected_block(
+        self, pts: np.ndarray, data: BlockMeshData, settings: RenderSettings,
+    ) -> None:
+        """Outline the block whose tree row is selected.
+
+        Its own actor rather than a scalar on the shared grid: the blocks are
+        drawn as one UnstructuredGrid, and the highlight has to stay visible
+        whether or not block edges and solid faces are switched on at all.
+        """
+        index = settings.selected_block
+        if index is None or not (0 <= index < len(data.hex_blocks)):
+            return
+        block = data.hex_blocks[index]
+        if not block or max(block) >= len(pts):
+            return
+
+        highlight = colors().viewport_selected_block
+        grid = _make_hex_grid(pts, [block])
+        self._plotter.add_mesh(grid, style="wireframe", line_width=5, color=highlight)
+        self._plotter.add_mesh(grid, style="surface", opacity=_opacity(0.35), color=highlight)
 
     def _render_boundary_faces(self, pts: np.ndarray, data: BlockMeshData, settings: RenderSettings) -> None:
         if not settings.show_boundary:
@@ -484,7 +553,7 @@ class BlockMeshRenderer:
                 conn += [len(face)] + face
             poly = pv.PolyData(pts, np.array(conn, dtype=np.int_))
             color = _PATCH_COLORS.get(patch_type, _DEFAULT_PATCH_COLOR)
-            self._plotter.add_mesh(poly, color=color, opacity=0.6)
+            self._plotter.add_mesh(poly, color=color, opacity=_opacity(0.6))
         # blockMesh's implicit defaultFaces (unassigned exterior faces): drawn
         # fainter than named patches — essential for quasi-2-D cases whose big
         # front/back faces are never listed under boundary.
@@ -495,7 +564,7 @@ class BlockMeshRenderer:
             for face in default_faces:
                 conn += [len(face)] + face
             poly = pv.PolyData(pts, np.array(conn, dtype=np.int_))
-            self._plotter.add_mesh(poly, color=_PATCH_COLORS["empty"], opacity=0.25)
+            self._plotter.add_mesh(poly, color=_PATCH_COLORS["empty"], opacity=_opacity(0.25))
 
     def _add_shape_label(self, position, text: str, label_font_size: int) -> None:
         self._plotter.add_point_labels(
@@ -503,9 +572,9 @@ class BlockMeshRenderer:
             [text],
             font_size=label_font_size,
             bold=True,
-            text_color="black",
-            background_color="white",
-            background_opacity=0.7,
+            text_color=colors().viewport_label_fg,
+            background_color=colors().viewport_label_bg,
+            background_opacity=0.85,
             always_visible=True,
             show_points=False,
         )
@@ -520,7 +589,7 @@ class BlockMeshRenderer:
     ) -> None:
         """Add one overlay shape (clipped to the scene) plus its label."""
         mesh, mark = _clip_to_bounds(mesh, clip_bounds)
-        self._plotter.add_mesh(mesh, color=color, opacity=0.35, style="surface")
+        self._plotter.add_mesh(mesh, color=color, opacity=_opacity(0.35), style="surface")
         self._plotter.add_mesh(mesh, color=color, opacity=0.8, style="wireframe")
         text = _mark_label(label, mark)
         if text:
@@ -528,7 +597,7 @@ class BlockMeshRenderer:
 
     def _render_source_shapes(
         self,
-        shapes: list[TopoShape] | list[SetFieldsShape] | list[SamplingShape],
+        shapes: Sequence[SourceShape],
         color_for: Callable[[Any], str],
         label_font_size: int = 10,
         clip_bounds: list[float] | None = None,
@@ -550,7 +619,7 @@ class BlockMeshRenderer:
 
     def _render_point_shape(
         self,
-        shape: TopoShape | SetFieldsShape | SamplingShape,
+        shape: SourceShape,
         color: str,
         label_font_size: int,
     ) -> None:
@@ -590,16 +659,16 @@ class BlockMeshRenderer:
             pv.PolyData(pts),
             render_points_as_spheres=True,
             point_size=16,
-            color=_LOCATION_POINT_COLOR,
+            color=colors().viewport_text,
         )
         self._plotter.add_point_labels(
             pts,
             [label for _p, label in points],
             font_size=label_font_size,
             bold=True,
-            text_color="black",
-            background_color="white",
-            background_opacity=0.7,
+            text_color=colors().viewport_label_fg,
+            background_color=colors().viewport_label_bg,
+            background_opacity=0.85,
             always_visible=True,
             show_points=False,
         )
@@ -697,15 +766,17 @@ class BlockMeshRenderer:
             return None
         return None
 
-    def _render_scale_indicators(self, pts: np.ndarray, data: BlockMeshData, settings: RenderSettings) -> None:
+    def _render_scale_indicators(
+        self, pts: np.ndarray, data: BlockMeshData, settings: RenderSettings
+    ) -> None:
         if settings.show_axes:
             self._plotter.show_axes()
         else:
             self._plotter.hide_axes()
         if settings.show_grid:
-            self._plotter.show_grid(color="gray", font_size=8)
+            self._plotter.show_grid(color=colors().viewport_grid, font_size=8)
         if settings.show_bounds:
-            self._plotter.add_bounding_box(color="gray", line_width=1)
+            self._plotter.add_bounding_box(color=colors().viewport_grid, line_width=1)
             mins = pts.min(axis=0)
             maxs = pts.max(axis=0)
             dims = maxs - mins
@@ -720,6 +791,6 @@ class BlockMeshRenderer:
                 "\n".join(lines),
                 position="upper_left",
                 font_size=9,
-                color="black",
+                color=colors().viewport_text,
                 font="courier",
             )

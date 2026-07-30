@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -30,9 +29,8 @@ def qapp():
 
 def _make_window(qapp, tmp_path):
     """Stub MainWindow with just enough state for drag-drop methods."""
-    from ui.main_window import MainWindow
-
     from ui.app_state import AppState
+    from ui.main_window import MainWindow
     with patch.object(MainWindow, "_build_ui", lambda self: None):
         win = MainWindow.__new__(MainWindow)
         win.state = AppState()
@@ -80,7 +78,8 @@ class TestDragEnterEvent:
 
     def test_ignores_multiple_urls(self, qapp, tmp_path):
         d1, d2 = tmp_path / "a", tmp_path / "b"
-        d1.mkdir(); d2.mkdir()
+        d1.mkdir()
+        d2.mkdir()
         win = _make_window(qapp, tmp_path)
         ev = _drag_enter(_mime([QUrl.fromLocalFile(str(d1)), QUrl.fromLocalFile(str(d2))]))
         win.dragEnterEvent(ev)

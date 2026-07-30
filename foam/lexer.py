@@ -117,7 +117,33 @@ class OpenFoamLexer:
         start = self.pos
         while self.pos < self.length:
             ch = self.text[self.pos]
+            # `${...}` is a single token: a braced macro reference, optionally
+            # carrying a scope path (`${../_bladeForces}`). Letting the `{` end
+            # the word here would leave a bare `$` that the parser reads as an
+            # entry key, then fails demanding a `;`. `#eval{...}` is unaffected:
+            # a `#` word goes to _read_directive, which splits on `{` on purpose.
+            if ch == "{" and self.pos > start and self.text[self.pos - 1] == "$":
+                self.pos = self._skip_braced_group(self.pos)
+                continue
             if ch in " \t\n{}();" or (ch == "/" and self._peek(1) in "/*"):
                 break
             self.pos += 1
         return Token("WORD", self.text[start:self.pos], start)
+
+    def _skip_braced_group(self, pos: int) -> int:
+        """Return the index just past the balanced ``{...}`` group at pos.
+
+        An unterminated group runs to the end of the text rather than looping,
+        leaving the parser to report the truncated entry.
+        """
+        depth = 0
+        while pos < self.length:
+            ch = self.text[pos]
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return pos + 1
+            pos += 1
+        return pos

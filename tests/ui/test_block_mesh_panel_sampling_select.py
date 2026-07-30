@@ -152,6 +152,20 @@ def test_hidden_shape_stays_hidden_when_another_file_is_edited(qapp):
     assert all(s.label != "centerline" for s in panel._sampling.visible_shapes())
 
 
+def test_same_basename_in_two_directories_do_not_overwrite(qapp):
+    """Two sampling dicts sharing a basename (reachable once the user adds an
+    extra directory holding a second `sample`) must both stay loaded: the
+    store was keyed by basename, so the later one replaced the earlier."""
+    panel = BlockMeshPanel()
+    panel.update_sampling("/case/system/sample", OpenFoamParser(_SAMPLE_FILE).parse())
+    panel.update_sampling("/other/system/sample", OpenFoamParser(_SAMPLE_FILE).parse())
+
+    assert len(panel._sampling_by_file) == 2
+    assert [s.label for s in panel._sampling.shapes] == ["centerline", "centerline"]
+    # The row label still shows the basename, not the full path.
+    assert {s.source_file for s in panel._sampling.shapes} == {"sample"}
+
+
 def test_clear_resets_everything(qapp):
     panel = _panel_with_control_dict(qapp)
     assert panel._sampling.shape_actions

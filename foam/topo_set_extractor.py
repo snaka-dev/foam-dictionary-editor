@@ -7,6 +7,7 @@ import dataclasses
 import re
 
 from foam.nodes import FoamNode
+from foam.shapes import SourceShape
 from foam.tree_utils import (
     find_child,
     resolve_box_geometry,
@@ -51,13 +52,12 @@ _TOPO_STRUCTURAL = frozenset({"actions"})
 
 
 @dataclasses.dataclass
-class TopoShape:
-    # `label`/`kind` are the field names shared by all extractor shape classes
-    # (SnappyShape, SetFieldsShape): display name + geometry/source keyword.
-    label: str    # value of the action's 'name' entry, or ""
-    kind: str     # source type, e.g. "boxToCell", "sphereToCell", "cylinderToCell"
+class TopoShape(SourceShape):
+    # `label`/`kind`/`geometry` are inherited from SourceShape (see foam/shapes.py):
+    # label = value of the action's 'name' entry, or ""; kind = source type,
+    # e.g. "boxToCell", "sphereToCell", "cylinderToCell"; geometry keys depend
+    # on source type.
     action: str   # e.g. "new", "add", "subtract", "subset", "invert"
-    geometry: dict  # parsed geometry: keys depend on source type
 
 
 @dataclasses.dataclass

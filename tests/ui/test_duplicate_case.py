@@ -3,10 +3,9 @@
 """Tests for services.case_copier.copy_visible_files."""
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
-
-import pytest
 
 from services.case_copier import copy_visible_files
 
@@ -250,8 +249,6 @@ class TestCopyAllVsVisible:
 
 
 # ── extra files via .foam-editor-files.json ───────────────────────────────────
-
-import json
 
 
 class TestExtraFilesCopied:

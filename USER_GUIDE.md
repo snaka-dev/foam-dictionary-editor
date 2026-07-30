@@ -23,8 +23,11 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 | Use tutorial or template cases | [Case Library](#case-library) |
 | Try FoDE with a ready-made example case | [Bundled example cases](#bundled-example-cases) |
 | Work with a multiRegion (CHT) case | [MultiRegion cases](#multiregion-cases) |
+| See a file pulled in by `#include`, or edit one from the OpenFOAM installation | [Included files](#included-files) |
 | Understand tree ↔ text sync | [Tree and text workflow](#tree-and-text-workflow) |
 | Edit values in the tree | [Tree view context menu](#tree-view-context-menu) |
+| Edit one blockMeshDict block at a time | [Supported syntax and node types](#supported-syntax-and-node-types) (`block_entry`) |
+| Add, duplicate or delete a blockMeshDict block | [Adding and duplicating entries](#adding-and-duplicating-entries) / [Commenting and deleting](#commenting-and-deleting) |
 | Get help on a dictionary setting | [Detail pane](#detail-pane) |
 | View all boundary conditions at a glance without opening each field file | [Boundary view](#boundary-view) |
 | Delete or add a boundary condition across all field files at once | [Deleting](#deleting-a-boundary-condition-across-all-field-files) / [Adding a boundary condition across all field files](#adding-a-boundary-condition-across-all-field-files) |
@@ -56,6 +59,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 | Match syntax highlighting to my OpenFOAM version | [Generate OpenFOAM Keywords](#generate-openfoam-keywords) |
 | Configure application settings | [Application settings](#application-settings) |
 | Switch the UI language (English / 日本語) | Settings > Language |
+| Switch the colour theme (system / light / dark) | Settings > Appearance |
 | Open help links or reference sites | [Resources dialog](#resources-dialog) |
 | See annotated screenshots of the app | [Screenshot gallery](docs/SCREENSHOTS.md) |
 
@@ -71,6 +75,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
   - [Directory header markers](#directory-header-markers)
   - [Default target files](#default-target-files)
   - [MultiRegion cases](#multiregion-cases)
+  - [Included files](#included-files)
   - [Symbolic links](#symbolic-links)
   - [Adding files at runtime](#adding-files-at-runtime)
   - [Adding extra directories](#adding-extra-directories)
@@ -154,6 +159,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 - [Find OpenFOAM Examples](#find-openfoam-examples)
 
 **Reference**
+- [Appearance and colours](#appearance-and-colours)
 - [Supported syntax and node types](#supported-syntax-and-node-types)
 - [Limitations](#limitations)
 - [Disclaimer](#disclaimer)
@@ -281,6 +287,7 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, a *
 - Settings > Manage Schema Modules.
 - Settings > Reset Window Size.
 - Settings > Reset All Settings…
+- Settings > Appearance — select the colour theme: **Follow System** (default), **Light**, or **Dark**. Takes effect after restarting the application. See [Appearance and colours](#appearance-and-colours).
 - Settings > Language — select the UI language (English / 日本語). Takes effect after restarting the application.
 - Settings > Generate OpenFOAM Keywords… — rebuild the syntax-highlighter keyword list from a selected OpenFOAM installation. See [Generate OpenFOAM Keywords](#generate-openfoam-keywords).
 
@@ -390,6 +397,25 @@ When subdirectories are found inside `system/`, the editor treats them as region
 Each region directory appears as its own group header in the file list (for example `system/fluid`, `constant/heater`). Region groups are sorted after the top-level `system` and `constant` groups.
 
 Field files inside `0/<region>/` and `0.orig/<region>/` are also listed automatically, grouped under headers such as `0/fluid` and `0/solid`. This covers cases like `chtMultiRegionFoam` where each region has its own initial-condition files (e.g. `0/heater/T`, `0/bottomWater/p`).
+
+### Included files
+
+A dictionary can pull in another file with `#include` (and its relatives `#sinclude`, `#includeIfPresent`, `#includeEtc` and `#includeFunc`). The editor follows those directives and lists the files they refer to, so you can read them without hunting for them on disk. Nothing is merged into the including file: the included file stays a file of its own, much like a symbolic link, and the directive keeps its own row in the tree.
+
+Where an included file appears depends on where it lives:
+
+- **Inside the case** — it joins the group it belongs to. `#include "caseSettings"` from `constant/dynamicMeshDict` puts `caseSettings` in the **constant** group, marked with a `↳`. It behaves like any other case file: fully editable and saveable.
+- **Outside the case** — typically `#includeEtc "caseDicts/setConstraintTypes"` or `#includeFunc solverInfo`, which resolve into your OpenFOAM installation. These are collected in an **included files** group at the bottom of the list, shown in italic. Hovering over any included file names the file whose `#include` pulled it in.
+
+Files outside the case are **read-only**. Editing one would change a file shared by every case on the machine, so the editor shows it — tree and text — but the text editor is locked (a `read-only` badge appears beside the Line indicator), tree entries cannot be edited, and Save, Create Backup, Duplicate and Delete are unavailable. To customise one, right-click it and choose **Copy into case...**: the file is copied into your case (normally into `system/`, which is where OpenFOAM looks first) and the copy is editable. For `#includeFunc`, the copy takes effect immediately; for `#includeEtc`, change the directive to a plain `#include "<name>"` so it picks up your local version.
+
+To jump from a directive to the file it names, right-click the directive's row in the tree and choose **Open Included File**, or double-click the row's Key or Type cell. Hovering over the row shows what the directive resolved to, or why it did not:
+
+- **not found** — the file does not exist. This is normal before a case has been run, since some tutorials generate their included files in `Allrun`.
+- **optional include not present** — a `#sinclude`/`#includeIfPresent` target that is absent. This is legal and not an error.
+- **no OpenFOAM installation found** — `#includeEtc` and `#includeFunc` need an installation to resolve against. Pick one under **Settings** (the same installation selector used by *Find OpenFOAM Examples*).
+
+Two limits are worth knowing. Includes are followed **one level only**, so a file that is itself included is not scanned for further includes. And because the editor cannot tell which OpenFOAM version a case was written for, `#includeEtc` resolves against the newest installation it finds unless you choose one explicitly.
 
 ### Symbolic links
 
@@ -678,6 +704,7 @@ All controls sit in a single toolbar at the top of the panel. The toolbar *wraps
 |---|---|
 | **Vertices ▾** | Drop-down menu with three checkable items: **Vertices** (show vertices as red spheres), **Vertex labels** (overlay vertex index numbers), **Vertices table** (show or hide the vertex coordinate table on the right). |
 | **Blocks ▾** | Drop-down menu with four checkable items: **Block edges** (wireframe), **Block labels** (index at centroid), **Color blocks** (distinct colour per block from the tab10 palette), **Solid blocks** (semi-transparent solid faces at opacity 0.25, shares colour with Color blocks). |
+| *(block highlight)* | Not a control: selecting a `block N` row in the Tree view outlines that block here, in a colour used for nothing else. The row number and the number drawn at the block's centre are the same number. The outline shows even with **Block edges** and **Solid blocks** both off, and clears when you select any other row or load another mesh. |
 | **Boundary faces** | Show boundary patch faces, colour-coded by type. Exterior block faces not claimed by any patch — blockMesh's implicit `defaultFaces` — are drawn in a fainter grey; without them a quasi-2-D case like damBreak (whose big front/back faces are never listed under `boundary`) would appear to have no boundary at all. |
 | **topoSet ▾** | Drop-down menu for the `topoSetDict` overlay: a master **Show topoSet geometry** toggle, **Show all shapes** / **Hide all shapes** actions, an action-colour legend, one checkable toggle per renderable shape, and a **Non-geometric sources (N)** submenu collecting the entries that carry no drawable geometry (see [topoSetDict overlay](#toposetdict-overlay)). |
 | **snappyHexMesh ▾** | Drop-down menu for the `snappyHexMeshDict` overlay, structured like **topoSet ▾**: a master toggle, **Show all shapes** / **Hide all shapes**, a category-colour legend, per-shape and keep-point toggles, and a **Non-geometric sources (N)** submenu (see [snappyHexMeshDict overlay](#snappyhexmeshdict-overlay)). |
@@ -685,7 +712,7 @@ All controls sit in a single toolbar at the top of the panel. The toolbar *wraps
 | **sample ▾** | Drop-down menu for the sampling overlay — probe points, sample lines, and sample planes from `controlDict`'s `functions {}` block or a standalone sampling dict — structured like **topoSet ▾** (see [Sampling overlay](#sampling-overlay)). |
 | **Refresh** | Re-extract geometry from the current tree and redraw. In Preview mode, also discards all preview edits and resets vertex coordinates to the tree values. |
 | **Preview** | Appears only when the `vertices` block contains variable references (`$varName`). This button is shown inside the **Vertices** panel (not in the main toolbar). Click to enter Preview mode: table cells become editable and each change immediately updates the 3-D view, but the tree and file are not modified. A yellow banner is shown while Preview mode is active. Click **Refresh** to leave Preview mode and restore the original values. |
-| **STL ▾** | Drop-down menu: **Load STL / OBJ…** loads an STL or OBJ file and displays it as a translucent grey overlay (multiple files can be loaded); gzip-compressed files (`.stl.gz`, `.obj.gz`) load directly, no manual gunzip needed; **Clear STL** removes all loaded overlays (greyed out when none are loaded); **Export Shapes as STL…** opens a dialog listing every renderable `topoSetDict`/`snappyHexMeshDict`/`setFieldsDict` shape currently loaded, with a checkbox per shape (defaulting to its current visibility in the 3-D view) and a Select All / Deselect All pair. Choose an output folder and click Export to write each checked shape as its own `.stl` file, named after its label/name (greyed out when no topoSet/snappyHexMesh/setFields geometry is loaded). Point-marker shapes (e.g. `nearestToCell`) and `planeToFaceZone` discs are not offered — they have no meaningful STL surface. Exported geometry is always the full, unclipped shape, even when the 3-D view shows it clipped. |
+| **STL ▾** | Drop-down menu: **Load STL / OBJ…** loads STL or OBJ files and displays them as translucent overlays (several files can be selected together in the file dialog, and further loads add to what is already shown; if one of the selected files cannot be read, the rest are still loaded and a single warning names the ones that failed); gzip-compressed files (`.stl.gz`, `.obj.gz`) load directly, no manual gunzip needed. Each loaded file gets its own checkable row at the bottom of the menu, coloured with the swatch shown beside it so several surfaces stay apart in the view, and the master **Show loaded surfaces** toggle plus **Show all surfaces** / **Hide all surfaces** switch them together — the same arrangement as the overlay menus above. Loading a file that is already loaded re-reads it into its existing row instead of adding a second one, which is how you refresh a surface edited outside FoDE. **Unload ▸** removes a single file; **Clear STL** removes all of them (both greyed out when none are loaded; opening another case also clears them, since they were loaded for the case you left). A surface is drawn even with no `blockMeshDict` open; **Export Shapes as STL…** opens a dialog listing every renderable `topoSetDict`/`snappyHexMeshDict`/`setFieldsDict` shape currently loaded, with a checkbox per shape (defaulting to its current visibility in the 3-D view) and a Select All / Deselect All pair. Choose an output folder and click Export to write each checked shape as its own `.stl` file, named after its label/name (greyed out when no topoSet/snappyHexMesh/setFields geometry is loaded). Point-marker shapes (e.g. `nearestToCell`) and `planeToFaceZone` discs are not offered — they have no meaningful STL surface. Exported geometry is always the full, unclipped shape, even when the 3-D view shows it clipped. |
 
 Both the traditional 4-vertex face notation `(v0 v1 v2 v3)` and the newer compact notation `(blockIndex faceIndex)` are supported and can coexist in the same file. The compact form is automatically expanded to 4-vertex lists using the standard hex block face numbering before display.
 
@@ -1220,15 +1247,15 @@ Ctrl+C and Ctrl+V are scoped to the tree widget and do not interfere with the te
 
 ### Adding and duplicating entries
 
-- **Add Entry After** — inserts a new `word`-typed entry (`newKey / newValue`) as a sibling immediately after the selected node and opens the key cell for inline editing. Enabled when the parent is a dictionary or the root.
+- **Add Entry After** — inserts a new `word`-typed entry (`newKey / newValue`) as a sibling immediately after the selected node and opens the key cell for inline editing. Enabled when the parent is a dictionary or the root. On a `blockMeshDict` `block N` row it inserts a new block instead — a ready-made `hex (0 1 2 3 4 5 6 7) (10 10 10) simpleGrading (1 1 1)` — and opens its Value cell, since a block row's key is its position and cannot be typed.
 - **Add Child Entry** — inserts a new entry as the last child of the selected node. Enabled only when the selected node is a `dictionary`.
 - **Duplicate** — deep-copies the selected node and its subtree, inserting the copy immediately after the original.
 
 ### Commenting and deleting
 
-- **Comment Out** — converts the selected entry into a commented-out `unknown_raw_entry` by prepending `// ` to every non-blank line of its rendered text. The result is written back into the file as a block comment. Disabled when the entry is already commented out.
+- **Comment Out** — converts the selected entry into a commented-out `unknown_raw_entry` by prepending `// ` to every non-blank line of its rendered text. The result is written back into the file as a block comment. Disabled when the entry is already commented out, and on `block N` rows: a commented-out block inside `blocks ( … )` reads back as a comment rather than an entry, so the row would disappear instead of being restorable.
 - **Restore from Comment** — reverses **Comment Out**: strips the `// ` prefix from each line, re-parses the result, and replaces the `unknown_raw_entry` with the recovered node(s). Enabled only when every non-blank line of the entry starts with `//`.
-- **Delete** — removes the selected node after a Yes/No confirmation dialog.
+- **Delete** — removes the selected node after a Yes/No confirmation dialog. Deleting a `block N` row renumbers the blocks after it, in both the tree and the 3-D viewer.
 
 ## Bundled example cases
 
@@ -1378,7 +1405,7 @@ Hovering over a highlighted row shows a tooltip with additional context:
 - **Only in current** rows end with `(not in reference case)`.
 - **Only in reference** rows end with `(only in reference case)`.
 
-Comparison recurses into structural blocks (`dictionary`, `boundary_block`, `boundary_entry`, `region_block`, `region_entry`, `field_value_block`), matching children by key name. Positional list items (e.g. `vertices`, `blocks`) and anonymous nodes (`#include`, `$macro`) are not annotated.
+Comparison recurses into structural blocks (`dictionary`, `boundary_block`, `boundary_entry`, `region_block`, `region_entry`, `field_value_block`, `block_list`), matching children by key name. `block_list` is the exception: its children are anonymous, so a `blockMeshDict`'s blocks are compared **by position** — block 0 against block 0, and so on — which means a file where two of five blocks differ is marked `≠2`, not `≠1`. Other positional list items (e.g. `vertices`) and anonymous nodes (`#include`, `$macro`) are not annotated.
 
 If the corresponding file does not exist in the reference case, no overlay is applied and the status bar shows a *"not found in reference case"* message.
 
@@ -1471,6 +1498,30 @@ Clicking the triangle hides or reveals the lines between the `{` and the matchin
 
 Folding is visual only: the underlying text is not modified. **Apply Text to Tree**, **Save File**, and all copy operations work on the full, unmodified text regardless of the current fold state.
 
+## Appearance and colours
+
+**Settings > Appearance** selects the colour theme. The choice is saved in `app_config.json` and takes effect after restarting the application.
+
+| Mode | Behaviour |
+|------|-----------|
+| **Follow System** (default) | Keeps the platform's native widget style and desktop palette — including your accent colour on Windows and the desktop theme on Linux. |
+| **Light** | Forces the Fusion style with FoDE's light palette, identical on every OS. |
+| **Dark** | Forces the Fusion style with FoDE's dark palette, identical on every OS. |
+
+Dark mode covers the BlockMesh 3-D viewer as well: the scene background, the axis and bounds text, vertex/block numbers, and the shape name badges all follow the theme. The patch and overlay colours themselves (wall orange, patch blue, the topoSet action colours, …) stay the same in both themes, because they identify what you are looking at rather than decorate it.
+
+### Selected-row readability
+
+Qt takes the selection fill from the desktop (on Windows 11, that is the accent colour set in *Settings > Personalization > Colors*) but takes the selected-row *text* colour from the system palette independently — nothing checks that the two are readable together. On Windows this produced near-black text on a saturated blue selection in the tree and file list.
+
+FoDE now recomputes the pair itself in all three modes, so a selected row is legible whatever accent you have set:
+
+- white text whenever it reads adequately on the fill — the usual treatment for an accent-coloured selection;
+- dark text on a genuinely light fill (a yellow or pastel accent), where that is the natural read;
+- otherwise the fill is darkened slightly, keeping its hue, so white text clears — your accent colour stays recognisable rather than the text flipping to black.
+
+This applies to the tree, the file list, the boundary table, and the comparison panel.
+
 ## Supported syntax and node types
 
 FoDE targets common OpenFOAM dictionary syntax with practical, tolerant handling rather than full specification coverage. The string shown in the **Type** column of the tree view is the exact `node_type` name for that row (see [DEVELOPER.md](DEVELOPER.md#node-types) for the internal Python representation of each type). The parser recognises the following node types:
@@ -1488,7 +1539,7 @@ FoDE targets common OpenFOAM dictionary syntax with practical, tolerant handling
 | `box_pair` | Two `(x y z)` vectors defining a bounding box; produced only for the `box` key |
 | `int_list` | A parenthesised list of integers, e.g. `(0 1 2)`; stored internally as `int_list` |
 | `scalar_list` | A parenthesised list of floats (not exactly 3 items), e.g. `(0.1 0.5 1.0 2.0)`; stored internally as `scalar_list` |
-| `raw_list` | A parenthesised list with mixed or nested content (e.g. `vertices`, `blocks`); stored as raw text internally as `raw_list` |
+| `raw_list` | A parenthesised list with mixed or nested content (e.g. `vertices`); stored as raw text internally as `raw_list` |
 | `nonuniform_list` | A `nonuniform List<T> N (…)` field value (e.g. `internalField` in `0/U`); shown as a count summary in the tree and stored as raw text — not editable inline |
 | `dictionary` | A sub-dictionary block |
 | `field_value_block` | A block with `internalField`/`boundaryField` structure (field files such as `0/U`) |
@@ -1497,6 +1548,8 @@ FoDE targets common OpenFOAM dictionary syntax with practical, tolerant handling
 | `region_entry` | An entry within a `region_block` |
 | `boundary_block` | A `boundary ( … );` block in `blockMeshDict`; each patch is a `boundary_entry` child |
 | `boundary_entry` | A named patch entry within a `boundary_block` |
+| `block_list` | The `blocks ( … );` list in `blockMeshDict`; each `hex` becomes a `block_entry` child. The Value column shows the block count |
+| `block_entry` | One block within a `block_list`, labelled `block 0`, `block 1`, … to match the numbers the BlockMesh 3-D viewer draws at each block's centre. The Value column holds the whole block (`hex (…) (…) simpleGrading (…)`) and is editable inline; hover for a breakdown of its vertices, cells, grading, and zone |
 | `directive_entry` | A `#include`, `#inputMode`, or other pre-processor directive |
 | `macro_entry` | A `$variable` macro expansion |
 | `unknown_raw_entry` | Any entry the parser could not fully interpret; stored and written back as raw text. Displayed in **amber** in the tree to distinguish it from normal entries |

@@ -7,27 +7,39 @@ from pathlib import Path
 # Group key for files directly at the case root (Allrun, Allclean, …).
 ROOT_GROUP = "."
 
+# Group key for files that live outside the case directory entirely — targets of
+# an `#includeEtc`/`#includeFunc` reaching into the OpenFOAM installation. The
+# angle brackets cannot collide with a real relative directory name.
+INCLUDED_GROUP = "<included>"
+
 _PARENT_ORDER = {
     "system": 0,
     "constant": 1,
     "0": 2,
     "0.orig": 3,
     ROOT_GROUP: 1000,  # case-root scripts sort last
+    INCLUDED_GROUP: 2000,  # out-of-case includes sort below even those
 }
 
 
 def _group_name(path: str, case_dir: str | None = None) -> str:
-    """Return the group key: 'system', 'constant', 'system/region1', ROOT_GROUP, etc."""
+    """Return the group key: 'system', 'constant', 'system/region1', ROOT_GROUP, etc.
+
+    A path under the case directory groups by its relative parent, so an
+    `#include` target inside the case joins its natural directory group for
+    free. One that is not under the case dir cannot be named that way and goes
+    to INCLUDED_GROUP.
+    """
     p = Path(path)
     if case_dir:
         try:
             rel = p.relative_to(Path(case_dir))
-            parts = rel.parent.parts
-            if parts:
-                return "/".join(parts)
-            return ROOT_GROUP
         except ValueError:
-            pass
+            return INCLUDED_GROUP
+        parts = rel.parent.parts
+        if parts:
+            return "/".join(parts)
+        return ROOT_GROUP
     return p.parent.name or ""
 
 
@@ -48,6 +60,7 @@ class FileListModel:
         self._extra_dir_set: set[str] = set()
         self._dirty: dict[str, bool] = {}
         self._diff_counts: dict[str, int | None] = {}
+        self._included: dict[str, str] = {}
 
     # ── public API ────────────────────────────────────────────────────────────
 
@@ -57,6 +70,7 @@ class FileListModel:
         case_dir: str | None = None,
         extra_files: list[str] | None = None,
         extra_dirs: list[str] | None = None,
+        included_files: dict[str, str] | None = None,
     ) -> None:
         self.case_dir = case_dir
         self._extra_dir_set = {str(Path(d)) for d in (extra_dirs or [])}
@@ -66,6 +80,7 @@ class FileListModel:
             self._extra_files = set()
         self._dirty = {}
         self._diff_counts = {}
+        self._included = dict(included_files or {})
         self._groups = self._build_groups(paths)
 
     def clear(self) -> None:
@@ -75,6 +90,7 @@ class FileListModel:
         self._extra_dir_set = set()
         self._dirty = {}
         self._diff_counts = {}
+        self._included = {}
 
     def sorted_groups(self) -> list[tuple[str, list[str]]]:
         """Return [(group_name, [sorted_paths])] in display order."""
@@ -106,6 +122,28 @@ class FileListModel:
 
     def is_extra_dir(self, group: str) -> bool:
         return group in self._extra_dir_set
+
+    def is_included(self, path: str) -> bool:
+        """True for a row the include scan added (not one already listed)."""
+        return path in self._included
+
+    def included_origin(self, path: str) -> str | None:
+        """Label naming the file(s) whose `#include` pulled this one in."""
+        return self._included.get(path)
+
+    def is_read_only(self, path: str) -> bool:
+        """True for an included file outside the case directory.
+
+        Editing one would change a file shared by every case (typically inside
+        the OpenFOAM installation), so those rows are shown but not editable.
+        """
+        if path not in self._included or not self.case_dir:
+            return False
+        try:
+            Path(path).relative_to(Path(self.case_dir))
+        except ValueError:
+            return True
+        return False
 
     @property
     def extra_dir_set(self) -> set[str]:

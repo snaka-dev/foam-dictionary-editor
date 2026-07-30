@@ -20,7 +20,6 @@ from PySide6.QtCore import Qt
 from foam.parser import OpenFoamParser
 from model.tree_model import FoamTreeModel
 
-
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def _make_model(text: str) -> tuple[FoamTreeModel, object]:

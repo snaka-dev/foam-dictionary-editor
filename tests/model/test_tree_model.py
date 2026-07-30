@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from PySide6.QtCore import Qt
+
+from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser
 from model.tree_model import FoamTreeModel
 
@@ -467,7 +469,6 @@ def _make_diff_model():
 
 def test_set_diff_reverse_remaps_only_here_to_only_in_ref():
     """reverse=True turns 'only_here' into 'only_in_ref' in the stored diff."""
-    from foam.nodes import FoamNode
     model, node, _ = _make_diff_model()
     diff = {node: ("only_here", None)}
     model.set_diff(diff, reverse=True)
@@ -512,3 +513,157 @@ def test_set_diff_reverse_tooltip_only_in_ref():
     idx = model.index(0, 0)
     tip = model.data(idx, Qt.ToolTipRole)
     assert "only in reference case" in tip
+
+
+# ── block_list / block_entry ─────────────────────────────────────────────────
+
+_BLOCKS_TEXT = """\
+blocks
+(
+    hex (0 3 4 1 11 14 15 12) (18 30 1) simpleGrading (0.5 1 1)
+    hex (3 2 5 4 14 13 16 15) (18 8 1) simpleGrading (0.5 1 1)
+    hex (4 5 6 7 15 16 17 18) (30 8 1) simpleGrading (1 1 1)
+    hex (7 8 9 6 18 19 20 17) (30 8 1) simpleGrading (2 1 1)
+    hex (9 10 11 6 20 21 15 17) (10 8 1) simpleGrading (0.5 1 1)
+);
+"""
+
+
+def _blocks_model():
+    root = OpenFoamParser(_BLOCKS_TEXT).parse()
+    model = FoamTreeModel(root)
+    return model, root.children[0]
+
+
+def test_block_list_has_five_child_rows():
+    model, blocks = _blocks_model()
+    blocks_index = model.index(0, 0)
+    assert model.rowCount(blocks_index) == 5
+    assert len(blocks.children) == 5
+
+
+def test_block_entry_key_column_shows_block_and_row_index():
+    model, _blocks = _blocks_model()
+    blocks_index = model.index(0, 0)
+    for row in range(5):
+        key = model.data(model.index(row, FoamTreeModel.COL_KEY, blocks_index), Qt.DisplayRole)
+        assert key == f"block {row}"
+
+
+_BLOCKS_WITH_INCLUDE_TEXT = """\
+blocks
+(
+    #include "blockMeshDict.caseBlocks"
+
+    hex (0 1 2 3 4 5 6 7) (1 1 1) simpleGrading (1 1 1)
+    hex (1 8 9 2 5 10 11 6) (2 2 2) simpleGrading (1 1 1)
+);
+"""
+
+
+def test_block_numbering_skips_a_directive_row():
+    """The directive takes a row but is not a block. The 3-D viewer counts hex
+    entries only, so the first block below an #include must still read
+    "block 0" -- the raw row would say "block 1" and disagree with the number
+    the viewer draws at that block's centre."""
+    root = OpenFoamParser(_BLOCKS_WITH_INCLUDE_TEXT).parse()
+    model = FoamTreeModel(root)
+    blocks_index = model.index(0, 0)
+    keys = [
+        model.data(model.index(row, FoamTreeModel.COL_KEY, blocks_index), Qt.DisplayRole)
+        for row in range(model.rowCount(blocks_index))
+    ]
+    assert keys == ["", "block 0", "block 1"]
+
+
+def test_block_numbering_after_directive_survives_insert():
+    """The per-list cache behind the numbering must be dropped on a structural
+    change, or the rows below an insert keep their old numbers."""
+    root = OpenFoamParser(_BLOCKS_WITH_INCLUDE_TEXT).parse()
+    model = FoamTreeModel(root)
+    blocks = root.children[0]
+    blocks_index = model.index(0, 0)
+    # Read once so the cache is populated before the mutation.
+    model.data(model.index(1, FoamTreeModel.COL_KEY, blocks_index), Qt.DisplayRole)
+
+    model.insert_node(blocks, 1, FoamNode(name="", node_type="block_entry", value="hex (0)"))
+    keys = [
+        model.data(model.index(row, FoamTreeModel.COL_KEY, blocks_index), Qt.DisplayRole)
+        for row in range(model.rowCount(blocks_index))
+    ]
+    assert keys == ["", "block 0", "block 1", "block 2"]
+
+
+def test_block_entry_type_column():
+    model, _blocks = _blocks_model()
+    blocks_index = model.index(0, 0)
+    type_val = model.data(model.index(0, FoamTreeModel.COL_TYPE, blocks_index), Qt.DisplayRole)
+    assert type_val == "block_entry"
+
+
+def test_block_entry_value_column_is_full_text():
+    model, blocks = _blocks_model()
+    blocks_index = model.index(0, 0)
+    value = model.data(model.index(0, FoamTreeModel.COL_VALUE, blocks_index), Qt.DisplayRole)
+    assert value == blocks.children[0].value
+
+
+def test_block_list_parent_value_shows_block_count():
+    model, _blocks = _blocks_model()
+    value = model.data(model.index(0, FoamTreeModel.COL_VALUE), Qt.DisplayRole)
+    assert value == "5 blocks"
+
+
+def test_block_entry_key_column_not_editable():
+    model, _blocks = _blocks_model()
+    blocks_index = model.index(0, 0)
+    key_index = model.index(0, FoamTreeModel.COL_KEY, blocks_index)
+    flags = model.flags(key_index)
+    assert not (flags & Qt.ItemIsEditable)
+
+
+def test_block_entry_value_column_editable():
+    model, _blocks = _blocks_model()
+    blocks_index = model.index(0, 0)
+    value_index = model.index(0, FoamTreeModel.COL_VALUE, blocks_index)
+    flags = model.flags(value_index)
+    assert flags & Qt.ItemIsEditable
+
+
+def test_block_entry_setdata_accept():
+    model, blocks = _blocks_model()
+    blocks_index = model.index(0, 0)
+    value_index = model.index(0, FoamTreeModel.COL_VALUE, blocks_index)
+    new_text = "hex (0 3 4 1 11 14 15 12) (25 15 1) simpleGrading (0.5 1 1)"
+    ok = model.setData(value_index, new_text, Qt.EditRole)
+    assert ok is True
+    assert blocks.children[0].value == new_text
+    assert blocks.children[0].modified is True
+
+
+def test_block_entry_setdata_rejection_emits_edit_rejected():
+    model, blocks = _blocks_model()
+    blocks_index = model.index(0, 0)
+    value_index = model.index(0, FoamTreeModel.COL_VALUE, blocks_index)
+
+    received = []
+    model.edit_rejected.connect(received.append)
+
+    original_value = blocks.children[0].value
+    ok = model.setData(value_index, "hex (0 1 2)", Qt.EditRole)
+
+    assert ok is False
+    assert len(received) == 1
+    assert blocks.children[0].value == original_value
+    assert blocks.children[0].modified is False
+
+
+def test_block_entry_tooltip_decomposes_vertices_cells_grading():
+    model, _blocks = _blocks_model()
+    blocks_index = model.index(0, 0)
+    idx = model.index(0, FoamTreeModel.COL_KEY, blocks_index)
+    tooltip = model.data(idx, Qt.ToolTipRole)
+    assert "block 0" in tooltip
+    assert "vertices: 0 3 4 1 11 14 15 12" in tooltip
+    assert "cells: 18 30 1" in tooltip
+    assert "simpleGrading (0.5 1 1)" in tooltip

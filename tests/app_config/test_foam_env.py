@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
-"""Tests for services/foam_env.py."""
+"""Tests for app_config/foam_env.py."""
 from __future__ import annotations
 
 import pytest
 
-from services.foam_env import foam_env_dirs
+from app_config.foam_env import foam_env_dirs
 
 
 @pytest.fixture

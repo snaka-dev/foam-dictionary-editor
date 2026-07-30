@@ -16,8 +16,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from schemas import apply_schema_modules, get_schema_modules, save_current_config
 from i18n import tr
+from schemas import apply_schema_modules, get_schema_modules, save_current_config
 
 _DIALOG_WIDTH = 600
 _DIALOG_HEIGHT = 450
@@ -105,10 +105,10 @@ class SchemaManagerDialog(QDialog):
             self,
             "Confirm Removal",
             f"Remove module '{module_name}' from the list?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
-        if reply != QMessageBox.Yes:
+        if reply != QMessageBox.StandardButton.Yes:
             return
 
         self._modules.remove(module_name)

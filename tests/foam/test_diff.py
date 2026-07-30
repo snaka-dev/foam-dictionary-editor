@@ -205,3 +205,57 @@ def test_reverse_is_equivalent_to_swapped_diff_trees():
     a = _dict("root", [a_k, _leaf("only_a", "word", "v")])
     b = _dict("root", [b_k, _leaf("only_b", "word", "v")])
     assert diff_trees_reverse(b, a) == diff_trees(b, a)
+
+
+# ── block_list (positional, anonymous block_entry children) ─────────────────
+
+def _block_list(name, entry_values):
+    n = FoamNode(name=name, node_type="block_list")
+    for v in entry_values:
+        entry = FoamNode(name="", node_type="block_entry", value=v)
+        entry.parent = n
+        n.children.append(entry)
+    return n
+
+
+def test_block_list_positional_unchanged():
+    a = _dict("root", [_block_list("blocks", ["hex (0 1 2 3 4 5 6 7) (1 1 1)"])])
+    b = _dict("root", [_block_list("blocks", ["hex (0 1 2 3 4 5 6 7) (1 1 1)"])])
+    assert diff_trees(a, b) == {}
+
+
+def test_block_list_positional_changed_entry():
+    a_blocks = _block_list("blocks", [
+        "hex (0 1 2 3 4 5 6 7) (1 1 1)",
+        "hex (1 8 9 2 5 10 11 6) (1 1 1)",
+    ])
+    b_blocks = _block_list("blocks", [
+        "hex (0 1 2 3 4 5 6 7) (2 2 2)",
+        "hex (1 8 9 2 5 10 11 6) (1 1 1)",
+    ])
+    a = _dict("root", [a_blocks])
+    b = _dict("root", [b_blocks])
+    result = diff_trees(a, b)
+    assert result[a_blocks.children[0]] == ("changed", b_blocks.children[0])
+    assert a_blocks.children[1] not in result
+
+
+def test_block_list_positional_extra_entry_only_here():
+    a_blocks = _block_list("blocks", [
+        "hex (0 1 2 3 4 5 6 7) (1 1 1)",
+        "hex (1 8 9 2 5 10 11 6) (1 1 1)",
+    ])
+    b_blocks = _block_list("blocks", ["hex (0 1 2 3 4 5 6 7) (1 1 1)"])
+    a = _dict("root", [a_blocks])
+    b = _dict("root", [b_blocks])
+    result = diff_trees(a, b)
+    assert a_blocks.children[0] not in result
+    assert result[a_blocks.children[1]] == ("only_here", None)
+
+
+def test_block_list_not_confused_with_action_list():
+    """block_list and action_list must dispatch independently."""
+    a = _dict("root", [_block_list("blocks", ["hex (0 1 2 3 4 5 6 7) (1 1 1)"])])
+    b = _dict("root", [_block_list("blocks", ["hex (0 1 2 3 4 5 6 7) (2 2 2)"])])
+    result = diff_trees(a, b)
+    assert len(result) == 1

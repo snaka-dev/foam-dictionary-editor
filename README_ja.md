@@ -75,6 +75,7 @@ pip install pyvista pyvistaqt
 **[ファイル管理](USER_GUIDE_ja.md#ファイル一覧の挙動)**
 - 代表的な辞書ファイル（`controlDict`、`fvSchemes`、`fvSolution`、`blockMeshDict`、`snappyHexMeshDict` など）と `0/`・`0.orig/` 配下の全ファイル、ケースルートの `All*` スクリプト（`Allrun`、`Allclean` など — プレーンテキストとして編集可能）を自動表示。マルチリージョンケース構造も自動検出
 - 追加のファイルやディレクトリ（フラット/再帰スキャン）をファイル一覧に登録可能 — カスタムフィールドディレクトリ、再起動タイムステップ、深い階層のサブディレクトリなどに便利
+- [`#include` ディレクティブを追跡](USER_GUIDE_ja.md#インクルードされたファイル)して取り込み先のファイルを一覧表示。ケース内のインクルードは本来のディレクトリグループに入り、OpenFOAM インストール先に解決するもの（`#includeEtc`、`#includeFunc`）は別グループにまとめて読み取り専用で開く。**Copy into case...** で編集可能なローカルコピーを作成できる
 - ファイルパネルからファイルの作成・複製・バックアップ・削除が可能。ケースはいつでもディスクから再読み込みできる
 - アプリ外部（Terminal パネルなど）での変更を検知してファイル一覧を自動更新。`constant/polyMesh` インジケーターがセル数を表示し、メッシュ生成後に `blockMeshDict` が変更されると「stale」と表示
 - 現在の状態を新しいケースとして保存したり、既存ケースを複製したりできる
@@ -83,6 +84,7 @@ pip install pyvista pyvistaqt
 - 構造化ツリービューと生テキストエディタを双方向に同期
 - OpenFOAM シンタックスハイライト（オン/オフ切替可。キーワードリストは自分のインストールから再生成可能）とコード折りたたみ
 - 右クリックメニューでエントリの追加・複製・コメントアウト・削除が可能
+- `blockMeshDict` の `blocks ( … );` は `block 0`、`block 1`、… として 1 ブロック 1 行に展開され、BlockMesh 3D ビューアが描画する番号と一致。各行を個別に編集・追加・複製・削除でき、行を選択するとそのブロックが 3D ビューでアウトライン表示される
 
 **[境界条件ビュー](USER_GUIDE_ja.md#境界条件ビュー)**
 - 全フィールド変数の境界条件を一つのテーブルで一覧 — フィールドファイルを切り替える必要なし
@@ -97,7 +99,7 @@ pip install pyvista pyvistaqt
 - `blockMeshDict` のジオメトリ（頂点、ブロック、パッチ種別で色分けされた境界面）をインタラクティブに 3D プレビュー。`$variable` や `#eval` 参照も自動解決
 - `topoSetDict` のアクションジオメトリ、`snappyHexMeshDict` の `geometry {}` 形状（surface / region / geometry のみ に分類）、`setFieldsDict` の領域（`fieldValues` をラベル表示）をオーバーレイ表示。形状ごとに表示切替可能。ブロックメッシュより大きい形状はビュー内でクリップされ「✂ clipped」マークが付く
 - 3D ビュー横の頂点テーブルで座標を編集すると即座に反映。変数ベースの頂点はプレビューモードでファイルを変更せずに試せる
-- STL/OBJ のオーバーレイ読み込みと、topoSet/snappyHexMesh/setFields 形状の STL エクスポート
+- STL/OBJ のオーバーレイ読み込み（複数同時に読み込み可能。`STL ▾` メニューでファイルごとに行と色が割り当てられる）と、topoSet/snappyHexMesh/setFields 形状の STL エクスポート
 - **⊞** サイドバイサイドモードで、`blockMeshDict`・`topoSetDict`・`snappyHexMeshDict`・`setFieldsDict` の編集中にツリーの隣に 3D ビューを表示
 
 **[統合ターミナル](USER_GUIDE_ja.md#ターミナルタブ)**
@@ -115,6 +117,9 @@ pip install pyvista pyvistaqt
 **[ケース比較](USER_GUIDE_ja.md#ケース比較)**
 - 開いているケースを任意の参照ケースと比較: ツリーの色分け差分オーバーレイ、ファイル一覧の `≠N` マーカー、差分ありファイルのみの絞り込みフィルター
 - サイドバイサイドの参照ツリーで右クリック **Use this value** により個々の設定を取り込み
+
+**[外観](USER_GUIDE_ja.md#外観と配色)**
+- **Settings > Appearance** — **Follow System**（既定）、**Light**、**Dark** から配色テーマを選択（再起動で反映）。エディタのシンタックスハイライト、差分行の配色、BlockMesh 3D ビューアのシーンを含む UI 全体に適用され、暗い画面の中で 3D ビューだけが白いままになることはありません
 
 **UI 言語**
 - **Settings > Language** — English と 日本語 を切り替えられます（再起動で反映）。`i18n/` に翻訳ファイルを1つ追加するだけで新しい言語を追加できます

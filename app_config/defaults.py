@@ -6,3 +6,6 @@ DEFAULT_WINDOW_WIDTH = 1200
 DEFAULT_WINDOW_HEIGHT = 800
 
 DEFAULT_CASE_DIRECTORY = str(Path.home())
+
+# Theme mode: "system" follows the desktop, "light"/"dark" force a Fusion palette.
+DEFAULT_THEME = "system"

@@ -17,6 +17,8 @@ from PySide6.QtWidgets import (
 )
 
 from foam.utils import is_script_text
+from i18n import tr
+from ui.theme import colors
 from ui.widgets.code_editor import CodeEditor
 
 _SPACING_LARGE = 16
@@ -38,6 +40,12 @@ class EditorPanel(QWidget):
         self._editor.cursorPositionChanged.connect(self._update_cursor_status)
 
         self._cursor_label = QLabel("Line: 1")
+
+        # Shown only for an `#include` target outside the case directory.
+        self._read_only_label = QLabel(tr("read-only"))
+        self._read_only_label.setStyleSheet(f"color: {colors().file_read_only_fg};")
+        self._read_only_label.setToolTip(tr("read-only — outside the case directory"))
+        self._read_only_label.setVisible(False)
 
         for key, slot in [
             ("Ctrl+F",   self._find),
@@ -67,6 +75,11 @@ class EditorPanel(QWidget):
         self._editor.setPlainText(text)
         self._updating_programmatically = False
         self._update_cursor_status()
+
+    def set_read_only(self, read_only: bool) -> None:
+        """Lock the text against editing and show the read-only badge."""
+        self._editor.setReadOnly(read_only)
+        self._read_only_label.setVisible(read_only)
 
     def reload_highlighting(self) -> None:
         """Reload the highlighter's keyword list without emitting user_text_changed.
@@ -113,16 +126,16 @@ class EditorPanel(QWidget):
 
     def _build_separator(self) -> QFrame:
         sep = QFrame()
-        sep.setFrameShape(QFrame.HLine)
-        sep.setFrameShadow(QFrame.Sunken)
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
         sep.setLineWidth(1)
-        sep.setStyleSheet("""
-            QFrame {
-                color: #b8b8b8;
-                background-color: #b8b8b8;
+        sep.setStyleSheet(f"""
+            QFrame {{
+                color: {colors().separator};
+                background-color: {colors().separator};
                 min-height: 1px;
                 max-height: 1px;
-            }
+            }}
         """)
         return sep
 
@@ -167,6 +180,8 @@ class EditorPanel(QWidget):
         hl_btn.toggled.connect(_toggle_highlight)
 
         toolbar.addStretch(1)
+        toolbar.addWidget(self._read_only_label)
+        toolbar.addSpacing(_SPACING_LARGE)
         toolbar.addWidget(self._cursor_label)
         return toolbar
 
@@ -179,7 +194,9 @@ class EditorPanel(QWidget):
 
     def _find(self) -> None:
         initial = self._editor.textCursor().selectedText() or self._last_search_text
-        text, ok = QInputDialog.getText(self, "Find", "Text to find:", QLineEdit.Normal, initial)
+        text, ok = QInputDialog.getText(
+            self, "Find", "Text to find:", QLineEdit.EchoMode.Normal, initial
+        )
         if not ok or not text:
             return
         self._last_search_text = text
@@ -198,7 +215,7 @@ class EditorPanel(QWidget):
         self._do_find(backward=True)
 
     def _do_find(self, backward: bool) -> None:
-        flag = QTextDocument.FindFlag.FindBackward if backward else QTextDocument.FindFlags()
+        flag = QTextDocument.FindFlag.FindBackward if backward else QTextDocument.FindFlag(0)
         wrap_anchor = QTextCursor.MoveOperation.End if backward else QTextCursor.MoveOperation.Start
 
         found = self._editor.find(self._last_search_text, flag)

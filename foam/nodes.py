@@ -17,11 +17,14 @@ NodeType = Literal[
     "dictionary", "field_value_block", "field_value", "region_block", "region_entry",
     "boundary_block", "boundary_entry", "action_list", "action_entry",
     "named_dict_list", "named_dict_entry",
+    "block_list", "block_entry",
     "directive_entry", "macro_entry", "unknown_raw_entry",
 ]
 
 # Node types where the key column is not editable.
-NON_KEY_EDITABLE = frozenset({"field_value", "macro_entry", "directive_entry", "unknown_raw_entry"})
+NON_KEY_EDITABLE = frozenset({
+    "field_value", "macro_entry", "directive_entry", "unknown_raw_entry", "block_entry",
+})
 
 # Node types whose value is a plain string (word/macro/compound/string).
 STRING_TYPES = frozenset({"compound", "macro", "string", "word"})
@@ -44,6 +47,11 @@ class FoamNode:
     modified: bool = False
 
     leading_trivia: list[str] = field(default_factory=list)
+    # Only ever set on the root node: the whitespace and comments left over
+    # after the last entry (typically OpenFOAM's "// ****" footer banner).
+    # Every other node's trailing whitespace is the *next* node's
+    # leading_trivia -- see DEVELOPER.md's "Trivia ownership" section.
+    trailing_trivia: list[str] = field(default_factory=list)
     inline_comment: str = ""
     raw_text: str = ""
 

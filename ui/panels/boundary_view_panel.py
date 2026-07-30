@@ -26,13 +26,14 @@ from PySide6.QtWidgets import (
 )
 
 from foam.nodes import FoamNode
+from i18n import tr
 from model.boundary_model import BoundaryModel, extract_boundary
 from ui.dialogs.boundary_edit_dialog import _get_patch_type, _patch_inner_text, _value_complexity
-from i18n import tr
+from ui.theme import colors
 
-_PATH_ROLE = Qt.UserRole
-_PATCH_NAME_ROLE = Qt.UserRole + 1
-_PATCH_NODE_ROLE = Qt.UserRole + 2
+_PATH_ROLE = Qt.ItemDataRole.UserRole
+_PATCH_NAME_ROLE = Qt.ItemDataRole.UserRole + 1
+_PATCH_NODE_ROLE = Qt.ItemDataRole.UserRole + 2
 
 
 def _is_printable(text: str) -> bool:
@@ -62,8 +63,8 @@ def _make_cell_item(
 ) -> QTableWidgetItem:
     if patch_node is None:
         item = QTableWidgetItem("–")
-        item.setForeground(QColor("#aaaaaa"))
-        item.setBackground(QColor("#f5f5f5"))
+        item.setForeground(QColor(colors().disabled_fg))
+        item.setBackground(QColor(colors().disabled_bg))
     else:
         type_str = _get_patch_type(patch_node)
         complexity = _value_complexity(patch_node)
@@ -163,15 +164,15 @@ class BoundaryViewPanel(QWidget):
         dir_row.addWidget(self._copy_btn)
 
         self._table = QTableWidget()
-        self._table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self._table.setSelectionBehavior(QTableWidget.SelectItems)
+        self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
         self._table.itemClicked.connect(self._on_cell_clicked)
         self._table.itemDoubleClicked.connect(self._on_cell_double_clicked)
-        self._table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self._on_table_context_menu)
 
         for hdr in (self._table.horizontalHeader(), self._table.verticalHeader()):
-            hdr.setContextMenuPolicy(Qt.CustomContextMenu)
+            hdr.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._table.horizontalHeader().customContextMenuRequested.connect(
             self._on_horizontal_header_context_menu
         )
@@ -229,8 +230,8 @@ class BoundaryViewPanel(QWidget):
                     break
         else:
             for col in range(self._table.columnCount()):
-                header = self._table.horizontalHeaderItem(col)
-                if header is not None and header.text() == basename:
+                col_header = self._table.horizontalHeaderItem(col)
+                if col_header is not None and col_header.text() == basename:
                     for row in range(self._table.rowCount()):
                         h = self._table.verticalHeaderItem(row)
                         if h is None:
@@ -298,7 +299,9 @@ class BoundaryViewPanel(QWidget):
             for row, path in enumerate(field_paths):
                 bd = all_boundaries[path]
                 for col, patch_name in enumerate(patch_names):
-                    self._table.setItem(row, col, _make_cell_item(bd.get(patch_name), path, patch_name, n_lines))
+                    self._table.setItem(
+                        row, col, _make_cell_item(bd.get(patch_name), path, patch_name, n_lines)
+                    )
         else:
             self._table.setRowCount(len(patch_names))
             self._table.setColumnCount(len(field_paths))
@@ -307,7 +310,9 @@ class BoundaryViewPanel(QWidget):
             for row, patch_name in enumerate(patch_names):
                 for col, path in enumerate(field_paths):
                     bd = all_boundaries[path]
-                    self._table.setItem(row, col, _make_cell_item(bd.get(patch_name), path, patch_name, n_lines))
+                    self._table.setItem(
+                        row, col, _make_cell_item(bd.get(patch_name), path, patch_name, n_lines)
+                    )
 
         self._table.blockSignals(False)
         self._table.resizeColumnsToContents()
@@ -317,16 +322,16 @@ class BoundaryViewPanel(QWidget):
         """Return (col_headers, row_headers, rows_of_cell_text) from the current table."""
         t = self._table
         col_headers = [
-            (t.horizontalHeaderItem(c).text() if t.horizontalHeaderItem(c) else "")
+            (h.text() if (h := t.horizontalHeaderItem(c)) else "")
             for c in range(t.columnCount())
         ]
         row_headers = [
-            (t.verticalHeaderItem(r).text() if t.verticalHeaderItem(r) else "")
+            (h.text() if (h := t.verticalHeaderItem(r)) else "")
             for r in range(t.rowCount())
         ]
         rows = [
             [
-                (t.item(r, c).text() if t.item(r, c) else "–")
+                (cell.text() if (cell := t.item(r, c)) else "–")
                 for c in range(t.columnCount())
             ]
             for r in range(t.rowCount())
@@ -445,11 +450,15 @@ class BoundaryViewPanel(QWidget):
     def _show_patch_header_menu(self, patch_name: str | None, global_pos) -> None:
         menu = QMenu(self)
         delete_action = menu.addAction(
-            tr("Delete BoundaryField  '{patch}'").format(patch=patch_name) if patch_name else tr("Delete BoundaryField")
+            tr("Delete BoundaryField  '{patch}'").format(patch=patch_name)
+            if patch_name
+            else tr("Delete BoundaryField")
         )
         delete_action.setEnabled(patch_name is not None)
         rename_action = menu.addAction(
-            tr("Rename Boundary  '{patch}'...").format(patch=patch_name) if patch_name else tr("Rename Boundary...")
+            tr("Rename Boundary  '{patch}'...").format(patch=patch_name)
+            if patch_name
+            else tr("Rename Boundary...")
         )
         rename_action.setEnabled(patch_name is not None)
         menu.addSeparator()
@@ -476,7 +485,9 @@ class BoundaryViewPanel(QWidget):
             return
         if name in existing:
             QMessageBox.warning(
-                self, tr("Add BoundaryField"), tr("Patch '{name}' already exists in the boundary view.").format(name=name)
+                self,
+                tr("Add BoundaryField"),
+                tr("Patch '{name}' already exists in the boundary view.").format(name=name),
             )
             return
         self.patch_add_all_requested.emit(name)

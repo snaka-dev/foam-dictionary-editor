@@ -11,6 +11,7 @@ from .constants import (
 )
 from .defaults import (
     DEFAULT_CASE_DIRECTORY,
+    DEFAULT_THEME,
     DEFAULT_WINDOW_HEIGHT,
     DEFAULT_WINDOW_WIDTH,
 )
@@ -23,6 +24,7 @@ __all__ = [
     "DEFAULT_WINDOW_WIDTH",
     "DEFAULT_WINDOW_HEIGHT",
     "DEFAULT_CASE_DIRECTORY",
+    "DEFAULT_THEME",
     "AppConfigManager",
     "get_app_config",
 ]

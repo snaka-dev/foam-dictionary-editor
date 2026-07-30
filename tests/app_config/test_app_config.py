@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 import json
+
 import pytest
-from pathlib import Path
+
 from app_config.app_config_manager import AppConfigManager
 
 

@@ -51,7 +51,7 @@ class TerminalPanel(QWidget):
             self._xterm_chk.blockSignals(True)
             self._xterm_chk.setChecked(True)
             self._xterm_chk.blockSignals(False)
-            self._widget: QWidget = XtermTerminalWidget(self)
+            self._widget: SimpleTerminalWidget | XtermTerminalWidget = XtermTerminalWidget(self)
         else:
             self._use_xterm = False
             self._widget = SimpleTerminalWidget(self)
@@ -85,10 +85,10 @@ class TerminalPanel(QWidget):
 
     def set_working_directory(self, path: str) -> None:
         self._cwd = path
-        self._widget.set_working_directory(path)  # type: ignore[union-attr]
+        self._widget.set_working_directory(path)
 
     def run_command(self, cmd: str) -> None:
-        self._widget.run_command(cmd)  # type: ignore[union-attr]
+        self._widget.run_command(cmd)
 
     # ── private ───────────────────────────────────────────────────────────────
 
@@ -111,7 +111,7 @@ class TerminalPanel(QWidget):
         self._use_xterm = True
         self._xterm_chk.setEnabled(True)
 
-    def _replace_widget(self, new_widget: QWidget) -> None:
+    def _replace_widget(self, new_widget: SimpleTerminalWidget | XtermTerminalWidget) -> None:
         self._body.removeWidget(self._widget)
         cleanup = getattr(self._widget, "cleanup", None)
         if callable(cleanup):
@@ -120,7 +120,7 @@ class TerminalPanel(QWidget):
         self._widget = new_widget
         self._body.addWidget(self._widget)
         if self._cwd:
-            self._widget.set_working_directory(self._cwd)  # type: ignore[union-attr]
+            self._widget.set_working_directory(self._cwd)
 
     def _switch_to_simple(self) -> None:
         self._replace_widget(SimpleTerminalWidget(self))

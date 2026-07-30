@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -17,21 +17,16 @@ from PySide6.QtWidgets import (
 )
 
 from i18n import tr
+from ui.dialogs._worker_thread import _CancellableWorkerThread
 from ui.widgets.installation_selector import InstallationSelector
 
 
-class _GeneratorThread(QThread):
-    progress = Signal(str)
+class _GeneratorThread(_CancellableWorkerThread):
     finished_ok = Signal(int, str)   # count, output_path
-    finished_err = Signal(str)       # error message
 
     def __init__(self, project_dir: Path | None = None) -> None:
         super().__init__()
-        self._cancelled = False
         self._project_dir = project_dir
-
-    def cancel(self) -> None:
-        self._cancelled = True
 
     def run(self) -> None:
         try:

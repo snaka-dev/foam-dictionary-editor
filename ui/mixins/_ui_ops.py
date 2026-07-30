@@ -3,22 +3,29 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import QMessageBox
 
-from model.tree_model import FoamTreeModel
 from app_config import get_app_config
 from i18n import available_languages, get_language, tr
+from model.tree_model import FoamTreeModel
 from ui.dialogs.about_dialog import AboutDialog
+from ui.dialogs.generate_keywords_dialog import GenerateKeywordsDialog
 from ui.dialogs.keyboard_shortcuts_dialog import KeyboardShortcutsDialog
 from ui.dialogs.openfoam_resources_dialog import OpenFOAMResourcesDialog
-from ui.dialogs.generate_keywords_dialog import GenerateKeywordsDialog
 from ui.dialogs.schema_manager_dialog import SchemaManagerDialog
 from ui.panels.file_list_panel import display_file_name
+from ui.theme import colors
+
+if TYPE_CHECKING:
+    from ui.mixins._protocol import MainWindowProtocol as _Base
+else:
+    _Base = object
 
 
-class _UiOpsMixin:
+class _UiOpsMixin(_Base):
     """Tree view helpers, label/title updates, and auxiliary dialog launchers."""
 
     # ── shared dialogs ────────────────────────────────────────────────────────
@@ -27,24 +34,36 @@ class _UiOpsMixin:
         """Show a Yes/No confirmation dialog defaulting to No."""
         reply = QMessageBox.question(
             self, title, message,
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
-        return reply == QMessageBox.Yes
+        return reply == QMessageBox.StandardButton.Yes
 
     # ── help dialogs ──────────────────────────────────────────────────────────
 
-    def _build_language_menu(self, parent_menu) -> None:
-        lang_menu = parent_menu.addMenu(tr("Language"))
+    def _build_radio_menu(self, parent_menu, title, options, current, slot) -> None:
+        """Build a checkable QActionGroup radio-menu under *parent_menu*.
+
+        *options* is an iterable of (value, label) pairs; the action whose
+        value equals *current* starts checked. Shared by the Language and
+        Appearance settings submenus.
+        """
+        menu = parent_menu.addMenu(title)
         group = QActionGroup(self)
         group.setExclusive(True)
-        for code, name in available_languages():
-            action = lang_menu.addAction(name)
+        for value, label in options:
+            action = menu.addAction(label)
             action.setCheckable(True)
-            action.setChecked(code == get_language())
-            action.setData(code)
+            action.setChecked(value == current)
+            action.setData(value)
             group.addAction(action)
-        group.triggered.connect(self._on_language_changed)
+        group.triggered.connect(slot)
+
+    def _build_language_menu(self, parent_menu) -> None:
+        self._build_radio_menu(
+            parent_menu, tr("Language"), available_languages(), get_language(),
+            self._on_language_changed,
+        )
 
     def _on_language_changed(self, action: QAction) -> None:
         code = action.data()
@@ -55,6 +74,35 @@ class _UiOpsMixin:
             self,
             tr("Language Changed"),
             tr("The language will change after restarting the application."),
+        )
+
+    def _build_appearance_menu(self, parent_menu) -> None:
+        self._build_radio_menu(
+            parent_menu,
+            tr("Appearance"),
+            (
+                ("system", tr("Follow System")),
+                ("light", tr("Light")),
+                ("dark", tr("Dark")),
+            ),
+            get_app_config().get_theme(),
+            self._on_theme_changed,
+        )
+
+    def _on_theme_changed(self, action: QAction) -> None:
+        mode = action.data()
+        cfg = get_app_config()
+        if mode == cfg.get_theme():
+            return
+        cfg.set_theme(mode)
+        cfg.save()
+        # Panel stylesheets and item colours are baked in at widget construction,
+        # so a live switch would leave the window half-themed. Restart instead —
+        # same contract as the language setting.
+        QMessageBox.information(
+            self,
+            tr("Appearance Changed"),
+            tr("The theme will change after restarting the application."),
         )
 
     def open_schema_manager(self) -> None:
@@ -144,7 +192,7 @@ class _UiOpsMixin:
         stale = self.state.current_file is not None and not self.state.source_lines_valid
         if stale:
             self.editor_autoscroll_checkbox.setText(tr("Auto-scroll editor (stale)"))
-            self.editor_autoscroll_checkbox.setStyleSheet("color: gray;")
+            self.editor_autoscroll_checkbox.setStyleSheet(f"color: {colors().hint_text};")
             self.editor_autoscroll_checkbox.setToolTip(
                 tr(
                     "Source lines are stale — the editor text has changed since the last parse.\n"

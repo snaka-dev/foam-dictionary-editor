@@ -15,9 +15,13 @@ from PySide6.QtWidgets import (
 
 from _version import get_version
 from i18n import tr
+from ui.theme import colors
 
 _APP_NAME = "Foam Dictionary Editor (FoDE)"
-_DESCRIPTION = "A PySide6-based GUI editor for OpenFOAM dictionary files.\nSupports tree view and raw text editing."
+_DESCRIPTION = (
+    "A PySide6-based GUI editor for OpenFOAM dictionary files.\n"
+    "Supports tree view and raw text editing."
+)
 
 _LICENSE = (
     "Copyright © 2025-2026 Shinji NAKAGAWA\n"
@@ -55,49 +59,50 @@ class AboutDialog(QDialog):
         # ── app name ──────────────────────────────────────────────────────────
         name_label = QLabel(_APP_NAME)
         name_label.setStyleSheet("font-size: 16px; font-weight: bold;")
-        name_label.setAlignment(Qt.AlignCenter)
+        name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(name_label)
 
         # ── version ───────────────────────────────────────────────────────────
         version_label = QLabel(tr("Version {v}").format(v=get_version()))
-        version_label.setAlignment(Qt.AlignCenter)
-        version_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        version_label.setStyleSheet("color: #777777; font-size: 12px;")
+        version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        version_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        version_label.setStyleSheet(f"color: {colors().hint_text}; font-size: 12px;")
         layout.addWidget(version_label)
 
         # ── description ───────────────────────────────────────────────────────
         desc_label = QLabel(_DESCRIPTION)
-        desc_label.setAlignment(Qt.AlignCenter)
+        desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         desc_label.setWordWrap(True)
         layout.addWidget(desc_label)
 
         # ── license / copyright ───────────────────────────────────────────────
         license_label = QLabel(_LICENSE)
-        license_label.setAlignment(Qt.AlignCenter)
+        license_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         license_label.setWordWrap(True)
-        license_label.setStyleSheet("color: #555555; font-size: 12px;")
+        license_label.setStyleSheet(f"color: {colors().secondary_text}; font-size: 12px;")
         layout.addWidget(license_label)
 
         # ── separator ─────────────────────────────────────────────────────────
         sep = QFrame()
-        sep.setFrameShape(QFrame.HLine)
-        sep.setFrameShadow(QFrame.Sunken)
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
         layout.addWidget(sep)
 
         # ── acknowledgements ──────────────────────────────────────────────────
         ack_label = QLabel(_ACKNOWLEDGEMENTS)
         ack_label.setWordWrap(True)
-        ack_label.setAlignment(Qt.AlignCenter)
-        ack_label.setStyleSheet("color: #555555; font-size: 12px;")
+        ack_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        ack_label.setStyleSheet(f"color: {colors().secondary_text}; font-size: 12px;")
         layout.addWidget(ack_label)
 
         # ── disclaimer ────────────────────────────────────────────────────────
         disclaimer_label = QLabel(DISCLAIMER)
         disclaimer_label.setWordWrap(True)
-        disclaimer_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        disclaimer_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         disclaimer_label.setStyleSheet(
-            "color: #555555; font-size: 13px; padding: 8px;"
-            "background: #f8f8f8; border: 1px solid #dddddd; border-radius: 4px;"
+            f"color: {colors().secondary_text}; font-size: 13px; padding: 8px;"
+            f"background: {colors().info_box_bg}; border: 1px solid {colors().info_box_border};"
+            " border-radius: 4px;"
         )
         layout.addWidget(disclaimer_label)
 

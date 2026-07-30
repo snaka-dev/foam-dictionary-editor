@@ -96,8 +96,8 @@ class ExportStlDialog(QDialog):
         for entry in self._entries:
             label = entry.name or "(unnamed)"
             item = QListWidgetItem(f"[{entry.group_label}] {label}  ·  {entry.kind}")
-            item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Checked if entry.default_checked else Qt.Unchecked)
+            item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked if entry.default_checked else Qt.CheckState.Unchecked)
             self._list.addItem(item)
         layout.addWidget(self._list)
 
@@ -132,7 +132,7 @@ class ExportStlDialog(QDialog):
     def _checked_indices(self) -> list[int]:
         return [
             i for i in range(self._list.count())
-            if self._list.item(i).checkState() == Qt.Checked
+            if self._list.item(i).checkState() == Qt.CheckState.Checked
         ]
 
     def _set_all_check_states(self, state: Qt.CheckState) -> None:
@@ -143,10 +143,10 @@ class ExportStlDialog(QDialog):
         self._update_export_btn()
 
     def _select_all(self) -> None:
-        self._set_all_check_states(Qt.Checked)
+        self._set_all_check_states(Qt.CheckState.Checked)
 
     def _deselect_all(self) -> None:
-        self._set_all_check_states(Qt.Unchecked)
+        self._set_all_check_states(Qt.CheckState.Unchecked)
 
     def _choose_folder(self) -> None:
         chosen = QFileDialog.getExistingDirectory(self, "Select Output Folder", self._folder_edit.text())

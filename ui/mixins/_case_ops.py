@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtWidgets import (
     QDialog,
@@ -23,11 +24,15 @@ from ui.dialogs.reset_settings_dialog import ResetSettingsDialog
 from ui.dialogs.save_as_new_case_dialog import SaveAsNewCaseDialog
 from ui.layout_constants import (
     STATUS_NORMAL as _STATUS_NORMAL,
-    STATUS_SHORT as _STATUS_SHORT,
 )
 
+if TYPE_CHECKING:
+    from ui.mixins._protocol import MainWindowProtocol as _Base
+else:
+    _Base = object
 
-class _CaseOpsMixin:
+
+class _CaseOpsMixin(_Base):
     """Case-level operations: open, duplicate, save-as, settings."""
 
     # ── open ──────────────────────────────────────────────────────────────────
@@ -64,10 +69,10 @@ class _CaseOpsMixin:
                 tr("Reloading will discard unsaved changes in {count} file(s).\n\nReload from disk?").format(
                     count=dirty_count
                 ),
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
             )
-            if reply != QMessageBox.Yes:
+            if reply != QMessageBox.StandardButton.Yes:
                 return
 
         self._load_case_dir(self.state.current_case_dir)
@@ -101,16 +106,18 @@ class _CaseOpsMixin:
                 self,
                 tr("Unsaved Changes"),
                 tr("There are unsaved changes. Save all files before duplicating?"),
-                QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
-                QMessageBox.Yes,
+                QMessageBox.StandardButton.Yes
+                | QMessageBox.StandardButton.No
+                | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Yes,
             )
-            if reply == QMessageBox.Cancel:
+            if reply == QMessageBox.StandardButton.Cancel:
                 return
-            if reply == QMessageBox.Yes:
+            if reply == QMessageBox.StandardButton.Yes:
                 self.save_all_files()
 
-        dialog = DuplicateCaseDialog(self.state.current_case_dir, self)
-        if dialog.exec() != QDialog.Accepted:
+        dialog = DuplicateCaseDialog(self.state.current_case_dir, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
         dest = dialog.destination_path
@@ -140,7 +147,7 @@ class _CaseOpsMixin:
             cfg.get_default_case_dir() or fallback_dest_parent or str(Path(source).parent)
         )
         dialog = DuplicateCaseDialog(source, default_dest_parent=default_dest, parent=self)
-        if dialog.exec() != QDialog.Accepted:
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         dest = dialog.destination_path
         if dest is None:
@@ -178,10 +185,10 @@ class _CaseOpsMixin:
             self,
             tr("Destination Already Exists"),
             tr("The following directory already exists:\n{dest}\n\nOverwrite?").format(dest=dest),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
-        if reply != QMessageBox.Yes:
+        if reply != QMessageBox.StandardButton.Yes:
             return False
         try:
             shutil.rmtree(dest)
@@ -213,10 +220,10 @@ class _CaseOpsMixin:
             self,
             tr("Duplicate Complete"),
             tr("Case duplicated to:\n{dest}\n\nOpen the duplicated case now?").format(dest=dest),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             cfg = get_app_config()
             cfg.set_default_case_dir(str(dest.parent))
             cfg.save()
@@ -238,7 +245,7 @@ class _CaseOpsMixin:
             self.state.file_dirty[self.state.current_file] = self.state.text_dirty
 
         dlg = SaveAsNewCaseDialog(self.state.current_case_dir, self)
-        if dlg.exec() != QDialog.Accepted:
+        if dlg.exec() != QDialog.DialogCode.Accepted:
             return
 
         dest = dlg.destination_path
@@ -307,10 +314,10 @@ class _CaseOpsMixin:
                 "{directory}\n\n"
                 "This may not be a valid OpenFOAM case.\nOpen anyway?"
             ).format(directory=directory),
-            QMessageBox.Open | QMessageBox.Cancel,
-            QMessageBox.Cancel,
+            QMessageBox.StandardButton.Open | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
         )
-        return reply == QMessageBox.Open
+        return reply == QMessageBox.StandardButton.Open
 
     def _copy_visible_files(self, source_dir: str, dest: Path) -> None:
         copy_visible_files(source_dir, dest)
@@ -355,10 +362,10 @@ class _CaseOpsMixin:
             tr("Reset window size to default ({w}x{h})?").format(
                 w=DEFAULT_WINDOW_WIDTH, h=DEFAULT_WINDOW_HEIGHT
             ),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             self.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
             cfg = get_app_config()
             cfg.set_window_size(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)

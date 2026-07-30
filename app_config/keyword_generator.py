@@ -14,6 +14,7 @@ from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 
+from app_config.foam_env import foam_env_dirs
 from app_config.json_io import atomic_write_text
 
 OUTPUT = Path(__file__).parent / "foam_keywords.json"
@@ -211,10 +212,6 @@ def generate(
         label = str(project_dir)
         version = project_dir.name
     else:
-        # Local import: app_config is a lower layer than services; import lazily
-        # so the app_config package never depends on services at import time.
-        from services.foam_env import foam_env_dirs
-
         dirs = foam_env_dirs()
         etc, src, apps = dirs.etc_dir, dirs.src_dir, dirs.apps_dir
         label = str(dirs.project_dir) if dirs.project_dir is not None else "unknown"

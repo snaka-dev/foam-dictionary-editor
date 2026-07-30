@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtWidgets import QDialog, QMessageBox
 
 from foam.nodes import FoamNode
+from i18n import tr
 from model.boundary_model import extract_boundary
 from services.case_loader import FIELD_DIRS
-from i18n import tr
 from ui.dialogs.boundary_edit_dialog import BoundaryEditDialog, _parse_patch_content, _patch_inner_text
 from ui.dialogs.rename_boundary_dialog import RenameBoundaryDialog, find_rename_targets
 from ui.layout_constants import (
     STATUS_NORMAL as _STATUS_NORMAL,
+)
+from ui.layout_constants import (
     STATUS_SHORT as _STATUS_SHORT,
 )
 
@@ -45,7 +48,13 @@ def _set_patch_children(patch: FoamNode, children: list[FoamNode]) -> None:
     patch.raw_text = ""
 
 
-class _BoundaryOpsMixin:
+if TYPE_CHECKING:
+    from ui.mixins._protocol import MainWindowProtocol as _Base
+else:
+    _Base = object
+
+
+class _BoundaryOpsMixin(_Base):
     """Boundary view population and patch-level edit operations."""
 
     # ── panel population ──────────────────────────────────────────────────────
@@ -114,7 +123,7 @@ class _BoundaryOpsMixin:
         field_name = Path(path).name
         original_text = _patch_inner_text(live_patch)
         dlg = BoundaryEditDialog(field_name, patch_name, live_patch, self)
-        if dlg.exec() != QDialog.Accepted:
+        if dlg.exec() != QDialog.DialogCode.Accepted:
             return
 
         new_type = dlg.new_type
@@ -135,13 +144,18 @@ class _BoundaryOpsMixin:
             try:
                 new_children = _parse_patch_content(dlg.new_dict_text)
             except Exception as e:
-                QMessageBox.warning(self, tr("Parse Error"), tr("Could not parse patch content:\n{e}").format(e=e))
+                QMessageBox.warning(
+                    self, tr("Parse Error"), tr("Could not parse patch content:\n{e}").format(e=e)
+                )
                 return
             self._checkpoint_for_undo([path])
             _set_patch_children(live_patch, new_children)
 
         self._apply_boundary_root_change(path, root)
-        self.statusBar().showMessage(tr("Boundary updated: {file} / {patch}").format(file=Path(path).name, patch=patch_name), _STATUS_SHORT)
+        self.statusBar().showMessage(
+            tr("Boundary updated: {file} / {patch}").format(file=Path(path).name, patch=patch_name),
+            _STATUS_SHORT,
+        )
 
     def _on_patch_create_requested(self, path: str, patch_name: str) -> None:
         root = self.state.parsed_roots.get(path)
@@ -151,7 +165,7 @@ class _BoundaryOpsMixin:
         field_name = Path(path).name
         empty_patch = FoamNode(name=patch_name, node_type="dictionary")
         dlg = BoundaryEditDialog(field_name, patch_name, empty_patch, self)
-        if dlg.exec() != QDialog.Accepted:
+        if dlg.exec() != QDialog.DialogCode.Accepted:
             return
 
         content = dlg.new_dict_text.strip()
@@ -160,12 +174,16 @@ class _BoundaryOpsMixin:
         try:
             new_children = _parse_patch_content(content)
         except Exception as e:
-            QMessageBox.warning(self, tr("Parse Error"), tr("Could not parse patch content:\n{e}").format(e=e))
+            QMessageBox.warning(
+                self, tr("Parse Error"), tr("Could not parse patch content:\n{e}").format(e=e)
+            )
             return
 
         boundary_field = _find_boundary_field(root)
         if boundary_field is None:
-            QMessageBox.warning(self, tr("Error"), tr("No boundaryField found in {field}.").format(field=field_name))
+            QMessageBox.warning(
+                self, tr("Error"), tr("No boundaryField found in {field}.").format(field=field_name)
+            )
             return
 
         self._checkpoint_for_undo([path])
@@ -173,7 +191,10 @@ class _BoundaryOpsMixin:
         _set_patch_children(new_patch, new_children)
 
         self._apply_boundary_root_change(path, root)
-        self.statusBar().showMessage(tr("Created boundary: {field} / {patch}").format(field=field_name, patch=patch_name), _STATUS_SHORT)
+        self.statusBar().showMessage(
+            tr("Created boundary: {field} / {patch}").format(field=field_name, patch=patch_name),
+            _STATUS_SHORT,
+        )
 
     def _on_patch_paste_requested(self, path: str, patch_name: str, content: str) -> None:
         root = self.state.parsed_roots.get(path)
@@ -182,14 +203,18 @@ class _BoundaryOpsMixin:
         try:
             new_children = _parse_patch_content(content)
         except Exception as e:
-            QMessageBox.warning(self, tr("Paste Error"), tr("Could not parse copied content:\n{e}").format(e=e))
+            QMessageBox.warning(
+                self, tr("Paste Error"), tr("Could not parse copied content:\n{e}").format(e=e)
+            )
             return
 
         live_patch = extract_boundary(root).get(patch_name)
         if live_patch is None:
             boundary_field = _find_boundary_field(root)
             if boundary_field is None:
-                QMessageBox.warning(self, tr("Paste Error"), tr("No boundaryField in {file}.").format(file=Path(path).name))
+                QMessageBox.warning(
+                    self, tr("Paste Error"), tr("No boundaryField in {file}.").format(file=Path(path).name)
+                )
                 return
             self._checkpoint_for_undo([path])
             live_patch = _append_new_patch(boundary_field, patch_name)
@@ -199,7 +224,10 @@ class _BoundaryOpsMixin:
         _set_patch_children(live_patch, new_children)
 
         self._apply_boundary_root_change(path, root)
-        self.statusBar().showMessage(tr("Pasted to {file} / {patch}").format(file=Path(path).name, patch=patch_name), _STATUS_SHORT)
+        self.statusBar().showMessage(
+            tr("Pasted to {file} / {patch}").format(file=Path(path).name, patch=patch_name),
+            _STATUS_SHORT,
+        )
 
     def _on_patch_delete_requested(self, path: str, patch_name: str) -> None:
         root = self.state.parsed_roots.get(path)
@@ -218,7 +246,10 @@ class _BoundaryOpsMixin:
 
         self._apply_boundary_root_change(path, root)
         self.boundary_panel.refresh()
-        self.statusBar().showMessage(tr("Deleted boundary: {file} / {patch}").format(file=Path(path).name, patch=patch_name), _STATUS_SHORT)
+        self.statusBar().showMessage(
+            tr("Deleted boundary: {file} / {patch}").format(file=Path(path).name, patch=patch_name),
+            _STATUS_SHORT,
+        )
 
     def _on_rename_boundary_by_name(self, old_name: str) -> None:
         # Ensure all loaded files are parsed
@@ -234,7 +265,7 @@ class _BoundaryOpsMixin:
         targets = find_rename_targets(old_name, roots)
 
         dlg = RenameBoundaryDialog(old_name, targets, self.state.current_case_dir or "", self)
-        if dlg.exec() != QDialog.Accepted:
+        if dlg.exec() != QDialog.DialogCode.Accepted:
             return
 
         new_name = dlg.new_name
@@ -252,7 +283,9 @@ class _BoundaryOpsMixin:
 
         self.boundary_panel.refresh()
         self.statusBar().showMessage(
-            tr("Renamed '{old}' → '{new}' in {n} file(s).").format(old=old_name, new=new_name, n=len(selected)),
+            tr("Renamed '{old}' → '{new}' in {n} file(s).").format(
+                old=old_name, new=new_name, n=len(selected)
+            ),
             _STATUS_NORMAL,
         )
 
@@ -280,7 +313,9 @@ class _BoundaryOpsMixin:
         file_list = "\n".join(f"  • {Path(p).name}" for p in sorted(affected, key=lambda p: Path(p).name))
         if not self._confirm(
             tr("Delete BoundaryField"),
-            tr("Delete '{patch}' from {n} file(s)?\n\n{files}").format(patch=patch_name, n=len(affected), files=file_list),
+            tr("Delete '{patch}' from {n} file(s)?\n\n{files}").format(
+                patch=patch_name, n=len(affected), files=file_list
+            ),
         ):
             return
 
@@ -298,7 +333,12 @@ class _BoundaryOpsMixin:
             self._apply_boundary_root_change(path, root)
 
         self.boundary_panel.refresh()
-        self.statusBar().showMessage(tr("Deleted BoundaryField '{patch}' from {n} file(s).").format(patch=patch_name, n=len(affected)), _STATUS_SHORT)
+        self.statusBar().showMessage(
+            tr("Deleted BoundaryField '{patch}' from {n} file(s).").format(
+                patch=patch_name, n=len(affected)
+            ),
+            _STATUS_SHORT,
+        )
 
     def _on_patch_add_all_requested(self, patch_name: str) -> None:
         targets = [
@@ -311,7 +351,11 @@ class _BoundaryOpsMixin:
 
         if not self._confirm(
             tr("Add BoundaryField"),
-            tr("An empty entry will be added to {n} field file(s).\nEdit each cell to add boundary condition content.\n\nProceed?").format(n=len(targets)),
+            tr(
+                "An empty entry will be added to {n} field file(s).\n"
+                "Edit each cell to add boundary condition content.\n\n"
+                "Proceed?"
+            ).format(n=len(targets)),
         ):
             return
 
@@ -330,6 +374,9 @@ class _BoundaryOpsMixin:
         if added:
             self.boundary_panel.refresh()
             self.statusBar().showMessage(
-                tr("Added BoundaryField '{patch}' to {n} file(s). Edit each cell to add boundary condition content.").format(patch=patch_name, n=len(added)),
+                tr(
+                    "Added BoundaryField '{patch}' to {n} file(s). "
+                    "Edit each cell to add boundary condition content."
+                ).format(patch=patch_name, n=len(added)),
                 _STATUS_NORMAL,
             )

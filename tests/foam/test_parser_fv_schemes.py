@@ -78,6 +78,20 @@ def test_parse_fv_schemes_all_blocks_present(fv_schemes_text):
         assert block in child_names, f"expected block '{block}' not found"
 
 
+def test_parse_stray_semicolon_is_not_an_error():
+    """`divSchemes { … };` is tolerated by OpenFOAM, so it is not a parse failure.
+
+    The ";" still becomes its own node -- the writer has to reproduce it -- but
+    reporting it made ordinary tutorial files claim "1 unrecognized entries".
+    """
+    parser = OpenFoamParser("divSchemes\n{\n    default Gauss linear;\n};\n")
+    root = parser.parse()
+
+    assert parser.errors == []
+    assert [c.node_type for c in root.children] == ["dictionary", "unknown_raw_entry"]
+    assert root.children[1].value == ";"
+
+
 def test_parse_fv_schemes_roundtrip(fv_schemes_text):
     """Key entries are preserved after fvSchemes parse and write"""
     from foam.writer import write_root

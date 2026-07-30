@@ -6,6 +6,9 @@ Single source of truth for reading ``WM_PROJECT_DIR`` / ``FOAM_*`` variables,
 shared by ``services/example_search.py`` (installation discovery),
 ``app_config/keyword_generator.py`` (etc/src/applications scan roots), and
 ``AppConfigManager.foam_tutorials_dir`` (case library). Pure stdlib, no Qt.
+Lives in ``app_config/`` rather than ``services/`` because it has no
+dependency on the ``services`` layer; see DEVELOPER.md's architecture
+overview for the layering.
 """
 from __future__ import annotations
 

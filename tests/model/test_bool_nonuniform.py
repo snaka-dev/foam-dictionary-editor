@@ -2,10 +2,10 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 import pytest
 from PySide6.QtCore import Qt
+
 from foam.parser import OpenFoamParser
 from foam.writer import write_root
 from model.tree_model import FoamTreeModel
-
 
 # ── bool parsing ──────────────────────────────────────────────────────────────
 

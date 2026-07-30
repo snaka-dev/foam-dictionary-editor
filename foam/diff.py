@@ -11,6 +11,7 @@ _RECURSE_TYPES = frozenset({
     "named_dict_list", "named_dict_entry",
     "field_value_block",
     "action_list",
+    "block_list",
 })
 
 
@@ -51,6 +52,10 @@ def _diff_node(a: FoamNode, b: FoamNode, result: dict[FoamNode, DiffEntry]) -> N
         _diff_action_list(a, b, result)
         return
 
+    if a.node_type == "block_list" and b.node_type == "block_list":
+        _diff_block_list(a, b, result)
+        return
+
     b_map = _by_name(b.children)
     for a_child in a.children:
         if not a_child.name:
@@ -89,6 +94,24 @@ def _diff_action_list(
                 result[a_child] = ("only_here", None)
             elif not _equal(a_child, b_child):
                 result[a_child] = ("changed", b_child)
+
+
+def _diff_block_list(
+    a: FoamNode, b: FoamNode, result: dict[FoamNode, DiffEntry]
+) -> None:
+    """Positional diff of anonymous block_entry children.
+
+    Entries are matched by index because they carry no unique key (name=="").
+    Extra entries in *a* beyond the length of *b* are marked only_here.
+    """
+    b_entries = b.children
+    for i, a_entry in enumerate(a.children):
+        if i >= len(b_entries):
+            result[a_entry] = ("only_here", None)
+            continue
+        b_entry = b_entries[i]
+        if not _equal(a_entry, b_entry):
+            result[a_entry] = ("changed", b_entry)
 
 
 def _diff_field_value_block(

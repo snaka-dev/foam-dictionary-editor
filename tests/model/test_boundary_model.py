@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import pytest
-from model.boundary_model import BoundaryModel, extract_boundary
+
 from foam.parser import OpenFoamParser
+from model.boundary_model import BoundaryModel, extract_boundary
 
 
 def _parse(text: str):
@@ -16,7 +17,10 @@ def _field_root(patches: dict[str, str]):
     entries = "\n".join(
         f"    {name}\n    {{\n        type {typ};\n    }}" for name, typ in patches.items()
     )
-    src = f"FoamFile {{ version 2.0; format ascii; class volScalarField; }}\n\nboundaryField\n{{\n{entries}\n}}\n"
+    src = (
+        f"FoamFile {{ version 2.0; format ascii; class volScalarField; }}\n\n"
+        f"boundaryField\n{{\n{entries}\n}}\n"
+    )
     return _parse(src)
 
 

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 import pytest
+
 from foam.utils import (
     format_embedded_value,
     format_scalar,

@@ -3,10 +3,7 @@
 """Tests for ui/widgets/code_editor.py — fold map, toggle, and auto-fold."""
 from __future__ import annotations
 
-import pytest
-
 from ui.widgets.code_editor import CodeEditor
-
 
 # ---------------------------------------------------------------------------
 # helpers

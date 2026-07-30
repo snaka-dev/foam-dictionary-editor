@@ -2,6 +2,8 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
 
@@ -19,7 +21,13 @@ _UNDO_DEPTH = 50
 _UNDO_MAX_BYTES = 16 * 1024 * 1024
 
 
-class _UndoOpsMixin:
+if TYPE_CHECKING:
+    from ui.mixins._protocol import MainWindowProtocol as _Base
+else:
+    _Base = object
+
+
+class _UndoOpsMixin(_Base):
     """Snapshot-based undo/redo for tree edits.
 
     Every tree mutation already ends in a full ``write_root`` re-serialization,
@@ -43,15 +51,15 @@ class _UndoOpsMixin:
     """
 
     def _setup_tree_undo(self) -> None:
-        undo_sc = QShortcut(QKeySequence.Undo, self.tree)
-        undo_sc.setContext(Qt.WidgetShortcut)
+        undo_sc = QShortcut(QKeySequence.StandardKey.Undo, self.tree)
+        undo_sc.setContext(Qt.ShortcutContext.WidgetShortcut)
         undo_sc.activated.connect(self._tree_undo)
 
         # A literal Ctrl+Shift+Z (Cmd+Shift+Z on macOS) rather than
         # QKeySequence.Redo, which resolves to Ctrl+Y on Windows and would then
         # disagree with every "Ctrl+Shift+Z" label in the menu, dialog, and docs.
         redo_sc = QShortcut(QKeySequence("Ctrl+Shift+Z"), self.tree)
-        redo_sc.setContext(Qt.WidgetShortcut)
+        redo_sc.setContext(Qt.ShortcutContext.WidgetShortcut)
         redo_sc.activated.connect(self._tree_redo)
 
     # ── checkpointing ─────────────────────────────────────────────────────────

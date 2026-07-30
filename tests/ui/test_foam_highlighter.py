@@ -7,13 +7,11 @@ import pytest
 from PySide6.QtGui import QTextCharFormat, QTextDocument
 
 from ui.widgets._foam_highlighter import (
-    FoamHighlighter,
     _IN_COMMENT,
+    FoamHighlighter,
     _build_value_kw_rules,
     _collect_schema_keywords,
-    _load_foam_keywords,
 )
-
 
 # ---------------------------------------------------------------------------
 # Test helper: recording subclass
@@ -110,8 +108,8 @@ def test_block_comment_state_cleared(rec):
 def test_block_comment_second_line_grey(rec):
     """All text on the continuation line should be grey up to */."""
     log = rec.highlight("/* open\nclosed */")
-    grey_calls = [(s, l, c) for s, l, c in log if c == "#808080"]
-    assert any(s == 0 for s, l, c in grey_calls), "start of line 1 should be grey"
+    grey_calls = [(s, length, c) for s, length, c in log if c == "#808080"]
+    assert any(s == 0 for s, length, c in grey_calls), "start of line 1 should be grey"
 
 
 # ---------------------------------------------------------------------------
@@ -311,6 +309,7 @@ def test_json_keywords_loaded(qapp, tmp_path, monkeypatch):
 
 def test_loader_prefers_user_file(qapp, tmp_path, monkeypatch):
     import json
+
     import ui.widgets._foam_highlighter as mod
 
     user = tmp_path / "foam_keywords.json"
@@ -326,6 +325,7 @@ def test_loader_prefers_user_file(qapp, tmp_path, monkeypatch):
 
 def test_loader_falls_back_to_default(qapp, tmp_path, monkeypatch):
     import json
+
     import ui.widgets._foam_highlighter as mod
 
     default = tmp_path / "foam_keywords.default.json"
@@ -387,6 +387,7 @@ def test_plain_y0_still_darkcyan(qapp, tmp_path, monkeypatch):
 def test_json_keywords_filter_rejects_special_chars(qapp, tmp_path, monkeypatch):
     """Tokens with regex-special chars in the JSON must be silently dropped."""
     import json
+
     import ui.widgets._foam_highlighter as mod
 
     bad_json = tmp_path / "foam_keywords.json"
@@ -524,4 +525,6 @@ def test_set_enabled_true_restores_highlighting(rec):
     rec.set_enabled(False)
     rec.set_enabled(True)
     log = rec.highlight("// comment")
-    assert any(color == "#808080" for _, _, color in log), "re-enabled highlighter should colour comments grey"
+    assert any(color == "#808080" for _, _, color in log), (
+        "re-enabled highlighter should colour comments grey"
+    )

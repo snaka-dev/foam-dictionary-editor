@@ -6,8 +6,8 @@ import re
 import shlex
 import sys
 
-from PySide6.QtCore import QEvent, QProcess, Qt
-from PySide6.QtGui import QColor, QFont, QPalette
+from PySide6.QtCore import QEvent, QObject, QProcess, Qt
+from PySide6.QtGui import QColor, QFont, QKeyEvent, QPalette
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -65,7 +65,7 @@ class SimpleTerminalWidget(QWidget):
         layout.addLayout(input_row)
 
         self._process = QProcess(self)
-        self._process.setProcessChannelMode(QProcess.MergedChannels)
+        self._process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
         self._process.readyReadStandardOutput.connect(self._on_output)
         self._process.finished.connect(self._on_finished)
         self._start_shell()
@@ -79,7 +79,7 @@ class SimpleTerminalWidget(QWidget):
 
     def _cleanup(self) -> None:
         self._closing = True
-        if self._process.state() != QProcess.NotRunning:
+        if self._process.state() != QProcess.ProcessState.NotRunning:
             self._process.terminate()
             if not self._process.waitForFinished(3000):
                 self._process.kill()
@@ -88,7 +88,7 @@ class SimpleTerminalWidget(QWidget):
         self._cwd = path
         # QProcess buffers writes made while still Starting and flushes them
         # once the shell is up, so only skip when the process is not running.
-        if self._process.state() != QProcess.NotRunning:
+        if self._process.state() != QProcess.ProcessState.NotRunning:
             self._execute(f"cd {shlex.quote(path)}")
 
     def run_command(self, cmd: str) -> None:
@@ -96,8 +96,8 @@ class SimpleTerminalWidget(QWidget):
 
     def _apply_dark_theme(self) -> None:
         palette = self._output.palette()
-        palette.setColor(QPalette.Base, QColor("#1e1e1e"))
-        palette.setColor(QPalette.Text, QColor("#d4d4d4"))
+        palette.setColor(QPalette.ColorRole.Base, QColor("#1e1e1e"))
+        palette.setColor(QPalette.ColorRole.Text, QColor("#d4d4d4"))
         self._output.setPalette(palette)
 
     def _start_shell(self) -> None:
@@ -120,7 +120,7 @@ class SimpleTerminalWidget(QWidget):
         self._process.write(f"{cmd}\n".encode())
 
     def _on_output(self) -> None:
-        data = bytes(self._process.readAllStandardOutput())
+        data = bytes(self._process.readAllStandardOutput().data())
         text = data.decode("utf-8", errors="replace")
         text = _ANSI_ESCAPE.sub("", text).rstrip()
         if text:
@@ -138,14 +138,15 @@ class SimpleTerminalWidget(QWidget):
         if self._cwd:
             self._execute(f"cd {shlex.quote(self._cwd)}")
 
-    def eventFilter(self, obj: object, event: QEvent) -> bool:
-        if obj is self._input and event.type() == QEvent.KeyPress:
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        if obj is self._input and event.type() == QEvent.Type.KeyPress:
+            assert isinstance(event, QKeyEvent)
             key = event.key()
-            if key == Qt.Key_Up and self._history:
+            if key == Qt.Key.Key_Up and self._history:
                 self._history_pos = max(0, self._history_pos - 1)
                 self._input.setText(self._history[self._history_pos])
                 return True
-            if key == Qt.Key_Down:
+            if key == Qt.Key.Key_Down:
                 self._history_pos = min(len(self._history), self._history_pos + 1)
                 if self._history_pos < len(self._history):
                     self._input.setText(self._history[self._history_pos])

@@ -21,11 +21,11 @@ from PySide6.QtWidgets import (
 )
 
 from app_config import get_app_config
+from i18n import tr
 from ui.dialogs.about_dialog import DISCLAIMER
+from ui.theme import colors
 
 _DIALOG_WIDTH = 540
-
-from i18n import tr
 
 _FOUNDATION_DESC = (
     "Free, open-source CFD toolbox maintained by the OpenFOAM Foundation. "
@@ -88,7 +88,9 @@ class _LinkEditDialog(QDialog):
         self._url_edit.setPlaceholderText("https://")
         layout.addWidget(self._url_edit)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
         buttons.accepted.connect(self._on_accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -117,7 +119,7 @@ class _MyLinksTab(QWidget):
         layout.setContentsMargins(6, 6, 6, 6)
 
         hint = QLabel(tr("Double-click a link to open it in your browser."))
-        hint.setStyleSheet("color: #666;")
+        hint.setStyleSheet(f"color: {colors().secondary_text};")
         layout.addWidget(hint)
 
         self._list = QListWidget()
@@ -157,12 +159,12 @@ class _MyLinksTab(QWidget):
         display = label if label else url
         item = QListWidgetItem(display)
         item.setToolTip(url)
-        item.setData(Qt.UserRole, {"label": label, "url": url})
+        item.setData(Qt.ItemDataRole.UserRole, {"label": label, "url": url})
         self._list.addItem(item)
         return item
 
     def _collect_links(self) -> list[dict]:
-        return [self._list.item(i).data(Qt.UserRole) for i in range(self._list.count())]
+        return [self._list.item(i).data(Qt.ItemDataRole.UserRole) for i in range(self._list.count())]
 
     def save_if_dirty(self) -> None:
         if not self._dirty:
@@ -173,12 +175,12 @@ class _MyLinksTab(QWidget):
         self._dirty = False
 
     def _open_link(self, item: QListWidgetItem) -> None:
-        url = item.data(Qt.UserRole)["url"]
+        url = item.data(Qt.ItemDataRole.UserRole)["url"]
         QDesktopServices.openUrl(QUrl(url))
 
     def _add(self) -> None:
         dlg = _LinkEditDialog(self)
-        if dlg.exec() != QDialog.Accepted:
+        if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         item = self._append_item(dlg.result_label(), dlg.result_url())
         self._list.setCurrentItem(item)
@@ -190,15 +192,15 @@ class _MyLinksTab(QWidget):
         if row < 0:
             return
         item = self._list.item(row)
-        data = item.data(Qt.UserRole)
+        data = item.data(Qt.ItemDataRole.UserRole)
         dlg = _LinkEditDialog(self, label=data["label"], url=data["url"])
-        if dlg.exec() != QDialog.Accepted:
+        if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         new_label = dlg.result_label()
         new_url = dlg.result_url()
         item.setText(new_label if new_label else new_url)
         item.setToolTip(new_url)
-        item.setData(Qt.UserRole, {"label": new_label, "url": new_url})
+        item.setData(Qt.ItemDataRole.UserRole, {"label": new_label, "url": new_url})
         self._dirty = True
 
     def _remove(self) -> None:
@@ -270,7 +272,10 @@ class OpenFOAMResourcesDialog(QDialog):
         layout.setSpacing(10)
 
         intro = QLabel(
-            tr("OpenFOAM has two main distributions maintained by separate organizations. This application is not affiliated with either.")
+            tr(
+                "OpenFOAM has two main distributions maintained by separate organizations. "
+                "This application is not affiliated with either."
+            )
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)
@@ -288,10 +293,11 @@ class OpenFOAMResourcesDialog(QDialog):
 
         disclaimer_label = QLabel(DISCLAIMER)
         disclaimer_label.setWordWrap(True)
-        disclaimer_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        disclaimer_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         disclaimer_label.setStyleSheet(
-            "color: #555555; font-size: 13px; padding: 8px;"
-            "background: #f8f8f8; border: 1px solid #dddddd; border-radius: 4px;"
+            f"color: {colors().secondary_text}; font-size: 13px; padding: 8px;"
+            f"background: {colors().info_box_bg}; border: 1px solid {colors().info_box_border};"
+            " border-radius: 4px;"
         )
         layout.addWidget(disclaimer_label)
         layout.addStretch()

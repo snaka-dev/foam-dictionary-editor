@@ -5,15 +5,16 @@ from __future__ import annotations
 from PySide6.QtCore import QAbstractItemModel, QModelIndex, Qt, Signal
 from PySide6.QtGui import QBrush, QColor
 
-from foam.nodes import BOOL_WORDS, NON_KEY_EDITABLE, STRING_TYPES, FoamNode
+from foam.nodes import NON_KEY_EDITABLE, FoamNode
 from foam.utils import (
-    classify_simple_value,
+    block_number,
+    describe_block_entry,
     format_embedded_value,
     format_leaf_value,
-    is_int,
-    is_number,
-    parse_box_pair,
+    non_block_rows,
 )
+from foam.value_parse import set_node_value
+from ui.theme import colors
 
 
 class FoamTreeModel(QAbstractItemModel):
@@ -30,17 +31,39 @@ class FoamTreeModel(QAbstractItemModel):
     # delegate, Paste Value, and the detail-panel Apply handlers.
     about_to_change = Signal()
 
-    _DIFF_BG: dict[str, QColor] = {
-        "changed":      QColor("#FFFACD"),  # light yellow  — value differs
-        "only_here":    QColor("#E3F2FD"),  # light blue    — only in current file
-        "only_in_ref":  QColor("#E8F5E9"),  # light green   — only in reference case
-    }
+    @staticmethod
+    def _diff_bg(status: str) -> QColor:
+        """Row background for a diff *status*, resolved for the active theme."""
+        c = colors()
+        return QColor({
+            "changed":     c.diff_changed,      # value differs
+            "only_here":   c.diff_only_here,    # only in current file
+            "only_in_ref": c.diff_only_in_ref,  # only in reference case
+        }[status])
 
-    def __init__(self, root: FoamNode, parent=None):
+    def __init__(self, root: FoamNode, parent=None, read_only: bool = False):
         super().__init__(parent)
         self.root = root
+        # An `#include` target outside the case dir is shown but never edited;
+        # withholding ItemIsEditable disables inline edit and Paste Value alike.
+        self.read_only = read_only
         self._diff: dict[FoamNode, tuple[str, FoamNode | None]] | None = None
+        # Per-blocks-list rows that are not block_entry; see _block_number.
+        self._non_block_rows: dict[FoamNode, list[int]] = {}
+        # directive text -> note appended to its tooltip. Supplied by the app
+        # after loading, so a tooltip never has to touch the disk itself.
+        self._include_notes: dict[str, str] = {}
         self.attach_parents(self.root, None)
+
+    def set_include_notes(self, notes: dict[str, str]) -> None:
+        """Attach per-directive tooltip notes ("resolves to ..." / "not found")."""
+        self._include_notes = dict(notes)
+
+    def include_note(self, node: FoamNode) -> str | None:
+        """Return the resolution note for a ``directive_entry`` row, if any."""
+        if node.node_type != "directive_entry":
+            return None
+        return self._include_notes.get(str(node.value))
 
     def columnCount(self, parent=QModelIndex()):
         return 3
@@ -92,10 +115,10 @@ class FoamTreeModel(QAbstractItemModel):
         node = index.internalPointer()
 
         if role in (Qt.DisplayRole, Qt.EditRole):
-            return self._column_value(node, index.column())
+            return self._column_value(node, index.column(), index.row())
 
         if role == Qt.ToolTipRole:
-            tip = self._tooltip(node)
+            tip = self._tooltip(node, index.row())
             if self._diff:
                 entry = self._diff.get(node)
                 if entry is not None:
@@ -109,12 +132,12 @@ class FoamTreeModel(QAbstractItemModel):
             return tip
 
         if role == Qt.ForegroundRole and node.node_type == "unknown_raw_entry":
-            return QColor("#B8860B")
+            return QColor(colors().unknown_entry_fg)
 
         if role == Qt.BackgroundRole and self._diff:
             entry = self._diff.get(node)
             if entry:
-                return QBrush(self._DIFF_BG[entry[0]])
+                return QBrush(self._diff_bg(entry[0]))
 
         return None
 
@@ -133,7 +156,7 @@ class FoamTreeModel(QAbstractItemModel):
             node.modified = True
 
         elif column == self.COL_VALUE:
-            ok = self._set_node_value(node, value)
+            ok = set_node_value(node, value)
             if not ok:
                 self.edit_rejected.emit(f'Invalid {node.node_type} value: "{value}"')
                 return False
@@ -152,6 +175,9 @@ class FoamTreeModel(QAbstractItemModel):
 
         node = index.internalPointer()
         flags = Qt.ItemIsEnabled | Qt.ItemIsSelectable
+
+        if self.read_only:
+            return flags
 
         if index.column() == self.COL_KEY and node.node_type not in NON_KEY_EDITABLE:
             flags |= Qt.ItemIsEditable
@@ -183,6 +209,7 @@ class FoamTreeModel(QAbstractItemModel):
         self.beginInsertRows(parent_index, position, position)
         new_node.parent = parent_node
         parent_node.children.insert(position, new_node)
+        self._non_block_rows.clear()
         self.endInsertRows()
         return self.index(position, 0, parent_index)
 
@@ -197,6 +224,7 @@ class FoamTreeModel(QAbstractItemModel):
         self.beginRemoveRows(parent_index, row, row)
         siblings.pop(row)
         node.parent = None
+        self._non_block_rows.clear()
         self.endRemoveRows()
 
     def set_diff(
@@ -249,21 +277,45 @@ class FoamTreeModel(QAbstractItemModel):
             if isinstance(child, FoamNode):
                 self.attach_parents(child, node)
 
-    def _column_value(self, node: FoamNode, column: int):
+    def _column_value(self, node: FoamNode, column: int, row: int = 0):
         if column == self.COL_KEY:
-            return self._display_key(node)
+            return self._display_key(node, row)
         if column == self.COL_TYPE:
             return node.node_type
         if column == self.COL_VALUE:
             return self._display_value(node)
         return None
 
-    def _display_key(self, node: FoamNode) -> str:
+    def _display_key(self, node: FoamNode, row: int = 0) -> str:
         if node.node_type == "field_value":
             return node.value.get("field_name", "")
         if node.node_type in {"directive_entry", "unknown_raw_entry"}:
             return ""
+        if node.node_type == "block_entry":
+            # Synthesised from the row, not stored on the node, so it stays
+            # correct after any insert/delete and matches the 3-D viewer's
+            # per-block centroid labels by construction. Must NOT be computed
+            # via parent.children.index(node): the filter proxy reads every
+            # row's key column on each keystroke, which would make that O(N^2).
+            return f"block {self._block_number(node, row)}"
         return node.name
+
+    def _block_number(self, node: FoamNode, row: int) -> int:
+        """foam.utils.block_number for *node*, memoising the per-list scan.
+
+        The key column is read for every row on each filter keystroke, so the
+        non-block rows of each blocks list are cached (identity-keyed; FoamNode
+        sets ``__hash__ = object.__hash__``) rather than rescanned per row. The
+        whole cache is dropped on any structural change.
+        """
+        parent = node.parent
+        if parent is None:
+            return row
+        skipped = self._non_block_rows.get(parent)
+        if skipped is None:
+            skipped = non_block_rows(parent)
+            self._non_block_rows[parent] = skipped
+        return block_number(parent, row, skipped)
 
     def _display_value(self, node: FoamNode) -> str:
         t = node.node_type
@@ -279,6 +331,9 @@ class FoamTreeModel(QAbstractItemModel):
 
         if t == "named_dict_list":
             return f"{len(node.children)} entries"
+
+        if t == "block_list":
+            return f"{len(node.children)} blocks"
 
         if t == "field_value_block":
             count = len(node.value) if isinstance(node.value, list) else 0
@@ -299,7 +354,7 @@ class FoamTreeModel(QAbstractItemModel):
 
         return format_leaf_value(t, node.value)
 
-    def _tooltip(self, node: FoamNode) -> str:
+    def _tooltip(self, node: FoamNode, row: int = 0) -> str:
         if node.node_type == "field_value":
             data = node.value
             value_str = format_embedded_value(
@@ -312,10 +367,22 @@ class FoamTreeModel(QAbstractItemModel):
             )
 
         if node.node_type == "directive_entry":
-            return f"directive\n{node.value}"
+            note = self.include_note(node)
+            return f"directive\n{node.value}" + (f"\n{note}" if note else "")
 
         if node.node_type == "unknown_raw_entry":
             return f"unknown raw entry\n{node.value}"
+
+        if node.node_type == "block_entry":
+            name, vertices, zone, cells, grading = describe_block_entry(str(node.value))
+            header = f"block {self._block_number(node, row)}" + (f" ({name})" if name else "")
+            return (
+                f"{header}\n"
+                f"vertices: {vertices or '—'}\n"
+                f"cells: {cells or '—'}\n"
+                f"grading: {grading or '—'}\n"
+                f"zone: {zone or '—'}"
+            )
 
         return f"{node.name}\n{node.node_type}"
 
@@ -336,104 +403,6 @@ class FoamTreeModel(QAbstractItemModel):
             "field_value",
             "directive_entry",
             "unknown_raw_entry",
+            "block_entry",
         }
 
-    def _set_node_value(self, node: FoamNode, value) -> bool:
-        text = str(value).strip()
-
-        if node.node_type == "field_value":
-            value_type, parsed = classify_simple_value(text)
-            node.value["value_type"] = value_type
-            node.value["value"] = parsed
-            node.value["raw_value"] = text
-            node.modified = True
-            return True
-
-        if node.node_type in {"directive_entry", "unknown_raw_entry"}:
-            node.value = text
-            node.modified = True
-            return True
-
-        value_type, parsed = self._parse_text_for_node_type(node.node_type, text)
-        if value_type is None:
-            return False
-
-        node.node_type = value_type
-        node.value = parsed
-        node.modified = True
-        return True
-
-    def _parse_text_for_node_type(self, node_type: str, text: str):
-        if node_type == "int":
-            try:
-                return "int", int(text)
-            except ValueError:
-                if is_number(text):
-                    return "scalar", float(text)
-                return None, None
-
-        if node_type == "scalar":
-            try:
-                return "scalar", float(text)
-            except ValueError:
-                return None, None
-
-        if node_type == "vector":
-            nums = self._parse_parenthesized_numbers(text)
-            if nums is None or len(nums) != 3:
-                return None, None
-            return "vector", nums
-
-        if node_type == "box_pair":
-            parsed = parse_box_pair(text)
-            if parsed is None:
-                return None, None
-            return "box_pair", parsed
-
-        if node_type == "int_list":
-            nums = self._parse_parenthesized_numbers(text, force_int=True)
-            if nums is None:
-                return None, None
-            return "int_list", nums
-
-        if node_type == "scalar_list":
-            nums = self._parse_parenthesized_numbers(text)
-            if nums is None:
-                return None, None
-            return "scalar_list", nums
-
-        if node_type == "raw_list":
-            if text.startswith("(") and text.endswith(")"):
-                return "raw_list", text[1:-1].strip()
-            return "raw_list", text
-
-        if node_type == "bool":
-            if text.lower() not in BOOL_WORDS:
-                return None, None
-            return "bool", text.lower()
-
-        if node_type in STRING_TYPES:
-            return node_type, text
-
-        return None, None
-
-    def _parse_parenthesized_numbers(self, text: str, force_int: bool = False):
-        text = text.strip()
-        if not (text.startswith("(") and text.endswith(")")):
-            return None
-
-        body = text[1:-1].strip()
-        if not body:
-            return []
-
-        parts = body.split()
-
-        if force_int:
-            if not all(is_int(x) for x in parts):
-                return None
-            return [int(x) for x in parts]
-
-        if not all(is_number(x) for x in parts):
-            return None
-
-        return [float(x) for x in parts]

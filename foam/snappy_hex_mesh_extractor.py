@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 
 from foam.nodes import FoamNode
+from foam.shapes import SourceShape
 from foam.tree_utils import (
     expand_evals,
     find_child,
@@ -40,12 +41,11 @@ _REGEX_META = frozenset(".*+?[]^$|\\")
 
 
 @dataclasses.dataclass
-class SnappyShape:
-    # `label`/`kind`: shared field names across all extractor shape classes.
-    label: str                             # resolved cross-reference name
-    kind: str                              # e.g. "box", "sphere", "triSurfaceMesh"
+class SnappyShape(SourceShape):
+    # Inherits label/kind/geometry from SourceShape (see foam/shapes.py):
+    # label = resolved cross-reference name; kind = e.g. "box", "sphere",
+    # "triSurfaceMesh"; geometry uses the same key convention as TopoShape.geometry.
     category: str                          # "surface" | "region" | "geometry"
-    geometry: dict                         # same key convention as TopoShape.geometry
     level: tuple[float, float] | None = None      # from refinementSurfaces
     mode: str | None = None                       # from refinementRegions
 

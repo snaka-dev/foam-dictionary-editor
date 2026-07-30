@@ -77,6 +77,7 @@ Each heading links to the full documentation in [USER_GUIDE.md](USER_GUIDE.md).
 **[File management](USER_GUIDE.md#file-list-behavior)**
 - Lists common dictionary files automatically (`controlDict`, `fvSchemes`, `fvSolution`, `blockMeshDict`, `snappyHexMeshDict`, and more) plus everything under `0/` and `0.orig/` and the case-root `All*` scripts (`Allrun`, `Allclean`, … — editable as plain text); detects multiRegion case structures
 - Add extra files or whole directories (scanned flat or recursively) to the file list — useful for custom field directories, restart time steps, or deep subdirectories
+- [Follows `#include` directives](USER_GUIDE.md#included-files) and lists the files they pull in — an include inside the case joins its own directory group, one resolving into your OpenFOAM installation (`#includeEtc`, `#includeFunc`) is grouped separately and opened read-only, with **Copy into case...** to make an editable local copy
 - Create, duplicate, back up, or delete files from the file panel; reload the case from disk at any time
 - File list auto-refreshes after changes made outside the app (e.g. via the Terminal); a `constant/polyMesh` indicator shows the cell count, marked stale when `blockMeshDict` has changed since the mesh was generated
 - Save the current state as a new case, or duplicate an existing one
@@ -85,6 +86,7 @@ Each heading links to the full documentation in [USER_GUIDE.md](USER_GUIDE.md).
 - Structured tree view and a raw text editor, synced in both directions
 - OpenFOAM syntax highlighting (toggleable; the keyword list can be regenerated from your own installation) and code folding
 - Add, duplicate, comment out, or delete tree entries via right-click
+- `blockMeshDict`'s `blocks ( … );` expands to one `block 0`, `block 1`, … row per block, numbered to match the BlockMesh 3-D viewer — each row editable, addable, duplicable and deletable on its own, and selecting one outlines that block in 3-D
 
 **[Boundary condition view](USER_GUIDE.md#boundary-view)**
 - All boundary conditions across all field variables in one table — no switching between field files
@@ -99,7 +101,7 @@ Each heading links to the full documentation in [USER_GUIDE.md](USER_GUIDE.md).
 - Interactive 3-D preview of `blockMeshDict` geometry — vertices, blocks, and boundary faces colour-coded by patch type — with `$variable` and `#eval` references resolved automatically
 - Overlays `topoSetDict` action geometry, `snappyHexMeshDict` `geometry {}` shapes (classified as surface / region / geometry-only), and `setFieldsDict` regions (labelled with their `fieldValues`), each with per-shape visibility toggles; shapes larger than the block mesh are clipped in the view and marked "✂ clipped"
 - Vertices table beside the 3-D view: edit a coordinate and see the change instantly; a Preview mode explores variable-based vertices without touching the file
-- Load STL/OBJ overlays, and export topoSet/snappyHexMesh/setFields shapes as STL files
+- Load STL/OBJ overlays — several at once, each with its own row and colour in the `STL ▾` menu — and export topoSet/snappyHexMesh/setFields shapes as STL files
 - **⊞** side-by-side mode shows the 3-D view next to the tree while editing `blockMeshDict`, `topoSetDict`, `snappyHexMeshDict`, or `setFieldsDict`
 
 **[Integrated terminal](USER_GUIDE.md#terminal-tab)**
@@ -117,6 +119,9 @@ Each heading links to the full documentation in [USER_GUIDE.md](USER_GUIDE.md).
 **[Case comparison](USER_GUIDE.md#case-comparison)**
 - Compare the open case against any reference case: colour-coded diff overlay in the tree, `≠N` markers in the file list, and a changed-files-only filter
 - Side-by-side reference tree with right-click **Use this value** to adopt individual settings
+
+**[Appearance](USER_GUIDE.md#appearance-and-colours)**
+- **Settings > Appearance** — **Follow System** (default), **Light**, or **Dark** (takes effect after restart); the theme covers the whole UI, including the editor's syntax highlighting, diff row colours, and the BlockMesh 3-D viewer's scene, rather than leaving the 3-D view a fixed white rectangle in a dark window
 
 **UI language**
 - **Settings > Language** — switch between English and 日本語 (takes effect after restart); add more languages by dropping a translation file into `i18n/`

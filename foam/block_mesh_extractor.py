@@ -276,6 +276,12 @@ def extract_block_mesh_data(root: FoamNode) -> BlockMeshData:
         elif name == "blocks" and child.node_type == "raw_list":
             hex_blocks = _parse_hex_blocks(_substitute_vars(str(child.value), var_map))
 
+        elif name == "blocks" and child.node_type == "block_list":
+            for entry in child.children:
+                hex_blocks.extend(
+                    _parse_hex_blocks(_substitute_vars(str(entry.value), var_map))
+                )
+
         elif name == "boundary" and child.node_type == "boundary_block":
             boundary_faces = _extract_boundary_from_tree(child)
 

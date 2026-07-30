@@ -14,9 +14,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app_config.defaults import DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH
 from app_config import get_app_config
+from app_config.defaults import DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH
 from i18n import tr
+from ui.theme import colors
 
 _DIALOG_WIDTH = 500
 _DIALOG_HEIGHT = 300
@@ -58,7 +59,7 @@ class ResetSettingsDialog(QDialog):
             tr("⚠️ Warning: This will delete the selected configuration files and restore default settings.")
         )
         warning.setWordWrap(True)
-        warning.setStyleSheet("color: #ff6600; font-weight: bold;")
+        warning.setStyleSheet(f"color: {colors().warning_text}; font-weight: bold;")
         layout.addWidget(warning)
 
         layout.addStretch()
@@ -67,7 +68,7 @@ class ResetSettingsDialog(QDialog):
         btn_layout.addStretch()
         cancel_btn = QPushButton(tr("Cancel"))
         reset_btn = QPushButton(tr("Reset Selected"))
-        reset_btn.setStyleSheet("background-color: #ff6600; color: white;")
+        reset_btn.setStyleSheet(f"background-color: {colors().warning_text}; color: white;")
         btn_layout.addWidget(cancel_btn)
         btn_layout.addWidget(reset_btn)
         layout.addLayout(btn_layout)
@@ -91,10 +92,10 @@ class ResetSettingsDialog(QDialog):
             self,
             tr("Confirm Reset"),
             confirm_msg,
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
-        if reply != QMessageBox.Yes:
+        if reply != QMessageBox.StandardButton.Yes:
             return
 
         messages = []

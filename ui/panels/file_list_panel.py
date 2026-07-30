@@ -18,7 +18,8 @@ from PySide6.QtWidgets import (
 )
 
 from foam.utils import is_log_filename
-from model.file_list_model import FileListModel, ROOT_GROUP
+from i18n import tr
+from model.file_list_model import INCLUDED_GROUP, ROOT_GROUP, FileListModel
 from services.case_loader import (
     FIELD_DIRS,
     PolyMeshInfo,
@@ -26,29 +27,30 @@ from services.case_loader import (
     detect_time_dirs,
     list_directory_files,
 )
-from i18n import tr
+from ui.theme import colors
 
 # Stored in headers to carry the clean group name for context-menu use.
-_HEADER_GROUP_ROLE = Qt.UserRole + 1
+_HEADER_GROUP_ROLE = Qt.ItemDataRole.UserRole + 1
 # True on items that were added as user extra files (not default target files).
-_EXTRA_FILE_ROLE = Qt.UserRole + 2
+_EXTRA_FILE_ROLE = Qt.ItemDataRole.UserRole + 2
 
-_EXTRA_FILE_COLOR = QColor("#2266AA")
 # Stored on items that are symbolic links to another file.
-_SYMLINK_ROLE = Qt.UserRole + 3
+_SYMLINK_ROLE = Qt.ItemDataRole.UserRole + 3
 _SYMLINK_MARKER = " ⇢"
 # Stored on the Results indicator item; value is list[str] of time dir names.
-_TIME_DIRS_ROLE = Qt.UserRole + 4
+_TIME_DIRS_ROLE = Qt.ItemDataRole.UserRole + 4
 # True on group-header items that correspond to a user-added extra directory.
-_EXTRA_DIR_HEADER_ROLE = Qt.UserRole + 5
+_EXTRA_DIR_HEADER_ROLE = Qt.ItemDataRole.UserRole + 5
 # True on file items with no dictionary tree (run logs); rendered dimmed.
-_TEXT_ONLY_ROLE = Qt.UserRole + 6
+_TEXT_ONLY_ROLE = Qt.ItemDataRole.UserRole + 6
 
-_TEXT_ONLY_FG = QColor("#888888")
+# True on file items the include scan added (a target of some `#include`).
+_INCLUDED_ROLE = Qt.ItemDataRole.UserRole + 7
+# True on included files outside the case dir: shown, but never written to.
+# Distinct from _INCLUDED_ROLE — an include inside the case stays editable.
+_READ_ONLY_ROLE = Qt.ItemDataRole.UserRole + 8
+_INCLUDED_MARKER = " ↳"
 
-_EXTRA_DIR_HEADER_COLOR = QColor("#6644AA")
-_DIFF_NONE_FG = QColor("#888888")    # gray  — visited, no diffs
-_DIFF_HAS_FG  = QColor("#BB7700")    # amber — visited, has diffs
 _DIFF_CAP = 50
 
 
@@ -61,8 +63,12 @@ def _diff_suffix(count: int | None) -> str:
 
 
 def group_display_name(group: str) -> str:
-    """Human-readable group name: the case-root sentinel '.' shows as 'case root'."""
-    return tr("case root") if group == ROOT_GROUP else group
+    """Human-readable group name: the sentinel group keys get spelled out."""
+    if group == ROOT_GROUP:
+        return tr("case root")
+    if group == INCLUDED_GROUP:
+        return tr("included files")
+    return group
 
 
 def display_file_name(path: str, case_dir: str | None = None) -> str:
@@ -80,11 +86,14 @@ def _item_label(
     dirty: bool = False,
     diff_count: int | None = None,
     case_dir: str | None = None,
+    included: bool = False,
 ) -> str:
-    """Build a file row's display text with its symlink/dirty/diff markers."""
+    """Build a file row's display text with its symlink/included/dirty/diff markers."""
     label = f"  {display_file_name(path, case_dir)}"
     if symlink:
         label += _SYMLINK_MARKER
+    if included:
+        label += _INCLUDED_MARKER
     if dirty:
         label += " *"
     label += _diff_suffix(diff_count)
@@ -120,6 +129,8 @@ class FileListPanel(QWidget):
     save_file_requested = Signal()
     # Emitted when the user clicks the manual refresh button
     refresh_requested = Signal()
+    # Emitted to copy a read-only included file into the case: absolute source path
+    copy_into_case_requested = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -130,8 +141,8 @@ class FileListPanel(QWidget):
         self._extra_btn.setFlat(True)
         self._extra_btn.setCursor(Qt.PointingHandCursor)
         self._extra_btn.setStyleSheet(
-            "QPushButton { text-align: left; padding: 2px 4px;"
-            " color: #2266AA; border: none; }"
+            f"QPushButton {{ text-align: left; padding: 2px 4px;"
+            f" color: {colors().file_extra_fg}; border: none; }}"
             "QPushButton:hover { text-decoration: underline; }"
         )
         self._extra_btn.setVisible(False)
@@ -152,7 +163,7 @@ class FileListPanel(QWidget):
         self._list.setAlternatingRowColors(False)
         self._list.setUniformItemSizes(True)
         self._list.itemSelectionChanged.connect(self._on_selection_changed)
-        self._list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self._list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._list.customContextMenuRequested.connect(self._on_context_menu)
 
         filter_row = QHBoxLayout()
@@ -175,8 +186,9 @@ class FileListPanel(QWidget):
         case_dir: str | None = None,
         extra_files: list[str] | None = None,
         extra_dirs: list[str] | None = None,
+        included_files: dict[str, str] | None = None,
     ) -> None:
-        self._model.load(paths, case_dir, extra_files, extra_dirs)
+        self._model.load(paths, case_dir, extra_files, extra_dirs, included_files)
         loaded_set = set(paths)
 
         self._list.blockSignals(True)
@@ -196,6 +208,9 @@ class FileListPanel(QWidget):
                             is_extra=self._model.is_extra_file(path),
                             is_symlink=p.is_symlink(),
                             case_dir=case_dir,
+                            is_included=self._model.is_included(path),
+                            is_read_only=self._model.is_read_only(path),
+                            origin=self._model.included_origin(path),
                         )
                     )
 
@@ -223,11 +238,15 @@ class FileListPanel(QWidget):
             self._list.setCurrentItem(item)
             self._list.scrollToItem(item)
 
+    def has_file(self, path: str) -> bool:
+        """True when the list already holds a row for this absolute path."""
+        return self._find_item_by_path(path) is not None
+
     def file_paths(self) -> list[str]:
         """Absolute paths of all file rows, in display order (headers excluded)."""
         paths = []
         for i in range(self._list.count()):
-            path = self._list.item(i).data(Qt.UserRole)
+            path = self._list.item(i).data(Qt.ItemDataRole.UserRole)
             if path:
                 paths.append(path)
         return paths
@@ -250,7 +269,7 @@ class FileListPanel(QWidget):
         self._model.clear_diff_marks()
         for i in range(self._list.count()):
             item = self._list.item(i)
-            path = item.data(Qt.UserRole)
+            path = item.data(Qt.ItemDataRole.UserRole)
             if path:
                 self._refresh_item(item, path)
 
@@ -275,14 +294,14 @@ class FileListPanel(QWidget):
             if item.data(_HEADER_GROUP_ROLE) is not None:
                 item.setHidden(False)
                 continue
-            path = item.data(Qt.UserRole)
+            path = item.data(Qt.ItemDataRole.UserRole)
             if path is None:
                 item.setHidden(False)
                 continue
             count = self._model.diff_count(path)
             item.setHidden(count is None or count == 0)
 
-    def _refresh_item(self, item: "QListWidgetItem", path: str) -> None:
+    def _refresh_item(self, item: QListWidgetItem, path: str) -> None:
         dirty = self._model.is_dirty(path)
         diff_count = self._model.diff_count(path)
         is_extra = bool(item.data(_EXTRA_FILE_ROLE))
@@ -294,27 +313,31 @@ class FileListPanel(QWidget):
                 dirty=dirty,
                 diff_count=diff_count,
                 case_dir=self._model.case_dir,
+                included=bool(item.data(_INCLUDED_ROLE)),
             )
         )
 
+        c = colors()
         if dirty:
-            color = QColor("#CC6600")
+            color = QColor(c.file_dirty_fg)
         elif diff_count is not None and diff_count > 0:
-            color = _DIFF_HAS_FG
+            color = QColor(c.file_diff_has_fg)        # amber — visited, has diffs
         elif diff_count == 0:
-            color = _DIFF_NONE_FG
+            color = QColor(c.file_diff_none_fg)       # gray  — visited, no diffs
+        elif item.data(_READ_ONLY_ROLE):
+            color = QColor(c.file_read_only_fg)
         elif item.data(_TEXT_ONLY_ROLE):
-            color = _TEXT_ONLY_FG
+            color = QColor(c.file_text_only_fg)
         elif is_extra:
-            color = _EXTRA_FILE_COLOR
+            color = QColor(c.file_extra_fg)
         else:
             color = None
-        item.setData(Qt.ForegroundRole, color)
+        item.setData(Qt.ItemDataRole.ForegroundRole, color)
 
     def _find_item_by_path(self, path: str) -> QListWidgetItem | None:
         for i in range(self._list.count()):
             item = self._list.item(i)
-            if item.data(Qt.UserRole) == path:
+            if item.data(Qt.ItemDataRole.UserRole) == path:
                 return item
         return None
 
@@ -337,7 +360,7 @@ class FileListPanel(QWidget):
         items = self._list.selectedItems()
         if not items:
             return
-        path = items[0].data(Qt.UserRole)
+        path = items[0].data(Qt.ItemDataRole.UserRole)
         if path:
             self.file_selected.emit(path)
 
@@ -368,6 +391,8 @@ class FileListPanel(QWidget):
             # Header row: offer to create or add files in this directory.
             if self._model.case_dir is None:
                 return
+            if group == INCLUDED_GROUP:
+                return  # not a directory: "New file in '<included>'" has no meaning
             shown = group_display_name(group)
             menu = QMenu(self.window())
             new_action = menu.addAction(tr("New file in '{group}'...").format(group=shown))
@@ -407,8 +432,17 @@ class FileListPanel(QWidget):
                 self.delete_dir_requested.emit(self._model.case_dir, group)
             return
 
-        path = item.data(Qt.UserRole)
+        path = item.data(Qt.ItemDataRole.UserRole)
         if path:
+            if item.data(_READ_ONLY_ROLE):
+                # Everything else on this menu writes to the file or beside it,
+                # which for an out-of-case include means the OpenFOAM install.
+                menu = QMenu(self.window())
+                copy_action = menu.addAction(tr("Copy into case..."))
+                if menu.exec(self._list.viewport().mapToGlobal(pos)) == copy_action:
+                    self.copy_into_case_requested.emit(path)
+                return
+
             is_extra = bool(item.data(_EXTRA_FILE_ROLE))
             menu = QMenu(self.window())
             save_action = menu.addAction(tr("Save File\tCtrl+S"))
@@ -450,6 +484,8 @@ def _has_unlisted_files(
         return False  # field dirs always load all files
     if group == ROOT_GROUP:
         return False  # case root deliberately lists only All* scripts
+    if group == INCLUDED_GROUP:
+        return False  # not a directory at all — a bucket for out-of-case files
     if extra_dir_set and group in extra_dir_set:
         return False  # extra dirs also load all files
     for f in list_directory_files(case_dir, group):
@@ -465,11 +501,11 @@ def _make_time_dirs_indicator(dirs: list[str]) -> QListWidgetItem:
     if len(dirs) > _MAX_SHOWN:
         label += f"  … (+{len(dirs) - _MAX_SHOWN} more)"
     item = QListWidgetItem(label)
-    item.setFlags(Qt.ItemIsEnabled)
+    item.setFlags(Qt.ItemFlag.ItemIsEnabled)
     font = QFont(item.font())
     font.setBold(True)
     item.setFont(font)
-    item.setForeground(QColor("#888888"))
+    item.setForeground(QColor(colors().hint_text))
     item.setData(_TIME_DIRS_ROLE, dirs)
     n = len(dirs)
     tip = f"{n} result dir(s) — right-click to add to file list"
@@ -492,11 +528,12 @@ def _make_mesh_indicator(info: PolyMeshInfo) -> QListWidgetItem:
         label += " — stale (blockMeshDict changed since last run)"
         tip += " — stale: blockMeshDict changed since this mesh was generated"
     item = QListWidgetItem(label)
-    item.setFlags(Qt.ItemIsEnabled)
+    item.setFlags(Qt.ItemFlag.ItemIsEnabled)
     font = QFont(item.font())
     font.setBold(True)
     item.setFont(font)
-    item.setForeground(_DIFF_HAS_FG if info.stale else QColor("#888888"))
+    c = colors()
+    item.setForeground(QColor(c.attention_text if info.stale else c.hint_text))
     item.setToolTip(tip)
     return item
 
@@ -511,11 +548,11 @@ def _make_header(
     font.setBold(True)
     item.setFont(font)
     # ItemIsEnabled so context menus work; not ItemIsSelectable so clicks skip it.
-    item.setFlags(Qt.ItemIsEnabled)
+    item.setFlags(Qt.ItemFlag.ItemIsEnabled)
     item.setData(_HEADER_GROUP_ROLE, group_name)
     if is_extra_dir:
         item.setData(_EXTRA_DIR_HEADER_ROLE, True)
-        item.setForeground(_EXTRA_DIR_HEADER_COLOR)
+        item.setForeground(QColor(colors().file_extra_dir_header_fg))
     return item
 
 
@@ -524,11 +561,18 @@ def _make_item(
     is_extra: bool = False,
     is_symlink: bool = False,
     case_dir: str | None = None,
+    is_included: bool = False,
+    is_read_only: bool = False,
+    origin: str | None = None,
 ) -> QListWidgetItem:
-    item = QListWidgetItem(_item_label(path, symlink=is_symlink, case_dir=case_dir))
-    item.setData(Qt.UserRole, path)
+    item = QListWidgetItem(
+        _item_label(path, symlink=is_symlink, case_dir=case_dir, included=is_included)
+    )
+    item.setData(Qt.ItemDataRole.UserRole, path)
     item.setData(_EXTRA_FILE_ROLE, is_extra)
     item.setData(_SYMLINK_ROLE, is_symlink)
+    item.setData(_INCLUDED_ROLE, is_included)
+    item.setData(_READ_ONLY_ROLE, is_read_only)
     is_text_only = is_log_filename(Path(path).name)
     item.setData(_TEXT_ONLY_ROLE, is_text_only)
 
@@ -540,13 +584,21 @@ def _make_item(
             tooltip += f"\n{arrow} {target}"
         except (OSError, NotImplementedError):
             tooltip += f"\n{arrow} (symlink)"
+    if is_included and origin:
+        tooltip += "\n{} {}".format(
+            _INCLUDED_MARKER.strip(), tr("included from {origin}").format(origin=origin)
+        )
+    if is_read_only:
+        tooltip += f"\n({tr('read-only — outside the case directory')})"
     item.setToolTip(tooltip)
 
-    if is_text_only:
-        item.setForeground(_TEXT_ONLY_FG)
+    if is_read_only:
+        item.setForeground(QColor(colors().file_read_only_fg))
+    elif is_text_only:
+        item.setForeground(QColor(colors().file_text_only_fg))
     elif is_extra:
-        item.setForeground(_EXTRA_FILE_COLOR)
-    if is_symlink:
+        item.setForeground(QColor(colors().file_extra_fg))
+    if is_symlink or is_read_only:
         font = QFont(item.font())
         font.setItalic(True)
         item.setFont(font)

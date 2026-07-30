@@ -28,7 +28,7 @@ from app_config.defaults import (
 )
 from i18n import set_language
 from ui.main_window import MainWindow
-
+from ui.theme import apply_theme
 
 _PRESETS_DIR = Path(__file__).parent / "presets"
 _VALID_VARIANTS = ["standard", "no-terminal", "no-terminal-blockmesh"]
@@ -57,6 +57,9 @@ def main():
 
     if args.variant:
         _apply_variant(args.variant)
+
+    # Before MainWindow, so every widget is built against the final palette.
+    apply_theme(app, get_app_config().get_theme())
 
     set_language(get_app_config().get_language())
 

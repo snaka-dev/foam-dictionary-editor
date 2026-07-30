@@ -46,7 +46,7 @@ if _XTERM_AVAILABLE:
             super().__init__(parent)
             self._master_fd: int | None = None
             self._pid: int | None = None
-            self._notifier: "QSocketNotifier | None" = None
+            self._notifier: QSocketNotifier | None = None
 
         @property
         def is_running(self) -> bool:
@@ -105,6 +105,8 @@ if _XTERM_AVAILABLE:
             self._cleanup()
 
         def _on_readable(self) -> None:
+            if self._master_fd is None:
+                return
             try:
                 data = os.read(self._master_fd, 4096)
                 if data:
@@ -146,7 +148,7 @@ if _XTERM_AVAILABLE:
         send_to_terminal = Signal(str)
 
         def __init__(
-            self, backend: "PtyBackend", parent: QObject | None = None
+            self, backend: PtyBackend, parent: QObject | None = None
         ) -> None:
             super().__init__(parent)
             self._backend = backend

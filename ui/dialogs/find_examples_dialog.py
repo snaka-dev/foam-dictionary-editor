@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -34,6 +34,7 @@ from services.example_search import (
     SearchHit,
     search_examples,
 )
+from ui.dialogs._worker_thread import _CancellableWorkerThread
 from ui.widgets.code_editor import CodeEditor
 from ui.widgets.installation_selector import InstallationSelector
 
@@ -60,10 +61,8 @@ def _case_label(hit: SearchHit) -> str:
     return str(Path(*parts)) if parts else hit.case_root.name
 
 
-class _SearchThread(QThread):
-    progress = Signal(str)
+class _SearchThread(_CancellableWorkerThread):
     finished_ok = Signal(list)   # list[SearchHit]
-    finished_err = Signal(str)
 
     def __init__(
         self,
@@ -77,10 +76,6 @@ class _SearchThread(QThread):
         self._query = query
         self._sources = sources
         self._file_name = file_name
-        self._cancelled = False
-
-    def cancel(self) -> None:
-        self._cancelled = True
 
     def run(self) -> None:
         try:

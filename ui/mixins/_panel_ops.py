@@ -3,20 +3,34 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QTimer
 
 from i18n import tr
 from ui.layout_constants import (
     BLOCKMESH_DICT_NAME as _BLOCKMESH_DICT_NAME,
-    TOPOSET_DICT_NAME as _TOPOSET_DICT_NAME,
-    SNAPPY_HEX_MESH_DICT_NAME as _SNAPPY_HEX_MESH_DICT_NAME,
-    SETFIELDS_DICT_NAME as _SETFIELDS_DICT_NAME,
+)
+from ui.layout_constants import (
     SAMPLING_DICT_NAMES as _SAMPLING_DICT_NAMES,
 )
+from ui.layout_constants import (
+    SETFIELDS_DICT_NAME as _SETFIELDS_DICT_NAME,
+)
+from ui.layout_constants import (
+    SNAPPY_HEX_MESH_DICT_NAME as _SNAPPY_HEX_MESH_DICT_NAME,
+)
+from ui.layout_constants import (
+    TOPOSET_DICT_NAME as _TOPOSET_DICT_NAME,
+)
+
+if TYPE_CHECKING:
+    from ui.mixins._protocol import MainWindowProtocol as _Base
+else:
+    _Base = object
 
 
-class _PanelOpsMixin:
+class _PanelOpsMixin(_Base):
     """Panel visibility management: BlockMesh tab/splitter and terminal mode switching."""
 
     def _on_toggle_blockmesh_panel(self, checked: bool) -> None:

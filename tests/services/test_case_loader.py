@@ -2,13 +2,21 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 import os
 import time
+from pathlib import Path
 
 from services.case_loader import (
+    FIELD_DIRS,
+    PHASE_FILE_BASES,
+    REGION_CONSTANT_FILES,
+    REGION_SYSTEM_FILES,
+    TARGET_FILES,
     detect_poly_mesh,
+    detect_regions,
     detect_time_dirs,
     is_openfoam_case,
     list_case_files,
     list_directory_files,
+    list_region_files,
 )
 
 
@@ -25,22 +33,6 @@ def test_list_case_files(tmp_path):  # legacy top-level test kept for compatibil
     assert str(tmp_path / "system" / "controlDict") in files
     assert str(tmp_path / "system" / "fvSchemes") in files
     assert str(tmp_path / "constant" / "transportProperties") in files
-
-
-import pytest
-from pathlib import Path
-from services.case_loader import (
-    list_case_files,
-    list_directory_files,
-    detect_regions,
-    detect_time_dirs,
-    list_region_files,
-    TARGET_FILES,
-    FIELD_DIRS,
-    REGION_SYSTEM_FILES,
-    REGION_CONSTANT_FILES,
-    PHASE_FILE_BASES,
-)
 
 
 # ── TARGET_FILES: files that exist are returned ───────────────────────────────
@@ -695,7 +687,8 @@ class TestDetectPolyMesh:
         poly_mesh.mkdir(parents=True)
         owner = poly_mesh / "owner"
         body = (
-            'FoamFile\n{\n    note        "nPoints:9261  nCells:8000  nFaces:25200  nInternalFaces:22800";\n}\n'
+            'FoamFile\n{\n    note        "nPoints:9261  nCells:8000  '
+            'nFaces:25200  nInternalFaces:22800";\n}\n'
             if note
             else "FoamFile\n{\n}\n"
         )

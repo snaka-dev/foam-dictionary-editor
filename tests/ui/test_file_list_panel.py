@@ -10,30 +10,38 @@ A module-scoped QApplication is required to instantiate QWidget subclasses.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication
 
-from model.file_list_model import _group_name, _group_sort_key
+from model.file_list_model import (
+    INCLUDED_GROUP,
+    ROOT_GROUP,
+    FileListModel,
+    _group_name,
+    _group_sort_key,
+)
 from services.case_loader import PolyMeshInfo
 from ui.panels.file_list_panel import (
-    FileListPanel,
-    _EXTRA_FILE_COLOR,
     _EXTRA_FILE_ROLE,
     _HEADER_GROUP_ROLE,
+    _INCLUDED_ROLE,
+    _READ_ONLY_ROLE,
     _SYMLINK_ROLE,
-    _TEXT_ONLY_FG,
     _TEXT_ONLY_ROLE,
+    FileListPanel,
     _has_unlisted_files,
     _make_header,
-    group_display_name,
     _make_item,
     _make_mesh_indicator,
     _make_time_dirs_indicator,
     display_file_name,
+    group_display_name,
 )
-
+from ui.theme import colors
 
 # ── QApplication fixture ──────────────────────────────────────────────────────
 
@@ -124,7 +132,6 @@ class TestHasUnlistedFiles:
 
     def test_returns_true_when_file_not_in_loaded_set(self, tmp_path):
         (tmp_path / "system").mkdir()
-        path = str(tmp_path / "system" / "myDict")
         (tmp_path / "system" / "myDict").write_text("", encoding="utf-8")
         assert _has_unlisted_files(str(tmp_path), "system", set()) is True
 
@@ -216,11 +223,11 @@ class TestTextOnlyRows:
     def test_log_item_is_dimmed(self, tmp_path):
         item = _make_item(str(tmp_path / "log.blockMesh"))
         assert item.data(_TEXT_ONLY_ROLE) is True
-        assert item.foreground().color() == _TEXT_ONLY_FG
+        assert item.foreground().color() == QColor(colors().file_text_only_fg)
 
     def test_log_grey_wins_over_extra_blue(self, tmp_path):
         item = _make_item(str(tmp_path / "log.blockMesh"), is_extra=True)
-        assert item.foreground().color() == _TEXT_ONLY_FG
+        assert item.foreground().color() == QColor(colors().file_text_only_fg)
 
     def test_dictionary_item_not_dimmed(self, tmp_path):
         item = _make_item(str(tmp_path / "system" / "controlDict"))
@@ -232,9 +239,9 @@ class TestTextOnlyRows:
         panel.load_files([path], case_dir=str(tmp_path))
         item = panel._find_item_by_path(path)
         panel.mark_dirty(path, True)
-        assert item.foreground().color() != _TEXT_ONLY_FG
+        assert item.foreground().color() != QColor(colors().file_text_only_fg)
         panel.mark_dirty(path, False)
-        assert item.foreground().color() == _TEXT_ONLY_FG
+        assert item.foreground().color() == QColor(colors().file_text_only_fg)
 
 
 # ── extra files indicator ─────────────────────────────────────────────────────
@@ -454,7 +461,7 @@ class TestMultiRegionDisplay:
 
 # ── symlink items ─────────────────────────────────────────────────────────────
 
-def _make_symlink(link: "Path", target: "Path"):
+def _make_symlink(link: Path, target: Path):
     """Create a symlink; skip the test if the platform does not support it."""
     import pytest
     try:
@@ -557,6 +564,107 @@ class TestSymlinkItems:
         assert False, "symlink item not found in panel"
 
 
+# ── included items ────────────────────────────────────────────────────────────
+
+def _find_row(panel, path: Path | str):
+    for i in range(panel._list.count()):
+        item = panel._list.item(i)
+        if item.data(Qt.UserRole) == str(path):
+            return item
+    return None
+
+
+class TestIncludedItems:
+    def test_regular_item_included_role_false(self, tmp_path):
+        item = _make_item(str(tmp_path / "system" / "controlDict"))
+        assert item.data(_INCLUDED_ROLE) is False
+        assert item.data(_READ_ONLY_ROLE) is False
+
+    def test_included_item_has_marker_in_text(self, tmp_path):
+        item = _make_item(str(tmp_path / "constant" / "caseSettings"), is_included=True)
+        assert "↳" in item.text()
+
+    def test_included_item_tooltip_names_origin(self, tmp_path):
+        item = _make_item(
+            str(tmp_path / "constant" / "caseSettings"),
+            is_included=True,
+            origin="system/controlDict",
+        )
+        assert "system/controlDict" in item.toolTip()
+
+    def test_read_only_item_is_italic(self, tmp_path):
+        item = _make_item(str(tmp_path / "etc" / "x"), is_included=True, is_read_only=True)
+        assert item.font().italic() is True
+
+    def test_read_only_item_tooltip_says_why(self, tmp_path):
+        item = _make_item(str(tmp_path / "etc" / "x"), is_included=True, is_read_only=True)
+        assert "read-only" in item.toolTip()
+
+    def test_read_only_item_uses_its_own_colour(self, tmp_path):
+        item = _make_item(str(tmp_path / "etc" / "x"), is_included=True, is_read_only=True)
+        assert item.foreground().color() == QColor(colors().file_read_only_fg)
+
+    def test_in_case_include_is_not_read_only(self, tmp_path):
+        (tmp_path / "constant").mkdir()
+        target = tmp_path / "constant" / "caseSettings"
+        target.write_text("", encoding="utf-8")
+        panel_model = FileListModel()
+        panel_model.load(
+            [str(target)],
+            case_dir=str(tmp_path),
+            included_files={str(target): "system/controlDict"},
+        )
+        assert panel_model.is_included(str(target)) is True
+        assert panel_model.is_read_only(str(target)) is False
+
+    def test_mark_dirty_preserves_included_marker(self, panel, tmp_path):
+        (tmp_path / "constant").mkdir()
+        target = tmp_path / "constant" / "caseSettings"
+        target.write_text("", encoding="utf-8")
+        panel.load_files(
+            [str(target)],
+            case_dir=str(tmp_path),
+            included_files={str(target): "system/controlDict"},
+        )
+        panel.mark_dirty(str(target), True)
+        item = _find_row(panel, target)
+        assert item is not None
+        assert "↳" in item.text()
+        assert "*" in item.text()
+
+    def test_out_of_case_include_lands_in_included_group(self, panel, tmp_path):
+        case = tmp_path / "case"
+        (case / "system").mkdir(parents=True)
+        outside = tmp_path / "install" / "etc" / "caseDicts" / "setConstraintTypes"
+        outside.parent.mkdir(parents=True)
+        outside.write_text("", encoding="utf-8")
+        panel.load_files(
+            [str(outside)],
+            case_dir=str(case),
+            included_files={str(outside): "0/U"},
+        )
+        headers = [
+            panel._list.item(i).data(_HEADER_GROUP_ROLE)
+            for i in range(panel._list.count())
+            if panel._list.item(i).data(_HEADER_GROUP_ROLE) is not None
+        ]
+        assert INCLUDED_GROUP in headers
+        item = _find_row(panel, outside)
+        assert item is not None
+        assert item.data(_READ_ONLY_ROLE) is True
+
+    def test_included_group_display_name(self):
+        assert group_display_name(INCLUDED_GROUP) == "included files"
+
+    def test_included_group_has_no_plus_marker(self, tmp_path):
+        # It is a bucket, not a directory — [+] would be meaningless.
+        assert _has_unlisted_files(str(tmp_path), INCLUDED_GROUP, set()) is False
+
+    def test_included_group_sorts_after_case_root(self):
+        assert _group_sort_key(INCLUDED_GROUP) > _group_sort_key(ROOT_GROUP)
+        assert _group_sort_key(INCLUDED_GROUP) > _group_sort_key("system")
+
+
 # ── mark_dirty preserves extra-file color ─────────────────────────────────────
 
 class TestMarkDirtyExtraFileColor:
@@ -580,7 +688,7 @@ class TestMarkDirtyExtraFileColor:
         panel.mark_dirty(path, False)
         item = self._find_item(panel, path)
         assert item is not None
-        assert item.foreground().color() == _EXTRA_FILE_COLOR
+        assert item.foreground().color() == QColor(colors().file_extra_fg)
 
     def test_extra_file_turns_orange_when_dirty(self, panel, tmp_path):
         """mark_dirty(True) overrides extra-file color with the dirty orange."""
@@ -598,7 +706,7 @@ class TestMarkDirtyExtraFileColor:
         panel.mark_dirty(path, False)
         item = self._find_item(panel, path)
         assert item is not None
-        assert item.foreground().color() == _EXTRA_FILE_COLOR
+        assert item.foreground().color() == QColor(colors().file_extra_fg)
 
     def test_regular_file_color_cleared_after_mark_dirty_false(self, panel, tmp_path):
         """mark_dirty(False) on a non-extra file clears the foreground color."""
@@ -775,7 +883,8 @@ class TestMeshIndicatorInPanel:
         poly_mesh = tmp_path / "constant" / "polyMesh"
         poly_mesh.mkdir(parents=True)
         (poly_mesh / "owner").write_text(
-            'FoamFile\n{\n    note        "nPoints:9261  nCells:8000  nFaces:25200  nInternalFaces:22800";\n}\n',
+            'FoamFile\n{\n    note        "nPoints:9261  nCells:8000  '
+            'nFaces:25200  nInternalFaces:22800";\n}\n',
             encoding="utf-8",
         )
 

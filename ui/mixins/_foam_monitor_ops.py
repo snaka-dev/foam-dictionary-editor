@@ -8,14 +8,20 @@ import signal
 import subprocess
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QDialog, QMessageBox
 
 from i18n import tr
 from ui.dialogs.foam_monitor_dialog import FoamMonitorDialog
 
+if TYPE_CHECKING:
+    from ui.mixins._protocol import MainWindowProtocol as _Base
+else:
+    _Base = object
 
-class _FoamMonitorOpsMixin:
+
+class _FoamMonitorOpsMixin(_Base):
     def _on_foam_monitor_clicked(self) -> None:
         if self.state.foam_monitor.proc is not None:
             self._stop_foam_monitor()
@@ -28,7 +34,7 @@ class _FoamMonitorOpsMixin:
             self.state.foam_monitor.last_options,
             self,
         )
-        if dlg.exec() != FoamMonitorDialog.Accepted:
+        if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         file_path = dlg.get_file()
         if not file_path:

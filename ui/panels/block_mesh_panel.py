@@ -2,8 +2,10 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+import dataclasses
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QColor, QIcon, QPixmap
@@ -26,17 +28,28 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from foam.block_mesh_extractor import extract_block_mesh_data
+from foam.block_mesh_extractor import BlockMeshData, extract_block_mesh_data
 from foam.nodes import FoamNode
 from foam.sampling_extractor import SamplingData, extract_sampling_data
 from foam.set_fields_extractor import SetFieldsShape, extract_set_fields_data
 from foam.snappy_hex_mesh_extractor import extract_snappy_hex_mesh_data
 from foam.topo_set_extractor import TopoShape, extract_topo_set_data
 from ui.dialogs.export_stl_dialog import ExportStlDialog
+from ui.panels.block_mesh_renderer import (
+    _ACTION_COLORS,
+    _SAMPLING_COLOR,
+    _SET_FIELDS_REGION_COLOR,
+    _SNAPPY_CATEGORY_COLORS,
+    _SURFACE_COLORS,
+    BlockMeshRenderer,
+    LoadedSurface,
+    RenderSettings,
+    read_surface_mesh,
+)
+from ui.theme import colors
 from ui.widgets.flow_layout import FlowLayout
 
 try:
-    import pyvista as pv
     from pyvistaqt import QtInteractor
 
     _PYVISTA_OK = True
@@ -55,17 +68,6 @@ _MOUSE_HINT_TOOLTIP = (
     "Zoom:          Scroll wheel  or  right drag\n"
     "Reset camera:  R\n"
     "Fly to point:  F"
-)
-
-
-from ui.panels.block_mesh_renderer import (
-    _ACTION_COLORS,
-    _SAMPLING_COLOR,
-    _SET_FIELDS_REGION_COLOR,
-    _SNAPPY_CATEGORY_COLORS,
-    BlockMeshRenderer,
-    RenderSettings,
-    read_surface_mesh,
 )
 
 
@@ -88,8 +90,19 @@ def _color_swatch(color_name: str, size: int = 12) -> QIcon:
     pm = QPixmap(size, size)
     pm.fill(QColor(color_name))
     icon = QIcon(pm)
-    icon.addPixmap(pm, QIcon.Disabled)
+    icon.addPixmap(pm, QIcon.Mode.Disabled)
     return icon
+
+
+def _menu_button(text: str, menu: QMenu, tooltip: str | None = None) -> QToolButton:
+    """Build a QToolButton that instant-pops *menu*; used by the geometry toolbar."""
+    btn = QToolButton()
+    btn.setText(text)
+    btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+    btn.setMenu(menu)
+    if tooltip is not None:
+        btn.setToolTip(tooltip)
+    return btn
 
 
 class _StaysOpenMenu(QMenu):
@@ -129,6 +142,8 @@ class _ShapeOverlayMenu:
         info_row: Callable[[Any], str],
         on_changed: Callable[[], None],
         location_row: Callable[[tuple], str] | None = None,
+        menu: QMenu | None = None,
+        item_noun: str = "shapes",
     ) -> None:
         self._shape_row = shape_row
         self._info_row = info_row
@@ -143,26 +158,31 @@ class _ShapeOverlayMenu:
         self.info_actions: list[QAction] = []
         self.info_menu: QMenu | None = None
 
-        self.menu = _StaysOpenMenu(parent)
+        # An existing menu can be adopted so the owner's own actions sit above
+        # the toggles; rebuild() only ever appends and only removes rows it
+        # created, so foreign actions in the same menu are left alone.
+        self.menu = menu if menu is not None else _StaysOpenMenu(parent)
         self.master = QAction(master_label, self.menu, checkable=True, checked=True)
         self.menu.addAction(self.master)
-        self.show_all = QAction("Show all shapes", self.menu)
-        self.hide_all = QAction("Hide all shapes", self.menu)
+        self.show_all = QAction(f"Show all {item_noun}", self.menu)
+        self.hide_all = QAction(f"Hide all {item_noun}", self.menu)
         self.menu.addAction(self.show_all)
         self.menu.addAction(self.hide_all)
         self.menu.addSeparator()
 
-        # Static legend mapping each row label to its overlay colour.
-        legend_header = QAction(legend_title, self.menu)
-        legend_header.setEnabled(False)
-        self.menu.addAction(legend_header)
+        # Static legend mapping each row label to its overlay colour. Menus
+        # whose rows carry their own colour pass no legend, making it redundant.
         self.legend_actions: list[QAction] = []
-        for label, color in legend.items():
-            act = QAction(_color_swatch(color), label, self.menu)
-            act.setEnabled(False)
-            self.menu.addAction(act)
-            self.legend_actions.append(act)
-        self.menu.addSeparator()
+        if legend:
+            legend_header = QAction(legend_title, self.menu)
+            legend_header.setEnabled(False)
+            self.menu.addAction(legend_header)
+            for label, color in legend.items():
+                act = QAction(_color_swatch(color), label, self.menu)
+                act.setEnabled(False)
+                self.menu.addAction(act)
+                self.legend_actions.append(act)
+            self.menu.addSeparator()
 
         self.master.toggled.connect(self._on_master_toggled)
         self.show_all.triggered.connect(lambda: self.set_all(True))
@@ -288,35 +308,41 @@ class BlockMeshPanel(QWidget):
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self._data = None
-        self._stl_meshes: list = []
-        self._plotter: "QtInteractor | None" = None
-        self._renderer: "BlockMeshRenderer | None" = None
+        self._data: BlockMeshData | None = None
+        self._surfaces: list[LoadedSurface] = []
+        # Whether the last render drew anything; lets _render() tell "nothing to
+        # draw, nothing drawn" from "nothing to draw, stale actors to clear".
+        self._scene_drawn: bool = False
+        self._plotter: QtInteractor | None = None
+        self._renderer: BlockMeshRenderer | None = None
         self._plotter_layout: QVBoxLayout | None = None
         self._vtx_table: QTableWidget | None = None
         self._selected_vertex: int | None = None
+        self._selected_block: int | None = None
         self._root: FoamNode | None = None
         self._has_variables: bool = False
         self._preview_mode: bool = False
-        self._preview_btn: "QPushButton | None" = None
-        self._preview_banner: "QLabel | None" = None
-        self._vtx_info_bar: "QWidget | None" = None
-        self._topo: "_ShapeOverlayMenu | None" = None
-        self._snappy: "_ShapeOverlayMenu | None" = None
-        self._set_fields: "_ShapeOverlayMenu | None" = None
-        self._sampling: "_ShapeOverlayMenu | None" = None
+        self._preview_btn: QPushButton | None = None
+        self._preview_banner: QLabel | None = None
+        self._vtx_info_bar: QWidget | None = None
+        self._topo: _ShapeOverlayMenu | None = None
+        self._snappy: _ShapeOverlayMenu | None = None
+        self._set_fields: _ShapeOverlayMenu | None = None
+        self._sampling: _ShapeOverlayMenu | None = None
+        self._loaded_surfaces: _ShapeOverlayMenu | None = None
         # Sampling definitions can come from several files at once (controlDict
         # functions{} plus standalone system/sample etc.), so shapes are kept
         # per source basename and the menu shows their union.
         self._sampling_by_file: dict[str, SamplingData] = {}
-        self._export_stl_act: "QAction | None" = None
+        self._export_stl_act: QAction | None = None
+        self._clear_stl_act: QAction | None = None
 
         if not _PYVISTA_OK:
             lbl = QLabel(
                 "pyvista / pyvistaqt is not installed.\n"
                 "Run:  pip install pyvista pyvistaqt"
             )
-            lbl.setAlignment(Qt.AlignCenter)
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             QVBoxLayout(self).addWidget(lbl)
             return
 
@@ -332,7 +358,7 @@ class BlockMeshPanel(QWidget):
         self._plotter_layout = QVBoxLayout(plotter_container)
         self._plotter_layout.setContentsMargins(0, 0, 0, 0)
 
-        splitter = QSplitter(Qt.Horizontal)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(plotter_container)
         splitter.addWidget(vtx_group)
         splitter.setStretchFactor(0, 1)
@@ -340,7 +366,7 @@ class BlockMeshPanel(QWidget):
         splitter.setSizes([600, 280])
 
         hint_label = QLabel(_MOUSE_HINT)
-        hint_label.setStyleSheet("color: #888888; font-size: 11px; font-style: italic;")
+        hint_label.setStyleSheet(f"color: {colors().hint_text}; font-size: 11px; font-style: italic;")
         hint_label.setToolTip(_MOUSE_HINT_TOOLTIP)
         hint_label.setWordWrap(True)
 
@@ -349,8 +375,8 @@ class BlockMeshPanel(QWidget):
             "Tree and file are not modified. Click Refresh to reset."
         )
         self._preview_banner.setStyleSheet(
-            "background: #FFF3CD; color: #856404; "
-            "padding: 3px 8px; border: 1px solid #FFEEBA; border-radius: 3px;"
+            f"background: {colors().banner_bg}; color: {colors().banner_fg}; "
+            f"padding: 3px 8px; border: 1px solid {colors().banner_border}; border-radius: 3px;"
         )
         self._preview_banner.setWordWrap(True)
         self._preview_banner.setVisible(False)
@@ -366,6 +392,12 @@ class BlockMeshPanel(QWidget):
         main_layout.addWidget(self._preview_banner)
         main_layout.addWidget(splitter, 1)
         main_layout.addWidget(hint_label)
+
+        # Built above by _build_geometry_toolbar()/_build_vertex_table(), just called.
+        assert self._preview_btn is not None
+        assert self._export_stl_act is not None
+        assert self._clear_stl_act is not None
+        assert self._vtx_table is not None
 
         refresh_btn.clicked.connect(self._on_refresh)
         self._preview_btn.clicked.connect(self._on_preview_toggled)
@@ -398,10 +430,7 @@ class BlockMeshPanel(QWidget):
         vtx_menu.addAction(self._show_labels)
         vtx_menu.addAction(self._act_vtx_table)
 
-        vtx_btn = QToolButton()
-        vtx_btn.setText("Vertices ▾")
-        vtx_btn.setPopupMode(QToolButton.InstantPopup)
-        vtx_btn.setMenu(vtx_menu)
+        vtx_btn = _menu_button("Vertices ▾", vtx_menu)
 
         blk_menu = _StaysOpenMenu(self)
         self._show_edges        = QAction("Block edges",  blk_menu, checkable=True, checked=True)
@@ -413,10 +442,7 @@ class BlockMeshPanel(QWidget):
         blk_menu.addAction(self._color_blocks)
         blk_menu.addAction(self._solid_blocks)
 
-        blk_btn = QToolButton()
-        blk_btn.setText("Blocks ▾")
-        blk_btn.setPopupMode(QToolButton.InstantPopup)
-        blk_btn.setMenu(blk_menu)
+        blk_btn = _menu_button("Blocks ▾", blk_menu)
 
         self._show_boundary = QCheckBox("Boundary faces")
         self._show_boundary.setChecked(True)
@@ -434,13 +460,11 @@ class BlockMeshPanel(QWidget):
             on_changed=self._render,
         )
 
-        topo_btn = QToolButton()
-        topo_btn.setText("topoSet ▾")
-        topo_btn.setPopupMode(QToolButton.InstantPopup)
-        topo_btn.setMenu(self._topo.menu)
-        topo_btn.setToolTip(
+        topo_btn = _menu_button(
+            "topoSet ▾",
+            self._topo.menu,
             "Show geometry sources from topoSetDict, or toggle individual shapes\n"
-            "(load topoSetDict to populate)"
+            "(load topoSetDict to populate)",
         )
 
         self._snappy = _ShapeOverlayMenu(
@@ -459,14 +483,12 @@ class BlockMeshPanel(QWidget):
             on_changed=self._render,
         )
 
-        snappy_btn = QToolButton()
-        snappy_btn.setText("snappyHexMesh ▾")
-        snappy_btn.setPopupMode(QToolButton.InstantPopup)
-        snappy_btn.setMenu(self._snappy.menu)
-        snappy_btn.setToolTip(
+        snappy_btn = _menu_button(
+            "snappyHexMesh ▾",
+            self._snappy.menu,
             "Show geometry/refinementSurfaces/refinementRegions from\n"
             "snappyHexMeshDict, or toggle individual shapes\n"
-            "(load snappyHexMeshDict to populate)"
+            "(load snappyHexMeshDict to populate)",
         )
 
         self._set_fields = _ShapeOverlayMenu(
@@ -482,14 +504,12 @@ class BlockMeshPanel(QWidget):
             on_changed=self._render,
         )
 
-        set_fields_btn = QToolButton()
-        set_fields_btn.setText("setFields ▾")
-        set_fields_btn.setPopupMode(QToolButton.InstantPopup)
-        set_fields_btn.setMenu(self._set_fields.menu)
-        set_fields_btn.setToolTip(
+        set_fields_btn = _menu_button(
+            "setFields ▾",
+            self._set_fields.menu,
             "Show region sources from setFieldsDict, or toggle individual shapes\n"
             "(load setFieldsDict to populate). Regions larger than the block mesh\n"
-            "are clipped in the view and marked '✂ clipped'."
+            "are clipped in the view and marked '✂ clipped'.",
         )
 
         self._sampling = _ShapeOverlayMenu(
@@ -508,15 +528,13 @@ class BlockMeshPanel(QWidget):
             on_changed=self._render,
         )
 
-        sampling_btn = QToolButton()
-        sampling_btn.setText("sample ▾")
-        sampling_btn.setPopupMode(QToolButton.InstantPopup)
-        sampling_btn.setMenu(self._sampling.menu)
-        sampling_btn.setToolTip(
+        sampling_btn = _menu_button(
+            "sample ▾",
+            self._sampling.menu,
             "Show sampling geometry — probes, sample lines, sample planes — from\n"
             "controlDict's functions {} block or a standalone sampling dict\n"
             "(sample / probes / surfaces / singleGraph), or toggle individual\n"
-            "shapes (load one of those files to populate)"
+            "shapes (load one of those files to populate)",
         )
 
         scale_menu = _StaysOpenMenu(self)
@@ -527,13 +545,15 @@ class BlockMeshPanel(QWidget):
         scale_menu.addAction(self._act_grid)
         scale_menu.addAction(self._act_bounds)
 
-        scale_btn = QToolButton()
-        scale_btn.setText("Scale ▾")
-        scale_btn.setPopupMode(QToolButton.InstantPopup)
-        scale_btn.setMenu(scale_menu)
+        scale_btn = _menu_button("Scale ▾", scale_menu)
 
-        stl_menu = QMenu(self)
+        # Stays open so the per-file visibility rows below can be multi-toggled;
+        # the plain actions added here still dismiss it as usual.
+        stl_menu = _StaysOpenMenu(self)
         load_stl_act = stl_menu.addAction("Load STL / OBJ…")
+        self._unload_stl_menu = QMenu("Unload", stl_menu)
+        self._unload_stl_menu.setEnabled(False)
+        stl_menu.addMenu(self._unload_stl_menu)
         self._clear_stl_act = stl_menu.addAction("Clear STL")
         self._clear_stl_act.setEnabled(False)
         stl_menu.addSeparator()
@@ -543,11 +563,29 @@ class BlockMeshPanel(QWidget):
             "Save topoSetDict / snappyHexMeshDict / setFieldsDict shapes as\n"
             "individual STL files (load one of those dicts to populate)"
         )
+        stl_menu.addSeparator()
 
-        stl_btn = QToolButton()
-        stl_btn.setText("STL ▾")
-        stl_btn.setPopupMode(QToolButton.InstantPopup)
-        stl_btn.setMenu(stl_menu)
+        # Adopts the menu built above so Load/Unload/Clear/Export stay at the
+        # top and the per-file rows are appended underneath. Each row carries
+        # its own colour swatch, so there is no static legend to show.
+        self._loaded_surfaces = _ShapeOverlayMenu(
+            self,
+            master_label="Show loaded surfaces",
+            legend_title="",
+            legend={},
+            shape_row=lambda s: (_color_swatch(s.color), f"{s.label}  ·  {s.kind}"),
+            info_row=lambda s: s.label,
+            on_changed=self._render,
+            menu=stl_menu,
+            item_noun="surfaces",
+        )
+
+        stl_btn = _menu_button(
+            "STL ▾",
+            stl_menu,
+            "Load STL/OBJ surfaces as a reference overlay, toggle or unload\n"
+            "individual ones, or export dictionary shapes as STL files",
+        )
 
         refresh_btn = QPushButton("Refresh")
 
@@ -596,18 +634,18 @@ class BlockMeshPanel(QWidget):
 
         return toolbar, refresh_btn, load_stl_act
 
-    def _build_vertex_table(self) -> "QGroupBox":
+    def _build_vertex_table(self) -> QGroupBox:
         """Build the vertex table with the variable-preview info bar; return the group box."""
         self._vtx_table = QTableWidget(0, 4)
         self._vtx_table.setHorizontalHeaderLabels(["#", "X", "Y", "Z"])
-        self._vtx_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self._vtx_table.setSelectionMode(QTableWidget.SingleSelection)
-        self._vtx_table.setEditTriggers(QTableWidget.DoubleClicked)
+        self._vtx_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._vtx_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self._vtx_table.setEditTriggers(QTableWidget.EditTrigger.DoubleClicked)
         self._vtx_table.verticalHeader().hide()
         hdr = self._vtx_table.horizontalHeader()
-        hdr.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         for col in (1, 2, 3):
-            hdr.setSectionResizeMode(col, QHeaderView.Stretch)
+            hdr.setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
 
         self._preview_btn = QPushButton("Preview")
         self._preview_btn.setCheckable(True)
@@ -619,7 +657,7 @@ class BlockMeshPanel(QWidget):
 
         vtx_vars_label = QLabel("⚙ Variable-based")
         vtx_vars_label.setStyleSheet(
-            "color: #6B4F00; background: #FFF0B3; "
+            f"color: {colors().banner_fg}; background: {colors().banner_bg}; "
             "padding: 1px 6px; border-radius: 3px; font-size: 11px;"
         )
 
@@ -644,7 +682,7 @@ class BlockMeshPanel(QWidget):
         if self._plotter is not None or self._plotter_layout is None:
             return
         self._plotter = QtInteractor(self)
-        self._plotter.set_background("white")
+        self._plotter.set_background(colors().viewport_bg)
         self._plotter.setMinimumSize(0, 0)
         self._plotter_layout.addWidget(self._plotter)
         self._plotter.add_axes(xlabel="X", ylabel="Y", zlabel="Z", line_width=3)
@@ -672,13 +710,30 @@ class BlockMeshPanel(QWidget):
         self._has_variables = self._vertices_have_variables()
         self._update_preview_ui()
         self._selected_vertex = None
+        self._selected_block = None
         self._populate_vertex_table()
+        if self._plotter is not None:
+            self._render()
+
+    def set_selected_block(self, index: int | None) -> None:
+        """Highlight one block, by its index in `blocks ( … )`.
+
+        The tree's "block N" rows are numbered by position and so are the
+        viewer's centroid labels, both straight off the parsed order, so the
+        caller's row index needs no translation. Out-of-range values are the
+        renderer's problem, not this method's -- the panel may be holding a
+        different file's mesh than the tree is showing.
+        """
+        if index == self._selected_block:
+            return
+        self._selected_block = index
         if self._plotter is not None:
             self._render()
 
     def update_topo_set(self, path: str, root: FoamNode) -> None:
         if not _PYVISTA_OK:
             return
+        assert self._topo is not None  # built in _build_controls() when _PYVISTA_OK
         data = extract_topo_set_data(root)
         self._topo.rebuild(data.shapes, data.non_geometric)
         self._update_export_stl_enabled()
@@ -688,6 +743,7 @@ class BlockMeshPanel(QWidget):
     def update_snappy_hex_mesh(self, path: str, root: FoamNode) -> None:
         if not _PYVISTA_OK:
             return
+        assert self._snappy is not None  # built in _build_controls() when _PYVISTA_OK
         case_dir = str(Path(path).parent.parent)
         data = extract_snappy_hex_mesh_data(root, case_dir)
         self._snappy.rebuild(data.shapes, data.non_geometric, data.location_points)
@@ -698,6 +754,7 @@ class BlockMeshPanel(QWidget):
     def update_set_fields(self, path: str, root: FoamNode) -> None:
         if not _PYVISTA_OK:
             return
+        assert self._set_fields is not None  # built in _build_controls() when _PYVISTA_OK
         data = extract_set_fields_data(root)
         self._set_fields.rebuild(data.shapes, data.non_geometric)
         self._update_export_stl_enabled()
@@ -707,14 +764,17 @@ class BlockMeshPanel(QWidget):
     def update_sampling(self, path: str, root: FoamNode) -> None:
         if not _PYVISTA_OK:
             return
+        assert self._sampling is not None  # built in _build_controls() when _PYVISTA_OK
         data = extract_sampling_data(root)
-        base = Path(path).name
+        # Keyed by full path, labelled by basename: two loaded sampling dicts
+        # can share a basename (an extra directory holding a second `sample`),
+        # and keying by the name alone made them overwrite each other.
         for shape in data.shapes + data.non_geometric:
-            shape.source_file = base
+            shape.source_file = Path(path).name
         if data.shapes or data.non_geometric:
-            self._sampling_by_file[base] = data
+            self._sampling_by_file[path] = data
         else:
-            self._sampling_by_file.pop(base, None)
+            self._sampling_by_file.pop(path, None)
         shapes = [s for d in self._sampling_by_file.values() for s in d.shapes]
         non_geometric = [
             s for d in self._sampling_by_file.values() for s in d.non_geometric
@@ -725,6 +785,10 @@ class BlockMeshPanel(QWidget):
 
     def clear(self) -> None:
         self._data = None
+        # Surfaces were loaded for the case being left behind, so they must not
+        # stay drawn over the next one.
+        self._surfaces.clear()
+        self._rebuild_surface_menu()
         if self._topo is not None:
             self._topo.rebuild([], [])
         if self._snappy is not None:
@@ -736,6 +800,7 @@ class BlockMeshPanel(QWidget):
             self._sampling.rebuild([], [])
         self._update_export_stl_enabled()
         self._selected_vertex = None
+        self._selected_block = None
         if self._vtx_table is not None:
             self._vtx_table.setRowCount(0)
         if self._plotter is not None:
@@ -763,10 +828,10 @@ class BlockMeshPanel(QWidget):
         shown = min(n, _MAX_VERTEX_TABLE_ROWS)
         truncated = n > shown
 
-        right = Qt.AlignRight | Qt.AlignVCenter
-        ro_flags = Qt.ItemIsEnabled | Qt.ItemIsSelectable
+        right = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        ro_flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
         editable = not self._has_variables or self._preview_mode
-        rw_flags = (ro_flags | Qt.ItemIsEditable) if editable else ro_flags
+        rw_flags = (ro_flags | Qt.ItemFlag.ItemIsEditable) if editable else ro_flags
 
         self._vtx_table.blockSignals(True)
         self._vtx_table.setRowCount(shown + (1 if truncated else 0))
@@ -788,7 +853,7 @@ class BlockMeshPanel(QWidget):
             msg = QTableWidgetItem(
                 f"… {n} vertices total (table limited to {shown})"
             )
-            msg.setFlags(Qt.ItemIsEnabled)
+            msg.setFlags(Qt.ItemFlag.ItemIsEnabled)
             self._vtx_table.setItem(shown, 0, msg)
             self._vtx_table.setSpan(shown, 0, 1, 4)
 
@@ -810,6 +875,7 @@ class BlockMeshPanel(QWidget):
     def _on_cell_changed(self, row: int, col: int) -> None:
         if self._data is None or col == 0:
             return
+        assert self._vtx_table is not None  # slot is only connected once built
         n = len(self._data.vertices)
         if row >= n:
             return
@@ -846,12 +912,14 @@ class BlockMeshPanel(QWidget):
     def _update_preview_ui(self) -> None:
         if self._preview_btn is None:
             return
+        assert self._vtx_info_bar is not None  # built alongside _preview_btn
         self._vtx_info_bar.setVisible(self._has_variables)
         self._preview_btn.setChecked(self._preview_mode)
         if self._preview_banner is not None:
             self._preview_banner.setVisible(self._preview_mode)
 
     def _on_preview_toggled(self) -> None:
+        assert self._preview_btn is not None  # slot is only connected once built
         self._preview_mode = self._preview_btn.isChecked()
         self._update_preview_ui()
         self._populate_vertex_table()
@@ -881,6 +949,7 @@ class BlockMeshPanel(QWidget):
             show_bounds=self._act_bounds.isChecked(),
             label_font_size=self._label_font_size.value(),
             selected_vertex=self._selected_vertex,
+            selected_block=self._selected_block,
         )
 
     def _set_view(self, fn: str, **kw) -> None:
@@ -891,16 +960,30 @@ class BlockMeshPanel(QWidget):
     def _render(self) -> None:
         if self._renderer is None:
             return
+        # Built together in _build_controls() whenever _PYVISTA_OK, same as _renderer.
+        assert self._topo is not None
+        assert self._snappy is not None
+        assert self._set_fields is not None
+        assert self._sampling is not None
+        assert self._loaded_surfaces is not None
         has_overlay = (
             self._topo.shapes or self._snappy.shapes or self._snappy.locations
             or self._set_fields.shapes or self._sampling.shapes
         )
-        if self._data is None and not has_overlay:
+        has_content = (
+            self._data is not None or bool(has_overlay) or bool(self._surfaces)
+        )
+        # Nothing to draw: skip, unless the previous frame drew something that
+        # now has to be cleared (e.g. the last loaded surface was unloaded).
+        # Keyed on loaded, not visible, surfaces so unchecking every row still
+        # re-renders — to an empty scene — instead of leaving the last frame up.
+        if not has_content and not self._scene_drawn:
             return
+        self._scene_drawn = has_content
         self._renderer.render(
             self._data,
             self._make_settings(),
-            self._stl_meshes,
+            self._loaded_surfaces.visible_shapes(),
             self._topo.visible_shapes(),
             self._snappy.visible_shapes(),
             self._snappy.visible_locations(),
@@ -913,24 +996,99 @@ class BlockMeshPanel(QWidget):
     def _load_stl(self) -> None:
         if not _PYVISTA_OK:
             return
-        path, _ = QFileDialog.getOpenFileName(
+        paths, _ = QFileDialog.getOpenFileNames(
             self, "Load STL / OBJ", "",
             "STL / OBJ files (*.stl *.STL *.stlb *.obj *.OBJ "
             "*.stl.gz *.STL.gz *.obj.gz *.OBJ.gz *.stlb.gz);;All files (*)",
         )
-        if not path:
+        if not paths:
             return
-        try:
-            self._stl_meshes.append(read_surface_mesh(path))
-            self._clear_stl_act.setEnabled(True)
+        # One unreadable file must not discard the ones that did load.
+        loaded = 0
+        failures: list[str] = []
+        for path in paths:
+            try:
+                mesh = read_surface_mesh(path)
+            except Exception as e:
+                failures.append(f"{Path(path).name}: {e}")
+                continue
+            loaded += 1
+            existing = self._surface_index(path)
+            if existing is None:
+                self._surfaces.append(
+                    LoadedSurface(
+                        label=Path(path).name,
+                        kind=Path(path).suffix.lstrip(".").lower(),
+                        source_file=path,
+                        color=self._next_surface_color(),
+                        mesh=mesh,
+                    )
+                )
+            else:
+                # Re-loading a path already on screen re-reads it in place —
+                # a refresh for an externally edited file, not a second row.
+                # Keeping the entry's identity also keeps its menu row checked
+                # or unchecked as the user left it.
+                self._surfaces[existing] = dataclasses.replace(
+                    self._surfaces[existing], mesh=mesh
+                )
+        if loaded:
+            self._rebuild_surface_menu()
             self._render()
-        except Exception as e:
-            QMessageBox.warning(self, "STL Load Error", str(e))
+        if failures:
+            QMessageBox.warning(
+                self, "STL Load Error", "Could not load:\n" + "\n".join(failures)
+            )
+
+    def _surface_index(self, path: str) -> int | None:
+        for i, surface in enumerate(self._surfaces):
+            if surface.source_file == path:
+                return i
+        return None
+
+    def _next_surface_color(self) -> str:
+        """First palette colour not already in use, else cycle by count.
+
+        Assigned once at load time, so unloading a surface never recolours the
+        others — but the colour it frees is handed to the next file loaded.
+        """
+        used = {s.color for s in self._surfaces}
+        for color in _SURFACE_COLORS:
+            if color not in used:
+                return color
+        return _SURFACE_COLORS[len(self._surfaces) % len(_SURFACE_COLORS)]
+
+    def _unload_surface(self, path: str) -> None:
+        index = self._surface_index(path)
+        if index is None:
+            return
+        del self._surfaces[index]
+        self._rebuild_surface_menu()
+        self._render()
 
     def _clear_stl(self) -> None:
-        self._stl_meshes.clear()
-        self._clear_stl_act.setEnabled(False)
+        self._surfaces.clear()
+        self._rebuild_surface_menu()
         self._render()
+
+    def _rebuild_surface_menu(self) -> None:
+        """Repopulate the per-file rows, the Unload submenu, and Clear STL."""
+        if self._loaded_surfaces is None:
+            return
+        self._loaded_surfaces.rebuild(self._surfaces, [])
+        self._unload_stl_menu.clear()
+        for surface in self._surfaces:
+            act = self._unload_stl_menu.addAction(surface.label)
+            act.setToolTip(surface.source_file)
+            act.triggered.connect(
+                lambda _=False, p=surface.source_file: self._unload_surface(p)
+            )
+        self._unload_stl_menu.setEnabled(bool(self._surfaces))
+        self._update_clear_stl_enabled()
+
+    def _update_clear_stl_enabled(self) -> None:
+        if self._clear_stl_act is not None:
+            self._clear_stl_act.setEnabled(bool(self._surfaces))
 
     # ── STL export ────────────────────────────────────────────────────────────
 
@@ -940,24 +1098,27 @@ class BlockMeshPanel(QWidget):
         Point markers have no surface and a planeToFaceZone disc's extent is
         display-only, so neither is offered for export.
         """
+        topo_shapes = self._topo.shapes if self._topo is not None else []
         return [
-            s for s in self._topo.shapes
+            s for s in topo_shapes
             if not ({"points", "planePoint"} & s.geometry.keys())
         ]
 
     def _exportable_set_fields_shapes(self) -> list[SetFieldsShape]:
         """setFields regions that produce a meaningful STL surface (unclipped)."""
+        set_fields_shapes = self._set_fields.shapes if self._set_fields is not None else []
         return [
-            s for s in self._set_fields.shapes
+            s for s in set_fields_shapes
             if not ({"points", "planePoint"} & s.geometry.keys())
         ]
 
     def _update_export_stl_enabled(self) -> None:
         if self._export_stl_act is not None:
+            snappy_shapes = self._snappy.shapes if self._snappy is not None else []
             self._export_stl_act.setEnabled(
                 bool(
                     self._exportable_topo_shapes()
-                    or self._snappy.shapes
+                    or snappy_shapes
                     or self._exportable_set_fields_shapes()
                 )
             )
@@ -965,9 +1126,13 @@ class BlockMeshPanel(QWidget):
     def _export_shapes_stl(self) -> None:
         exportable = self._exportable_topo_shapes()
         set_fields_exportable = self._exportable_set_fields_shapes()
-        if not _PYVISTA_OK or not (
-            exportable or self._snappy.shapes or set_fields_exportable
-        ):
+        if not _PYVISTA_OK:
+            return
+        # Built together in _build_controls(), which only runs when _PYVISTA_OK.
+        assert self._topo is not None
+        assert self._snappy is not None
+        assert self._set_fields is not None
+        if not (exportable or self._snappy.shapes or set_fields_exportable):
             return
         topo_visible = {id(s) for s in self._topo.visible_shapes()}
         snappy_visible = {id(s) for s in self._snappy.visible_shapes()}

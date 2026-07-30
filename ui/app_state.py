@@ -72,12 +72,19 @@ class AppState:
     current_root: FoamNode = dataclasses.field(
         default_factory=lambda: FoamNode(name="root", node_type="dictionary")
     )
-    current_model: FoamTreeModel | None = dataclasses.field(default=None)
+    # Always (re)built in __post_init__ from current_root, so it is never None
+    # after construction; excluded from __init__'s signature since no caller
+    # ever passes it explicitly (it would need the same root instance anyway).
+    current_model: FoamTreeModel = dataclasses.field(init=False)
 
     # ── file buffers & dirty tracking ─────────────────────────────────────────
     file_buffers: dict[str, str] = dataclasses.field(default_factory=dict)
     file_dirty: dict[str, bool] = dataclasses.field(default_factory=dict)
     text_dirty: bool = False
+    # Absolute paths of `#include` targets outside the case directory. Rebuilt
+    # by _case_file_paths on every file-list load; the single source of truth
+    # for _is_read_only, which gates every write path.
+    read_only_files: set[str] = dataclasses.field(default_factory=set)
 
     # ── internal flags ────────────────────────────────────────────────────────
     source_lines_valid: bool = False
@@ -103,5 +110,4 @@ class AppState:
     bm_side_by_side: bool = False
 
     def __post_init__(self) -> None:
-        if self.current_model is None:
-            self.current_model = FoamTreeModel(self.current_root)
+        self.current_model = FoamTreeModel(self.current_root)

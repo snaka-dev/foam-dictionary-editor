@@ -5,7 +5,6 @@ Regions cross-referencing, locationInMesh(s), and $var / #eval resolution."""
 from __future__ import annotations
 
 import gzip
-from pathlib import Path
 
 from foam.parser import OpenFoamParser
 from foam.snappy_hex_mesh_extractor import extract_snappy_hex_mesh_data

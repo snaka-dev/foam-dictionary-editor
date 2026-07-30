@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QEvent, Qt, QFileSystemWatcher, QSortFilterProxyModel, QTimer
+from PySide6.QtCore import QEvent, QFileSystemWatcher, QSortFilterProxyModel, Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -25,25 +26,7 @@ from PySide6.QtWidgets import (
 from app_config import get_app_config
 from i18n import tr
 from model.tree_model import FoamTreeModel
-from ui.mixins._boundary_ops import _BoundaryOpsMixin
-from ui.mixins._case_ops import _CaseOpsMixin
-from ui.mixins._foam_monitor_ops import _FoamMonitorOpsMixin
-from ui.mixins._tools_ops import _ToolsOpsMixin
-from ui.mixins._diff_ops import _DiffOpsMixin
-from ui.mixins._file_mgmt_ops import _FileManagementOpsMixin
-from ui.mixins._file_ops import _FileOpsMixin
-from ui.mixins._panel_ops import _PanelOpsMixin
-from ui.mixins._model_ops import _ModelOpsMixin
-from ui.mixins._ui_ops import _UiOpsMixin
-from ui.mixins._tree_crud_ops import _TreeCrudOpsMixin
-from ui.mixins._tree_sync_ops import _TreeSyncOpsMixin
-from ui.mixins._undo_ops import _UndoOpsMixin
 from ui.app_state import AppState
-from ui.panels.comparison_tree_panel import ComparisonTreePanel
-from ui.panels.detail_panel import DetailPanel
-from ui.panels.editor_panel import EditorPanel
-from ui.panels.file_list_panel import FileListPanel
-from ui.panels.terminal_panel import TerminalPanel
 from ui.layout_constants import (
     SPLITTER_DETAIL_WIDTH,
     SPLITTER_FILE_LIST_WIDTH,
@@ -52,6 +35,35 @@ from ui.layout_constants import (
     SPLITTER_TREE_WIDTH,
     SPLITTER_UPPER_HEIGHT,
 )
+from ui.mixins._boundary_ops import _BoundaryOpsMixin
+from ui.mixins._case_ops import _CaseOpsMixin
+from ui.mixins._diff_ops import _DiffOpsMixin
+from ui.mixins._file_mgmt_ops import _FileManagementOpsMixin
+from ui.mixins._file_ops import _FileOpsMixin
+from ui.mixins._foam_monitor_ops import _FoamMonitorOpsMixin
+from ui.mixins._model_ops import _ModelOpsMixin
+from ui.mixins._panel_ops import _PanelOpsMixin
+from ui.mixins._tools_ops import _ToolsOpsMixin
+from ui.mixins._tree_crud_ops import _TreeCrudOpsMixin
+from ui.mixins._tree_sync_ops import _TreeSyncOpsMixin
+from ui.mixins._ui_ops import _UiOpsMixin
+from ui.mixins._undo_ops import _UndoOpsMixin
+from ui.panels.comparison_tree_panel import ComparisonTreePanel
+from ui.panels.detail_panel import DetailPanel
+from ui.panels.editor_panel import EditorPanel
+from ui.panels.file_list_panel import FileListPanel
+from ui.panels.terminal_panel import TerminalPanel
+from ui.theme import colors, splitter_qss
+
+if TYPE_CHECKING:
+    # Only imported for their types: block_mesh_panel is deliberately imported
+    # lazily at runtime in _build_feature_panels() (below) so the vtk/pyvista
+    # stack is not loaded unless the BlockMesh feature is enabled; the two
+    # dialogs are imported lazily in ui/mixins/_tools_ops.py since they are
+    # only ever needed once the user opens them.
+    from ui.dialogs.find_examples_dialog import FindExamplesDialog
+    from ui.dialogs.log_summary_dialog import LogSummaryDialog
+    from ui.panels.block_mesh_panel import BlockMeshPanel
 
 
 class _TreeView(QTreeView):
@@ -85,7 +97,7 @@ class MainWindow(
     _UiOpsMixin,
     QMainWindow,
 ):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(tr("foam dictionary editor"))
 
@@ -102,8 +114,8 @@ class MainWindow(
         self._clean_case_action: QAction | None = None
         self._open_paraview_action: QAction | None = None
         self._view_log_summary_action: QAction | None = None
-        self._log_summary_dialog = None
-        self._find_examples_dialog = None
+        self._log_summary_dialog: LogSummaryDialog | None = None
+        self._find_examples_dialog: FindExamplesDialog | None = None
 
         self._build_ui()
         self.setAcceptDrops(True)
@@ -128,11 +140,11 @@ class MainWindow(
 
     def _build_top_bar(self) -> QHBoxLayout:
         self.current_case_label = QLabel("-")
-        self.current_case_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.current_case_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.current_case_label.setToolTip(tr("Current case name"))
 
         self.current_file_label = QLabel("-")
-        self.current_file_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.current_file_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.current_file_label.setToolTip(tr("Current file name"))
 
         save_btn = QPushButton(tr("Save File"))
@@ -158,8 +170,8 @@ class MainWindow(
         self._file_list_refresh_timer.timeout.connect(self._reload_file_list)
 
         sep = QFrame()
-        sep.setFrameShape(QFrame.VLine)
-        sep.setFrameShadow(QFrame.Sunken)
+        sep.setFrameShape(QFrame.Shape.VLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
 
         layout = QHBoxLayout()
         layout.setContentsMargins(4, 4, 4, 2)
@@ -180,7 +192,7 @@ class MainWindow(
     def _build_tree_area(self) -> QWidget:
         self.proxy_model = QSortFilterProxyModel(self)
         self.proxy_model.setSourceModel(self.state.current_model)
-        self.proxy_model.setFilterCaseSensitivity(Qt.CaseInsensitive)
+        self.proxy_model.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.proxy_model.setRecursiveFilteringEnabled(True)
         self.proxy_model.setFilterKeyColumn(FoamTreeModel.COL_KEY)
 
@@ -197,8 +209,8 @@ class MainWindow(
         self.tree.setModel(self.proxy_model)
         self.tree.setAlternatingRowColors(True)
         self.tree.setUniformRowHeights(True)
-        self.tree.setEditTriggers(QTreeView.DoubleClicked | QTreeView.EditKeyPressed)
-        self.tree.setSelectionBehavior(QTreeView.SelectRows)
+        self.tree.setEditTriggers(QTreeView.EditTrigger.DoubleClicked | QTreeView.EditTrigger.EditKeyPressed)
+        self.tree.setSelectionBehavior(QTreeView.SelectionBehavior.SelectRows)
 
         filter_bar = QHBoxLayout()
         filter_bar.setContentsMargins(0, 0, 0, 0)
@@ -231,8 +243,8 @@ class MainWindow(
         from ui.panels.boundary_view_panel import BoundaryViewPanel
         self.boundary_panel = BoundaryViewPanel()
 
-        self.block_mesh_panel = None
-        self._bm_side_by_side_btn: "QPushButton | None" = None
+        self.block_mesh_panel: BlockMeshPanel | None = None
+        self._bm_side_by_side_btn: QPushButton | None = None
         if _feat_blockmesh:
             from ui.panels.block_mesh_panel import BlockMeshPanel
             self.block_mesh_panel = BlockMeshPanel()
@@ -241,7 +253,7 @@ class MainWindow(
             )
 
     def _build_splitters(self, tree_container: QWidget, top_bar: QHBoxLayout) -> None:
-        self.right_upper_splitter = QSplitter(Qt.Horizontal)
+        self.right_upper_splitter = QSplitter(Qt.Orientation.Horizontal)
         right_upper_splitter = self.right_upper_splitter
         right_upper_splitter.addWidget(tree_container)
         right_upper_splitter.addWidget(self.comparison_panel)
@@ -262,7 +274,7 @@ class MainWindow(
         # block_mesh_panel is NOT added here at startup; it lives in upper_tabs as
         # a normal tab.  It is reparented into this splitter only when the user
         # activates side-by-side mode, and moved back to a tab when they deactivate.
-        self._tree_bm_splitter = QSplitter(Qt.Horizontal)
+        self._tree_bm_splitter = QSplitter(Qt.Orientation.Horizontal)
         self._tree_bm_splitter.addWidget(right_upper_splitter)
         self._tree_bm_splitter.setMinimumSize(0, 0)
         # Neither the tree side nor the BlockMesh panel may snap closed when
@@ -289,10 +301,10 @@ class MainWindow(
             )
             self._bm_side_by_side_btn.setEnabled(False)
             self._bm_side_by_side_btn.clicked.connect(self._on_toggle_bm_side_by_side)
-            self.upper_tabs.setCornerWidget(self._bm_side_by_side_btn, Qt.TopRightCorner)
+            self.upper_tabs.setCornerWidget(self._bm_side_by_side_btn, Qt.Corner.TopRightCorner)
         self.upper_tabs.setMinimumSize(0, 0)
 
-        right_splitter = QSplitter(Qt.Vertical)
+        right_splitter = QSplitter(Qt.Orientation.Vertical)
         right_splitter.addWidget(self.upper_tabs)
         right_splitter.addWidget(self.bottom_tabs)
         right_splitter.setSizes([SPLITTER_UPPER_HEIGHT, SPLITTER_LOWER_HEIGHT])
@@ -300,16 +312,9 @@ class MainWindow(
         # Disable collapsing so the handle moves smoothly instead of snapping.
         right_splitter.setCollapsible(0, False)
         right_splitter.setCollapsible(1, False)
-        right_splitter.setStyleSheet("""
-            QSplitter::handle:vertical {
-                background-color: #d6d6d6;
-                border-top: 1px solid #b8b8b8;
-                border-bottom: 1px solid #efefef;
-                height: 7px;
-            }
-        """)
+        right_splitter.setStyleSheet(splitter_qss())
 
-        self.main_splitter = QSplitter(Qt.Horizontal)
+        self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
         self.main_splitter.addWidget(self.file_list_panel)
         self.main_splitter.addWidget(right_splitter)
         self.main_splitter.setSizes([SPLITTER_FILE_LIST_WIDTH, SPLITTER_TREE_WIDTH + SPLITTER_DETAIL_WIDTH])
@@ -338,6 +343,7 @@ class MainWindow(
         self.file_list_panel.add_time_dir_requested.connect(self._on_add_time_dir)
         self.file_list_panel.remove_extra_dir_requested.connect(self._on_remove_extra_dir)
         self.file_list_panel.refresh_requested.connect(self._reload_file_list)
+        self.file_list_panel.copy_into_case_requested.connect(self._on_copy_into_case_requested)
         self.boundary_panel.patch_edit_requested.connect(self._on_patch_edit_requested)
         self.boundary_panel.patch_create_requested.connect(self._on_patch_create_requested)
         self.boundary_panel.patch_delete_requested.connect(self._on_patch_delete_requested)
@@ -376,6 +382,13 @@ class MainWindow(
         )
         self._find_examples_action.triggered.connect(self._on_find_examples_clicked)
 
+        self._build_case_menu(menubar)
+        self._build_settings_menu(menubar)
+        view_menu = self._build_view_menu(menubar)
+        self._build_tools_menu(menubar, view_menu)
+        self._build_help_menu(menubar)
+
+    def _build_case_menu(self, menubar) -> None:
         case_menu = menubar.addMenu(tr("Case"))
         _act(case_menu, tr("Open Case"),              "Ctrl+O",       self.open_case)
         case_menu.addAction(tr("Open from Case Library...")).triggered.connect(self.open_from_library)
@@ -385,7 +398,9 @@ class MainWindow(
         case_menu.addAction(tr("Save as New Case...")).triggered.connect(self.save_as_new_case)
         case_menu.addSeparator()
         case_menu.addAction(tr("Duplicate Case...")).triggered.connect(self.duplicate_case)
-        case_menu.addAction(tr("Duplicate from Case Library...")).triggered.connect(self.duplicate_from_library)
+        case_menu.addAction(tr("Duplicate from Case Library...")).triggered.connect(
+            self.duplicate_from_library
+        )
         case_menu.addAction(self._find_examples_action)
         case_menu.addSeparator()
         case_menu.addAction(tr("Clean Backup Files...")).triggered.connect(self._on_clean_backups)
@@ -396,20 +411,29 @@ class MainWindow(
 
         QShortcut(QKeySequence("Ctrl+S"), self).activated.connect(self.save_file)
 
+    def _build_settings_menu(self, menubar) -> None:
         settings_menu = menubar.addMenu(tr("Settings"))
-        settings_menu.addAction(tr("Set Default Case Directory")).triggered.connect(self.set_default_case_directory)
+        settings_menu.addAction(tr("Set Default Case Directory")).triggered.connect(
+            self.set_default_case_directory
+        )
         settings_menu.addAction(tr("Manage Case Library…")).triggered.connect(self.manage_case_library)
-        settings_menu.addAction(tr("Manage Extra Files & Directories…")).triggered.connect(self._on_manage_extra_files)
+        settings_menu.addAction(tr("Manage Extra Files & Directories…")).triggered.connect(
+            self._on_manage_extra_files
+        )
         settings_menu.addAction(tr("Reset File List")).triggered.connect(self.reset_file_list)
         settings_menu.addSeparator()
         settings_menu.addAction(tr("Manage Schema Modules")).triggered.connect(self.open_schema_manager)
-        settings_menu.addAction(tr("Generate OpenFOAM Keywords…")).triggered.connect(self.generate_foam_keywords)
+        settings_menu.addAction(tr("Generate OpenFOAM Keywords…")).triggered.connect(
+            self.generate_foam_keywords
+        )
         settings_menu.addAction(tr("Reset Window Size")).triggered.connect(self.reset_window_size)
         settings_menu.addSeparator()
         settings_menu.addAction(tr("Reset All Settings…")).triggered.connect(self.reset_all_settings)
         settings_menu.addSeparator()
+        self._build_appearance_menu(settings_menu)
         self._build_language_menu(settings_menu)
 
+    def _build_view_menu(self, menubar):
         view_menu = menubar.addMenu(tr("View"))
         self._show_type_action = QAction(tr("Show Type Column"), self)
         self._show_type_action.setCheckable(True)
@@ -434,6 +458,9 @@ class MainWindow(
             self._blockmesh_action.toggled.connect(self._on_toggle_blockmesh_panel)
             view_menu.addAction(self._blockmesh_action)
 
+        return view_menu
+
+    def _build_tools_menu(self, menubar, view_menu) -> None:
         tools_menu = menubar.addMenu(tr("Tools"))
 
         def _tool_act(label: str, tooltip: str, slot, enabled: bool = False) -> QAction:
@@ -516,7 +543,10 @@ class MainWindow(
         tools_menu.addSeparator()
         self._view_log_summary_action = _tool_act(
             tr("View Log Summary…"),
-            tr("Show a condensed summary of a log.* file (blockMesh, snappyHexMesh, topoSet, setFields, checkMesh, ...)"),
+            tr(
+                "Show a condensed summary of a log.* file "
+                "(blockMesh, snappyHexMesh, topoSet, setFields, checkMesh, ...)"
+            ),
             self._on_view_log_summary_clicked,
         )
         # Users reasonably look for "View Log Summary" under View, so the same
@@ -527,6 +557,7 @@ class MainWindow(
         tools_menu.addSeparator()
         tools_menu.addAction(self._find_examples_action)
 
+    def _build_help_menu(self, menubar) -> None:
         help_menu = menubar.addMenu(tr("Help"))
         help_menu.addAction(tr("About Foam Dictionary Editor (FoDE)...")).triggered.connect(self.show_about)
         help_menu.addSeparator()
@@ -588,19 +619,27 @@ class MainWindow(
     # ── diff overlay ─────────────────────────────────────────────────────────
 
     def _build_diff_bar(self) -> None:
+        c = colors()
         self._diff_bar = QFrame()
         self._diff_bar.setStyleSheet(
-            "QFrame { background-color: #FFFBEA; border-bottom: 1px solid #E0C04C; }"
+            f"QFrame {{ background-color: {c.legend_bg}; color: {c.legend_fg};"
+            f" border-bottom: 1px solid {c.legend_border}; }}"
         )
+
+        # Swatches must match FoamTreeModel's diff row backgrounds exactly, so
+        # both sides read them from the same theme fields.
+        def swatch(fill: str) -> str:
+            return (
+                f'<span style="background:{fill};padding:0 4px;'
+                f'border:1px solid {c.separator};">&#160;</span>'
+            )
+
         legend = QLabel(
-            '<span style="background:#FFFACD;padding:0 4px;border:1px solid #ccc;">&#160;</span>'
-            " changed &nbsp;"
-            '<span style="background:#E3F2FD;padding:0 4px;border:1px solid #ccc;">&#160;</span>'
-            " only in current &nbsp;"
-            '<span style="background:#E8F5E9;padding:0 4px;border:1px solid #ccc;">&#160;</span>'
-            " only in reference &nbsp;|&nbsp;"
+            swatch(c.diff_changed) + " changed &nbsp;"
+            + swatch(c.diff_only_here) + " only in current &nbsp;"
+            + swatch(c.diff_only_in_ref) + " only in reference &nbsp;|&nbsp;"
         )
-        legend.setTextFormat(Qt.RichText)
+        legend.setTextFormat(Qt.TextFormat.RichText)
         self._diff_path_label = QLabel()
         self._side_by_side_cb = QCheckBox(tr("Side by side"))
         self._side_by_side_cb.toggled.connect(self._on_side_by_side_toggled)

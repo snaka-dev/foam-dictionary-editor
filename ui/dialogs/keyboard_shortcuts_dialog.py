@@ -11,7 +11,9 @@ from PySide6.QtWidgets import (
     QLabel,
     QVBoxLayout,
 )
+
 from i18n import tr
+from ui.theme import colors
 
 # Sections defined as (i18n_key, [(action_key, shortcut), ...])
 _SECTIONS_DATA: list[tuple[str, list[tuple[str, str]]]] = [
@@ -64,7 +66,7 @@ class KeyboardShortcutsDialog(QDialog):
                 action_lbl = QLabel(tr(action))
                 key_lbl = QLabel(key)
                 key_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                key_lbl.setStyleSheet("font-family: monospace; color: #555;")
+                key_lbl.setStyleSheet(f"font-family: monospace; color: {colors().secondary_text};")
                 grid.addWidget(action_lbl, row, 0)
                 grid.addWidget(key_lbl,    row, 1)
             layout.addWidget(group)
