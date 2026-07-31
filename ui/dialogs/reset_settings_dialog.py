@@ -47,7 +47,10 @@ class ResetSettingsDialog(QDialog):
         group = QGroupBox(tr("Reset Options"))
         group_layout = QVBoxLayout()
         self._app_cb = QCheckBox(tr("Application Settings (app_config.json)"))
-        self._app_cb.setToolTip(tr("Reset case directory, window size, and recent cases"))
+        self._app_cb.setToolTip(
+            tr("Reset the case directory, window size, saved session, theme, "
+               "language, case library, and links")
+        )
         self._schema_cb = QCheckBox(tr("Schema Module Settings (schema_config.json)"))
         self._schema_cb.setToolTip(tr("Reset schema modules to default (controlDict, fvSchemes, fvSolution)"))
         group_layout.addWidget(self._app_cb)
@@ -81,17 +84,17 @@ class ResetSettingsDialog(QDialog):
             QMessageBox.warning(self, tr("No Selection"), tr("Please select at least one option to reset."))
             return
 
-        confirm_msg = "Are you sure you want to reset:\n\n"
+        items = ""
         if self._app_cb.isChecked():
-            confirm_msg += "• Application Settings\n"
+            items += tr("• Application Settings\n")
         if self._schema_cb.isChecked():
-            confirm_msg += "• Schema Module Settings\n"
-        confirm_msg += "\nThis action cannot be undone."
+            items += tr("• Schema Module Settings\n")
 
         reply = QMessageBox.question(
             self,
             tr("Confirm Reset"),
-            confirm_msg,
+            tr("Are you sure you want to reset:\n\n{items}\nThis action cannot be undone.")
+            .format(items=items),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -105,20 +108,27 @@ class ResetSettingsDialog(QDialog):
                 get_app_config().delete_config_file()
                 self.app_settings_reset = True
                 messages.append(
-                    f"✓ Application settings reset successfully\n"
-                    f"  (window size restored to {DEFAULT_WINDOW_WIDTH}x{DEFAULT_WINDOW_HEIGHT})"
+                    tr("✓ Application settings reset successfully\n"
+                       "  (window size restored to {w}x{h})")
+                    .format(w=DEFAULT_WINDOW_WIDTH, h=DEFAULT_WINDOW_HEIGHT)
+                )
+                # The reset only holds if nothing writes the file back. Closing
+                # the window persists nothing from here on (see closeEvent), so
+                # say what that costs rather than let it surprise anyone.
+                messages.append(
+                    tr("  The window layout and size of this session are not saved.")
                 )
             except Exception as e:
-                messages.append(f"✗ Failed to reset app settings: {e}")
+                messages.append(tr("✗ Failed to reset app settings: {e}").format(e=e))
 
         if self._schema_cb.isChecked():
             try:
                 from schemas import delete_schema_config
 
                 delete_schema_config()
-                messages.append("✓ Schema module settings reset successfully")
+                messages.append(tr("✓ Schema module settings reset successfully"))
             except Exception as e:
-                messages.append(f"✗ Failed to reset schema settings: {e}")
+                messages.append(tr("✗ Failed to reset schema settings: {e}").format(e=e))
 
         QMessageBox.information(
             self,

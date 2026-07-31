@@ -1,0 +1,66 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2512                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+
+// A standalone sampling dictionary: the whole file is one function object, so
+// there is no FoamFile header and no enclosing functions { } block. Its members
+// use the dictionary form, `sets { name { … } }`; system/surfaces uses the
+// other syntax OpenFOAM accepts for the same thing.
+
+type            sets;
+libs            (sampling);
+
+writeControl    onEnd;
+
+interpolationScheme cellPoint;
+
+setFormat       raw;
+
+fields          (p U);
+
+// Each set is placed in a different part of the domain rather than at its
+// centre. Every shape's name badge is drawn at that shape's own centre, so
+// shapes sharing one they would stack their badges into an unreadable pile.
+sets
+{
+    // Horizontal line high on the near side.
+    topSpan
+    {
+        type    lineUniform;
+        axis    x;
+        start   (0.3 0.4 2.7);
+        end     (1.6 0.4 2.7);
+        nPoints 50;
+    }
+
+    // Short rising diagonal, low on the far right.
+    riser
+    {
+        type    face;
+        axis    xyz;
+        start   (1.9 2.7 0.3);
+        end     (2.8 2.7 1.2);
+        nPoints 50;
+    }
+
+    // A cloud is a bare list of points rather than a span, and is drawn as
+    // markers like a probe set rather than as a line.
+    scatter
+    {
+        type    cloud;
+        axis    xyz;
+        points
+        (
+            (1.8 2.6 2.8)
+            (2.2 2.6 2.8)
+            (2.6 2.6 2.8)
+        );
+    }
+}
+
+
+// ************************************************************************* //

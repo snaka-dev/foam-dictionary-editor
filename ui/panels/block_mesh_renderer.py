@@ -111,10 +111,18 @@ _SAMPLING_COLOR = "teal"
 # Overlay shapes larger than the block mesh are clipped (display only) to keep
 # the mesh visible; the scene label carries a mark so the cut is not mistaken
 # for the shape's real extent.
+#
+# Plain ASCII, and parenthesised rather than bracketed, because these are drawn
+# by VTK and not by Qt. VTK's built-in label font has no glyph for ✂ or ⚠ (nor
+# for →) and draws *nothing* at all for them — not even a .notdef box — so the
+# marks these once used reached the screen as a blank gap inside the badge.
+# Square brackets are no good either: they come out as parentheses. Parentheses
+# render as themselves, and match the "(no geometry)" suffix the overlay menus
+# already use. Anything added here wants checking on screen, not just in a test.
 _CLIP_MARGIN = 0.1
 _CLIP_MARK_SUFFIX = {
-    "clipped": "✂ clipped",
-    "outside": "⚠ outside block mesh",
+    "clipped": "(clipped)",
+    "outside": "(outside block mesh)",
 }
 
 
@@ -258,6 +266,51 @@ def _bounds_within(inner, outer, rel_eps: float = 1e-4) -> bool:
     )
 
 
+# (normal, index into a bounds list) per clip-box face, each normal pointing
+# into the box so vtkClipClosedSurface keeps the inside.
+_CLIP_PLANES = (
+    ((1.0, 0.0, 0.0), 0), ((-1.0, 0.0, 0.0), 1),
+    ((0.0, 1.0, 0.0), 2), ((0.0, -1.0, 0.0), 3),
+    ((0.0, 0.0, 1.0), 4), ((0.0, 0.0, -1.0), 5),
+)
+
+
+def _clip_capped(mesh, clip_bounds: list[float]):
+    """Clip a closed shape to the box, sealing each cut face. None if it can't.
+
+    ``clip_box`` leaves the cut open, and a shape mesh is a hollow surface, so
+    a shape whose end caps both fall outside the box comes back a tube. That
+    is not an edge case: a ``setFieldsDict`` box spanning ``z -1 1`` against a
+    quasi-2-D mesh is see-through from the front, which is the one angle such
+    a case is ever viewed from. Clipping plane by plane seals each cut, but
+    only accepts a closed manifold surface — a plane disc is not one, and
+    neither is whatever a preceding plane may have left — so failure is
+    expected and the caller falls back to ``clip_box``.
+
+    ``clean`` is what makes a cylinder pass at all: its seam carries duplicate
+    points that read as non-manifold until they are merged. It is deliberately
+    ``clean`` rather than ``triangulate``, which satisfies the same check but
+    splits the box's quad faces — and the wireframe pass drawn over the result
+    would then show a diagonal across every one of them.
+    """
+    try:
+        surface = mesh if isinstance(mesh, pv.PolyData) else mesh.extract_surface()
+        surface = surface.clean()
+        for normal, idx in _CLIP_PLANES:
+            origin = [0.0, 0.0, 0.0]
+            origin[idx // 2] = clip_bounds[idx]
+            surface = surface.clip_closed_surface(normal=normal, origin=origin)
+            if surface.n_cells == 0:
+                return None
+    except Exception:
+        return None
+    # Same honesty check as the clip_box path: a result claiming to be clipped
+    # but still spanning the unclipped extent is degenerate, not a clip.
+    if not _bounds_within(surface.bounds, clip_bounds):
+        return None
+    return surface
+
+
 def _clip_to_bounds(mesh, clip_bounds: list[float] | None):
     """Limit an overlay shape mesh to the clip box (display only).
 
@@ -280,6 +333,9 @@ def _clip_to_bounds(mesh, clip_bounds: list[float] | None):
         or b[5] < clip_bounds[4] or b[4] > clip_bounds[5]
     ):
         return mesh, "outside"
+    capped = _clip_capped(mesh, clip_bounds)
+    if capped is not None:
+        return capped, "clipped"
     try:
         clipped = mesh.clip_box(clip_bounds, invert=False)  # keep the inside
     except Exception:
@@ -774,16 +830,27 @@ class BlockMeshRenderer:
         else:
             self._plotter.hide_axes()
         if settings.show_grid:
-            self._plotter.show_grid(color=colors().viewport_grid, font_size=8)
+            axes = self._plotter.show_grid(color=colors().viewport_grid, font_size=8)
+            # show_grid's ``color`` paints the lines and their text alike, which
+            # leaves the tick numbers as faint as the gridlines. Repaint just
+            # the text afterwards; VTK keeps a property per axis, so all three
+            # need setting.
+            grid_text = pv.Color(colors().viewport_grid_text).float_rgb
+            for axis in range(3):
+                axes.GetLabelTextProperty(axis).SetColor(*grid_text)
+                axes.GetTitleTextProperty(axis).SetColor(*grid_text)
         if settings.show_bounds:
             self._plotter.add_bounding_box(color=colors().viewport_grid, line_width=1)
             mins = pts.min(axis=0)
             maxs = pts.max(axis=0)
             dims = maxs - mins
+            # ".." and not an arrow or a dash: VTK draws no glyph at all for →
+            # (see _CLIP_MARK_SUFFIX above), and a hyphen would read as a minus
+            # sign in a range that starts negative — "X  -5 - 15".
             lines = [
-                f"X  {mins[0]:.4g} → {maxs[0]:.4g}  ({dims[0]:.4g} m)",
-                f"Y  {mins[1]:.4g} → {maxs[1]:.4g}  ({dims[1]:.4g} m)",
-                f"Z  {mins[2]:.4g} → {maxs[2]:.4g}  ({dims[2]:.4g} m)",
+                f"X  {mins[0]:.4g} .. {maxs[0]:.4g}  ({dims[0]:.4g} m)",
+                f"Y  {mins[1]:.4g} .. {maxs[1]:.4g}  ({dims[1]:.4g} m)",
+                f"Z  {mins[2]:.4g} .. {maxs[2]:.4g}  ({dims[2]:.4g} m)",
             ]
             if data.scale != 1.0:
                 lines.append(f"scale  {data.scale}")

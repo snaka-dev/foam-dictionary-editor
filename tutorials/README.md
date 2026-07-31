@@ -19,6 +19,7 @@ so that users can try FoDE on real cases and reproduce the worked tutorials.
 | `nineBlocks/`                     | Derived from `cavity` (custom `blockMeshDict`)                   | `icoFoam`            | 3×3 multi-block case; tests multi-block `blockMeshDict` and regex boundary patches    |
 | `nineBlocks-vars/`                | Derived from `cavity` (custom `blockMeshDict`)                   | `icoFoam`            | As `nineBlocks` but uses variable definitions and compact face notation                |
 | `topoSetShapes/`                  | Custom (single 3×3×3 block + `topoSetDict`)                      | `icoFoam`            | Tests `topoSetDict` geometry overlay in the 3-D viewer (box incl. `min`/`max` and `boxes` forms, sphere incl. hollow `origin`+`innerRadius`, cylinder/cone family, point markers, `planeToFaceZone`, `$var`/`#eval`) |
+| `samplingShapes/`                 | Custom (single 3×3×3 block + sampling dictionaries)              | `icoFoam`            | Tests the sampling overlay in the 3-D viewer: probe points, span-based lines, a point cloud and both plane spellings, spread across a `controlDict` `functions {}` block and two standalone dictionaries that use the two different member-list syntaxes |
 
 The `cavity/` subdirectories, `snappyMultiRegionHeater`, and `damBreak` are
 taken unchanged from the standard tutorial set distributed with OpenFOAM
@@ -28,8 +29,9 @@ taken unchanged from the standard tutorial set distributed with OpenFOAM
 original source (it is generated at run time by `./Allrun`); the
 copy here was produced from a completed run of that tutorial.
 
-The `oneBlocks`, `oneBlocks-vars`, `nineBlocks`, `nineBlocks-vars`, and
-`topoSetShapes` cases are custom cases created for FoDE testing. Their
+The `oneBlocks`, `oneBlocks-vars`, `nineBlocks`, `nineBlocks-vars`,
+`topoSetShapes`, and `samplingShapes` cases are custom cases created for FoDE
+testing. Their
 `system/controlDict`, `system/fvSchemes`, `system/fvSolution`,
 `system/decomposeParDict`, and `constant/transportProperties` files are taken
 from or closely follow the standard `cavity` tutorial; the
@@ -37,7 +39,10 @@ from or closely follow the standard `cavity` tutorial; the
 exercise two features not present in the plain variants: variable substitution
 (`$var`) and the compact block-face notation `(blockId faceId)` in the
 `boundary` section.  `topoSetShapes` adds a custom `system/topoSetDict` that
-demonstrates every geometry source rendered by the BlockMesh 3-D panel.
+demonstrates every geometry source rendered by the BlockMesh 3-D panel;
+`samplingShapes` reuses the same 3×3×3 mesh and does the equivalent for the
+sampling overlay, across a `system/controlDict` `functions {}` block and custom
+`system/sample` and `system/surfaces` dictionaries.
 
 Any modifications made for the FoDE tutorials (e.g. duplication into a working
 copy, minor edits to dictionary entries shown in the walkthroughs) are limited

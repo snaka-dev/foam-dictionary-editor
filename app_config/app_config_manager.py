@@ -4,9 +4,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app_config.defaults import DEFAULT_THEME
+from app_config.defaults import DEFAULT_RESTORE_SESSION, DEFAULT_THEME
 from app_config.foam_env import foam_env_dirs
 from app_config.json_io import load_json, save_json
+
+# Feature flags that change which panels and tabs a window has, and so which
+# saved layouts can be applied to each other. A layout captured with a terminal
+# in it means nothing to a --variant that has no terminal, so each combination
+# keeps its own. Flags that do not move anything (syntax_highlighting) are not
+# here: they would only fragment the stored layouts for no benefit.
+_LAYOUT_FEATURES = ("terminal", "blockmesh")
 
 
 class AppConfigManager:
@@ -24,6 +31,9 @@ class AppConfigManager:
         self._language: str = "en"
         self._openfoam_dir: str | None = None
         self._theme: str = DEFAULT_THEME
+        self._restore_session: bool = DEFAULT_RESTORE_SESSION
+        self._sessions: dict[str, dict] = {}
+        self._settings_were_reset = False
         self._load()
 
     def _load(self) -> None:
@@ -38,6 +48,8 @@ class AppConfigManager:
             self._features = {}
             self._openfoam_dir = None
             self._theme = DEFAULT_THEME
+            self._restore_session = DEFAULT_RESTORE_SESSION
+            self._sessions = {}
             return
         self._window_size = data.get("window_size", None)
         self._default_case_dir = data.get("default_case_dir", None)
@@ -47,6 +59,12 @@ class AppConfigManager:
         self._language = data.get("language", "en")
         self._openfoam_dir = data.get("openfoam_dir", None)
         self._theme = data.get("theme", DEFAULT_THEME)
+        self._restore_session = bool(data.get("restore_session", DEFAULT_RESTORE_SESSION))
+        sessions = data.get("sessions")
+        # Kept as raw dicts: this layer has no business knowing what a window
+        # state looks like, and ui/window_state.py is where a bad one is
+        # forgiven (see load_saved_state).
+        self._sessions = sessions if isinstance(sessions, dict) else {}
 
     def save(self) -> None:
         try:
@@ -64,6 +82,10 @@ class AppConfigManager:
                 data["openfoam_dir"] = self._openfoam_dir
             if self._theme != DEFAULT_THEME:
                 data["theme"] = self._theme
+            if self._restore_session != DEFAULT_RESTORE_SESSION:
+                data["restore_session"] = self._restore_session
+            if self._sessions:
+                data["sessions"] = self._sessions
             save_json(self._config_path, data)
         except OSError as e:
             print(f"Warning: Failed to save config file: {e}")
@@ -77,6 +99,8 @@ class AppConfigManager:
         self._language = "en"
         self._openfoam_dir = None
         self._theme = DEFAULT_THEME
+        self._restore_session = DEFAULT_RESTORE_SESSION
+        self._sessions = {}
 
     def delete_config_file(self) -> None:
         try:
@@ -85,6 +109,20 @@ class AppConfigManager:
         except OSError as e:
             print(f"Warning: Failed to delete config file: {e}")
         self.reset()
+        self._settings_were_reset = True
+
+    @property
+    def settings_were_reset(self) -> bool:
+        """Whether **Reset All Settings** deleted the config file during this run.
+
+        The flag exists because deleting the file is not by itself a reset: the
+        application goes on running, and anything that captures state at shut-down
+        would write the file straight back. ``MainWindow.closeEvent`` checks this
+        and persists nothing, so the reset survives to the restart the dialog asks
+        for. An explicit ``save()`` afterwards — the user picking a theme, say — is
+        deliberately still honoured; only the implicit end-of-run capture is not.
+        """
+        return self._settings_were_reset
 
     # ── window size ───────────────────────────────────────────────────────────
 
@@ -198,3 +236,75 @@ class AppConfigManager:
     def set_theme(self, mode: str) -> None:
         """Set the theme mode. Does not auto-save."""
         self._theme = mode
+
+    # ── session restore ───────────────────────────────────────────────────────
+
+    def get_restore_session(self) -> bool:
+        """Whether the last session's layout is reapplied at startup."""
+        return self._restore_session
+
+    def set_restore_session(self, enabled: bool) -> None:
+        """Turn session restore on or off. Does not auto-save.
+
+        A behaviour switch and nothing more: the stored layouts are left where
+        they are, so switching off and back on returns to the layout that was
+        stored when it was last on. Throwing one away is ``clear_sessions``'s
+        job — deleting data is what an item that says so should do, not a side
+        effect of a checkbox that says something else.
+        """
+        self._restore_session = enabled
+
+    def has_stored_sessions(self) -> bool:
+        """Whether any feature set has a layout stored."""
+        return bool(self._sessions)
+
+    def clear_sessions(self) -> None:
+        """Forget every feature set's stored layout. Does not auto-save.
+
+        Every one of them, not just this run's: which layout a window would
+        restore depends on the ``--variant`` it was launched with, which is
+        nowhere on screen, and an action whose reach depends on invisible state
+        is worse than one that is broad and predictable. It is also the answer
+        for someone clearing the case paths a layout records.
+        """
+        self._sessions = {}
+
+    def session_key(self) -> str:
+        """Return the key this run's layout is stored under.
+
+        Derived from the layout-affecting feature flags rather than from the
+        ``--variant`` name, because the name is not persisted anywhere and a
+        plain ``python3 main.py`` run has none — it inherits whatever features
+        were last saved. The flags are what actually decide which panels exist,
+        which is the thing a layout has to agree with.
+        """
+        enabled = [name for name in _LAYOUT_FEATURES if self.get_feature(name)]
+        return "+".join(enabled) or "minimal"
+
+    def get_session_state(self) -> dict | None:
+        """Return the raw saved window state for this run's feature set, if any."""
+        state = self._sessions.get(self.session_key())
+        return state if isinstance(state, dict) else None
+
+    def set_session_state(self, state: dict | None) -> None:
+        """Store the window state for this run's feature set. Does not auto-save.
+
+        Other feature sets' layouts are left alone: switching to ``--variant
+        no-terminal`` for one run must not cost the standard variant its layout.
+        """
+        if state is None:
+            self._sessions.pop(self.session_key(), None)
+        else:
+            self._sessions[self.session_key()] = state
+
+    def clear_session_geometry(self) -> None:
+        """Drop the saved size and position from every stored layout.
+
+        What makes **Reset Window Size** stick: without this the reset would be
+        undone by the next restore, and the window would come back the size the
+        user just asked it not to be.
+        """
+        for state in self._sessions.values():
+            if isinstance(state, dict):
+                state.pop("geometry", None)
+                state.pop("window_size", None)

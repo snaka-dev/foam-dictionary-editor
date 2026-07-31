@@ -48,6 +48,7 @@ from ui.panels.block_mesh_renderer import (
 )
 from ui.theme import colors
 from ui.widgets.flow_layout import FlowLayout
+from ui.window_state import BlockMeshViewState, decode_qt_state, encode_qt_state
 
 try:
     from pyvistaqt import QtInteractor
@@ -306,6 +307,29 @@ class BlockMeshPanel(QWidget):
 
     vertices_changed = Signal(int, list)  # (vertex_index, [x, y, z])
 
+    # Stable names for the view toggles and overlay menus, so a saved view state
+    # is readable and survives renaming the widgets behind them.
+    VIEW_TOGGLES = {
+        "vertices": "_show_vertices",
+        "vertex_labels": "_show_labels",
+        "vertex_table": "_act_vtx_table",
+        "block_edges": "_show_edges",
+        "block_labels": "_show_block_labels",
+        "color_blocks": "_color_blocks",
+        "solid_blocks": "_solid_blocks",
+        "boundary_faces": "_show_boundary",
+        "axes": "_act_axes",
+        "grid": "_act_grid",
+        "dimensions": "_act_bounds",
+    }
+    VIEW_OVERLAYS = {
+        "topo_set": "_topo",
+        "snappy_hex_mesh": "_snappy",
+        "set_fields": "_set_fields",
+        "sampling": "_sampling",
+        "loaded_surfaces": "_loaded_surfaces",
+    }
+
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self._data: BlockMeshData | None = None
@@ -336,6 +360,8 @@ class BlockMeshPanel(QWidget):
         self._sampling_by_file: dict[str, SamplingData] = {}
         self._export_stl_act: QAction | None = None
         self._clear_stl_act: QAction | None = None
+        self._view_splitter: QSplitter | None = None
+        self._vtx_group: QGroupBox | None = None
 
         if not _PYVISTA_OK:
             lbl = QLabel(
@@ -364,6 +390,8 @@ class BlockMeshPanel(QWidget):
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 0)
         splitter.setSizes([600, 280])
+        self._view_splitter = splitter
+        self._vtx_group = vtx_group
 
         hint_label = QLabel(_MOUSE_HINT)
         hint_label.setStyleSheet(f"color: {colors().hint_text}; font-size: 11px; font-style: italic;")
@@ -509,7 +537,7 @@ class BlockMeshPanel(QWidget):
             self._set_fields.menu,
             "Show region sources from setFieldsDict, or toggle individual shapes\n"
             "(load setFieldsDict to populate). Regions larger than the block mesh\n"
-            "are clipped in the view and marked '✂ clipped'.",
+            "are clipped in the view and marked '(clipped)'.",
         )
 
         self._sampling = _ShapeOverlayMenu(
@@ -685,7 +713,16 @@ class BlockMeshPanel(QWidget):
         self._plotter.set_background(colors().viewport_bg)
         self._plotter.setMinimumSize(0, 0)
         self._plotter_layout.addWidget(self._plotter)
-        self._plotter.add_axes(xlabel="X", ylabel="Y", zlabel="Z", line_width=3)
+        # ``color`` is the label colour only; the x/y/z arrows keep their
+        # conventional red/green/blue. Without it the letters stay PyVista's
+        # default black and vanish against the dark theme's viewport.
+        self._plotter.add_axes(
+            xlabel="X",
+            ylabel="Y",
+            zlabel="Z",
+            line_width=3,
+            color=colors().viewport_text,
+        )
         self._renderer = BlockMeshRenderer(self._plotter)
         if self._data is not None:
             self._render()
@@ -729,6 +766,77 @@ class BlockMeshPanel(QWidget):
         self._selected_block = index
         if self._plotter is not None:
             self._render()
+
+    def view_state(self) -> BlockMeshViewState | None:
+        """Read the current view settings back (see ui/window_state.py).
+
+        None when pyVista is missing: there is no viewer whose state to report.
+        """
+        if not _PYVISTA_OK:
+            return None
+        camera = None
+        if self._plotter is not None:
+            camera = tuple(
+                tuple(round(float(n), 6) for n in vec) for vec in self._plotter.camera_position
+            )
+        return BlockMeshViewState(
+            toggles={
+                name: self._view_toggle(attr).isChecked()
+                for name, attr in self.VIEW_TOGGLES.items()
+            },
+            overlays={
+                name: self._view_overlay(attr).master.isChecked()
+                for name, attr in self.VIEW_OVERLAYS.items()
+            },
+            label_font_size=self._label_font_size.value(),
+            splitter=(encode_qt_state(self._view_splitter.saveState())
+                      if self._view_splitter is not None else None),
+            camera=camera,  # type: ignore[arg-type]
+        )
+
+    def apply_view_state(self, state: BlockMeshViewState) -> None:
+        """Apply view settings read by :meth:`view_state`.
+
+        Unnamed toggles keep their current value, so a state need only say what
+        it changes. The camera goes on last because rendering resets it.
+        """
+        if not _PYVISTA_OK:
+            return
+        for name, checked in state.toggles.items():
+            action = self._view_toggle(self.VIEW_TOGGLES[name])
+            action.blockSignals(True)
+            action.setChecked(checked)
+            action.blockSignals(False)
+        if self._vtx_group is not None:
+            # Normally driven by the action's `triggered` signal, which a
+            # programmatic setChecked() does not emit.
+            self._vtx_group.setVisible(self._view_toggle("_act_vtx_table").isChecked())
+        for name, on in state.overlays.items():
+            # Left unblocked: the master toggle also enables/disables the rows
+            # under it, and its render is superseded by the one below.
+            self._view_overlay(self.VIEW_OVERLAYS[name]).master.setChecked(on)
+        if state.label_font_size is not None:
+            self._label_font_size.blockSignals(True)
+            self._label_font_size.setValue(state.label_font_size)
+            self._label_font_size.blockSignals(False)
+        if state.splitter is not None and self._view_splitter is not None:
+            self._view_splitter.restoreState(decode_qt_state(state.splitter))
+
+        self._render()
+        if state.camera is not None and self._plotter is not None:
+            self._plotter.camera_position = [list(vec) for vec in state.camera]
+            self._plotter.render()
+
+    def _view_toggle(self, attr: str) -> QAction | QCheckBox:
+        """Resolve a VIEW_TOGGLES attribute name; both kinds are checkable."""
+        widget = getattr(self, attr)
+        assert widget is not None  # built in _build_controls() when _PYVISTA_OK
+        return widget
+
+    def _view_overlay(self, attr: str) -> _ShapeOverlayMenu:
+        menu = getattr(self, attr)
+        assert menu is not None  # built in _build_controls() when _PYVISTA_OK
+        return menu
 
     def update_topo_set(self, path: str, root: FoamNode) -> None:
         if not _PYVISTA_OK:

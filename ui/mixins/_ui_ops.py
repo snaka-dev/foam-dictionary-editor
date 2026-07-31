@@ -105,6 +105,37 @@ class _UiOpsMixin(_Base):
             tr("The theme will change after restarting the application."),
         )
 
+    def _on_restore_session_toggled(self, enabled: bool) -> None:
+        cfg = get_app_config()
+        if enabled == cfg.get_restore_session():
+            return
+        cfg.set_restore_session(enabled)
+        cfg.save()
+
+    def _refresh_forget_session_action(self) -> None:
+        """Grey out Forget Saved Session when there is no layout to forget.
+
+        Connected to the Settings menu's ``aboutToShow`` rather than settled once
+        at build time: the menu is built at startup and a layout is stored at
+        close, so the answer changes underneath it. Unticking the restore setting
+        no longer discards anything either, which is exactly when this action has
+        to stay reachable.
+        """
+        self._forget_session_action.setEnabled(get_app_config().has_stored_sessions())
+
+    def _forget_saved_session(self) -> None:
+        """Discard the stored layouts, for every feature set.
+
+        Reported in the status bar rather than confirmed in a dialog: an item
+        that says "Forget Saved Session" doing exactly that is not a surprise,
+        and a modal is the wrong weight for a window layout.
+        """
+        cfg = get_app_config()
+        cfg.clear_sessions()
+        cfg.save()
+        self._forget_session_action.setEnabled(False)
+        self.statusBar().showMessage(tr("Saved session discarded."), 5000)
+
     def open_schema_manager(self) -> None:
         SchemaManagerDialog(self).exec()
 

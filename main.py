@@ -28,10 +28,12 @@ from app_config.defaults import (
 )
 from i18n import set_language
 from ui.main_window import MainWindow
+from ui.session_restore import restore_session
 from ui.theme import apply_theme
 
 _PRESETS_DIR = Path(__file__).parent / "presets"
 _VALID_VARIANTS = ["standard", "no-terminal", "no-terminal-blockmesh"]
+_VALID_THEMES = ["system", "light", "dark"]
 
 
 def _apply_variant(variant: str) -> None:
@@ -51,6 +53,19 @@ def main():
         metavar="VARIANT",
         help=f"launch in a specific feature variant: {', '.join(_VALID_VARIANTS)}",
     )
+    parser.add_argument(
+        "--theme",
+        choices=_VALID_THEMES,
+        metavar="THEME",
+        help=f"use this appearance theme for this run only ({', '.join(_VALID_THEMES)}); "
+        "overrides the saved setting without changing it",
+    )
+    parser.add_argument(
+        "--no-restore",
+        action="store_true",
+        help="start with a default layout instead of the last session's, for this run only; "
+        "the stored session is kept and the next normal launch uses it again",
+    )
     args, qt_args = parser.parse_known_args()
 
     app = QApplication([sys.argv[0]] + qt_args)
@@ -59,7 +74,10 @@ def main():
         _apply_variant(args.variant)
 
     # Before MainWindow, so every widget is built against the final palette.
-    apply_theme(app, get_app_config().get_theme())
+    # --theme overrides the stored value for this process only: nothing writes
+    # it back, so launching a second window in the other theme (to compare the
+    # two, or to capture a matched screenshot pair) leaves the setting alone.
+    apply_theme(app, args.theme or get_app_config().get_theme())
 
     set_language(get_app_config().get_language())
 
@@ -68,6 +86,12 @@ def main():
     window = MainWindow()
     window.resize(width, height)
     window.show()
+
+    # After show(), because restoring geometry and splitter sizes needs a window
+    # that has been laid out, and before the VTK block below, whose xterm check
+    # must see the terminal mode the restore chose rather than the default.
+    if not args.no_restore:
+        restore_session(app, window)
 
     # Eagerly initialise VTK so it claims the OpenGL context before WebEngine's
     # GPU process can grab it.  Skip when xterm is the default (VTK stays idle

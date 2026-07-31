@@ -350,6 +350,31 @@ class TestReset:
         assert mgr2.get_default_case_dir() is None
 
 
+class TestSettingsWereReset:
+    """The flag that stops a shut-down from writing a deleted config file back."""
+
+    def test_false_on_a_fresh_manager(self, manager):
+        assert manager.settings_were_reset is False
+
+    def test_set_by_deleting_the_config_file(self, manager):
+        manager.delete_config_file()
+        assert manager.settings_were_reset is True
+
+    def test_set_even_when_there_was_no_file_to_delete(self, config_path, manager):
+        assert not config_path.exists()
+        manager.delete_config_file()
+        assert manager.settings_were_reset is True
+
+    def test_an_in_memory_reset_alone_does_not_set_it(self, manager):
+        manager.reset()
+        assert manager.settings_were_reset is False
+
+    def test_does_not_survive_into_the_next_run(self, config_path, manager):
+        manager.delete_config_file()
+        manager.save()
+        assert AppConfigManager(config_path=str(config_path)).settings_were_reset is False
+
+
 class TestWindowSizeFallback:
     def test_get_window_size_or_default_returns_config_value(self, manager):
         manager.set_window_size(1280, 720)
@@ -590,3 +615,140 @@ class TestOpenfoamDir:
         config_path.write_text("{ broken", encoding="utf-8")
         mgr = AppConfigManager(config_path=str(config_path))
         assert mgr.get_openfoam_dir() is None
+
+
+class TestSessionRestore:
+    def test_enabled_by_default(self, manager):
+        assert manager.get_restore_session() is True
+
+    def test_disabling_persists_and_is_written_to_json(self, config_path):
+        mgr1 = AppConfigManager(config_path=str(config_path))
+        mgr1.set_restore_session(False)
+        mgr1.save()
+        assert "restore_session" in json.loads(config_path.read_text(encoding="utf-8"))
+        assert AppConfigManager(config_path=str(config_path)).get_restore_session() is False
+
+    def test_enabled_is_not_written_to_json(self, config_path, manager):
+        manager.save()
+        assert "restore_session" not in json.loads(config_path.read_text(encoding="utf-8"))
+
+    def test_state_round_trips(self, config_path):
+        mgr1 = AppConfigManager(config_path=str(config_path))
+        mgr1.set_session_state({"upper_tab": "Tree"})
+        mgr1.save()
+        mgr2 = AppConfigManager(config_path=str(config_path))
+        assert mgr2.get_session_state() == {"upper_tab": "Tree"}
+
+    def test_disabling_keeps_the_stored_state(self, manager):
+        """The setting decides whether a layout is applied, not whether it exists.
+        Discarding one is Forget Saved Session's job (see TestClearSessions)."""
+        manager.set_session_state({"upper_tab": "Tree"})
+        manager.set_restore_session(False)
+        assert manager.get_session_state() == {"upper_tab": "Tree"}
+
+    def test_off_then_on_returns_the_same_state(self, manager):
+        manager.set_session_state({"upper_tab": "Tree"})
+        manager.set_restore_session(False)
+        manager.set_restore_session(True)
+        assert manager.get_session_state() == {"upper_tab": "Tree"}
+
+    def test_a_non_dict_state_reads_back_as_none(self, config_path):
+        config_path.write_text(json.dumps({"sessions": {"terminal+blockmesh": "nope"}}),
+                               encoding="utf-8")
+        mgr = AppConfigManager(config_path=str(config_path))
+        assert mgr.get_session_state() is None
+
+    def test_a_non_dict_sessions_key_reads_back_as_none(self, config_path):
+        config_path.write_text(json.dumps({"sessions": ["nope"]}), encoding="utf-8")
+        assert AppConfigManager(config_path=str(config_path)).get_session_state() is None
+
+    def test_reset_clears(self, manager):
+        manager.set_session_state({"upper_tab": "Tree"})
+        manager.reset()
+        assert manager.get_session_state() is None
+        assert manager.get_restore_session() is True
+
+
+class TestClearSessions:
+    """What Settings > Forget Saved Session calls."""
+
+    def test_has_stored_sessions_is_false_when_nothing_is_stored(self, manager):
+        assert manager.has_stored_sessions() is False
+
+    def test_has_stored_sessions_is_true_once_one_is(self, manager):
+        manager.set_session_state({"upper_tab": "Tree"})
+        assert manager.has_stored_sessions() is True
+
+    def test_clears_every_feature_sets_layout(self, manager):
+        manager.set_features({"terminal": True, "blockmesh": True})
+        manager.set_session_state({"upper_tab": "Tree"})
+        manager.set_features({"terminal": False, "blockmesh": False})
+        manager.set_session_state({"upper_tab": "Editor"})
+
+        manager.clear_sessions()
+
+        assert manager.has_stored_sessions() is False
+        assert manager.get_session_state() is None
+        manager.set_features({"terminal": True, "blockmesh": True})
+        assert manager.get_session_state() is None
+
+    def test_leaves_the_setting_itself_alone(self, manager):
+        manager.set_session_state({"upper_tab": "Tree"})
+        manager.clear_sessions()
+        assert manager.get_restore_session() is True
+
+    def test_the_cleared_state_does_not_come_back_from_disk(self, config_path, manager):
+        manager.set_session_state({"upper_tab": "Tree"})
+        manager.save()
+        manager.clear_sessions()
+        manager.save()
+        assert "sessions" not in json.loads(config_path.read_text(encoding="utf-8"))
+        assert AppConfigManager(config_path=str(config_path)).get_session_state() is None
+
+
+class TestSessionKey:
+    """Layouts are partitioned by the feature flags that decide which panels exist."""
+
+    def test_reflects_the_layout_features(self, manager):
+        manager.set_features({"terminal": True, "blockmesh": True})
+        assert manager.session_key() == "terminal+blockmesh"
+        manager.set_features({"terminal": False, "blockmesh": True})
+        assert manager.session_key() == "blockmesh"
+        manager.set_features({"terminal": False, "blockmesh": False})
+        assert manager.session_key() == "minimal"
+
+    def test_non_layout_features_do_not_split_the_key(self, manager):
+        manager.set_features({"terminal": True, "blockmesh": True})
+        before = manager.session_key()
+        manager.set_feature("syntax_highlighting", False)
+        assert manager.session_key() == before
+
+    def test_variants_do_not_overwrite_each_other(self, manager):
+        manager.set_features({"terminal": True, "blockmesh": True})
+        manager.set_session_state({"upper_tab": "Tree"})
+        manager.set_features({"terminal": False, "blockmesh": False})
+        assert manager.get_session_state() is None
+        manager.set_session_state({"upper_tab": "Boundary"})
+        manager.set_features({"terminal": True, "blockmesh": True})
+        assert manager.get_session_state() == {"upper_tab": "Tree"}
+
+
+class TestClearSessionGeometry:
+    """What makes Reset Window Size outlive the next restore."""
+
+    def test_drops_size_and_position_but_keeps_the_rest(self, manager):
+        manager.set_session_state(
+            {"geometry": "blob", "window_size": [900, 700], "upper_tab": "Tree"}
+        )
+        manager.clear_session_geometry()
+        assert manager.get_session_state() == {"upper_tab": "Tree"}
+
+    def test_clears_every_variants_geometry(self, manager):
+        manager.set_features({"terminal": True, "blockmesh": True})
+        manager.set_session_state({"window_size": [900, 700]})
+        manager.set_features({"terminal": False, "blockmesh": False})
+        manager.set_session_state({"window_size": [800, 600]})
+        manager.clear_session_geometry()
+        assert manager.get_session_state() == {}
+        manager.set_features({"terminal": True, "blockmesh": True})
+        assert manager.get_session_state() == {}

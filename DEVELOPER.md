@@ -12,6 +12,9 @@ foam-dictionary-editor/
 ├── docs/
 │   └── images/              # screenshots used in USER_GUIDE.md
 ├── tools/
+│   ├── capture_screenshots.py     # rebuild the docs/SCREENSHOTS.md gallery from tools/screenshot_specs.json: applies a saved window state to a real MainWindow and captures it with ImageMagick's `import -frame`; one process per shot per theme, so a light/dark pair differs only in theme (see "Screenshot capture")
+│   ├── screenshot_specs.json      # the gallery's shot list: one ui/window_state.py WindowState per image, plus the output filename per theme
+│   ├── capture_dialog.py          # the other half of the gallery: dialogs, which are top-level X windows of their own and so out of capture_screenshots.py's reach. Shots live in a DIALOG_SHOTS dict rather than a JSON spec (a dialog is built from typed Python arguments); same theme/language/import rules (see "Screenshot capture")
 │   ├── generate_foam_keywords.py  # CLI wrapper around app_config/keyword_generator.py; --dir picks an installation root (default: sourced environment)
 │   └── roundtrip_corpus.py        # parse+write every dictionary of an installation's tutorials and count the byte-identical ones; the measurement behind the release-note round-trip figure
 ├── tutorials/               # bundled example cases (GPL-3.0, see tutorials/README.md)
@@ -101,6 +104,8 @@ foam-dictionary-editor/
 ├── ui/
 │   ├── app_state.py            # AppState dataclass: all 16 shared mutable fields (diff is a nested DiffState, undo a nested UndoState holding the global UndoSnapshot undo/redo stacks); MainWindow sets self.state = AppState()
 │   ├── theme.py               # Theme mode (system/light/dark), the readable_selection_pair() contrast rule that repairs Qt's desktop-inherited Highlight/HighlightedText pair, and the ThemeColors table every semantic UI colour resolves through via colors()
+│   ├── window_state.py         # WindowState/BlockMeshViewState dataclasses plus capture_window_state()/apply_window_state(): the parts of the layout that are a choice rather than a consequence (geometry, splitters, tabs, open file, tree selection, 3-D toggles and camera), JSON-serialisable so a state survives between processes; the strict/lenient split (from_dict + apply_window_state's `strict` flag, load_saved_state) exists because its two consumers disagree: a screenshot spec must fail loudly, a restored session must degrade quietly
+│   ├── session_restore.py      # the between-runs wire over window_state.py: save_session() from MainWindow.closeEvent (before the panels are torn down, no auto-save), restore_session() from main.py after show(); layouts stored per feature set via AppConfigManager.session_key(), the 3-D camera re-applied on a timer because the case-load renders end in reset_camera(), skipped parts reported in the status bar
 │   ├── mixins/
 │   │   ├── _boundary_ops.py        # mixin: boundary view patch operations
 │   │   ├── _case_ops.py            # mixin: open/reload/duplicate/save-as case, settings
@@ -142,7 +147,7 @@ foam-dictionary-editor/
 │   │   └── _worker_thread.py  # _CancellableWorkerThread(QThread): shared progress/finished_err signals + cancel() flag for _SearchThread (find_examples_dialog) and _GeneratorThread (generate_keywords_dialog); each subclass adds its own finished_ok signal and run()
 │   ├── panels/
 │   │   ├── block_mesh_panel.py     # 3-D viewer for blockMeshDict (pyVista/VTK, lazy init); also overlays topoSetDict (topoSet ▾ menu), snappyHexMeshDict (snappyHexMesh ▾ menu), setFieldsDict regions (setFields ▾ menu), and sampling definitions (sample ▾ menu; union of controlDict functions {} plus standalone system/sample-style dicts, kept per source basename in _sampling_by_file) geometry, each with per-shape visibility toggles, Show all/Hide all actions, and a "Non-geometric sources (N)" submenu for entries with no drawable geometry; delegates actor setup to block_mesh_renderer.BlockMeshRenderer; STL ▾ menu holds the same per-file rows for loaded STL/OBJ surfaces (block_mesh_renderer.LoadedSurface, one palette colour each, with an Unload submenu) plus "Export Shapes as STL…", which opens dialogs/export_stl_dialog.ExportStlDialog
-│   │   ├── block_mesh_renderer.py  # BlockMeshRenderer: VTK render pipeline for blockMeshDict/topoSetDict/snappyHexMeshDict/setFieldsDict geometry via RenderSettings dataclass; _make_shape_mesh dispatches on geometry dict keys (box, boxes, centre+radius incl. list-radius ellipsoid and hollow innerRadius, p1+p2+radius, origin+i+j+k, stl_path, planePoint+planeNormal disc sized via plane_size; points returns None — drawn as markers instead) shared by all overlay sources; overlay shapes are clipped (display-only) to the block-mesh AABB expanded 10%/axis via _clip_to_bounds — labels gain "✂ clipped" / "⚠ outside block mesh" marks, an enclosing shape falls back to its AABB overlap box, and STL export stays unclipped; _render_boundary_faces also draws BlockMeshData.default_faces in fainter "empty" grey; only imported after the pyvista guard passes
+│   │   ├── block_mesh_renderer.py  # BlockMeshRenderer: VTK render pipeline for blockMeshDict/topoSetDict/snappyHexMeshDict/setFieldsDict geometry via RenderSettings dataclass; _make_shape_mesh dispatches on geometry dict keys (box, boxes, centre+radius incl. list-radius ellipsoid and hollow innerRadius, p1+p2+radius, origin+i+j+k, stl_path, planePoint+planeNormal disc sized via plane_size; points returns None — drawn as markers instead) shared by all overlay sources; overlay shapes are clipped (display-only) to the block-mesh AABB expanded 10%/axis via _clip_to_bounds — labels gain "(clipped)" / "(outside block mesh)" marks (ASCII: VTK's label font draws no glyph at all for a pictograph), an enclosing shape falls back to its AABB overlap box, and STL export stays unclipped; _render_boundary_faces also draws BlockMeshData.default_faces in fainter "empty" grey; only imported after the pyvista guard passes
 │   │   ├── boundary_view_panel.py
 │   │   ├── comparison_tree_panel.py  # read-only reference-case tree; emits use_value_requested(FoamNode)
 │   │   ├── detail_panel.py
@@ -161,6 +166,7 @@ foam-dictionary-editor/
     ├── conftest.py
     ├── test_lint.py             # runs ruff + mypy (both whole-repo) as part of the pytest suite
     ├── test_version.py          # _version.get_version(): git-describe formatting (exact tag, ahead-of-tag, dirty, bare hash, no-git fallback)
+    ├── test_i18n.py             # i18n/ja.py's TRANSLATIONS has no duplicate keys (an AST walk, since a dict literal silently keeps only the last)
     ├── foam/
     │   ├── test_block_mesh_extractor.py
     │   ├── test_diff.py
@@ -177,6 +183,7 @@ foam-dictionary-editor/
     │   ├── test_sampling_extractor.py
     │   ├── test_set_fields_extractor.py
     │   ├── test_snappy_hex_mesh_extractor.py
+    │   ├── test_sampling_shapes_tutorial.py
     │   ├── test_source_lines.py
     │   ├── test_topo_set_extractor.py
     │   ├── test_topo_set_shapes_tutorial.py
@@ -191,6 +198,7 @@ foam-dictionary-editor/
     │   ├── test_file_list_model.py
     │   └── test_tree_model.py
     ├── ui/
+    │   ├── test_app_state.py
     │   ├── test_apply_comparison_value.py
     │   ├── test_block_mesh_panel_load_stl.py
     │   ├── test_block_mesh_panel_sampling_select.py
@@ -229,7 +237,10 @@ foam-dictionary-editor/
     │   ├── test_tree_copy_paste.py
     │   ├── test_tree_inline_edit_dirty.py
     │   ├── test_tree_undo_redo.py
-    │   └── test_view_log_summary_action.py
+    │   ├── test_update_viewer_panels.py
+    │   ├── test_view_log_summary_action.py
+    │   ├── test_session_restore.py
+    │   └── test_window_state.py
     ├── services/
     │   ├── test_backup.py
     │   ├── test_case_copier.py
@@ -244,8 +255,10 @@ foam-dictionary-editor/
     │   ├── test_foam_env.py
     │   ├── test_json_io.py
     │   └── test_keyword_generator.py
-    └── schemas/
-        └── test_schemas.py
+    ├── schemas/
+    │   └── test_schemas.py
+    └── tools/
+        └── test_capture_dialog.py
 ```
 
 ### Documentation map
@@ -283,6 +296,7 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 - `test_sampling_extractor.py` — `extract_sampling_data`: probes in a `functions {}` block, dict-form `sets {}` line/cloud members and the parenthesised list form (in a functions {} block and at file root, sampleDict-style), `plane`/`cuttingPlane`/`patch` surface members, root-level `singleGraph`-style `start`/`end`, standalone `sample`/`probes` files, `$var` resolution, and non-sampling function objects being ignored.
 - `test_set_fields_extractor.py` — `extract_set_fields_data`: box/sphere/cylinder region extraction (entry name as source type), the `fieldValues` label summary (scalar and vector values), non-geometric source classification (`zoneToCell`), `$var` resolution, and the unresolvable-geometric-source case.
 - `test_topo_set_shapes_tutorial.py` — `extract_topo_set_data` against the bundled `tutorials/topoSetShapes` case: every geometry source is extracted and all shapes lie within the domain.
+- `test_sampling_shapes_tutorial.py` — the same for `tutorials/samplingShapes` and `extract_sampling_data`: probes read out of a `controlDict` `functions {}` block with a non-sampling function object beside them ignored entirely, both member-list syntaxes (`sets { … }` and `surfaces ( … );`), a cloud carrying points rather than a span, both plane spellings, a `patch` surface listed as non-geometric, and every named point inside the domain. Plus the one thing a coverage check would miss: each shape's badge is projected through the gallery camera and asserted to stay clear of the others, because a shape moved in the case can hide another's badge behind it — two of the six were invisible while the case was being built.
 - `test_tree_utils.py` — direct `tree_utils` resolver contracts (the extractor tests only exercise them indirectly): `find_child`/`find_child_any` alias precedence, `expand_evals`, `resolve_scalar` (scalar/int/macro/`${…}`/`#eval`), `resolve_vector` arity/numeric guards, `resolve_point_list`, the sphere/cylinder/cone resolvers with their opt-in flags, and `resolve_box_geometry` (min/max vs `box` pair vs multi-`boxes` precedence and flag gating).
 - `test_utils.py` — `is_large_non_foam_file`: small files never flagged regardless of header, large files with a `FoamFile` token in the first 512 bytes not flagged, large files without it flagged, missing files return `(False, 0)`, a header preceded by a comment is still detected.
 - `test_value_parse.py` — `parse_parenthesized_numbers`/`parse_text_for_node_type`/`set_node_value` directly (no Qt): int accept/reject and its promotion to scalar on a float-looking string, scalar accept/reject, vector/int_list/scalar_list/box_pair accept/reject, raw_list paren-stripping, bool case-insensitive accept/reject, word/string/macro/compound pass-through, an unsupported node_type rejected, and `set_node_value`'s field_value/directive_entry/unknown_raw_entry special cases plus its in-place mutation contract (rejected edits leave the node completely unchanged).
@@ -296,13 +310,14 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 - `test_tree_model.py` — `set_diff(reverse=True)`: remaps `"only_here"` to `"only_in_ref"`, leaves `"changed"` unchanged, returns the light-green `BackgroundRole` colour, includes `"only in reference case"` in the tooltip. `FoamNode` carries `__hash__ = object.__hash__` so instances can be used as dict keys in the diff map. Block numbering: `block N` keys step over a `directive_entry` row so the first block below an `#include` still reads `block 0`, and the per-list cache behind that is dropped on an insert.
 
 **`tests/ui/`**
+- `test_app_state.py` — `ui/app_state.py`'s `AppState` defaults: `diff` is a `DiffState`, the scalar fields start empty, the mutable fields are writable, and two instances do not share a `parsed_roots` — the mistake a plain class attribute would make.
 - `test_apply_comparison_value.py` — `_apply_comparison_value` ("Use this value"): creating missing parent dictionaries when adopting a nested entry (e.g. `functions/forces1/rhoInf` into a case without `functions {}`), appending unnamed `#includeFunc` directives by content into an existing block without overwriting it, skipping an identical directive instead of duplicating it, the plain named-value overwrite path, and refusing when the enclosing key exists but is not a dictionary.
 - `test_block_mesh_panel_load_stl.py` — the `STL ▾` menu's loaded surfaces: multi-file selection in one `getOpenFileNames` invocation, an unreadable file leaving the readable ones loaded (one warning naming the failures), a cancelled dialog as a no-op; then the per-file rows — one row and one palette colour per file (first is `lightgray`), individual hide vs. unload, per-row checked state surviving an unload or a re-load of the same path (which refreshes in place rather than duplicating), and a surface loaded with no `blockMeshDict` reaching the renderer (via a stub renderer) including the clearing render when the last one is unloaded.
 - `test_block_mesh_panel_sampling_select.py` — the `sample ▾` per-shape visibility menu: population from a controlDict `functions {}` block (rows tagged with the source basename), individual/master toggling, greyed-out non-geometric entries, the multi-file union (controlDict + system/sample) with per-file replacement on reload, two dicts sharing a basename in different directories staying separate (`_sampling_by_file` is keyed by full path, labelled by basename), and `clear()` resetting `_sampling_by_file`.
 - `test_block_mesh_panel_set_fields_select.py` — the `setFields ▾` per-shape visibility menu: population from the bundled damBreak tutorial's `setFieldsDict` (rows labelled with the `fieldValues` summary), individual/master toggling, greyed-out non-geometric sources, inclusion in STL export, and clearing on reload.
 - `test_block_mesh_panel_snappy_select.py` — the `snappyHexMesh ▾` per-shape visibility menu: population, individual/master toggling, the surface/region/geometry category-colour legend, greyed-out non-geometric sources, `locationInMesh`/`locationsInMesh` keep-point toggles.
 - `test_block_mesh_panel_topo_select.py` — the `topoSet ▾` per-shape visibility menu: population, individual/master toggling, Show all/Hide all, the action-colour legend, the "Non-geometric sources (N)" submenu of greyed-out entries, and the exclusion of point/plane shapes from STL export.
-- `test_block_mesh_renderer_topo.py` — `_make_shape_mesh` geometry generation for cones (true and frustum), hollow annuli, `rotatedBoxToCell`, sphere (scalar radius and vector-radius ellipsoid), and `stl_path` mesh loading (present and missing file, plus a gzip-compressed `.stl.gz` file via `read_surface_mesh`); `read_surface_mesh` plain-file passthrough; the overlay clip helpers (`_expanded_bounds` per-axis padding incl. degenerate 2-D axes; `_clip_to_bounds` fits-inside/clipped/outside/enclosing-stand-in cases).
+- `test_block_mesh_renderer_topo.py` — `_make_shape_mesh` geometry generation for cones (true and frustum), hollow annuli, `rotatedBoxToCell`, sphere (scalar radius and vector-radius ellipsoid), and `stl_path` mesh loading (present and missing file, plus a gzip-compressed `.stl.gz` file via `read_surface_mesh`); `read_surface_mesh` plain-file passthrough; the overlay clip helpers (`_expanded_bounds` per-axis padding incl. degenerate 2-D axes; `_clip_to_bounds` fits-inside/clipped/outside/enclosing-stand-in cases, and that a clip seals what it cuts — a box cut through both ends and a cylinder both come back with no open edges, a box's side faces stay whole quads rather than triangle pairs, and a plane declines the capped path and falls back); and the scene text VTK draws — `_mark_label`'s suffixing, and an AST walk asserting every non-docstring string literal in `block_mesh_renderer.py` is ASCII, since that font drew the previous `✂`/`⚠` clip marks and the bounds readout's `→` as nothing at all.
 - `test_block_mesh_selected_block.py` — the tree → 3-D block highlight: no block highlighted initially, `set_selected_block` reaching `RenderSettings.selected_block`, clearing it, a new mesh dropping it; `_highlight_selected_block` forwarding a `block_entry` row index and clearing on any other row; and `_render_selected_block` drawing nothing for `None` or an out-of-range index (proved by passing a `None` plotter, which any `add_mesh` call would blow up on).
 - `test_bm_side_by_side_multi_dict.py` — the `⊞` side-by-side corner button (`_update_bm_side_by_side_btn`): enabled for `blockMeshDict`, `topoSetDict`, `snappyHexMeshDict`, and `controlDict` (sampling overlay); disabled for an unrelated dict (e.g. `fvSchemes`). Also asserts the tree/BlockMesh splitter panes are non-collapsible and the panel keeps its 150-px minimum width.
 - `test_flow_layout.py` — `FlowLayout` (ui/widgets/flow_layout.py): minimum width equals the widest single item, `heightForWidth` wrapping when narrowed, item order/positions after a wrap, and `takeAt` bookkeeping.
@@ -333,8 +348,11 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 - `test_tree_color_lexer_dispatch.py` — `unknown_raw_entry` amber colouring, the parser `_PAREN_DISPATCH` table.
 - `test_tree_copy_paste.py` — tree Copy/Paste Value: round-tripping a copied value, pasting across differently-typed nodes, guards that reject unsupported node types.
 - `test_tree_undo_redo.py` — snapshot-based tree undo/redo: an inline edit undone restores the value, editor text, and clean dirty flag (and redo re-applies it); multi-step undo; a new edit clearing the redo branch; rejected edits' stray snapshots being skipped; delete/add-entry round-trips; one CRUD operation producing exactly one snapshot (no signal double-checkpoint); a multi-file snapshot restoring every file; stacks cleared on case reload; and the depth cap.
+- `test_update_viewer_panels.py` — `MainWindow._update_viewer_panels`: the file-name → 3-D viewer dispatch, parametrised over each dictionary that drives an overlay, an unrelated dictionary dispatching to nothing, and Apply Text to Tree refreshing the snappyHexMesh overlay. That last one is why the helper exists: the dispatch was copy-pasted into the load, save and tree-edit paths, and the apply copy had no snappyHexMeshDict case, so applying edited snappy text never refreshed the 3-D view.
 - `test_tree_inline_edit_dirty.py` — inline Tree-panel cell edits marking the file dirty and regenerating the editor text; confirms a rejected edit leaves the file clean.
 - `test_view_log_summary_action.py` — `_on_view_log_summary_clicked`: reopening after the dialog was closed (it's only hidden, not destroyed, so the cached instance must be re-shown, not just raised), the no-case-dir no-op, and following a case switch (`_load_case_dir` pushes the new directory into the already-open dialog immediately via `set_case_dir()`, not just on the next menu click).
+- `test_window_state.py` — `ui/window_state.py` and the screenshot spec it feeds: JSON round-trip of every field, unknown keys and malformed cameras rejected, the defaults merge (including `False` overriding a `True` default, which is what `side_by_side` needs), key-path addressing by name and by row number for anonymous entries, capture from a live `MainWindow`, the lenient counterparts of all of that (unknown fields dropped, malformed cameras/sizes/splitter sizes dropped, an unusable blob giving `None`; a missing case dir, missing file, large non-dictionary file, unknown tab, unknown splitter and vanished tree row each skipped and named in the returned notes instead of raising), and structural checks on `tools/screenshot_specs.json` (valid states, no two shots writing the same file, known path placeholders, and a compare shot naming both its cases outside `$HOME` — the diff bar prints the reference's full path into the image). The capture tool itself is not covered — it needs a real X display.
+- `test_session_restore.py` — `ui/session_restore.py`: that a close stores a layout under the right key and stores nothing when the setting is off, that restore reports honestly when there is nothing to apply, that a damaged blob (a renamed field, a changed field shape, a truncated camera, a moved case, a tab label from another language) never raises, and a full round-trip of the case, the open file and the selected tree row from one real `MainWindow` into a second one.
 
 **`tests/services/`**
 - `test_backup.py` — backup-file naming (`.bak_<timestamp>`) and content (captures the in-memory buffer when the file is open, the on-disk version otherwise).
@@ -354,6 +372,9 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 
 **`tests/schemas/`**
 - `test_schemas.py` — `ChoiceItem`/`KeySchema`, `schema_config.json` load/save/reset/delete, `SchemaRegistry` plain/parent-qualified/grandparent-qualified lookup, the `snappyHexMeshDict` schema module, the configured module list.
+
+**`tests/tools/`**
+- `test_capture_dialog.py` — `tools/capture_dialog.py`'s shot list as plain data, the counterpart of `test_window_state.py`'s screenshot-spec checks: names matching their keys, no two shots writing the same file, every shot referenced by both gallery pages and its image present, and `requires()` naming what is missing rather than raising a traceback. Shots are split by where their inputs come from — the capture machine, or the repository — and a third test asserts every shot is classified as one or the other, so adding one forces the choice. It also pins the private `FindExamplesDialog` attributes the `find-examples` shot drives, and asserts the run-tool shot's warning and prefix text still appear in `ui/mixins/_tools_ops.py`, so the gallery cannot end up showing a dialog the app never produces. The capture itself is not covered — it needs a real X display.
 
 ## Parser and data model
 
@@ -807,7 +828,10 @@ pip install -r requirements-dev.txt
 python3 main.py                                   # standard (terminal + BlockMesh)
 python3 main.py --variant no-terminal             # no terminal tab
 python3 main.py --variant no-terminal-blockmesh   # no terminal + BlockMesh always visible
+python3 main.py --theme dark                      # this run only; the saved setting is untouched
 ```
+
+The `--theme` flag (`system`/`light`/`dark`) overrides the stored **Settings > Appearance** value for one process without writing it back, so two windows in different themes can run side by side and neither changes what the next launch uses. `tools/capture_screenshots.py` relies on this.
 
 The `--variant` flag loads `presets/<name>.json`, overwrites the `features` dict in the config singleton, and saves the result to `app_config.json` on exit. Subsequent launches without `--variant` use the saved flags. Feature flags default to `true` when absent, so a developer's personal `app_config.json` (which is git-ignored and typically has no `features` key) always starts in standard mode.
 
@@ -889,11 +913,93 @@ The terminal mode toggle (`TerminalPanel.mode_changed` signal) shuts down VTK be
 
 **Axes widget** — `add_axes()` creates a `vtkOrientationMarkerWidget` that persists across `plotter.clear()` calls (it is a widget, not an actor). It is therefore called once in `_init_plotter()`. `_render()` calls `show_axes()` / `hide_axes()` to toggle it, rather than re-adding it each frame.
 
+**Text drawn by VTK, not Qt** — the 3-D scene's own text (shape name badges, vertex and block numbers, the bounds readout, the orientation triad's letters, the grid's tick labels) goes through VTK's built-in label font, which is not the desktop font stack Qt draws with. That font silently draws **nothing** for a character it has no glyph for — no placeholder box — so a symbol that looks right in a Qt menu can vanish inside a 3-D label while still taking up its width. Two shipped that way until 2026-07-30: `✂`/`⚠` in `_CLIP_MARK_SUFFIX`, and the `→` separating the two numbers of each axis in the **Dimensions** bounds readout, which reached the screen as `X  0   3  (3 m)`. Square brackets are no better — they render as parentheses. Keep every string in `block_mesh_renderer.py` to ASCII; `tests/ui/test_block_mesh_renderer_topo.py` walks the module's AST and asserts exactly that, docstrings excepted, because the bounds readout was an inline f-string that a per-constant check walked straight past. The test catches a character that *cannot* be drawn, not one that merely looks wrong, so new scene text still wants a look on screen — a missing glyph is invisible to `assert`. `block_mesh_panel.py`'s `▾`, `·`, `📍` and `…` are unaffected: those are Qt widget text.
+
 **Side-by-side mode** — A `⊞` toggle button (`_bm_side_by_side_btn`) is added as a `QTabWidget` corner widget. When enabled, `_on_toggle_bm_side_by_side` reparents `block_mesh_panel` from the `upper_tabs` `QTabWidget` into `_tree_bm_splitter` (a `QSplitter(Qt.Horizontal)` that wraps `right_upper_splitter` and is itself the content of the Tree tab). The Tree tab is switched to first so the splitter is visible before reparenting; `setSizes([1,1])` and `_init_plotter()` are deferred to the next event-loop tick via `QTimer.singleShot(0, ...)`. When side-by-side mode is turned off, `block_mesh_panel` is moved back into `upper_tabs` as a normal tab. `_update_bm_side_by_side_btn` (`ui/mixins/_panel_ops.py`) enables the button when the current file's name is `blockMeshDict`, `topoSetDict`, `snappyHexMeshDict`, `setFieldsDict`, or one of the sampling names (`SAMPLING_DICT_NAMES`: `controlDict`, `sample`, `probes`, `surfaces`, `singleGraph`) — all render into the same 3-D view (see `block_mesh_extractor.py`, `topo_set_extractor.py`, `snappy_hex_mesh_extractor.py`, `set_fields_extractor.py`, `sampling_extractor.py`), the BlockMesh tab itself is on, and xterm is not active; it is disabled (and side-by-side mode force-exited) otherwise.
 
 **Comparison panel visibility** — `comparison_panel` is added to `right_upper_splitter` at startup but immediately hidden (`comparison_panel.hide()`). Qt `QSplitter` ignores hidden children, so no handle or gap appears. `_on_side_by_side_toggled(True)` calls `comparison_panel.show()` before `setSizes`; `_on_side_by_side_toggled(False)` and `_clear_diff` call `comparison_panel.hide()` after.
 
 **Preview mode** — `BlockMeshPanel` carries two extra flags set on every `update_block_mesh()` call: `_has_variables` (True when the `vertices` raw_list value contains a `$` character) and `_preview_mode` (False by default, toggled by the **Preview** button). When `_has_variables` is True a `_vtx_info_bar` widget (amber **⚙ Variable-based** chip + **Preview** toggle) appears inside the Vertices group box above the table, and the X/Y/Z cells are made read-only (`rw_flags = ro_flags`). When `_preview_mode` is True the cells are editable and `_on_cell_changed` calls `_render()` directly instead of emitting `vertices_changed` — keeping the tree and file untouched. `_on_refresh()` re-extracts from `self._root` before calling `_render()` when in preview mode, which both resets the vertex data and exits preview.
+
+## Screenshot capture
+
+`docs/SCREENSHOTS.md`'s gallery is captured by `tools/capture_screenshots.py` from the shot list in `tools/screenshot_specs.json`. It exists because hand-captured images go stale: the main-window shot sat un-retaken from May 2026 until 2026-07-30, by which point it predated the Tools menu, the key filter box and the case-root and included-files groups. Running the tool twice with different `--theme` values on one spec yields a light/dark pair that differs in nothing but colour.
+
+```bash
+DISPLAY=:1 python3 tools/capture_screenshots.py --all                    # whole gallery, both themes
+DISPLAY=:1 python3 tools/capture_screenshots.py main-window-tree-editor --theme dark --out /tmp/shots
+python3 tools/capture_screenshots.py --list                              # what the spec defines
+DISPLAY=:1 python3 tools/capture_screenshots.py <shot> --interactive     # adjust by hand, print the resulting state
+```
+
+**A real X display is required.** Offscreen Qt aborts VTK, so there is no headless mode. `--out` defaults to `docs/images/`, so aim a first run somewhere else.
+
+**Capture goes through ImageMagick, not Qt.** `QWidget.grab()` returns black for the BlockMesh panel's native child window (same root cause as the GPU notes above), so the window is captured with `import -frame -window <winId()>`. `-frame` also keeps the title bar and borders that every existing gallery image has, and yields the same 1228×866 for a 1200×800 window. The window id comes from `QWidget.winId()`, so no window-manager query or title matching is involved — but `import` reads the *screen*, so the window is moved to (0, 0) and raised, and anything overlapping it would be captured instead.
+
+**Nothing is written back to `app_config.json`.** The theme comes from `--theme` rather than the saved setting (`main.py`'s `--theme` flag does the same for a normal run), the language is forced to English, and the window is never closed — `MainWindow.closeEvent` is what saves the window size, so not calling it is what keeps a capture from changing the user's settings.
+
+**One process per shot per theme.** The script re-executes itself (`--_worker`), so no shot can inherit state from the one before it. Each worker ends in `os._exit` because VTK's teardown at interpreter exit can abort even after a clean `shutdown()`, which would report a good capture as a failure.
+
+### What a spec pins, and what it does not
+
+A shot's `state` is a `WindowState` (`ui/window_state.py`) — see that module's docstring for the field list. Specs read and apply through the **strict** path, and should keep doing so: an unknown field, a tab label that does not exist or a tree row that has been renamed out from under a spec is a broken spec, and a shot that quietly captures the wrong window is worse than one that fails. The lenient path next to it (`load_saved_state`, `apply_window_state(..., strict=False)`) belongs to `ui/session_restore.py` and is easy to reach for by accident. `defaults` in the spec is laid under every shot. `case_dir` may use `{repo}` for the repository root and `{cases}` for the capture machine's OpenFOAM run directory (`--cases-dir`, or `$FODE_CASES_DIR`), since the tutorial cases the gallery uses live outside the repository.
+
+Only choices are pinned. Tree expansion beyond the selected row's ancestors, scroll offsets, the editor's cursor and fold state and the detail panel's contents all follow from the file that is open and the row that is selected, so the specs pin the selection and let the rest follow — the shots were chosen so that this is enough. `tree_expand` is the one escape hatch, for rows that must be open without being selected.
+
+Two things about a spec are easy to get wrong and worth knowing:
+
+- **`preload_files`** — the 3-D viewer accumulates geometry across the dicts it has seen, so a `snappyHexMeshDict` overlay is drawn inside the block mesh only if `blockMeshDict` was opened too. Every 3-D shot preloads it.
+- **`block_mesh_visible`** — switching the terminal out of xterm mode re-enables the **View > BlockMesh 3-D Panel** menu item but leaves it unchecked, so the tab does not come back on its own. A shot wanting the 3-D panel says so explicitly.
+
+### Compare mode
+
+A shot may carry a `compare_with` key beside its `state`, naming the reference case for compare mode. It is deliberately **not** a `WindowState` field: that dataclass is shared with `ui/session_restore.py`, so a field there would change what a saved session restores — a product decision rather than a screenshot one — and compare mode is a consequence rather than the sort of choice `WindowState` holds, since starting one forces side-by-side on. The tool instead calls `MainWindow._start_comparison_with`, the same entry point **Case > Compare with Case…** and the Find Examples dialog use, so the shot shows the real thing.
+
+Two things follow from doing it after `apply_window_state` rather than inside it. The per-file diff counts are precomputed on a zero-timer, so the file-list marks need an event-loop turn before they appear; and starting a comparison un-hides the reference pane, which makes Qt share the splitter space out afresh — so pinned sizes are applied again afterwards, splitter-only.
+
+**A compare shot needs both cases outside `$HOME`**, and so names absolute paths rather than `{repo}`: the diff bar prints the reference case's full path into the image, and this repository lives under a home directory. Same rule and same reason as `capture_dialog.py`'s log-summary case:
+
+```bash
+mkdir -p /tmp/OpenFOAM/run && cp -r tutorials/cavity/cavity tutorials/cavity/cavityGrade /tmp/OpenFOAM/run/
+```
+
+Sizes travel as `QSplitter.saveState()` / `QWidget.saveGeometry()` blobs (base64 in JSON), which round-trip exactly and stay valid across Qt versions, unlike a list of pixel sizes. Those blobs are not writable by hand, so `splitter_sizes` (plain pixel widths, applied via `setSizes`) is the authoring form; it is only as exact as the `window_size` it was chosen for, which is why both are pinned together.
+
+The camera is `plotter.camera_position` — `(position, focal point, view up)`, which round-trips as three 3-tuples. It has to be applied *after* the last render, because `BlockMeshRenderer.render` ends in `reset_camera()`; hence `apply_block_mesh_view` being callable on its own, and the tool calling it again after the settle delay (the deferred VTK re-initialisation after a terminal-mode switch lands inside that window).
+
+### Dialogs
+
+A dialog is a top-level X window of its own rather than part of the main window's frame, so `capture_screenshots.py` — which applies a `WindowState` to one `MainWindow` and captures that — cannot reach one. `tools/capture_dialog.py` is the other half:
+
+```bash
+DISPLAY=:1 python3 tools/capture_dialog.py --all
+DISPLAY=:1 python3 tools/capture_dialog.py log-summary --out /tmp/shots
+python3 tools/capture_dialog.py --list
+```
+
+Its shots live in a `DIALOG_SHOTS` dict in the module rather than in a JSON spec, because a dialog is built from typed Python arguments and a schema to express those buys nothing at this scale. Everything else follows the rules above and for the same reasons: `--theme` and a forced English language rather than the saved settings, `import -frame` rather than `QWidget.grab()`, and nothing written back to `app_config.json`.
+
+**A shot must not put the capturing user's name in the gallery.** The log summary reproduces the `Case:` line out of the log file itself, so a case run from a home directory prints that path into the image. Hence `DEFAULT_CASE` of `/tmp/OpenFOAM/run/pitzDaily`, and this recipe to produce it — the tutorial is deterministic, so any machine gets the same numbers:
+
+```bash
+mkdir -p /tmp/OpenFOAM/run && cp -r "$FOAM_TUTORIALS/incompressible/simpleFoam/pitzDaily" /tmp/OpenFOAM/run/ && cd /tmp/OpenFOAM/run/pitzDaily && blockMesh > log.blockMesh 2>&1 && simpleFoam > log.simpleFoam 2>&1
+```
+
+The same rule applies to any shot added later: check the image for `/home/<name>` before committing it. `find_foam_example.png` predates the rule and happens to satisfy it, having been taken on a machine whose user was called `user`, and showing only the installation path `/usr/lib/openfoam/openfoam2606/...`.
+
+Each shot pairs a `requires` with its `build`. `requires` answers "does this machine have what the shot reads?" and raises naming what is missing; keeping it out of `build` means the question can be asked without a `QApplication`, which is what lets the tests cover it. Two shots read something the capture machine has to supply (a run case, an installation); `run-tool` reads the bundled `tutorials/damBreak`, since the restore-`0/` prefix it exists to show only appears for a case with a `0.orig/` — so its inputs travel with a checkout.
+
+The `run-tool` shot hands `RunToolDialog` the warning and prefix text that `ui/mixins/_tools_ops.py` would hand it, copied rather than imported because they are inline literals in a mixin and reaching for them would mean standing up a `MainWindow`. The test suite asserts those strings still appear in that file, so the gallery cannot end up showing a dialog the app never produces.
+
+A shot whose content is not ready when the dialog is constructed gets a `prepare` hook, run after `show()` and handed a `pump(ms)` to turn the event loop with. `find-examples` is the case that needed it: its search runs in a `QThread`, so the shot types the query, starts the search, waits for the results tree to fill (capped — a capture must not hang), then selects one result to populate the preview. That hook drives `FindExamplesDialog` through its private widgets, which is the trade for not adding capture-only accessors to a production dialog; `tests/tools/test_capture_dialog.py` pins the names it reaches for, so a rename fails in the suite rather than halfway through a capture run that needs an X display.
+
+Like `capture_screenshots.py`, this one re-executes itself once per shot (`--_worker`). The reason there is that no shot should inherit stray state from the one before it; here there is a harder one too, since `QApplication` is a singleton and a second shot in the same process cannot have one.
+
+### Not covered
+
+`tools-menu.png` has no spec and no shot. An open menu is neither a window of its own nor part of the main window's frame — it is a popup that closes as soon as focus moves — so it is still the one image taken by hand.
+
+The specs capture in `light`, never `system`: a system-themed window inherits the capture machine's desktop palette, which is the one thing about a shot that cannot be reproduced elsewhere. The gallery's light images were hand-captured in `system` mode until 2026-07-30, which is why the current ones show FoDE's own blue selected-row fill rather than the desktop accent, and Fusion widgets rather than the desktop style.
 
 ## Testing
 

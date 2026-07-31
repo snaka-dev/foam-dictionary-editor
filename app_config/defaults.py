@@ -9,3 +9,8 @@ DEFAULT_CASE_DIRECTORY = str(Path.home())
 
 # Theme mode: "system" follows the desktop, "light"/"dark" force a Fusion palette.
 DEFAULT_THEME = "system"
+
+# Reopen the last session's layout, case and files at startup. On by default:
+# the window size has always been restored, so a clean-slate launch was never
+# what this application promised. Settings > Restore Last Session turns it off.
+DEFAULT_RESTORE_SESSION = True

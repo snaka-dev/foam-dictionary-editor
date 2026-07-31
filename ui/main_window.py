@@ -53,6 +53,7 @@ from ui.panels.detail_panel import DetailPanel
 from ui.panels.editor_panel import EditorPanel
 from ui.panels.file_list_panel import FileListPanel
 from ui.panels.terminal_panel import TerminalPanel
+from ui.session_restore import save_session
 from ui.theme import colors, splitter_qss
 
 if TYPE_CHECKING:
@@ -304,7 +305,10 @@ class MainWindow(
             self.upper_tabs.setCornerWidget(self._bm_side_by_side_btn, Qt.Corner.TopRightCorner)
         self.upper_tabs.setMinimumSize(0, 0)
 
-        right_splitter = QSplitter(Qt.Orientation.Vertical)
+        # Kept as an attribute so the whole splitter layout can be read back and
+        # restored as one (see ui/window_state.py).
+        self.right_splitter = QSplitter(Qt.Orientation.Vertical)
+        right_splitter = self.right_splitter
         right_splitter.addWidget(self.upper_tabs)
         right_splitter.addWidget(self.bottom_tabs)
         right_splitter.setSizes([SPLITTER_UPPER_HEIGHT, SPLITTER_LOWER_HEIGHT])
@@ -427,6 +431,27 @@ class MainWindow(
             self.generate_foam_keywords
         )
         settings_menu.addAction(tr("Reset Window Size")).triggered.connect(self.reset_window_size)
+        settings_menu.addSeparator()
+        self._restore_session_action = QAction(tr("Restore Last Session on Startup"), self)
+        self._restore_session_action.setCheckable(True)
+        self._restore_session_action.setChecked(get_app_config().get_restore_session())
+        self._restore_session_action.setToolTip(
+            tr("Reopen the window layout, case and files from the last time the "
+               "application was closed. Unticking this keeps what is stored; use "
+               "Forget Saved Session to discard it.")
+        )
+        self._restore_session_action.toggled.connect(self._on_restore_session_toggled)
+        settings_menu.addAction(self._restore_session_action)
+        self._forget_session_action = QAction(tr("Forget Saved Session"), self)
+        self._forget_session_action.setToolTip(
+            tr("Discard the stored window layouts, including those of the other "
+               "variants. The next launch opens a default window.")
+        )
+        self._forget_session_action.setEnabled(get_app_config().has_stored_sessions())
+        self._forget_session_action.triggered.connect(self._forget_saved_session)
+        settings_menu.addAction(self._forget_session_action)
+        # The stored layout changes at close, long after this menu was built.
+        settings_menu.aboutToShow.connect(self._refresh_forget_session_action)
         settings_menu.addSeparator()
         settings_menu.addAction(tr("Reset All Settings…")).triggered.connect(self.reset_all_settings)
         settings_menu.addSeparator()
@@ -606,14 +631,24 @@ class MainWindow(
         if not self._confirm_discard_if_needed():
             event.ignore()
             return
+        cfg = get_app_config()
+        # "Reset All Settings" deleted app_config.json earlier in this run.
+        # Capturing the layout and window size below would recreate the file and
+        # undo the reset, so this run persists nothing — the dialog has already
+        # told the user to restart.
+        persist = not cfg.settings_were_reset
+        if persist:
+            # Before the panels are torn down: a shut-down BlockMesh panel has no
+            # camera left to read, and a cleaned-up terminal no mode.
+            save_session(self)
         self._stop_foam_monitor()
         if self.terminal_panel is not None:
             self.terminal_panel.cleanup()
         if self.block_mesh_panel is not None:
             self.block_mesh_panel.shutdown()
-        cfg = get_app_config()
-        cfg.set_window_size(self.width(), self.height())
-        cfg.save()
+        if persist:
+            cfg.set_window_size(self.width(), self.height())
+            cfg.save()
         event.accept()
 
     # ── diff overlay ─────────────────────────────────────────────────────────

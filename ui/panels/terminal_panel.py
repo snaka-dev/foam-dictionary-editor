@@ -78,6 +78,21 @@ class TerminalPanel(QWidget):
     def tab_label(self) -> str:
         return "Terminal"
 
+    def set_use_xterm(self, use_xterm: bool) -> None:
+        """Switch backend as if the user had clicked the checkbox.
+
+        Goes through the same toggle path, so ``mode_changed`` still fires and
+        the BlockMesh panel is hidden/re-shown exactly as on a real click.
+        Switching to xterm is asynchronous (see ``_on_toggle``); switching back
+        to Simple completes before this returns. A request for xterm where it is
+        unavailable is ignored, as the disabled checkbox would.
+        """
+        if use_xterm and not _XTERM_AVAILABLE:
+            return
+        if use_xterm == self._use_xterm:
+            return
+        self._xterm_chk.setChecked(use_xterm)
+
     def cleanup(self) -> None:
         cleanup = getattr(self._widget, "cleanup", None)
         if callable(cleanup):

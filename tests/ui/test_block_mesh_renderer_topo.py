@@ -9,7 +9,9 @@ frustums rendered as cylinders.
 """
 from __future__ import annotations
 
+import ast
 import gzip
+import pathlib
 
 import numpy as np
 import pytest
@@ -20,14 +22,21 @@ import pyvista as pv
 
 from ui.panels.block_mesh_renderer import (
     _ACTION_COLORS,
+    _CLIP_MARK_SUFFIX,
     BlockMeshRenderer,
     _bounds_within,
+    _clip_capped,
     _clip_to_bounds,
     _expanded_bounds,
     _make_annular_frustum_mesh,
     _make_frustum_mesh,
     _make_rotated_box_mesh,
+    _mark_label,
     read_surface_mesh,
+)
+
+_RENDERER_PATH = (
+    pathlib.Path(__file__).resolve().parents[2] / "ui" / "panels" / "block_mesh_renderer.py"
 )
 
 
@@ -325,6 +334,58 @@ def test_clip_oversized_shape_is_limited():
         assert b[2 * i + 1] <= _UNIT_CLIP[2 * i + 1] + 1e-6
 
 
+def _open_edge_count(mesh) -> int:
+    """Boundary edges belonging to one face only — i.e. holes in the surface."""
+    surface = mesh if isinstance(mesh, pv.PolyData) else mesh.extract_surface()
+    return surface.extract_feature_edges(
+        boundary_edges=True,
+        feature_edges=False,
+        manifold_edges=False,
+        non_manifold_edges=False,
+    ).n_cells
+
+
+def test_clip_seals_the_cut_faces():
+    # Regression: a shape mesh is a hollow surface, so clipping away both of a
+    # box's z faces used to leave a tube. damBreak's setFieldsDict box spans
+    # z -1..1 against a mesh 0.0146 deep, and the front view — the only angle
+    # the case is recognisable from — looked straight through it.
+    mesh = pv.Box(bounds=[0.2, 0.8, 0.2, 0.8, -10.0, 10.0])
+    clipped, mark = _clip_to_bounds(mesh, _UNIT_CLIP)
+    assert mark == "clipped"
+    assert _open_edge_count(clipped) == 0
+
+
+def test_clip_seals_a_cylinder_cut_through_both_ends():
+    # A cylinder's seam carries duplicate points that read as non-manifold, so
+    # the capped clip only accepts it once they are merged.
+    mesh = pv.Cylinder(center=(0.5, 0.5, 0.5), direction=(0, 0, 1), radius=0.3, height=20)
+    clipped, mark = _clip_to_bounds(mesh, _UNIT_CLIP)
+    assert mark == "clipped"
+    assert _open_edge_count(clipped) == 0
+
+
+def test_clip_keeps_box_side_faces_unsplit():
+    # The wireframe pass is drawn over the clipped mesh, so triangulating the
+    # box would draw a diagonal across all six faces. The two caps VTK seals
+    # the cut with are triangle pairs; the four side faces stay whole quads.
+    mesh = pv.Box(bounds=[0.2, 0.8, 0.2, 0.8, -10.0, 10.0])
+    clipped, _mark = _clip_to_bounds(mesh, _UNIT_CLIP)
+    sizes = sorted(clipped.get_cell(i).n_points for i in range(clipped.n_cells))
+    assert sizes == [3, 3, 3, 3, 4, 4, 4, 4]
+
+
+def test_clip_capped_declines_a_non_manifold_shape():
+    # A plane disc has no volume to seal, so the capped path must decline and
+    # let _clip_to_bounds fall back rather than raise.
+    disc = pv.Plane(center=(0.5, 0.5, 0.5), direction=(0, 0, 1), i_size=10, j_size=10)
+    assert _clip_capped(disc, _UNIT_CLIP) is None
+    clipped, mark = _clip_to_bounds(disc, _UNIT_CLIP)
+    assert mark == "clipped"
+    assert clipped.n_cells > 0
+    assert _bounds_within(clipped.bounds, _UNIT_CLIP)
+
+
 def test_clip_shape_fully_outside_kept_and_marked():
     mesh = pv.Sphere(radius=0.5, center=(10.0, 0.0, 0.0))
     clipped, mark = _clip_to_bounds(mesh, _UNIT_CLIP)
@@ -369,6 +430,64 @@ def test_clip_asymmetric_partial_still_genuinely_clipped():
     for i in range(3):
         assert b[2 * i] >= _UNIT_CLIP[2 * i] - 1e-4
         assert b[2 * i + 1] <= _UNIT_CLIP[2 * i + 1] + 1e-4
+
+
+def _string_literals(path):
+    """Yield (line, value) for every non-docstring string literal in a module."""
+    tree = ast.parse(pathlib.Path(path).read_text(encoding="utf-8"))
+    docstrings = set()
+    for node in ast.walk(tree):
+        body = getattr(node, "body", None)
+        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) \
+                and isinstance(body[0].value.value, str):
+            docstrings.add(id(body[0].value))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) \
+                and id(node) not in docstrings:
+            yield node.lineno, node.value
+
+
+def test_every_string_this_module_can_draw_is_ascii():
+    """Regression: ✂, ⚠ and → all reached the 3-D scene as nothing at all.
+
+    Text in this module is drawn by VTK, not Qt. VTK's built-in label font has
+    no glyph for those characters and draws *nothing* for them — not even a
+    .notdef box — so the mark or separator was invisible while the surrounding
+    text still reserved its width. Both shipped that way: the clip badge read
+    "midPlane   clipped", and the bounds readout "X  0   3  (3 m)" where it
+    meant "0 → 3".
+
+    The whole module is checked rather than just _CLIP_MARK_SUFFIX, because the
+    bounds readout was an inline f-string and a per-constant test would have
+    walked straight past it. Docstrings are exempt: prose arrows are fine in
+    text that is never drawn. Note this catches a character that *cannot* be
+    drawn, not one that merely looks wrong — new scene text still wants a look
+    on screen, since a missing glyph is invisible to assert.
+    """
+    offenders = [
+        (line, value) for line, value in _string_literals(_RENDERER_PATH)
+        if not value.isascii()
+    ]
+    assert not offenders, "non-ASCII string literals in VTK-drawn module: " + "; ".join(
+        f"line {line}: {value!r}" for line, value in offenders
+    )
+
+
+def test_clip_marks_are_printable_ascii():
+    for mark, suffix in _CLIP_MARK_SUFFIX.items():
+        assert suffix.isascii(), f"{mark}: {suffix!r} is not ASCII"
+        assert suffix.isprintable(), f"{mark}: {suffix!r} is not printable"
+
+
+def test_mark_label_appends_the_suffix():
+    assert _mark_label("midPlane", "clipped") == "midPlane  (clipped)"
+    assert _mark_label("midPlane", "outside") == "midPlane  (outside block mesh)"
+
+
+def test_mark_label_unmarked_shape_keeps_its_name_alone():
+    assert _mark_label("box0", "") == "box0"
 
 
 def test_bounds_within_helper():

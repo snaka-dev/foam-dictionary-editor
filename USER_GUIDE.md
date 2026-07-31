@@ -57,6 +57,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 | Choose a variant (no-terminal, BlockMesh) | [Variants](#variants) |
 | Add schema help for custom keys | [Schema module configuration](#schema-module-configuration) |
 | Match syntax highlighting to my OpenFOAM version | [Generate OpenFOAM Keywords](#generate-openfoam-keywords) |
+| Reopen where I left off, or stop FoDE doing that | [Session restore](#session-restore) |
 | Configure application settings | [Application settings](#application-settings) |
 | Switch the UI language (English / 日本語) | Settings > Language |
 | Switch the colour theme (system / light / dark) | Settings > Appearance |
@@ -140,6 +141,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 - [Schema module configuration](#schema-module-configuration)
 - [Generate OpenFOAM Keywords](#generate-openfoam-keywords)
 - [Application settings](#application-settings)
+- [Session restore](#session-restore)
 - [Resetting settings](#resetting-settings)
 - [Resources dialog](#resources-dialog)
 
@@ -801,8 +803,8 @@ Definitions can come from several files at once (e.g. probes in `controlDict` pl
 setFieldsDict regions in particular are often written far larger than the domain (e.g. damBreak's `box (0 0 -1) (0.1461 0.292 1)` on a ~0.6 m tank) — drawn at full size they dwarf the block mesh. Whenever a block mesh is loaded, every overlay shape (topoSet, snappyHexMesh, setFields, and sampling) is therefore clipped, **for display only**, to the block-mesh bounding box expanded by 10% per axis:
 
 - A shape that fits inside the expanded bounds is drawn unchanged.
-- A shape that pokes out is cut down to the bounds and its scene label gains a **"✂ clipped"** mark, so the cut is not mistaken for the shape's real extent.
-- A shape lying entirely outside the block mesh is kept unclipped and labelled **"⚠ outside block mesh"**.
+- A shape that pokes out is cut down to the bounds and its scene label gains a **"(clipped)"** mark, so the cut is not mistaken for the shape's real extent.
+- A shape lying entirely outside the block mesh is kept unclipped and labelled **"(outside block mesh)"**.
 - A shape whose volume encloses the whole scene (no part of its surface falls inside the bounds) is drawn as its bounding-box overlap instead of disappearing.
 
 The clipping never modifies the dictionary or the extracted geometry: **Export Shapes as STL…** always writes the full shape, and no clipping is applied when no block mesh is loaded.
@@ -1010,7 +1012,9 @@ General application settings are stored in `app_config.json`, which is separate 
   "case_library_dirs": ["/home/user/my_templates"],
   "user_links": [{"label": "My reference", "url": "https://example.com"}],
   "features": {"terminal": true, "blockmesh": true},
-  "openfoam_dir": "/usr/lib/openfoam/openfoam2606"
+  "openfoam_dir": "/usr/lib/openfoam/openfoam2606",
+  "restore_session": true,
+  "sessions": {"terminal+blockmesh": {"…": "saved window layout"}}
 }
 ```
 
@@ -1022,6 +1026,8 @@ General application settings are stored in `app_config.json`, which is separate 
 | `user_links` | User-defined reference links shown in **Help > Resources... > My Links**. Each entry is `{"label": "…", "url": "…"}`. |
 | `features` | Feature flags set by `--variant` (see [Variants](#variants)). Omitting this key is equivalent to `{"terminal": true, "blockmesh": true}`. |
 | `openfoam_dir` | OpenFOAM installation chosen via **Browse…** in [Find OpenFOAM Examples](#find-openfoam-examples). Only written after browsing; auto-discovered installations are not stored. |
+| `restore_session` | Whether **Settings > Restore Last Session on Startup** is on. Only written when turned off; absent means on. See [Session restore](#session-restore). |
+| `sessions` | Saved window layouts, one per feature set (`terminal+blockmesh`, `blockmesh`, `minimal`), written when the application is closed. Hand-editing is not expected: unrecognised or malformed entries are ignored and replaced on the next close. |
 
 ### Setting the default case directory
 
@@ -1031,9 +1037,46 @@ Select **Settings > Set Default Case Directory** to set the directory that opens
 
 The main window opens at the size recorded in `app_config.json`. If the file does not exist, the default size of 1200×800 is used. The size is saved automatically on exit. To restore the default size, select **Settings > Reset Window Size**.
 
+## Session restore
+
+FoDE reopens where you left it. When the application is closed, it records the shape of the window and what was in it; the next launch puts that back before you touch anything.
+
+What is restored:
+
+- Window size and position, and the splitter positions between the file list, the tree, the detail pane and the bottom panel.
+- The active upper tab (**Tree** / **Boundary** / **BlockMesh**) and lower tab (**Editor** / **Terminal**), the Terminal's mode, and whether the 3-D panel is shown or in side-by-side mode.
+- The case directory, every file that was open, and which of them was on screen.
+- The selected tree row, and with it the editor position and detail pane that follow from it.
+- The BlockMesh panel's display toggles, label size and camera angle — the 3-D view comes back at the angle you left it, not reset to the default view.
+
+What is not restored is anything the window works out for itself: scroll positions, the editor's cursor and folded regions, and tree expansion beyond the ancestors of the selected row. Unsaved edits are not restored either — FoDE asks about those when you close, as it always has.
+
+### Turning it off
+
+**Settings > Restore Last Session on Startup** is ticked by default. Unticking it means the next launch opens a default window. It decides whether a stored layout is *applied*, nothing more: what is already stored stays stored, and closing the window while the setting is off does not overwrite it. Re-ticking it therefore returns you to the layout that was stored when you last unticked, which may be some time ago.
+
+To throw a layout away — one that has ended up somewhere unhelpful, or because it records case paths you would rather not keep — use **Settings > Forget Saved Session**. It discards the stored layouts of every variant, not just the one you are running, and is greyed out when there is nothing stored. The next launch then opens a default window and starts a fresh layout from there.
+
+For a single clean launch without changing either, use `python3 main.py --no-restore`. The stored session is kept, and the launch after that uses it again.
+
+### When something has moved
+
+A saved session describes a case that existed the last time you closed FoDE, and cases get renamed, files get deleted and dictionaries get edited elsewhere. Nothing in a saved session can stop the application opening. Each part that no longer applies is skipped on its own, the rest is restored, and a line in the status bar names what was left out:
+
+- If the case directory is gone, the layout is still restored but no files are opened.
+- If one file is gone, the others still open.
+- If the selected tree row no longer exists — the entry was deleted since — the file still opens, with no row selected.
+- A large non-dictionary file such as a `log.*` run log is not reopened. Opening one asks for confirmation because it freezes the window while it loads, and that is not a question to ask before you have started work; click the file to open it as usual.
+
+### Variants
+
+Each `--variant` keeps its own layout, because variants change which panels and tabs exist and a layout recorded with a terminal in it means nothing to a window that has none. Running one variant for an afternoon does not disturb another's saved layout. See [Variants](#variants).
+
 ## Resetting settings
 
 Select **Settings > Reset All Settings** to reset `app_config.json`, `schema_config.json`, or both to their default values. A confirmation dialog is shown before any changes are made.
+
+Resetting the application settings deletes `app_config.json`, and the reset holds: from that point on, closing the window writes nothing back. In particular the window layout and size of that session are not saved, so the next launch starts from the defaults the reset asked for — which is why the dialog asks you to restart. Settings you change deliberately after the reset, such as the theme, are still saved as usual.
 
 ## Terminal tab
 
@@ -1272,6 +1315,8 @@ The `tutorials/` directory in the repository root contains ready-to-open OpenFOA
 | `tutorials/oneBlocks-vars/` | `icoFoam` | As `oneBlocks` with variable substitution and compact face notation |
 | `tutorials/nineBlocks/` | `icoFoam` | 3×3 multi-block; regex boundary patches |
 | `tutorials/nineBlocks-vars/` | `icoFoam` | As `nineBlocks` with variable substitution and compact face notation |
+| `tutorials/topoSetShapes/` | `icoFoam` | Every `topoSetDict` geometry source the [topoSetDict overlay](#toposetdict-overlay) can draw, in one 3×3×3 block |
+| `tutorials/samplingShapes/` | `icoFoam` | The same for the [sampling overlay](#sampling-overlay): probe points, lines, a point cloud and both plane spellings, across all three files sampling can be written in |
 
 Open any case directly with **Case > Open Case** and navigate to the case subdirectory, or duplicate it to a working directory with **Case > Duplicate from Case Library** after adding `tutorials/` to the Case Library.
 
@@ -1507,6 +1552,8 @@ Folding is visual only: the underlying text is not modified. **Apply Text to Tre
 | **Follow System** (default) | Keeps the platform's native widget style and desktop palette — including your accent colour on Windows and the desktop theme on Linux. |
 | **Light** | Forces the Fusion style with FoDE's light palette, identical on every OS. |
 | **Dark** | Forces the Fusion style with FoDE's dark palette, identical on every OS. |
+
+To try a theme without changing the saved setting, pass `--theme` on the command line: `python3 main.py --theme dark` uses that theme for one run only, so two windows in different themes can sit side by side and neither of them decides what the next launch looks like. `system`, `light` and `dark` are accepted — the same three choices as the menu.
 
 Dark mode covers the BlockMesh 3-D viewer as well: the scene background, the axis and bounds text, vertex/block numbers, and the shape name badges all follow the theme. The patch and overlay colours themselves (wall orange, patch blue, the topoSet action colours, …) stay the same in both themes, because they identify what you are looking at rather than decorate it.
 

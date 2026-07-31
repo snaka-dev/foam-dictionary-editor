@@ -369,6 +369,9 @@ class _CaseOpsMixin(_Base):
             self.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
             cfg = get_app_config()
             cfg.set_window_size(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
+            # Otherwise the next session restore reapplies the saved geometry
+            # and the window comes back the size just reset away from.
+            cfg.clear_session_geometry()
             cfg.save()
             QMessageBox.information(
                 self,

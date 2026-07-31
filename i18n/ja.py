@@ -34,6 +34,19 @@ TRANSLATIONS: dict[str, str] = {
     "Reset File List": "ファイルリストをリセット",
     "Manage Schema Modules": "スキーマモジュールの管理",
     "Reset Window Size": "ウィンドウサイズをリセット",
+    "Restore Last Session on Startup": "起動時に前回のセッションを復元",
+    "Reopen the window layout, case and files from the last time the "
+    "application was closed. Unticking this keeps what is stored; use "
+    "Forget Saved Session to discard it.":
+        "前回アプリケーションを終了したときのウィンドウレイアウト・ケース・ファイルを復元します。"
+        "チェックを外しても保存されている内容は残ります。破棄するには Forget Saved Session を使用してください。",
+    "Forget Saved Session": "保存されたセッションを破棄",
+    "Discard the stored window layouts, including those of the other "
+    "variants. The next launch opens a default window.":
+        "保存されているウィンドウレイアウトを、他のバリアントのものも含めて破棄します。"
+        "次回起動時はデフォルトのウィンドウで開きます。",
+    "Saved session discarded.": "保存されたセッションを破棄しました。",
+    "Session restored, except: {details}": "セッションを復元しました（次を除く）: {details}",
     "Reset All Settings…": "すべての設定をリセット…",
     "View": "表示",
     "Show Type Column": "型列を表示",
@@ -498,7 +511,10 @@ TRANSLATIONS: dict[str, str] = {
     "Reset Settings": "設定のリセット",
     "Reset Options": "リセットオプション",
     "Application Settings (app_config.json)": "アプリケーション設定 (app_config.json)",
-    "Reset case directory, window size, and recent cases": "ケースディレクトリ、ウィンドウサイズ、最近のケースをリセット",
+    "Reset the case directory, window size, saved session, theme, "
+    "language, case library, and links":
+        "ケースディレクトリ、ウィンドウサイズ、保存されたセッション、テーマ、"
+        "言語、ケースライブラリ、リンクをリセット",
     "Schema Module Settings (schema_config.json)": "スキーマモジュール設定 (schema_config.json)",
     "Reset schema modules to default (controlDict, fvSchemes, fvSolution)":
         "スキーマモジュールをデフォルト（controlDict, fvSchemes, fvSolution）にリセット",
@@ -509,6 +525,8 @@ TRANSLATIONS: dict[str, str] = {
     "• Schema Module Settings\n": "• スキーマモジュール設定\n",
     "✓ Application settings reset successfully\n  (window size restored to {w}x{h})":
         "✓ アプリケーション設定をリセットしました\n  （ウィンドウサイズを {w}x{h} に復元）",
+    "  The window layout and size of this session are not saved.":
+        "  このセッションのウィンドウレイアウトとサイズは保存されません。",
     "✗ Failed to reset app settings: {e}": "✗ アプリ設定のリセットに失敗しました: {e}",
     "✓ Schema module settings reset successfully": "✓ スキーマモジュール設定をリセットしました",
     "✗ Failed to reset schema settings: {e}": "✗ スキーマ設定のリセットに失敗しました: {e}",

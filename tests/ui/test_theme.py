@@ -247,10 +247,19 @@ def test_diff_row_colours_are_distinct_from_each_other(table):
 def test_viewport_text_is_legible_on_the_viewport(table):
     """VTK has no palette, so the 3-D scene's text is themed by hand."""
     bg = QColor(table.viewport_bg)
-    for name in ("viewport_text", "viewport_grid", "viewport_vertex_label_fg",
-                 "viewport_block_label_fg"):
+    # 3.0 is the threshold for lines and other non-text marks. viewport_grid is
+    # in this group because it paints gridlines; the text sitting on those lines
+    # is viewport_grid_text, which is held to the stricter target below.
+    for name in ("viewport_grid",):
         ratio = contrast_ratio(QColor(getattr(table, name)), bg)
         assert ratio >= 3.0, (
+            f"{name}={getattr(table, name)} on viewport_bg={table.viewport_bg} "
+            f"is {ratio:.2f}:1"
+        )
+    for name in ("viewport_text", "viewport_grid_text", "viewport_vertex_label_fg",
+                 "viewport_block_label_fg"):
+        ratio = contrast_ratio(QColor(getattr(table, name)), bg)
+        assert ratio >= 4.5, (
             f"{name}={getattr(table, name)} on viewport_bg={table.viewport_bg} "
             f"is {ratio:.2f}:1"
         )

@@ -1,0 +1,64 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2512                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+
+// The second standalone sampling dictionary, written with the classic
+// parenthesised member list — `surfaces ( name { … } );` — rather than the
+// dictionary form system/sample uses. Both are valid OpenFOAM and the 3-D
+// panel reads either.
+
+type            surfaces;
+libs            (sampling);
+
+writeControl    onEnd;
+
+surfaceFormat   vtk;
+
+fields          (p U);
+
+surfaces
+(
+    // Vertical cut through the middle of the domain (every point with y = 1.5
+    // lies on it, so the point named here is only one of them). A plane is
+    // unbounded, so the disc FoDE draws is display only and says nothing about
+    // the sampled region: it is sized to the scene and then cut back to the
+    // mesh, which is why its badge reads "(clipped)". Both planes here end up
+    // badged near the middle of the domain whatever point they name, so the
+    // sets and probes are placed out towards the edges instead.
+    midCut
+    {
+        type        cuttingPlane;
+        point       (1.5 1.5 1.5);
+        normal      (0 1 0);
+        interpolate true;
+    }
+
+    // The same thing written the other way round, as a pointAndNormalDict.
+    lowCut
+    {
+        type        plane;
+        pointAndNormalDict
+        {
+            point   (1.5 1.5 0.5);
+            normal  (0 0 1);
+        }
+        interpolate true;
+    }
+
+    // A patch-type surface samples an existing boundary, so it carries no
+    // geometry of its own to draw. It is not dropped silently: the sample
+    // menu lists it under "Non-geometric sources".
+    outerWall
+    {
+        type        patch;
+        patches     (xMax);
+        interpolate true;
+    }
+);
+
+
+// ************************************************************************* //

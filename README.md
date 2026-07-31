@@ -99,7 +99,7 @@ Each heading links to the full documentation in [USER_GUIDE.md](USER_GUIDE.md).
 
 **[BlockMesh 3-D viewer](USER_GUIDE.md#blockmesh-panel)** *(requires pyvista / pyvistaqt)*
 - Interactive 3-D preview of `blockMeshDict` geometry — vertices, blocks, and boundary faces colour-coded by patch type — with `$variable` and `#eval` references resolved automatically
-- Overlays `topoSetDict` action geometry, `snappyHexMeshDict` `geometry {}` shapes (classified as surface / region / geometry-only), and `setFieldsDict` regions (labelled with their `fieldValues`), each with per-shape visibility toggles; shapes larger than the block mesh are clipped in the view and marked "✂ clipped"
+- Overlays `topoSetDict` action geometry, `snappyHexMeshDict` `geometry {}` shapes (classified as surface / region / geometry-only), and `setFieldsDict` regions (labelled with their `fieldValues`), each with per-shape visibility toggles; shapes larger than the block mesh are clipped in the view and marked "(clipped)"
 - Vertices table beside the 3-D view: edit a coordinate and see the change instantly; a Preview mode explores variable-based vertices without touching the file
 - Load STL/OBJ overlays — several at once, each with its own row and colour in the `STL ▾` menu — and export topoSet/snappyHexMesh/setFields shapes as STL files
 - **⊞** side-by-side mode shows the 3-D view next to the tree while editing `blockMeshDict`, `topoSetDict`, `snappyHexMeshDict`, or `setFieldsDict`
@@ -150,6 +150,8 @@ The `tutorials/` directory in the repository root contains ready-to-open OpenFOA
 | `tutorials/oneBlocks-vars/` | `icoFoam` | As `oneBlocks` with variable substitution and compact face notation |
 | `tutorials/nineBlocks/` | `icoFoam` | 3×3 multi-block; regex boundary patches |
 | `tutorials/nineBlocks-vars/` | `icoFoam` | As `nineBlocks` with variable substitution and compact face notation |
+| `tutorials/topoSetShapes/` | `icoFoam` | Every `topoSetDict` geometry source the 3-D viewer can overlay, in one 3×3×3 block |
+| `tutorials/samplingShapes/` | `icoFoam` | The same for the sampling overlay: probe points, lines, a point cloud and both plane spellings |
 
 The `cavity/` cases, `snappyMultiRegionHeater`, and `damBreak` are from the OpenFOAM v2512 standard tutorial set. The `oneBlocks*` and `nineBlocks*` cases are custom `blockMeshDict` cases derived from cavity for FoDE testing.
 

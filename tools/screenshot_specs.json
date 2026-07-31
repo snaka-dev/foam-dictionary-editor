@@ -1,0 +1,178 @@
+{
+  "_comment": [
+    "Specs for tools/capture_screenshots.py — the gallery in docs/SCREENSHOTS.md.",
+    "Each shot's `state` is a ui/window_state.py WindowState; `defaults` is laid",
+    "under every one of them. `case_dir` may use {repo} for this repository and",
+    "{cases} for the capture machine's OpenFOAM run directory (--cases-dir).",
+    "Only choices are pinned here: tree expansion beyond the selected row's",
+    "ancestors, editor scroll, folds and the detail panel follow from the open",
+    "file and the selected row, so they are left to follow.",
+    "Dialog shots are not here — a dialog is a top-level X window of its own,",
+    "not part of the main window's frame, so tools/capture_dialog.py takes",
+    "those. tools-menu.png is the one image still captured by hand: a menu is",
+    "a popup that closes as soon as focus moves."
+  ],
+  "defaults": {
+    "window_size": [1200, 800],
+    "upper_tab": "Tree",
+    "lower_tab": "Editor",
+    "side_by_side": false
+  },
+  "shots": {
+    "main-window-tree-editor": {
+      "note": "Tree + Editor + detail panel. xterm mode, so there is no BlockMesh tab.",
+      "outputs": {
+        "light": "main-window-tree-editor.png",
+        "dark": "main-window-tree-editor-dark.png"
+      },
+      "state": {
+        "terminal_mode": "xterm",
+        "case_dir": "{cases}/pitzDaily",
+        "current_file": "system/controlDict",
+        "tree_selection": ["startFrom"]
+      }
+    },
+    "main-window-boundary-editor": {
+      "note": "Boundary view tab: patches x fields for the whole case.",
+      "outputs": {
+        "light": "main-window-boundary-editor.png"
+      },
+      "state": {
+        "terminal_mode": "xterm",
+        "upper_tab": "Boundary",
+        "case_dir": "{cases}/pitzDaily",
+        "current_file": "0/U",
+        "tree_selection": ["boundaryField"]
+      }
+    },
+    "blockMesh3Dview-topoSet-topoSetShapes": {
+      "note": "Bundled tutorial exercising every topoSetDict shape the viewer draws.",
+      "outputs": {
+        "light": "blockMesh3Dview-topoSet-topoSetShapes.png"
+      },
+      "state": {
+        "terminal_mode": "simple",
+        "block_mesh_visible": true,
+        "upper_tab": "BlockMesh",
+        "case_dir": "{repo}/tutorials/topoSetShapes",
+        "preload_files": ["system/blockMeshDict"],
+        "current_file": "system/topoSetDict",
+        "tree_selection": ["actions", 5, "name"],
+        "splitter_sizes": {"right": [460, 260]},
+        "block_mesh": {
+          "toggles": {"boundary_faces": false, "vertex_table": false},
+          "label_font_size": 14,
+          "camera": [[6.31, -3.49, 4.71], [1.5, 1.5, 1.5], [0.0, 0.0, 1.0]]
+        }
+      }
+    },
+    "blockMesh3Dview-topoSet-floatingObject": {
+      "note": "OpenFOAM floatingObject tutorial: one boxToCell cellSet in the unit block.",
+      "outputs": {
+        "light": "blockMesh3Dview-topoSet-floatingObject.png"
+      },
+      "state": {
+        "terminal_mode": "simple",
+        "block_mesh_visible": true,
+        "upper_tab": "BlockMesh",
+        "case_dir": "{cases}/floatingObject",
+        "preload_files": ["system/blockMeshDict"],
+        "current_file": "system/topoSetDict",
+        "tree_selection": ["actions", 0, "name"],
+        "splitter_sizes": {"right": [460, 260]},
+        "block_mesh": {
+          "toggles": {"boundary_faces": false},
+          "label_font_size": 14,
+          "camera": [[2.26, -1.62, 1.91], [0.5, 0.5, 0.5], [0.0, 0.0, 1.0]]
+        }
+      }
+    },
+    "blockMesh3Dview-setFields-damBreak": {
+      "note": "Bundled damBreak tutorial: the setFieldsDict water column in the mesh.",
+      "outputs": {
+        "light": "blockMesh3Dview-setFields-damBreak.png"
+      },
+      "state": {
+        "terminal_mode": "simple",
+        "block_mesh_visible": true,
+        "upper_tab": "BlockMesh",
+        "case_dir": "{repo}/tutorials/damBreak",
+        "preload_files": ["system/blockMeshDict"],
+        "current_file": "system/setFieldsDict",
+        "tree_selection": ["regions", "boxToCell", "box"],
+        "splitter_sizes": {"right": [460, 260]},
+        "block_mesh": {
+          "toggles": {"boundary_faces": false},
+          "label_font_size": 14,
+          "camera": [[0.422, 0.141, 1.433], [0.292, 0.292, 0.007], [0.0, 1.0, 0.0]]
+        }
+      }
+    },
+    "blockMesh3Dview-sampling-samplingShapes": {
+      "note": "Bundled tutorial exercising every sampling shape the viewer draws, merged from three files.",
+      "outputs": {
+        "light": "blockMesh3Dview-sampling-samplingShapes.png"
+      },
+      "state": {
+        "terminal_mode": "simple",
+        "block_mesh_visible": true,
+        "upper_tab": "BlockMesh",
+        "case_dir": "{repo}/tutorials/samplingShapes",
+        "preload_files": [
+          "system/blockMeshDict",
+          "system/controlDict",
+          "system/sample"
+        ],
+        "current_file": "system/surfaces",
+        "tree_selection": ["surfaces", "midCut", "normal"],
+        "splitter_sizes": {"right": [460, 260]},
+        "block_mesh": {
+          "toggles": {"boundary_faces": false, "vertex_table": false},
+          "label_font_size": 14,
+          "camera": [[6.31, -3.49, 4.71], [1.5, 1.5, 1.5], [0.0, 0.0, 1.0]]
+        }
+      }
+    },
+    "main-window-compare": {
+      "note": "Compare mode: cavity against cavityGrade, on a file with a removed and two changed entries. Absolute paths, not {repo}: the diff bar prints the reference case's full path, which must not be a home directory. See DEVELOPER.md's Screenshot capture.",
+      "compare_with": "/tmp/OpenFOAM/run/cavityGrade",
+      "outputs": {
+        "light": "main-window-compare.png"
+      },
+      "state": {
+        "terminal_mode": "xterm",
+        "case_dir": "/tmp/OpenFOAM/run/cavity",
+        "current_file": "system/fvSchemes",
+        "tree_selection": ["laplacianSchemes", "default"],
+        "splitter_sizes": {"right_upper": [370, 345, 255]}
+      }
+    },
+    "blockMesh3Dview-snappyHex-motorBike": {
+      "note": "OpenFOAM motorBike tutorial in side-by-side mode; the light/dark pair.",
+      "outputs": {
+        "light": "blockMesh3Dview-snappyHex-motorBike.png",
+        "dark": "blockMesh3Dview-snappyHex-motorBike-dark.png"
+      },
+      "state": {
+        "terminal_mode": "simple",
+        "block_mesh_visible": true,
+        "side_by_side": true,
+        "case_dir": "{cases}/motorBike",
+        "preload_files": ["system/blockMeshDict"],
+        "current_file": "system/snappyHexMeshDict",
+        "tree_expand": [["castellatedMeshControls", "refinementSurfaces", "motorBike"]],
+        "tree_selection": ["castellatedMeshControls", "refinementRegions", "refinementBox"],
+        "splitter_sizes": {
+          "right": [460, 260],
+          "right_upper": [300, 0, 0],
+          "tree_bm": [300, 690]
+        },
+        "block_mesh": {
+          "toggles": {"boundary_faces": false, "vertex_table": false},
+          "label_font_size": 10,
+          "camera": [[15.75, -15.5, 10.45], [4.0, 1.0, 2.0], [0.0, 0.0, 1.0]]
+        }
+      }
+    }
+  }
+}

@@ -181,6 +181,11 @@ class ThemeColors:
     viewport_bg: str
     viewport_text: str
     viewport_grid: str
+    # The grid's tick labels and axis titles, kept separate from the grid lines
+    # they sit on. A gridline is decoration and may stay faint, but the numbers
+    # beside it have to be read, so the two want different contrast targets and
+    # cannot share one value.
+    viewport_grid_text: str
     viewport_label_fg: str
     viewport_label_bg: str
     viewport_vertex_label_fg: str
@@ -241,6 +246,7 @@ _LIGHT = ThemeColors(
     viewport_bg="#FFFFFF",
     viewport_text="#000000",
     viewport_grid="#808080",
+    viewport_grid_text="#555555",
     viewport_label_fg="#000000",
     viewport_label_bg="#FFFFFF",
     viewport_vertex_label_fg="#000000",
@@ -301,6 +307,7 @@ _DARK = ThemeColors(
     viewport_bg="#2E3238",
     viewport_text="#E6E6E6",
     viewport_grid="#9A9A9A",
+    viewport_grid_text="#C8C8C8",
     viewport_label_fg="#141414",
     viewport_label_bg="#D8D8D8",
     viewport_vertex_label_fg="#FFFFFF",

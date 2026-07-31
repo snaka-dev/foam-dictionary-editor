@@ -12,6 +12,9 @@ foam-dictionary-editor/
 ├── docs/
 │   └── images/              # USER_GUIDE.md で使用するスクリーンショット
 ├── tools/
+│   ├── capture_screenshots.py     # tools/screenshot_specs.json から docs/SCREENSHOTS.md のギャラリーを再生成する。保存されたウィンドウ状態を実際の MainWindow に適用し、ImageMagick の `import -frame` で撮影する。ショット × テーマごとに別プロセスで実行するため、light/dark のペアはテーマ以外が完全に一致する（「スクリーンショットの撮影」参照）
+│   ├── screenshot_specs.json      # ギャラリーのショット一覧。画像 1 枚につき ui/window_state.py の WindowState 1 つと、テーマごとの出力ファイル名
+│   ├── capture_dialog.py          # ギャラリーのもう半分であるダイアログを撮影する。ダイアログは独立したトップレベル X ウィンドウであり capture_screenshots.py からは手が届かないため。ショットは JSON spec ではなく DIALOG_SHOTS 辞書に置く（ダイアログは型付き Python 引数から構築するため）。テーマ・言語・import のルールは共通（「スクリーンショットの撮影」参照）
 │   ├── generate_foam_keywords.py  # app_config/keyword_generator.py の CLI ラッパー。--dir でインストールルートを指定（デフォルト: source 済み環境）
 │   └── roundtrip_corpus.py        # インストール済み tutorials の全辞書を parse+write してバイト単位で一致した件数を数える。リリースノートのラウンドトリップ数値の測定元
 ├── tutorials/               # 同梱サンプルケース（GPL-3.0、tutorials/README.md 参照）
@@ -101,6 +104,8 @@ foam-dictionary-editor/
 ├── ui/
 │   ├── app_state.py            # AppState データクラス: 共有可変フィールドすべて（`current_case_dir`、`current_file`、`current_root`、`current_model`、`file_buffers`、`file_dirty`、`text_dirty`、`source_lines_valid`、`syncing`、`case_files_config`、`parsed_roots`、`diff`、`foam_monitor`、`run_tool_options`、`undo`、`bm_side_by_side`）。`diff` は `DiffState` サブデータクラス（`case_dir`、`parsed_roots`）。`foam_monitor` は `FoamMonitorState` サブデータクラス（`proc`、`script_tmp`、`last_file`、`last_options`）。`undo` は `UndoState` サブデータクラス（ファイルごとの `UndoSnapshot` スタックと `op_active`/`restoring` ガード）。`MainWindow.__init__` が `self.state = AppState()` を生成し、すべての Mixin が `self.state.<field>` として共有状態にアクセス
 │   ├── theme.py               # テーマモード（system/light/dark）、Qt がデスクトップから継承する Highlight/HighlightedText の組を修復する readable_selection_pair() のコントラスト規則、および colors() 経由で解決されるすべての UI 意味色を保持する ThemeColors テーブル
+│   ├── window_state.py         # WindowState / BlockMeshViewState データクラスと capture_window_state() / apply_window_state()。レイアウトのうち「結果」ではなく「選択」である部分（ジオメトリ、スプリッタ、タブ、開いているファイル、ツリー選択、3-D のトグルとカメラ）を扱う。JSON 化できるため、状態をプロセス間で受け渡せる。strict / lenient の使い分け（from_dict と apply_window_state の `strict` フラグ、load_saved_state）は、2 つの利用側の要求が逆であることに由来する: スクリーンショット spec は失敗を大きく報せるべきで、復元されるセッションは静かに劣化すべき
+│   ├── session_restore.py      # window_state.py の上に載る「実行間の配線」。save_session() は MainWindow.closeEvent から（パネル破棄前、自動保存はしない）、restore_session() は main.py の show() 後から呼ばれる。レイアウトは AppConfigManager.session_key() ごとに保存し、ケース読み込み時の描画が reset_camera() で終わるため 3-D カメラはタイマーで再適用、スキップした部分はステータスバーに表示
 │   ├── main_window.py          # オーケストレータ。`MainWindow` は 13 個の Mixin を継承。自身のファイルは `__init__`、`_build_ui`、共有ヘルパーのみを扱う。`file_list_panel`、`tree`、`editor_panel` などの UI ウィジェット参照は素の `self` 属性のまま残り、可変データ状態はすべて `self.state` に置かれる
 │   ├── mixins/
 │   │   ├── _boundary_ops.py        # Mixin: バウンダリビューのパッチ操作
@@ -142,7 +147,7 @@ foam-dictionary-editor/
 │   │   └── _worker_thread.py  # _CancellableWorkerThread（QThread）: find_examples_dialog の _SearchThread と generate_keywords_dialog の _GeneratorThread が共有する progress/finished_err シグナルと cancel() フラグ。各サブクラスは自身の finished_ok シグナルと run() を追加する
 │   ├── panels/
 │   │   ├── block_mesh_panel.py     # blockMeshDict 用 3D ビューア（pyVista/VTK、遅延初期化）。topoSetDict（topoSet ▾ メニュー）、snappyHexMeshDict（snappyHexMesh ▾ メニュー）、setFieldsDict の領域（setFields ▾ メニュー）、サンプリング定義（sample ▾ メニュー。controlDict の functions {} とスタンドアロンの system/sample 系辞書の合算を _sampling_by_file に元ファイル名ごとに保持）のジオメトリもそれぞれシェイプ単位の表示切替・Show all/Hide all アクション・描画不能エントリ用の「Non-geometric sources (N)」サブメニュー付きで重ねて表示する。アクター構築は block_mesh_renderer.BlockMeshRenderer に委譲。STL ▾ メニューには読み込み済み STL/OBJ サーフェス用の同じファイル別の行（block_mesh_renderer.LoadedSurface。1 ファイル 1 色、Unload サブメニュー付き）があり、「Export Shapes as STL…」は dialogs/export_stl_dialog.ExportStlDialog を開く
-│   │   ├── block_mesh_renderer.py  # BlockMeshRenderer: RenderSettings データクラス経由の blockMeshDict/topoSetDict/snappyHexMeshDict/setFieldsDict ジオメトリ用 VTK レンダリングパイプライン。_make_shape_mesh はジオメトリ辞書のキー（box、boxes、centre+radius〈リスト radius によるだ円体と innerRadius による中空球を含む〉、p1+p2+radius、origin+i+j+k、stl_path、planePoint+planeNormal〈plane_size で寸法指定される円板〉。points は None を返しマーカーとして別途描画）で分岐し全オーバーレイソースで共有される。オーバーレイシェイプは _clip_to_bounds により、ブロックメッシュの AABB を各軸 10% 拡大した範囲へ（表示上のみ）クリップされる — ラベルには「✂ clipped」/「⚠ outside block mesh」マークが付き、シーンを包み込むシェイプは AABB の重なりボックスにフォールバックし、STL エクスポートはクリップされない。_render_boundary_faces は BlockMeshData.default_faces も薄い "empty" グレーで描画する。pyvista のガードを通過した後にのみインポートされる
+│   │   ├── block_mesh_renderer.py  # BlockMeshRenderer: RenderSettings データクラス経由の blockMeshDict/topoSetDict/snappyHexMeshDict/setFieldsDict ジオメトリ用 VTK レンダリングパイプライン。_make_shape_mesh はジオメトリ辞書のキー（box、boxes、centre+radius〈リスト radius によるだ円体と innerRadius による中空球を含む〉、p1+p2+radius、origin+i+j+k、stl_path、planePoint+planeNormal〈plane_size で寸法指定される円板〉。points は None を返しマーカーとして別途描画）で分岐し全オーバーレイソースで共有される。オーバーレイシェイプは _clip_to_bounds により、ブロックメッシュの AABB を各軸 10% 拡大した範囲へ（表示上のみ）クリップされる — ラベルには「(clipped)」/「(outside block mesh)」マークが付き（ASCII のみ: VTK のラベルフォントは絵文字記号のグリフをまったく描画しない）、シーンを包み込むシェイプは AABB の重なりボックスにフォールバックし、STL エクスポートはクリップされない。_render_boundary_faces は BlockMeshData.default_faces も薄い "empty" グレーで描画する。pyvista のガードを通過した後にのみインポートされる
 │   │   ├── boundary_view_panel.py
 │   │   ├── comparison_tree_panel.py  # 読み取り専用の参照ケースツリー。use_value_requested(FoamNode) シグナルを発行
 │   │   ├── detail_panel.py
@@ -161,6 +166,7 @@ foam-dictionary-editor/
     ├── conftest.py
     ├── test_lint.py             # pytest スイートの一部として ruff + mypy（どちらもリポジトリ全体）を実行
     ├── test_version.py          # _version.get_version(): git describe の整形（タグ一致、タグより先行、dirty、ハッシュのみ、git 無しフォールバック）
+    ├── test_i18n.py             # i18n/ja.py の TRANSLATIONS に重複キーがないこと（dict リテラルは最後のものだけを黙って残すため、AST で走査して検査）
     ├── foam/
     │   ├── test_block_mesh_extractor.py
     │   ├── test_diff.py
@@ -177,6 +183,7 @@ foam-dictionary-editor/
     │   ├── test_sampling_extractor.py
     │   ├── test_set_fields_extractor.py
     │   ├── test_snappy_hex_mesh_extractor.py
+    │   ├── test_sampling_shapes_tutorial.py
     │   ├── test_source_lines.py
     │   ├── test_topo_set_extractor.py
     │   ├── test_topo_set_shapes_tutorial.py
@@ -191,6 +198,7 @@ foam-dictionary-editor/
     │   ├── test_file_list_model.py
     │   └── test_tree_model.py
     ├── ui/
+    │   ├── test_app_state.py
     │   ├── test_apply_comparison_value.py
     │   ├── test_block_mesh_panel_load_stl.py
     │   ├── test_block_mesh_panel_sampling_select.py
@@ -229,7 +237,10 @@ foam-dictionary-editor/
     │   ├── test_tree_copy_paste.py
     │   ├── test_tree_inline_edit_dirty.py
     │   ├── test_tree_undo_redo.py
-    │   └── test_view_log_summary_action.py
+    │   ├── test_update_viewer_panels.py
+    │   ├── test_view_log_summary_action.py
+    │   ├── test_session_restore.py
+    │   └── test_window_state.py
     ├── services/
     │   ├── test_backup.py
     │   ├── test_case_copier.py
@@ -244,8 +255,10 @@ foam-dictionary-editor/
     │   ├── test_foam_env.py
     │   ├── test_json_io.py
     │   └── test_keyword_generator.py
-    └── schemas/
-        └── test_schemas.py
+    ├── schemas/
+    │   └── test_schemas.py
+    └── tools/
+        └── test_capture_dialog.py
 ```
 
 ### ドキュメントマップ
@@ -283,6 +296,7 @@ foam-dictionary-editor/
 - `test_sampling_extractor.py` — `extract_sampling_data`: `functions {}` ブロック内の probes、辞書形式 `sets {}` の line/cloud メンバーと、丸括弧リスト形式（`functions {}` ブロック内とファイルルートの sampleDict スタイルの両方）、`plane`/`cuttingPlane`/`patch` サーフェスメンバー、トップレベルの `singleGraph` スタイル `start`/`end`、スタンドアロンの `sample`/`probes` ファイル、`$var` の解決、サンプリング以外のファンクションオブジェクトの無視。
 - `test_set_fields_extractor.py` — `extract_set_fields_data`: box/sphere/cylinder 領域の抽出（エントリ名がソースタイプ）、`fieldValues` のラベル要約（スカラー値とベクトル値）、ジオメトリを持たないソースの分類（`zoneToCell`）、`$var` の解決、解決不能なジオメトリックソースのケース。
 - `test_topo_set_shapes_tutorial.py` — 同梱の `tutorials/topoSetShapes` ケースに対する `extract_topo_set_data`: すべてのジオメトリソースが抽出され、すべての形状がドメイン内に収まっていること。
+- `test_sampling_shapes_tutorial.py` — `tutorials/samplingShapes` と `extract_sampling_data` について同じことを行うテスト: `controlDict` の `functions {}` ブロックから読み取る probes と、その隣に置いたサンプリングでない function object が完全に無視されること、メンバーリストの 2 通りの記法（`sets { … }` と `surfaces ( … );`）、始点・終点ではなく点列を持つ cloud、平面の 2 通りの記法、非ジオメトリとして一覧される `patch` サーフェス、そして名前付きの点がすべてドメイン内にあること。加えて、網羅性チェックでは見落とす点も検証します: 各シェイプのバッジをギャラリーのカメラで投影し、互いに離れていることを確認します。ケース内でシェイプを動かすと別のシェイプのバッジがその背後に隠れてしまうためで、実際にこのケースの作成中は 6 つのうち 2 つが見えなくなっていました。
 - `test_tree_utils.py` — `tree_utils` の各リゾルバの直接契約テスト（エクストラクタのテストは間接的にしか通らない）: `find_child`/`find_child_any` のエイリアス優先順、`expand_evals`、`resolve_scalar`（scalar/int/macro/`${…}`/`#eval`）、`resolve_vector` の要素数・数値ガード、`resolve_point_list`、オプトインフラグ付きの sphere/cylinder/cone リゾルバ、`resolve_box_geometry`（min/max・`box` ペア・複数 `boxes` の優先順とフラグによる有効化）。
 - `test_utils.py` — `is_large_non_foam_file`: 小さいファイルはヘッダーの有無にかかわらずフラグが立たないこと、最初の 512 バイト内に `FoamFile` トークンを含む大きいファイルはフラグが立たないこと、含まない大きいファイルはフラグが立つこと、存在しないファイルは `(False, 0)` を返すこと、コメントの後にヘッダーがある場合も正しく検出されること。
 - `test_value_parse.py` — `parse_parenthesized_numbers`/`parse_text_for_node_type`/`set_node_value` を Qt なしで直接検証: int の受理・拒否と浮動小数点風文字列での scalar への昇格、scalar の受理・拒否、vector/int_list/scalar_list/box_pair の受理・拒否、raw_list の括弧除去、bool の大文字小文字を区別しない受理・拒否、word/string/macro/compound のそのまま通過、サポート対象外の node_type の拒否、および `set_node_value` の field_value/directive_entry/unknown_raw_entry の特殊ケースとインプレース変更の契約（拒否された編集はノードを一切変更しないこと）。
@@ -296,13 +310,14 @@ foam-dictionary-editor/
 - `test_tree_model.py` — `set_diff(reverse=True)`: `"only_here"` を `"only_in_ref"` にリマップし `"changed"` は変更しないこと、淡緑色の `BackgroundRole` を返すこと、`"only in reference case"` をツールチップに含むこと。`FoamNode` は `__hash__ = object.__hash__` を持ち、差分マップのキーとして使用可能です。ブロック番号: `block N` キーは `directive_entry` の行を飛ばすため、`#include` の直下の最初のブロックも `block 0` と表示されること、およびその番号付けを支えるリストごとのキャッシュが挿入時に破棄されること。
 
 **`tests/ui/`**
+- `test_app_state.py` — `ui/app_state.py` の `AppState` の既定値: `diff` が `DiffState` であること、スカラーのフィールドが空で始まること、可変フィールドが書き換え可能であること、そして 2 つのインスタンスが `parsed_roots` を共有しないこと — クラス属性にしてしまうと起きる誤りです。
 - `test_apply_comparison_value.py` — `_apply_comparison_value`（「Use this value」）: ネストしたエントリの取り込み時に不足している親辞書を作成すること（例: `functions {}` を持たないケースへの `functions/forces1/rhoInf` の適用）、名前のない `#includeFunc` ディレクティブを既存ブロックを上書きせず内容で照合して末尾に追加すること、同一のディレクティブは複製せずスキップすること、名前付きの値の通常の上書きパス、囲むキーが存在するものの辞書ではない場合に適用を拒否すること。
 - `test_block_mesh_panel_load_stl.py` — `STL ▾` メニューの読み込み済みサーフェス: 1 回の `getOpenFileNames` での複数ファイル選択、読み込めないファイルがあっても読める分は読み込まれること（失敗分をまとめた警告 1 回）、ダイアログのキャンセルが何もしないこと。さらにファイル別の行について: ファイルごとに 1 行・パレットから 1 色（最初は `lightgray`）、個別の非表示とアンロードの違い、アンロード後や同一パスの再読み込み後（重複行ではなく既存行の再読み込み）も各行のチェック状態が保たれること、`blockMeshDict` が無い状態で読み込んだサーフェスがレンダラーに届くこと（スタブレンダラー経由。最後の 1 つをアンロードしたときのクリア用レンダリングを含む）。
 - `test_block_mesh_panel_sampling_select.py` — `sample ▾` の形状別表示メニュー: controlDict の `functions {}` ブロックからのメニュー生成（行には元ファイル名のタグ付き）、個別/マスタートグル、ジオメトリを持たないエントリのグレーアウト表示、複数ファイルの合算（controlDict + system/sample）とファイル単位の再読み込み置換、ベース名が同じ 2 つの辞書が別ディレクトリにあっても分離されること（`_sampling_by_file` はフルパスをキーとし、表示はベース名）、`clear()` による `_sampling_by_file` のリセット。
 - `test_block_mesh_panel_set_fields_select.py` — `setFields ▾` の形状別表示メニュー: 同梱の damBreak チュートリアルの `setFieldsDict` からのメニュー生成（行は `fieldValues` の要約でラベル付け）、個別/マスタートグル、ジオメトリを持たないソースのグレーアウト表示、STL エクスポートへの包含、再読み込み時のクリア。
 - `test_block_mesh_panel_snappy_select.py` — `snappyHexMesh ▾` の形状別表示メニュー: メニューの生成、個別/マスタートグル、surface/region/geometry カテゴリカラーの凡例、ジオメトリを持たないソースのグレーアウト表示、`locationInMesh`/`locationsInMesh` キープポイントのトグル。
 - `test_block_mesh_panel_topo_select.py` — `topoSet ▾` の形状別表示メニュー: メニューの生成、個別/マスタートグル、Show all/Hide all、アクションカラーの凡例、ジオメトリを持たないソースをまとめた「Non-geometric sources (N)」サブメニュー、点/平面シェイプの STL エクスポートからの除外。
-- `test_block_mesh_renderer_topo.py` — `_make_shape_mesh` によるジオメトリ生成: 真のコーンとフラスタム（円錐台）、中空の円環、`rotatedBoxToCell`、球（スカラー radius およびベクトル radius によるだ円体）、`stl_path` によるメッシュ読み込み（ファイルあり／なし、および `read_surface_mesh` 経由の gzip 圧縮された `.stl.gz` ファイル）。`read_surface_mesh` のプレーンファイルのパススルー。オーバーレイクリップヘルパー（`_expanded_bounds` の軸ごとのパディング〈退化した 2D 軸を含む〉、`_clip_to_bounds` の範囲内／クリップ／完全に外側／包含時のスタンドインの各ケース）。
+- `test_block_mesh_renderer_topo.py` — `_make_shape_mesh` によるジオメトリ生成: 真のコーンとフラスタム（円錐台）、中空の円環、`rotatedBoxToCell`、球（スカラー radius およびベクトル radius によるだ円体）、`stl_path` によるメッシュ読み込み（ファイルあり／なし、および `read_surface_mesh` 経由の gzip 圧縮された `.stl.gz` ファイル）。`read_surface_mesh` のプレーンファイルのパススルー。オーバーレイクリップヘルパー（`_expanded_bounds` の軸ごとのパディング〈退化した 2D 軸を含む〉、`_clip_to_bounds` の範囲内／クリップ／完全に外側／包含時のスタンドインの各ケース、およびクリップが切断面をふさぐこと — 両端を切られたボックスと円柱がどちらも開いた辺を持たずに返り、ボックスの側面が三角形の対ではなく四角形のまま保たれ、平面はふた付きの経路を辞退してフォールバックすること）。VTK が描画するシーンテキスト（`_mark_label` の接尾辞付与、および `block_mesh_renderer.py` の docstring 以外のすべての文字列リテラルが ASCII であることを AST 走査で検査 — このフォントは以前のクリップマーク `✂`/`⚠` と範囲表示の `→` を何も描画しなかったため）。
 - `test_block_mesh_selected_block.py` — ツリー → 3D のブロックハイライト: 初期状態ではどのブロックもハイライトされないこと、`set_selected_block` が `RenderSettings.selected_block` に届くこと、解除、別メッシュ読み込みでの破棄。`_highlight_selected_block` が `block_entry` 行の番号を転送し、それ以外の行では解除すること。`_render_selected_block` が `None` や範囲外の番号では何も描画しないこと（`None` のプロッタを渡して検証。`add_mesh` が呼ばれれば例外になる）。
 - `test_bm_side_by_side_multi_dict.py` — `⊞` サイドバイサイドコーナーボタン（`_update_bm_side_by_side_btn`）: `blockMeshDict`・`topoSetDict`・`snappyHexMeshDict`・`controlDict`（サンプリングオーバーレイ）では有効化され、無関係な辞書（例: `fvSchemes`）では無効化されることを検証。ツリー/BlockMesh スプリッターの両ペインが折りたたみ不可であることと、パネルが 150 px の最小幅を保つことも検証。
 - `test_flow_layout.py` — `FlowLayout`（ui/widgets/flow_layout.py）: 最小幅が最も幅の広い 1 項目分に等しいこと、狭めたときの `heightForWidth` による折り返し、折り返し後の項目の順序と位置、`takeAt` の管理を検証。
@@ -333,8 +348,11 @@ foam-dictionary-editor/
 - `test_tree_color_lexer_dispatch.py` — `unknown_raw_entry` の琥珀色表示、パーサの `_PAREN_DISPATCH` テーブル。
 - `test_tree_copy_paste.py` — ツリーの Copy/Paste Value: コピーした値の round-trip、異なる型のノード間でのペースト、サポート対象外のノード型を拒否するガード。
 - `test_tree_undo_redo.py` — スナップショット方式のツリー Undo/Redo: インライン編集の Undo が値・エディタテキスト・クリーンなダーティフラグを復元すること（Redo で再適用）、複数ステップの Undo、新しい編集による Redo ブランチのクリア、拒否された編集の迷子スナップショットのスキップ、削除/エントリ追加の往復、1 つの CRUD 操作がちょうど 1 つのスナップショットを生むこと（シグナルによる二重チェックポイントなし）、複数ファイルのスナップショットが全ファイルを復元すること、ケース再読み込みでのスタッククリア、深さ上限。
+- `test_update_viewer_panels.py` — `MainWindow._update_viewer_panels`: ファイル名から 3D ビューアへのディスパッチを、オーバーレイを駆動する各辞書についてパラメータ化して検証し、無関係な辞書では何もディスパッチされないこと、そして Apply Text to Tree が snappyHexMesh オーバーレイを更新することを確認します。最後の 1 つがこのヘルパーの存在理由です: ディスパッチは読み込み・保存・ツリー編集の各パスにコピー&ペーストされており、apply 側のコピーには snappyHexMeshDict のケースが抜けていたため、編集した snappy のテキストを適用しても 3D 表示が更新されませんでした。
 - `test_tree_inline_edit_dirty.py` — Tree パネルのインラインセル編集がファイルをダーティにしエディタテキストを再生成すること、拒否された編集はファイルをクリーンなままにすること。
 - `test_view_log_summary_action.py` — `_on_view_log_summary_clicked`: ダイアログを閉じた後の再表示（閉じても破棄はされず非表示になるだけなので、キャッシュ済みインスタンスは再度 raise するのではなく show し直す必要がある）、ケースディレクトリ未設定時の no-op、ケース切り替えへの追従（`_load_case_dir` が次のメニュークリックを待たず、開いたままのダイアログへ `set_case_dir()` で即座に新しいディレクトリを反映する）。
+- `test_window_state.py` — `ui/window_state.py` とそこへ渡すスクリーンショット spec: 全フィールドの JSON ラウンドトリップ、未知キーと不正なカメラ値の拒否、デフォルトのマージ（`side_by_side` が必要とする、`False` が `True` のデフォルトを上書きする挙動を含む）、名前によるキーパス指定と匿名エントリの行番号指定、実際の `MainWindow` からのキャプチャ、それらすべての寛容版（未知キーの破棄、不正なカメラ・サイズ・スプリッタサイズの破棄、使用不能な blob が `None` になること。存在しないケースディレクトリ・ファイル、辞書ではない大きなファイル、未知のタブ・スプリッタ、消えたツリー行は、例外ではなく戻り値のノートに記録してスキップされること）、`tools/screenshot_specs.json` の構造検査（state の妥当性、同一ファイルへ書き込むショットがないこと、パスのプレースホルダが既知であること、比較ショットが 2 つのケースをどちらも `$HOME` の外に指定していること — 差分バーが参照ケースのフルパスを画像に出力するため）。撮影ツール自体は実 X ディスプレイを要するため対象外。
+- `test_session_restore.py` — `ui/session_restore.py`: 終了時に正しいキーでレイアウトが保存されること、設定オフでは何も保存しないこと、適用対象がないときに restore が正直に報告すること、壊れた blob（改名されたフィールド、形の変わったフィールド、切り詰められたカメラ、移動したケース、別言語のタブラベル）で例外を出さないこと、そして実際の `MainWindow` から別の `MainWindow` へケース・開いているファイル・選択ツリー行が往復すること。
 
 **`tests/services/`**
 - `test_backup.py` — バックアップファイルの命名（`.bak_<タイムスタンプ>`）と内容（ファイルが開いている場合はインメモリバッファ、それ以外はディスク上の内容をキャプチャ）。
@@ -354,6 +372,9 @@ foam-dictionary-editor/
 
 **`tests/schemas/`**
 - `test_schemas.py` — `ChoiceItem`/`KeySchema`、`schema_config.json` の読み込み・保存・リセット・削除、`SchemaRegistry` のプレーン/親修飾/祖父母修飾ルックアップ、`snappyHexMeshDict` スキーマモジュール、設定済みモジュール一覧。
+
+**`tests/tools/`**
+- `test_capture_dialog.py` — `tools/capture_dialog.py` のショット一覧を素のデータとして検証するテストで、`test_window_state.py` のスクリーンショット spec 検査に対応するものです: 名前がキーと一致すること、同じファイルへ書き込むショットが 2 つないこと、すべてのショットが両言語のギャラリーページから参照されていて画像も存在すること、`requires()` がトレースバックではなく不足しているものを名指しすること。ショットは入力の出どころ（撮影マシンかリポジトリか）で分類され、3 つ目のテストがすべてのショットがそのどちらかに分類されていることを検証するため、ショットを追加すると必ずどちらかを選ぶことになります。さらに `find-examples` ショットが操作する `FindExamplesDialog` のプライベート属性名を固定し、run-tool ショットの警告文と前置き文字列が `ui/mixins/_tools_ops.py` に今も存在することを検証します。これによりアプリが決して表示しないダイアログをギャラリーが見せてしまうことはありません。キャプチャ自体は実 X ディスプレイを要するため対象外です。
 
 ## パーサとデータモデル
 
@@ -807,7 +828,10 @@ pip install -r requirements-dev.txt
 python3 main.py                                   # 標準（ターミナル + BlockMesh）
 python3 main.py --variant no-terminal             # ターミナルタブなし
 python3 main.py --variant no-terminal-blockmesh   # ターミナルなし + BlockMesh 常時表示
+python3 main.py --theme dark                      # この実行のみ。保存された設定は変更されない
 ```
+
+`--theme` フラグ（`system`/`light`/`dark`）は、保存済みの **Settings > Appearance** の値をそのプロセスに限って上書きし、書き戻しません。異なるテーマのウィンドウを同時に起動しても、次回起動時のテーマは変わりません。`tools/capture_screenshots.py` はこの動作を利用しています。
 
 `--variant` フラグは `presets/<name>.json` を読み込み、設定シングルトンの `features` 辞書を上書きして、終了時に `app_config.json` へ保存します。次回以降は `--variant` なしでも保存した設定が使われます。`features` キーがない場合はすべて `true` として扱われるため、開発者個人の `app_config.json`（git 管理外で通常 `features` キーを持たない）は常に標準モードで動作します。
 
@@ -889,11 +913,93 @@ Linux 上では、次の 2 つのサブシステムが GPU に同時アクセス
 
 **Axes ウィジェット** — `add_axes()` は `vtkOrientationMarkerWidget` を生成します。このウィジェットはアクター（`plotter.clear()` で消去される）ではないため、`clear()` をまたいで持続します。そのため `_init_plotter()` で一度だけ呼び出します。`_render()` では毎フレーム再追加するのではなく `show_axes()` / `hide_axes()` でトグルします。
 
+**テキストを描画するのは Qt ではなく VTK** — 3D シーン自身のテキスト（形状名バッジ、頂点番号とブロック番号、範囲表示、方位軸の文字、グリッドの目盛りラベル）は VTK の組み込みラベルフォントで描画され、Qt が使うデスクトップのフォントスタックとは別物です。このフォントはグリフを持たない文字に対して**何も描画しません** — 代替の四角い枠さえ描きません — そのため Qt のメニューでは正しく見える記号が、3D ラベルの中では幅だけを占めて消えることがあります。2026-07-30 まで 2 か所が実際にそうなっていました: `_CLIP_MARK_SUFFIX` の `✂`/`⚠` と、**Dimensions** の範囲表示で各軸の 2 つの数値を区切っていた `→` で、後者は画面上では `X  0   3  (3 m)` になっていました。角括弧も同様に不可で、丸括弧として描画されます。`block_mesh_renderer.py` 内のすべての文字列は ASCII に限定してください。`tests/ui/test_block_mesh_renderer_topo.py` がモジュールの AST を走査して（docstring を除き）まさにこれを検査します。範囲表示はインラインの f-string だったため、定数ごとの検査では見逃されていたからです。ただしこのテストが捕捉できるのは「描画できない文字」であって「見た目が不適切な文字」ではないため、新しく追加したシーン表示は画面で確認してください — グリフの欠落は `assert` では検出できません。なお `block_mesh_panel.py` の `▾`・`·`・`📍`・`…` は対象外です。これらは Qt のウィジェットテキストです。
+
 **サイドバイサイドモード** — `⊞` トグルボタン（`_bm_side_by_side_btn`）が `QTabWidget` のコーナーウィジェットとして追加されます。有効化すると `_on_toggle_bm_side_by_side` が `block_mesh_panel` を `upper_tabs`（`QTabWidget`）から `_tree_bm_splitter`（`right_upper_splitter` をラップし Tree タブのコンテンツとなる `QSplitter(Qt.Horizontal)`）へ再ペアレント化します。リペアレント前にまず Tree タブへ切り替えてスプリッターを可視状態にし、`setSizes([1,1])` と `_init_plotter()` は `QTimer.singleShot(0, ...)` で次のイベントループティックまで遅延させます。サイドバイサイドモードを切ると `block_mesh_panel` は通常タブとして `upper_tabs` に戻されます。`_update_bm_side_by_side_btn`（`ui/mixins/_panel_ops.py`）は、現在のファイル名が `blockMeshDict`・`topoSetDict`・`snappyHexMeshDict`・`setFieldsDict`、またはサンプリング名（`SAMPLING_DICT_NAMES`: `controlDict`・`sample`・`probes`・`surfaces`・`singleGraph`）のいずれか（いずれも同じ 3D ビューに描画される — `block_mesh_extractor.py`、`topo_set_extractor.py`、`snappy_hex_mesh_extractor.py`、`set_fields_extractor.py`、`sampling_extractor.py` を参照）で、BlockMesh タブ自体が有効、かつ xterm が非アクティブなときにボタンを有効化します。それ以外はボタンを無効化し、サイドバイサイドモードが有効であれば強制的に解除します。
 
 **比較パネルの表示制御** — `comparison_panel` は起動時に `right_upper_splitter` へ追加されますが直後に非表示（`comparison_panel.hide()`）になります。`QSplitter` は非表示の子ウィジェットを無視するため、ハンドルや隙間は表示されません。`_on_side_by_side_toggled(True)` では `setSizes` 前に `comparison_panel.show()` を呼び、`_on_side_by_side_toggled(False)` と `_clear_diff` では `comparison_panel.hide()` を呼びます。
 
 **プレビューモード** — `BlockMeshPanel` は `update_block_mesh()` 呼び出しごとに設定される 2 つのフラグを持ちます: `_has_variables`（`vertices` の raw_list 値に `$` 文字が含まれる場合 True）と `_preview_mode`（デフォルト False、**Preview** ボタンでトグル）。`_has_variables` が True の場合、Vertices グループボックス内のテーブル上部に `_vtx_info_bar`（琥珀色の **⚙ Variable-based** チップ + **Preview** トグルボタン）が表示され、X/Y/Z セルは読み取り専用になります（`rw_flags = ro_flags`）。`_preview_mode` が True の場合はセルが編集可能になり、`_on_cell_changed` は `vertices_changed` を emit する代わりに `_render()` を直接呼び出してツリーとファイルを変更しません。`_on_refresh()` はプレビューモード中に `self._root` から再抽出してから `_render()` を呼び出し、頂点データのリセットとプレビュー終了を同時に行います。
+
+## スクリーンショットの撮影
+
+`docs/SCREENSHOTS.md` のギャラリーは、`tools/screenshot_specs.json` のショット一覧をもとに `tools/capture_screenshots.py` が撮影します。手作業で撮った画像は古くなるためです。メインウィンドウのショットは 2026 年 5 月から 2026-07-30 まで撮り直されず、その時点では Tools メニュー・キーフィルタ入力欄・case root と included files のグループが写っていませんでした。1 つの spec に対して `--theme` を変えて 2 回実行すれば、色以外がまったく同一の light/dark ペアが得られます。
+
+```bash
+DISPLAY=:1 python3 tools/capture_screenshots.py --all                    # ギャラリー全体、両テーマ
+DISPLAY=:1 python3 tools/capture_screenshots.py main-window-tree-editor --theme dark --out /tmp/shots
+python3 tools/capture_screenshots.py --list                              # spec が定義しているショット
+DISPLAY=:1 python3 tools/capture_screenshots.py <shot> --interactive     # 手で調整し、その状態を JSON で出力
+```
+
+**実際の X ディスプレイが必須です。** オフスクリーン Qt では VTK が abort するため、ヘッドレスモードはありません。`--out` のデフォルトは `docs/images/` なので、最初の実行は別のディレクトリに向けてください。
+
+**撮影は Qt ではなく ImageMagick 経由で行います。** `QWidget.grab()` は BlockMesh パネルのネイティブ子ウィンドウを黒く返す（前節の GPU の注意と同じ原因）ため、`import -frame -window <winId()>` でウィンドウを撮影します。`-frame` は既存のギャラリー画像と同じくタイトルバーと枠を含むため、1200×800 のウィンドウが同じ 1228×866 になります。ウィンドウ ID は `QWidget.winId()` から得るので、ウィンドウマネージャへの問い合わせやタイトル一致は不要です。ただし `import` は*画面*を読むため、ウィンドウは (0, 0) に移動して前面に出します。重なっているウィンドウがあればそれが写ります。
+
+**`app_config.json` には何も書き戻しません。** テーマは保存済み設定ではなく `--theme` から来ます（通常起動でも `main.py` の `--theme` が同じ働きをします）。言語は英語に固定し、ウィンドウは決して閉じません。ウィンドウサイズを保存するのは `MainWindow.closeEvent` なので、これを呼ばないことが撮影でユーザー設定を変えないための要点です。
+
+**ショット × テーマごとに 1 プロセス。** スクリプトは自分自身を再実行（`--_worker`）するため、前のショットの状態を引き継ぐことがありません。各ワーカーは `os._exit` で終了します。VTK は `shutdown()` を正しく呼んでもインタプリタ終了時に abort することがあり、成功した撮影が失敗として報告されてしまうためです。
+
+### spec が固定するもの・固定しないもの
+
+ショットの `state` は `WindowState`（`ui/window_state.py`）です。フィールド一覧は同モジュールの docstring を参照してください。 spec の読み込みと適用は **strict** 経路を通ります。この方針は維持してください: 未知のフィールド、存在しないタブラベル、spec の知らないうちに改名されたツリー行は spec 側の不具合であり、間違ったウィンドウを黙って撮影するくらいなら失敗したほうがましです。隣にある寛容な経路（`load_saved_state`、`apply_window_state(..., strict=False)`）は `ui/session_restore.py` のものであり、誤って使ってしまいやすい点に注意してください。spec の `defaults` はすべてのショットの下敷きになります。`case_dir` にはリポジトリルートを表す `{repo}` と、撮影マシンの OpenFOAM 実行ディレクトリを表す `{cases}`（`--cases-dir` または `$FODE_CASES_DIR`）を使えます。ギャラリーが使うチュートリアルケースはリポジトリ外にあるためです。
+
+固定するのは「選択」だけです。選択行の祖先を超えるツリー展開、スクロール位置、エディタのカーソルと折りたたみ状態、詳細パネルの内容は、開いているファイルと選択行から導かれます。そのため spec は選択のみを固定し、残りは追従させます（それで足りるショットを選んでいます）。`tree_expand` だけが例外で、選択せずに開いておきたい行のためにあります。
+
+spec で間違えやすい点が 2 つあります。
+
+- **`preload_files`** — 3-D ビューアは読み込んだ辞書のジオメトリを蓄積するため、`snappyHexMeshDict` のオーバーレイがブロックメッシュの中に描かれるのは `blockMeshDict` も開いた場合だけです。3-D のショットはすべてこれをプリロードします。
+- **`block_mesh_visible`** — ターミナルを xterm から切り替えると **View > BlockMesh 3-D Panel** のメニュー項目は有効化されますがチェックは付かないため、タブは自動では戻りません。3-D パネルが必要なショットは明示的に指定します。
+
+### 比較モード
+
+ショットは `state` と並べて `compare_with` キーを持つことができ、比較モードの参照ケースを指定します。これは意図的に `WindowState` のフィールドにしていません。あのデータクラスは `ui/session_restore.py` と共有されているため、そこにフィールドを足すと保存済みセッションが復元する内容が変わってしまい、それはスクリーンショットの都合ではなく製品としての判断になるからです。加えて、比較モードは `WindowState` が保持する「選択」ではなく「結果」の側です — 比較を開始すると side-by-side が強制的にオンになります。そこでツールは `MainWindow._start_comparison_with` を呼びます。**Case > Compare with Case…** と Find Examples ダイアログが使うのと同じ入口なので、ショットには実際の動作がそのまま写ります。
+
+`apply_window_state` の内部ではなく後で呼ぶことから、2 つの帰結があります。ファイルごとの差分数はゼロタイマーで事前計算されるため、ファイル一覧のマーカーが現れるまでにイベントループを 1 回まわす必要があります。また比較を開始すると参照ペインの非表示が解除され、Qt がスプリッタの領域を配分し直すため、固定したいサイズは後からもう一度、スプリッタだけを適用し直します。
+
+**比較ショットは 2 つのケースをどちらも `$HOME` の外に置く必要があり**、そのため `{repo}` ではなく絶対パスを書いています。差分バーが参照ケースのフルパスを画像に出力するのに対し、このリポジトリはホームディレクトリ配下にあるためです。ルールも理由も `capture_dialog.py` のログ要約用ケースと同じです:
+
+```bash
+mkdir -p /tmp/OpenFOAM/run && cp -r tutorials/cavity/cavity tutorials/cavity/cavityGrade /tmp/OpenFOAM/run/
+```
+
+サイズは `QSplitter.saveState()` / `QWidget.saveGeometry()` の blob（JSON では base64）として持ち運びます。ピクセル値の一覧と違い、これは正確に往復し Qt のバージョンをまたいでも有効です。ただし blob は手で書けないため、`splitter_sizes`（`setSizes` に渡す素のピクセル幅）が記述用の形式です。これは選んだときの `window_size` と同じ精度しか持たないため、両者は必ずセットで固定します。
+
+カメラは `plotter.camera_position`（`(position, focal point, view up)`）で、3 つの 3-tuple として往復します。`BlockMeshRenderer.render` の最後が `reset_camera()` であるため、最後の描画の*あとに*適用する必要があります。`apply_block_mesh_view` が単独で呼べるのはこのためで、ツールは settle 待ち後にもう一度呼びます（ターミナルモード切り替え後に遅延実行される VTK の再初期化がその待ち時間の中で走ります）。
+
+### ダイアログ
+
+ダイアログはメインウィンドウのフレームの一部ではなく、それ自体が独立したトップレベルの X ウィンドウです。そのため `MainWindow` 1 つに `WindowState` を適用して撮影する `capture_screenshots.py` からは手が届きません。もう半分を担うのが `tools/capture_dialog.py` です:
+
+```bash
+DISPLAY=:1 python3 tools/capture_dialog.py --all
+DISPLAY=:1 python3 tools/capture_dialog.py log-summary --out /tmp/shots
+python3 tools/capture_dialog.py --list
+```
+
+ショットは JSON spec ではなくモジュール内の `DIALOG_SHOTS` 辞書に置いています。ダイアログは型付きの Python 引数から構築するものであり、この規模でそれをスキーマで表現しても得るものがないためです。それ以外は上記と同じルール・同じ理由に従います: 保存された設定ではなく `--theme` と英語固定の言語、`QWidget.grab()` ではなく `import -frame`、`app_config.json` へは一切書き戻さないこと。
+
+**ショットに撮影者のユーザー名を写り込ませてはいけません。** ログ要約はログファイル自身の `Case:` 行をそのまま再現するため、ホームディレクトリ配下で実行したケースはそのパスを画像に印字してしまいます。`DEFAULT_CASE` を `/tmp/OpenFOAM/run/pitzDaily` にしているのはこのためで、次の手順で用意します。チュートリアルは決定論的なので、どのマシンでも同じ数値になります:
+
+```bash
+mkdir -p /tmp/OpenFOAM/run && cp -r "$FOAM_TUTORIALS/incompressible/simpleFoam/pitzDaily" /tmp/OpenFOAM/run/ && cd /tmp/OpenFOAM/run/pitzDaily && blockMesh > log.blockMesh 2>&1 && simpleFoam > log.simpleFoam 2>&1
+```
+
+同じルールは今後追加するショットにも適用されます。コミット前に画像へ `/home/<name>` が写っていないか確認してください。`find_foam_example.png` はこのルールより前の画像ですが、たまたま条件を満たしています。ユーザー名が `user` のマシンで撮影されており、写っているパスもインストール先の `/usr/lib/openfoam/openfoam2606/...` だけであるためです。
+
+各ショットは `build` と対になる `requires` を持ちます。`requires` は「このマシンにショットが読むものが揃っているか」に答え、足りないものを名指しして例外を送出します。これを `build` から分離しているため、`QApplication` なしにその判定ができ、結果としてテストで検証できます。2 つのショットは撮影マシン側が用意するもの（実行済みケース、OpenFOAM インストール）を読みますが、`run-tool` は同梱の `tutorials/damBreak` を読みます。このショットが見せたい「`0/` を復元する」前置きは、`0.orig/` を持つケースでしか現れないためです。つまりこのショットの入力はチェックアウトに同梱されています。
+
+`run-tool` ショットは、`ui/mixins/_tools_ops.py` が渡すのと同じ警告文と前置き文字列を `RunToolDialog` に渡します。import ではなくコピーしているのは、それらがミックスイン内のインラインなリテラルであり、参照するには `MainWindow` を立ち上げる必要があるためです。テストスイートがそれらの文字列が当該ファイルに今も存在することを検証するので、アプリが決して表示しないダイアログをギャラリーが見せてしまうことはありません。
+
+構築時点では内容が揃わないダイアログには `prepare` フックがあります。`show()` の後に呼ばれ、イベントループを回すための `pump(ms)` が渡されます。これが必要になったのが `find-examples` です: 検索が `QThread` で走るため、ショットはクエリを入力し、検索を開始し、結果ツリーが埋まるのを待ち（上限付き — キャプチャがハングしてはいけません）、続いて結果を 1 つ選択してプレビューを表示させます。このフックは `FindExamplesDialog` のプライベートなウィジェットを直接触ります。製品側のダイアログにキャプチャ専用のアクセサを足さないための引き換えです。参照している名前は `tests/tools/test_capture_dialog.py` で固定しているため、リネームは X ディスプレイを要するキャプチャ実行の途中ではなく、テストスイートで失敗します。
+
+`capture_screenshots.py` と同様、このツールもショットごとに自身を再実行します（`--_worker`）。あちらの理由は「どのショットも直前のショットの状態を引き継がないこと」ですが、こちらにはより強い理由もあります。`QApplication` はシングルトンであり、同一プロセス内で 2 つ目のショットが QApplication を持つことはできません。
+
+### 対象外
+
+`tools-menu.png` には spec もショットもありません。開いたメニューは独立したウィンドウでもメインウィンドウのフレームの一部でもなく、フォーカスが移った瞬間に閉じるポップアップであるため、ギャラリーで唯一、従来どおり手作業で撮影する画像です。
+
+spec は `light` で撮影し、`system` は使いません。system テーマのウィンドウは撮影マシンのデスクトップパレットを継承するため、他の環境で再現できない唯一の要素になります。ギャラリーの light 画像は 2026-07-30 まで `system` モードで手作業撮影されていました。現在の画像で選択行の塗りがデスクトップのアクセントカラーではなく FoDE 自身の青になり、ウィジェットがデスクトップのスタイルではなく Fusion になっているのはこのためです。
 
 ## テスト
 

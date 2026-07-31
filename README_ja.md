@@ -97,7 +97,7 @@ pip install pyvista pyvistaqt
 
 **[BlockMesh 3D ビューア](USER_GUIDE_ja.md#blockmesh-パネル)** *(pyvista / pyvistaqt が必要)*
 - `blockMeshDict` のジオメトリ（頂点、ブロック、パッチ種別で色分けされた境界面）をインタラクティブに 3D プレビュー。`$variable` や `#eval` 参照も自動解決
-- `topoSetDict` のアクションジオメトリ、`snappyHexMeshDict` の `geometry {}` 形状（surface / region / geometry のみ に分類）、`setFieldsDict` の領域（`fieldValues` をラベル表示）をオーバーレイ表示。形状ごとに表示切替可能。ブロックメッシュより大きい形状はビュー内でクリップされ「✂ clipped」マークが付く
+- `topoSetDict` のアクションジオメトリ、`snappyHexMeshDict` の `geometry {}` 形状（surface / region / geometry のみ に分類）、`setFieldsDict` の領域（`fieldValues` をラベル表示）をオーバーレイ表示。形状ごとに表示切替可能。ブロックメッシュより大きい形状はビュー内でクリップされ「(clipped)」マークが付く
 - 3D ビュー横の頂点テーブルで座標を編集すると即座に反映。変数ベースの頂点はプレビューモードでファイルを変更せずに試せる
 - STL/OBJ のオーバーレイ読み込み（複数同時に読み込み可能。`STL ▾` メニューでファイルごとに行と色が割り当てられる）と、topoSet/snappyHexMesh/setFields 形状の STL エクスポート
 - **⊞** サイドバイサイドモードで、`blockMeshDict`・`topoSetDict`・`snappyHexMeshDict`・`setFieldsDict` の編集中にツリーの隣に 3D ビューを表示
@@ -148,6 +148,8 @@ pip install pyvista pyvistaqt
 | `tutorials/oneBlocks-vars/` | `icoFoam` | `oneBlocks` の変数置換・コンパクト面記法バリアント |
 | `tutorials/nineBlocks/` | `icoFoam` | 3×3 マルチブロック・正規表現パッチ |
 | `tutorials/nineBlocks-vars/` | `icoFoam` | `nineBlocks` の変数置換・コンパクト面記法バリアント |
+| `tutorials/topoSetShapes/` | `icoFoam` | 3D ビューアがオーバーレイできる `topoSetDict` のジオメトリソースを、1 つの 3×3×3 ブロックに網羅 |
+| `tutorials/samplingShapes/` | `icoFoam` | 同じことをサンプリングオーバーレイについて行ったケース: プローブ点・線・点群・平面の 2 通りの記法 |
 
 `cavity/` 各ケース・`snappyMultiRegionHeater`・`damBreak` は OpenFOAM v2512 標準チュートリアルセットから取得しています。`oneBlocks*` および `nineBlocks*` は FoDE テスト用に cavity をベースにしたカスタム `blockMeshDict` ケースです。
 

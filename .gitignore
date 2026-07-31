@@ -17,12 +17,17 @@ tutorials/**/log.*
 # Local scratch files
 *.patch
 
+# Claude Code per-machine tool settings (local paths; not part of the release)
+.claude/settings.local.json
+
 #Python environment
 venv/
 
-# Python interpreter to store compiled bytecode files (.pyc files)
+# Python bytecode caches, at every level of the tree
 __pycache__/
-*.pyc
+**/__pycache__/
+*.py[cod]
+*$py.class
 
 # Node artifact files
 node_modules/
@@ -30,9 +35,6 @@ dist/
 
 # Compiled Java class files
 *.class
-
-# Compiled Python bytecode
-*.py[cod]
 
 # Log files
 *.log
