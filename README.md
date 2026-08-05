@@ -4,7 +4,7 @@ FoDE — Foam Dictionary Editor (pronounced "foh-dee")
 
 A GUI editor for OpenFOAM dictionary files, built with Python and PySide6.
 
-[Demo movie link at YouTube](https://youtu.be/L22fQW3NSUk)
+🎬 **Demo movies on YouTube** — seven short walkthroughs, listed with shot-by-shot scripts in [docs/DEMO_SCRIPTS.md](docs/DEMO_SCRIPTS.md). Start with [Edit, see, run](https://youtu.be/kGxfNhAe6xo) (~74 s), or watch [the whole workflow](https://youtu.be/0FZPb92luw8) end to end (~3 min 38 s).
 
 > 📄 **Now published in [*SoftwareX*](https://doi.org/10.1016/j.softx.2026.102852)** (Elsevier) — see [Citation](#citation).
 
@@ -95,6 +95,7 @@ Each heading links to the full documentation in [USER_GUIDE.md](USER_GUIDE.md).
 
 **[Schema help](USER_GUIDE.md#detail-pane)**
 - Built-in descriptions and valid choices for common settings (`controlDict`, `fvSchemes`, `fvSolution`, `blockMeshDict`, `snappyHexMeshDict`)
+- Turbulence-model coefficients (`kOmegaSST`, `kEpsilon`, `SpalartAllmaras`) in `turbulenceProperties`/`momentumTransport`, with source-extracted defaults per OpenFOAM fork and version
 - Extend with your own schema modules (plain Python files)
 
 **[BlockMesh 3-D viewer](USER_GUIDE.md#blockmesh-panel)** *(requires pyvista / pyvistaqt)*

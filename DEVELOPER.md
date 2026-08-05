@@ -15,6 +15,8 @@ foam-dictionary-editor/
 │   ├── capture_screenshots.py     # rebuild the docs/SCREENSHOTS.md gallery from tools/screenshot_specs.json: applies a saved window state to a real MainWindow and captures it with ImageMagick's `import -frame`; one process per shot per theme, so a light/dark pair differs only in theme (see "Screenshot capture")
 │   ├── screenshot_specs.json      # the gallery's shot list: one ui/window_state.py WindowState per image, plus the output filename per theme
 │   ├── capture_dialog.py          # the other half of the gallery: dialogs, which are top-level X windows of their own and so out of capture_screenshots.py's reach. Shots live in a DIALOG_SHOTS dict rather than a JSON spec (a dialog is built from typed Python arguments); same theme/language/import rules (see "Screenshot capture")
+│   ├── demo_driver.py             # drive and record the docs/DEMO_SCRIPTS.md movies from tools/demo_specs.json: the same WindowState start state as a screenshot spec, then steps driven with real X input (xdotool) on a nested display of the take's own, recorded with ffmpeg (see "Demo recording")
+│   ├── demo_specs.json            # the movies' scene list: a start state per scene, plus the steps, narration and dwell times that drive it
 │   ├── generate_foam_keywords.py  # CLI wrapper around app_config/keyword_generator.py; --dir picks an installation root (default: sourced environment)
 │   └── roundtrip_corpus.py        # parse+write every dictionary of an installation's tutorials and count the byte-identical ones; the measurement behind the release-note round-trip figure
 ├── tutorials/               # bundled example cases (GPL-3.0, see tutorials/README.md)
@@ -74,14 +76,18 @@ foam-dictionary-editor/
 │   ├── control_dict.py
 │   ├── fv_schemes.py
 │   ├── fv_solution.py
+│   ├── momentum_transport.py    # generated, vendored from foamlore: turbulence-model coefficients for constant/momentumTransport (Foundation v13, the post-OpenFOAM-8 name)
 │   ├── snappy_hex_mesh_dict/    # package: split by subdomain (geometry, castellated mesh, snap, layers, mesh quality)
 │   │   ├── __init__.py          # merges submodule SCHEMAS dicts, re-exports TARGET_FILE
 │   │   ├── _common.py           # shared SWITCH_CHOICES
+│   │   ├── _structure.py        # the four control dictionaries and the sub-dicts inside them
 │   │   ├── _geometry.py
 │   │   ├── _castellated_mesh.py
 │   │   ├── _snap_controls.py
 │   │   ├── _add_layers.py
 │   │   └── _mesh_quality.py
+│   ├── turbulence_properties.py # generated, vendored from foamlore: turbulence-model coefficients for constant/turbulenceProperties (OpenCFD v2512/v2606, Foundation v7)
+│   ├── turbulence_structure.py  # hand-written: simulationType, RAS/LES, model selectors, LES deltas — TARGET_FILES covers both filenames
 │   └── registry.py
 ├── services/
 │   ├── case_copier.py
@@ -177,6 +183,7 @@ foam-dictionary-editor/
     │   ├── test_parser_fv_solution.py
     │   ├── test_parser_block_list.py
     │   ├── test_parser_named_dict_list.py
+    │   ├── test_parser_region_properties.py
     │   ├── test_parser_set_fields_dict.py
     │   ├── test_parser_topo_set_dict.py
     │   ├── test_include_resolver.py
@@ -228,9 +235,11 @@ foam-dictionary-editor/
     │   ├── test_main_window_split.py
     │   ├── test_manage_extra_files_dialog.py
     │   ├── test_rename_boundary.py
+    │   ├── test_reset_all_settings.py
     │   ├── test_run_tool_dialog.py
     │   ├── test_stays_open_menu.py
     │   ├── test_terminal_panel.py
+    │   ├── test_theme.py
     │   ├── test_tools_ops_mesh_actions.py
     │   ├── test_tree_block_crud.py
     │   ├── test_tree_color_lexer_dispatch.py
@@ -256,9 +265,11 @@ foam-dictionary-editor/
     │   ├── test_json_io.py
     │   └── test_keyword_generator.py
     ├── schemas/
-    │   └── test_schemas.py
+    │   ├── test_schemas.py
+    │   └── test_turbulence_schemas.py
     └── tools/
-        └── test_capture_dialog.py
+        ├── test_capture_dialog.py
+        └── test_demo_specs.py
 ```
 
 ### Documentation map
@@ -270,6 +281,7 @@ foam-dictionary-editor/
 | `DEVELOPER.md` | This file: project structure, internals, dev setup, and testing. |
 | `RELEASE_NOTES.md` | User-facing change log; new entries accumulate under `## Unreleased` and the heading is renamed to a version number on release. |
 | `docs/SCREENSHOTS.md` | Annotated screenshot gallery of the main window, BlockMesh 3-D overlays, and key dialogs/menus. |
+| `docs/DEMO_SCRIPTS.md` | Shot-by-shot scripts for the demo movies, and how to record them. Each is a runnable scene in `tools/demo_specs.json`, so a script and the take it produces cannot drift apart. |
 
 Every English document has a Japanese counterpart (`*_ja.md`); any edit to one must be mirrored in the other. Japanese docs keep menu labels and other UI strings in English.
 
@@ -287,6 +299,7 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 - `test_parser_fv_solution.py` — `fvSolution` parsing: macro and regex-pattern solver keys, the `PIMPLE` block, solver `tolerance`/`smoother` entries, round-trip writing.
 - `test_parser_block_list.py` — `blockMeshDict`'s `blocks ( … );` explosion: a pure `hex` list parses to `block_list`/`block_entry` with anonymous, one-line entries; the lookahead keeps an empty list, a plain macro word list, a directive-only list, and a non-`hex` leading shape (`hex2D`, `prism`) on the ordinary `raw_list` path; an `#include` *beside* hex blocks instead explodes with a `directive_entry` child — leading or in the middle of the list — and still round-trips byte-identically; variant forms parse as one entry each (zone name with `grading`, bare `$blockInfo` tail, 12-value `edgeGrading`, a block split over three lines, and blockMesh's `name <blockName> hex …` prefix — with a bare `name` word *not* splitting an entry); comment placement (inline vs. next entry's `leading_trivia`); unmodified round-trip is byte-identical and a modified entry leaves its siblings verbatim.
 - `test_parser_named_dict_list.py` — the optional named-dict-list syntax: `sets`/`surfaces` parenthesised lists of named dicts parse to `named_dict_list`/`named_dict_entry` (top-level and nested in a function-object dict), the lookahead keeps plain word/string lists (`sets (setA setB);`) and empty lists on the ordinary value path, unmodified round-trip is byte-identical, and a modified entry's siblings keep their names.
+- `test_parser_region_properties.py` — the `regions` key, which two unrelated dictionaries both claim: `setFieldsDict`'s named dicts still parse to `region_block`/`region_entry`, while `constant/regionProperties`'s list of name/word-list pairs falls through to `raw_list` instead of the two nameless `unknown_raw_entry` nodes it used to produce, with no parse errors and a byte-identical round trip both ways. Both bundled tutorial files are checked directly, a plain `regions ( a b c );` and an empty list are covered, and one test pins the rule the fix restores by asserting the entry parses identically to the same content under a different key.
 - `test_parser_set_fields_dict.py` — `setFieldsDict` parsing: `defaultFieldValues`/`regions` field-value entries (including vector values), `box_pair` parsing, round-trip writing after an edit.
 - `test_parser_topo_set_dict.py` — `action_list`/`action_entry` structured parsing: node type, entry count, named child values, `box_pair` coordinates, source-less entries, round-trip writing, positional diff detection via `_diff_action_list`.
 - `test_snappy_hex_mesh_extractor.py` — `extract_snappy_hex_mesh_data`: `geometry` box/sphere (scalar and vector/ellipsoid radius)/cylinder/cone extraction; `name` override resolution (`geom.stl { name geom; }`); `triSurfaceMesh`/`distributedTriSurfaceMesh` file resolution against `constant/triSurface/` (explicit `file` child, implicit filename-as-key, missing file), including transparent `.gz` resolution (a plain-name entry resolving to a `.gz`-only file on disk, a `.gz`-suffixed entry key/file resolving directly, and a `.gz`-suffixed reference falling back to an uncompressed file on disk); `collection` (searchableSurfaceCollection) box members via `rotation none` and `e1`/`e3` axes (including a case that actually rotates), skipped for a non-box base or a missing/unsupported transform; `refinementSurfaces`/`refinementRegions` cross-referencing by exact name and by regex-pattern key (e.g. `"iglo.*"`); `locationInMesh` (singular) and `locationsInMesh` (plural) point extraction; `$var`/`#eval{}` resolution.
@@ -340,9 +353,11 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 - `test_main_window_split.py` — the mixin structure: each mixin owns the right methods (including `_on_patch_selected` in `_BoundaryOpsMixin`, `_apply_comparison_value` in `_TreeCrudOpsMixin`, and the foamMonitor methods in `_FoamMonitorOpsMixin`), no cross-mixin duplicates, `MainWindow` inherits from all mixins.
 - `test_manage_extra_files_dialog.py` — `ManageExtraFilesDialog`: display of registered extra files/directories and removal actions.
 - `test_rename_boundary.py` — `find_rename_targets()`: detection of `boundary_entry` nodes in `blockMeshDict`, `dictionary` patch nodes in `boundaryField` blocks, absence of false positives for unrelated dictionaries, empty-input edge cases.
+- `test_reset_all_settings.py` — what `app_config.json` looks like after **Reset All Settings**, where deleting the file is only half the job: the application keeps running, and `closeEvent` used to capture the session layout and window size on the way out, recreating the file and handing back the settings the user had just asked to be rid of. Pins the close writing nothing once the config has been deleted, and writing as before when it has not.
 - `test_run_tool_dialog.py` — `RunToolDialog`: the live preview matching `get_command()` from a pristine dialog, checkbox/value edits updating the command, `last_values` restoration and `get_values()` round-tripping into a new dialog, the Run button disabling on unparseable extra text, the prefix checkbox prepending its shell prefix, and Browse inserting case-relative paths (absolute when outside the case).
 - `test_stays_open_menu.py` — the toolbar dropdown menus (`Vertices ▾`, `Blocks ▾`, `Scale ▾`, `topoSet ▾`, `snappyHexMesh ▾`) staying open on checkable-item clicks while still closing for non-checkable actions.
 - `test_terminal_panel.py` — `SimpleTerminalWidget` and `TerminalPanel`: initial state, working-directory switching, cleanup, command history, the tab label, `run_command()` (including queuing before the shell is ready).
+- `test_theme.py` — `ui/theme.py`'s colour tables as data: the contrast maths, the convention rule for the selected-row pair (with a regression test naming the Windows accent `#0078d4` explicitly, since picking the higher-contrast of black/white reproduces the bug), a sweep asserting no accent can produce an illegible pair, a 3:1 floor for every foreground in both tables against that theme's `Base`, the diff-swatch versus legend-fill separation, and a 3:1 floor for the viewport's text against `viewport_bg`. Table-level checks: they catch a colour that cannot work, not one that merely looks wrong. See "Theming and colours".
 - `test_tools_ops_mesh_actions.py` — the Tools-menu "Run *" actions and Run Allrun/Run Allclean/Clean Case: the exact command string sent to a fake terminal panel after accepting the (real, exec-patched) `RunToolDialog` for blockMesh/snappyHexMesh/topoSet/setFields/checkMesh, nothing sent on cancel, the rerun warning text passed to the dialog when time dirs exist, last-used options restored from `state.run_tool_options`, the setFields restore-0/ prefix checkbox (present + checked by default with `0.orig/`, absent without, uncheckable to "run anyway"); missing-script warnings for Allrun/Allclean; the three-way Allrun pre-flight when `log.*` files exist — clean-then-run, run-anyway, cancel; the Clean Case dialog mentioning Allclean delegation or `-auto` 0/ removal; and `_update_tools_actions()`'s enablement for all these actions plus View Log Summary (which needs a case but not a terminal).
 - `test_tree_block_crud.py` — Add/Duplicate/Delete on `block_entry` rows: `_new_sibling_for` producing a `block_entry` whose default value reparses as a real block (and a `word` entry for a dictionary parent), `_delete_label` naming a block by position, the written file after a block is deleted or added (siblings verbatim, list still closing on its own line, remaining blocks renumbered by position), and the end-to-end delete → editor text → Ctrl+Z round trip through a MainWindow.
 - `test_tree_color_lexer_dispatch.py` — `unknown_raw_entry` amber colouring, the parser `_PAREN_DISPATCH` table.
@@ -371,10 +386,13 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 - `test_keyword_generator.py` — `keyword_generator`: `scan_src_lookup_keywords()` collecting dictionary-read calls (`lookup`/`get<…>`/`readEntry`/`found`/…) from `*.C`/`*.H` with non-keyword forms rejected; `generate(project_dir=…)` over a fixture install tree — environment ignored, `version` from the dir name, provenance metadata in the payload, `RuntimeError` when nothing is collected.
 
 **`tests/schemas/`**
-- `test_schemas.py` — `ChoiceItem`/`KeySchema`, `schema_config.json` load/save/reset/delete, `SchemaRegistry` plain/parent-qualified/grandparent-qualified lookup, the `snappyHexMeshDict` schema module, the configured module list.
+- `test_schemas.py` — `ChoiceItem`/`KeySchema`, `schema_config.json` load/save/reset/delete, `SchemaRegistry` plain/parent-qualified/grandparent-qualified lookup, the closed-namespace rule that withholds the flat fallback inside a foreign namespace (over a synthetic two-model module, plus the check that a real `snappyHexMeshDict` namespace does not over-suppress), the `snappyHexMeshDict` schema module, the configured module list.
+- `test_schema_coverage.py` — the test that would have caught a whole module going dark. Parses the real dictionaries in `tests/fixtures/schemas/` (copied unmodified from the v2606 tutorials, so they are not curated to fit the schema) and walks them exactly as `DetailPanel` does — `node.name`, `node.parent.name`, `node.parent.parent.name` — asserting a per-dictionary coverage floor. `fv_schemes.py` once spelled its keys `"<key>.<parent>"` while the registry looked up `"<parent>.<key>"`, so every entry was unreachable and 0% of a real fvSchemes resolved, yet the unit tests passed because they asserted the internal table shape rather than the call the UI makes. Also checks two table invariants — a dotted key's suffix must equal its `KeySchema.key` (the exact rule that module broke), and every `use_instead`/`renamed_from` target must itself be a documented key — plus the provenance cases end to end: motorBike's `minFlatness` reports as `ineffective`, `minMedianAxisAngle` as `renamed` with a successor and version, and `mergeType` never offers the invalid `merge`.
+- `test_turbulence_schemas.py` — the foamlore-generated `turbulence_properties`/`momentum_transport` modules: `TARGET_FILE` and `SCHEMAS` shape (every value a `KeySchema`, every choice a `ChoiceItem`), both registered by default in `schemas/builtin.py`'s module list, `SchemaRegistry` lookup through the parent-qualified form (`kOmegaSSTCoeffs.beta1`) and the plain `RAS`-dict fallback, per-version `supported_in` tags and source-default choices (including `decayControl`'s OpenCFD-only note), and that the `GENERATED` banner survives intact — these files must be regenerated in foamlore, never hand-edited.
 
 **`tests/tools/`**
 - `test_capture_dialog.py` — `tools/capture_dialog.py`'s shot list as plain data, the counterpart of `test_window_state.py`'s screenshot-spec checks: names matching their keys, no two shots writing the same file, every shot referenced by both gallery pages and its image present, and `requires()` naming what is missing rather than raising a traceback. Shots are split by where their inputs come from — the capture machine, or the repository — and a third test asserts every shot is classified as one or the other, so adding one forces the choice. It also pins the private `FindExamplesDialog` attributes the `find-examples` shot drives, and asserts the run-tool shot's warning and prefix text still appear in `ui/mixins/_tools_ops.py`, so the gallery cannot end up showing a dialog the app never produces. The capture itself is not covered — it needs a real X display.
+- `test_demo_specs.py` — `tools/demo_specs.json`'s scenes as plain data, and the check that earns its keep most: a take needs a real X display, an OpenFOAM installation and about a minute of wall clock, so a scene naming a renamed menu item would otherwise fail halfway through a recording. Covers the spec loading through the strict `WindowState` path, every step's kind and required payload, a targeted step naming exactly one target (and an untargeted one naming none), path and typed-text placeholders being ones `_expand` knows, scratch workdirs living outside the repository, and — for bundled cases only, since a `{cases}` scene depends on the recording machine — the case existing and holding every file the scene opens. Labels are checked against the UI source in the same spirit as the run-tool shot above: menu-bar titles, ellipsis-carrying menu items (the convention for an action that opens a dialog, and so a literal in the source, unlike a shape row read out of a case), button labels and widget attribute names. One test exists purely for a bug that happened: a step's mouse button is `with`, because `button` is already a target, and `"button": "left"` parses as a target named "left" and fails only at record time. The step vocabulary is read off `Runner`'s `_step_*` methods rather than listed, so a new step kind cannot be added to the driver and leave this stale. Driving and recording are not covered — they need a display.
 
 ## Parser and data model
 
@@ -405,7 +423,7 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 | `dictionary` | `key { … }` block; `value=None`, children populated |
 | `field_value_block` | `defaultFieldValues / fieldValues ( … );` |
 | `field_value` | item inside a `field_value_block` |
-| `region_block` | `regions ( … );` |
+| `region_block` | `regions ( … );` whose content is named dicts — decided by a lookahead, since `constant/regionProperties` uses the same key for a plain list and falls through to `raw_list` |
 | `region_entry` | named `{ … }` entry inside a `region_block` |
 | `boundary_block` | `boundary ( … );` in `blockMeshDict` |
 | `boundary_entry` | named `{ … }` entry inside a `boundary_block`. A `boundary_block` may also hold `directive_entry` children: a `#include` standing in for patches (`boundary ( #include "…caseBoundary" outlet { … } );`) is parsed as its own child rather than failing the block, so the patches around it keep their structured parse |
@@ -545,6 +563,9 @@ class ChoiceItem:
     description: str
     supported_in: tuple[str, ...] = ()
     note: str = ""
+    status: KeyStatus = "valid"
+    use_instead: str = ""
+    deprecated_since: str = ""
 
 @dataclass(frozen=True)
 class KeySchema:
@@ -554,19 +575,53 @@ class KeySchema:
     supported_in: tuple[str, ...] = ()
     note: str = ""
     choices: tuple[ChoiceItem, ...] = ()
+    status: KeyStatus = "valid"
+    use_instead: str = ""
+    renamed_from: tuple[str, ...] = ()
+    deprecated_since: str = ""
 ```
 
-`_base.py` also exports three pre-built version strings: `FOUNDATION_V13`, `OPENCFD_V2312`, `OPENCFD_V2512`, and `OPENCFD_SERIES`. Schema modules import these for `supported_in` tuples to keep version strings consistent across modules.
+`_base.py` exports pre-built version strings — `FOUNDATION_V7` … `FOUNDATION_V13`, `OPENCFD_V2106` … `OPENCFD_V2606`, plus the collective `FOUNDATION_SERIES`, `OPENCFD_SERIES` and `BOTH_FORKS`. Prefer a collective label for anything in the shared `finiteVolume`/`lduMatrix` libraries: tagging such a key with one release reads in the Detail pane as "only available there", which is how 61 entries once came to tell OpenCFD users that core keys were Foundation-only.
+
+### Recording what a key *is*: the `status` field
+
+Real dictionaries are full of names that are no longer current, or that never worked. `KeyStatus` is one of three values, and the Detail pane words its provenance line from it (`DetailPanel._apply_provenance`):
+
+| status | meaning | example |
+|---|---|---|
+| `valid` | a current key | `scale` |
+| `renamed` | a historical spelling; `use_instead` names the successor and `deprecated_since` the version | `convertToMeters` → `scale` (v1012) |
+| `ineffective` | appears in official tutorials but no reader consumes it, so writing it does nothing | `minFlatness` → `minFaceFlatness` |
+
+A renamed or ineffective key is **kept**, not deleted — a user whose case contains the old name needs to be told what it is. `renamed_from` goes on the *current* key and lists its historical spellings.
+
+Where the rename data comes from: OpenCFD declares renames machine-readably as `getCompat("newName", {{"oldName", apiVersion}})`, and Foundation as `lookupBackwardsCompatible<T>({"newName", "oldName"})`. Scanning the source trees for those two call families yields ~100 old→new pairs with per-fork version ranges. Four of them survive only in older trees, because the compatibility entry was later dropped — `minMedianAxisAngle` is accepted by OpenCFD up to v2206 and by Foundation to this day. There is deliberately no generator for this in FoDE; the extraction is a one-off analysis and the results are transcribed by hand.
+
+### Generated modules (vendored from foamlore)
+
+`schemas/turbulence_properties.py` and `schemas/momentum_transport.py` are **generated files**, vendored from the sibling foamlore repository (`facts/tools/generate_fode_schemas.py`). They carry turbulence-model coefficients (kOmegaSST, kEpsilon, SpalartAllmaras) extracted mechanically from the OpenFOAM `.C` constructors of four checkouts (Foundation 7/13, OpenCFD v2512/v2606), with per-version `supported_in` tags and source defaults as `ChoiceItem`s. Coefficient keys are emitted parent-qualified (`kOmegaSSTCoeffs.beta1`) plus a plain fallback where the name is unique across models, matching OpenFOAM's `optionalSubDict` read idiom. Never edit them here — regenerate in foamlore and re-copy (a test asserts the `GENERATED` banner is intact). There are two modules because foundation renamed `constant/turbulenceProperties` to `constant/momentumTransport` in OpenFOAM 8 and the registry keys schemas by `TARGET_FILE`.
 
 ### SchemaRegistry
 
 `SchemaRegistry` (`schemas/registry.py`) is a singleton loaded at import time via `schemas/__init__.py`. It builds a two-level dict `_file_key_schemas[filename][dotted_key] → KeySchema` from the list of module names in `schema_config.json` (or the built-in default when the file does not exist).
 
-`schema_for_file_key(file_path, key_name, parent_key, grandparent_key)` implements the three-level lookup:
+A module declares its target as `TARGET_FILES` (a tuple) or the original single `TARGET_FILE`. Tables are **merged** per file rather than replaced, so several modules can contribute to one dictionary and later modules win on a collision. That is what lets the hand-written `turbulence_structure` module sit alongside the generated coefficient modules for the same file, and what lets one module serve both `turbulenceProperties` and `momentumTransport`.
+
+`schema_for_file_key(file_path, key_name, parent_key, grandparent_key)` implements the lookup:
 
 1. `f"{parent_key}.{key_name}"` — direct parent context.
 2. `f"{grandparent_key}.{key_name}"` — grandparent context (for blocks whose immediate parent is user-defined, such as a named `refinementSurfaces` entry).
-3. Plain `key_name` — flat fallback.
+3. `f"{parent_key}.*"` — wildcard, for dictionaries whose children are named after the case and so cannot be enumerated: `divSchemes { div(phi,U) … }`, `relaxationFactors { equations { U 0.7; } }`, `residualControl { p 1e-3; }`. Deliberately the **direct parent only** — matching a wildcard from the grandparent would reach a level too far, making `functions.*` (which describes one function object) answer for every key *inside* that object. A `*` suffix registers its prefix as a namespace but is excluded from the owned-key set, or it would arm the guard in step 5 against the whole file.
+4. Plain `key_name` — flat fallback, unless step 5 withholds it.
+5. A dotted prefix is a **closed namespace**: once a module qualifies any key under `kOmegaSSTCoeffs`, a key it does *not* qualify there is not that dictionary's key, and step 3 must not answer for it. The flat fallback is therefore withheld when the parent (or grandparent) is a declared prefix for that file *and* the key is qualified under some other prefix. Keys that no prefix claims are unaffected and still fall back from any context, which is why the nine namespaces in `snappyHexMeshDict` — none of whose keys has a flat twin — resolve exactly as before. The rule exists because coefficients are read through OpenFOAM's `optionalSubDict`, so each one is registered twice, qualified and flat (`kOmegaSSTCoeffs.beta1` and `beta1`, for the `RAS { beta1 …; }` spelling); without it a stray `kOmegaSSTCoeffs { C1 1.44; }` — a coefficient that model never reads — resolved through the flat `C1` and reported kEpsilon's coefficient inside a kOmegaSST dictionary.
+
+`_build_qualified_index` derives both sets (the prefixes a file declares, and the suffixes qualified under any of them) from the key table itself, so a module opts into the rule simply by using dotted keys.
+
+Some dictionaries are namespaces and still legitimately hold arbitrary keys. `RAS` has structural entries of its own (`model`, `turbulence`) while OpenFOAM's `optionalSubDict` idiom also allows a model's coefficients to be written straight into it — `RAS { Cmu 0.09; }`. Structure alone cannot tell that apart from `kOmegaSSTCoeffs`, so a module lists such prefixes in **`OPEN_NAMESPACES`** and they keep the flat fallback. `schemas/turbulence_structure.py` declares `RAS`, `LES` and `laminar`; the `<model>Coeffs` dictionaries stay closed.
+
+### Config: defaults are merged, not replaced
+
+`load_schema_config()` returns the saved file as-is; `SchemaRegistry._effective_config` then computes `union(builtin_defaults, saved) - disabled_modules`. A saved list used to be authoritative, which meant a module added to `schemas/builtin.py` in a later release never reached anyone who had opened **Manage Schema Modules** even once — their config pinned the old list forever. Only modules the user explicitly removed (recorded in `disabled_modules` by `set_schema_modules`) stay out. A config written before `disabled_modules` existed carries no record of intent, so a module removed back then reappears once; that is the conservative direction, since a schema too many is visible and one click to remove, while a missing schema is invisible.
 
 `reload()` re-reads `schema_config.json` from disk and rebuilds the tables. `apply_and_reload()` rebuilds from the current in-memory config without touching disk (used after **Settings > Manage Schema Modules** applies changes within the same session).
 
@@ -1001,6 +1056,43 @@ Like `capture_screenshots.py`, this one re-executes itself once per shot (`--_wo
 
 The specs capture in `light`, never `system`: a system-themed window inherits the capture machine's desktop palette, which is the one thing about a shot that cannot be reproduced elsewhere. The gallery's light images were hand-captured in `system` mode until 2026-07-30, which is why the current ones show FoDE's own blue selected-row fill rather than the desktop accent, and Fusion widgets rather than the desktop style.
 
+## Demo recording
+
+`docs/DEMO_SCRIPTS.md`'s movies are driven and recorded by `tools/demo_driver.py` from the scenes in `tools/demo_specs.json`. It is `capture_screenshots.py`'s sibling and starts where that one does — a scene's `state` is the same `WindowState`, laid over the same kind of `defaults` — and then adds a list of `steps` that drive the window while `ffmpeg` records it.
+
+```bash
+python3 tools/demo_driver.py --list                                            # what the spec defines
+DISPLAY=:1 python3 tools/demo_driver.py damBreak-end-to-end                    # rehearse: drive it, record nothing
+DISPLAY=:1 python3 tools/demo_driver.py damBreak-end-to-end --record out.mp4   # a take
+DISPLAY=:1 python3 tools/demo_driver.py damBreak-end-to-end --stage            # start state, then hand it over
+```
+
+`ffmpeg`, `xdotool` and `Xephyr` (`xserver-xephyr`) are required, alongside the X display the screenshot tools need.
+
+**The steps are real X input.** `xdotool` moves the pointer and clicks it, so the app sees ordinary mouse and keyboard events and the recording shows a real cursor moving over real hover states — nothing reaches into the app to fake a click, and the cursor glides between targets on an ease-in-out curve rather than teleporting. A step names a target semantically (a menu item, a tree row by key path, a file row, a button by its label) and it is resolved to a screen point *when the step runs*: a menu item does not exist until the click before it has opened the menu.
+
+**A take runs on a nested display of its own.** Real input goes to whichever window the window manager put on top and wherever focus drifted to; on a desktop in use that is someone's editor, and the take is both unreliable and rude — the failure mode found in testing was a chat window raising itself into the click, and the next step then typing a dictionary value into it. So the driver starts an Xephyr server, runs there, and stops it afterwards. `--on-this-display` opts out for a machine nobody is sitting at. `--stage` never nests, because its whole purpose is to hand the window to a person. A bonus: a nested display has no window manager, so there are no decorations and the recording is the application and nothing else.
+
+**Steps run on a `QTimer` chain, not a nested event loop.** A modal dialog runs an event loop of its own, so a driver that waited by spinning `QEventLoop` would block on the dialog it had just opened, waiting for the step that closes it. Timers fire inside the dialog's loop, so the chain keeps stepping. The same fact bites once more on the way out: `app.quit()` only ends the outermost loop, so a take that stopped with a dialog still up closes it before quitting, or it would hang.
+
+The chain is a queue of *atoms* — resolve, glide, click — and `push` puts them at the **front**, which is what lets an atom schedule work before whatever follows it. That ordering is worth stating because getting it backwards is silent: a click step that pushes its glide and then its click runs the click *first*, at wherever the pointer happened to be, and the take proceeds looking almost right.
+
+**Every take starts from a fresh copy of its case.** A scene names `case_source` and a `workdir`, and the case is copied there unconditionally before the window opens. A take that began from the leftovers of the one before it — a mesh already built, `0/` already set — records something other than what the script says, and a scene that runs `blockMesh` would otherwise litter the repository's `tutorials/`. `terminal_prelude` sources the OpenFOAM environment into the Terminal tab during staging, before recording starts: watching someone set up their shell is not the demo. `clean` is the counterpart for what a *step* creates rather than what the staging copies — a scene that duplicates a case writes a directory neither `case_source` nor `copy_also` names, and finding it there from the last take turns the next step into an "Overwrite?" box. `prepare_case` refuses to clean a path inside the repository.
+
+**And from a fresh `app_config.json`.** `seed_app_config` writes a scratch config into the workdir and points the singleton at it before `MainWindow` is built. Two reasons, and the second is why it runs for every scene. A take must not *write* the recording user's settings: answering "open the duplicated case now?" with Yes saves a new default case directory on the way through, and never closing the window is not enough to prevent it. And a take must not *read* them either — the feature flags, the default case directory and the case library all come from that file, so a movie recorded on one machine would otherwise open somewhere else on the next.
+
+`case_library` builds on it: the named directory becomes the one entry the Case Library offers. It is also assigned to `$FOAM_TUTORIALS`, because `get_case_library_dirs` prepends that variable to the registered list and two entries make the app ask *which* library to browse before it opens the chooser — a dialog whose contents would depend on the recording shell. Pointing the variable at the same directory collapses the pair into one, which is the reason for doing it that way round rather than unsetting the variable: `paraFoam` needs the rest of the OpenFOAM environment intact.
+
+**The nested display costs two things, both handled in the driver.** A dismissed menu leaves its pixels on screen, over anything that does not redraw itself — the 3-D view is immune because VTK repaints it, so what is left is a menu-shaped hole over the editor for as long as it takes something else to draw there. Neither `repaint()` nor `xrefresh` shifts it; a one-pixel resize does, because it invalidates every widget's geometry rather than just its contents, so that is what runs after a step that closed a popup. Separately, takes force Qt's own file dialog (`AA_DontUseNativeDialogs`): the desktop's portal chooser is another process, so none of its widgets are reachable and its keyboard shortcuts vary by desktop — and it opens on the home directory with the user's account name across the top, which a published movie must not show.
+
+**A take cannot hang.** Anything a step raises ends it — with the message, and a screenshot of what was on screen, which is what a target lost to a renamed menu item looks like from the outside. A watchdog ends one that has stopped for any other reason, because a stuck take holds the display and reports nothing.
+
+Two smaller things, both found the hard way. `xdotool mousemove --sync` waits for a motion event that a move to the pointer's *current* position never generates, and blocks for seconds — easing rounds several ticks of a slow stretch to the same pixel, so a glide must skip the moves that would not move anything. And a step's mouse button is `with`, not `button`, because `button` is already a target: the name of the push button to click.
+
+Everything the screenshot tools do to stay out of the user's way applies here unchanged — the theme comes from the spec rather than the saved setting, the language is forced to English, the window is never closed so `closeEvent` never writes `app_config.json`, and the process ends in `os._exit` because VTK's teardown can abort after a clean `shutdown()`.
+
+**One scene drives an application that is not ours.** `cavity-full-workflow` ends in ParaView, which resolves nothing semantically, so its clicks are `point` steps — pixel coordinates read off a rehearsal screenshot. They hold only because a take runs on a display of a known size with no window manager, so ParaView opens at the origin at 1280×800 every time. That scene also needs the driver started from an OpenFOAM-sourced shell, because `_on_open_paraview_clicked` looks for `paraFoam` on `PATH` and falls back to a bare `paraview` with no case loaded rather than failing; `LIBGL_ALWAYS_SOFTWARE=1` is what gets ParaView rendering through the nested display. Both are in `docs/DEMO_SCRIPTS.md`'s Recording section, where whoever records it will be looking.
+
 ## Testing
 
 ```bash
@@ -1065,6 +1157,23 @@ Ideas noted for a later release, not currently scheduled:
 - **`#codeStream` body awareness in the include scan** — the C++-header rejection in `parse_include_directive` (angle brackets, `.H`-family suffixes) is a heuristic that happens to be exactly effective on the v2512 tutorials, where every such include ends in `.H`. A `#{ … #}` depth tracker would be exact, but needs real lexing inside what has to stay a cheap line scan; the current failure mode is benign (an unrecognised target simply never resolves).
 - **A general directive registry** — `foam/lexer.py` still collapses every `#word` into one `DIRECTIVE` token, and `foam/include_resolver.py` is the codebase's *first* per-directive knowledge. `#remove`, `#calc`, `#codeStream`, `#eval` and the include family could grow into one table instead of the current split between the lexer's blanket token and one module that re-reads the text.
 - **Version-aware `etc` selection for includes** — `include_scan.foam_etc_dirs()` cannot know which OpenFOAM version a case targets, so a case written for an older release resolves `#includeEtc` against the newest installed `etc` unless the user picks an installation explicitly. Reading the case's `FoamFile` header version, or remembering a per-case choice, would remove the surprise.
+- **The four remaining parser failure modes** — three parser defects were fixed by walking the v2606 tutorials rather than reasoning about the grammar (a dictionary inside an entry's value, an entry with no value, a comment between a key and its opening brace), taking the corpus from 288 failing files to 38. The 217 errors left in those 38 files are not a long tail: they are four causes, each with a clear shape, and each deliberately left alone because the fix involves a real trade-off rather than a missing case. Measured over the 4435 dictionary files in `/usr/lib/openfoam/openfoam2606/tutorials`:
+
+  | root cause | errors | files | mainly in |
+  |---|---|---|---|
+  | `#{ … #}` verbatim code blocks | 153 | 27 | blockMeshDict, controlDict |
+  | a comment inside a multi-line value | 49 | 11 | fvSchemes |
+  | `actions ( name { … } )` with *named* entries | 10 | 6 | setFieldsDict, topoSetDict |
+  | a comment or bare word in a field-value list | 5 | 3 | setFieldsDict |
+
+  **`#{ … #}`** is the big one, and it is a *lexer* gap rather than a parser one: `foam/lexer.py` has no notion of a verbatim block, so the C++ inside a `codeExecute #{ … #};` is tokenised as ordinary dictionary text — its braces close dictionaries, its `;` end entries, and the damage cascades to the end of the file (hence 110 of the 153 surfacing as "unexpected EOF"). The fix is a lexer state that emits `#{ … #}` as one opaque token, which is additive; the reason it is not done here is that it belongs with "a general directive registry" above, since `#{` is a directive form and the lexer currently collapses every `#word` into one token.
+
+  **A comment inside a multi-line value** is the one with a genuine trade-off. `_read_value_text_until_semicolon` ends the value at a depth-0 comment, which is right when the entry ends there and wrong when the value continues on the next line — as in fvSchemes' DEShybrid entry, where every line of a ten-line value carries a trailing comment. Making comments non-terminating would fix those 49, but a file genuinely missing a `;` would then be consumed to EOF instead of failing locally, so the change trades a precise error for a broad one and needs lookahead to do properly. Note 30 of the 49 are *cascade*: six real sites, each resyncing badly and mis-parsing the following lines as entries.
+
+  **Named `actions ( … )`** is a dispatch-table question, not a parsing one: `actions` is registered in `_ANONYMOUS_BLOCK_PARAMS` and so expects `( { … } { … } )`, but `topoSetDict` also permits `( heater { … } )` with a name before each block — the same optional-name lookahead `_OPTIONAL_NAMED_BLOCK_PARAMS` already performs for `sets`/`surfaces`. It is listed here rather than fixed because it lands squarely on the "consolidate the four parenthesized-block dispatch tables" item above, and doing it separately would add a fifth path to the four that item wants to remove.
+
+  Round-trip fidelity is unaffected by any of this: all 4435 files write back byte-identical, before and after the three fixes, because an entry that fails to parse is preserved verbatim as `unknown_raw_entry`. The cost is in the tree view and schema help, which are wrong or absent for the affected entries, not in the file on disk.
+
 - **Retype `block_mesh_renderer._make_shape_mesh`'s geometry dispatch** — it currently dispatches on dict keys (`box`, `boxes`, `centre`+`radius`, `p1`+`p2`+`radius`, `origin`+`i`+`j`+`k`, `stl_path`, `planePoint`+`planeNormal`, ...) duck-typed at the call site; this was deliberately left as-is in this refactor. A typed geometry union (e.g. per-kind dataclasses) would let mypy check the dispatch instead of relying on key presence at runtime.
 
 ### Deferred review findings (undo/redo, sampling)

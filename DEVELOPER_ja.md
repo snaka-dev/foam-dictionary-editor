@@ -15,6 +15,8 @@ foam-dictionary-editor/
 │   ├── capture_screenshots.py     # tools/screenshot_specs.json から docs/SCREENSHOTS.md のギャラリーを再生成する。保存されたウィンドウ状態を実際の MainWindow に適用し、ImageMagick の `import -frame` で撮影する。ショット × テーマごとに別プロセスで実行するため、light/dark のペアはテーマ以外が完全に一致する（「スクリーンショットの撮影」参照）
 │   ├── screenshot_specs.json      # ギャラリーのショット一覧。画像 1 枚につき ui/window_state.py の WindowState 1 つと、テーマごとの出力ファイル名
 │   ├── capture_dialog.py          # ギャラリーのもう半分であるダイアログを撮影する。ダイアログは独立したトップレベル X ウィンドウであり capture_screenshots.py からは手が届かないため。ショットは JSON spec ではなく DIALOG_SHOTS 辞書に置く（ダイアログは型付き Python 引数から構築するため）。テーマ・言語・import のルールは共通（「スクリーンショットの撮影」参照）
+│   ├── demo_driver.py             # tools/demo_specs.json をもとに docs/DEMO_SCRIPTS.md の動画を操作・収録する。開始状態はスクリーンショット spec と同じ WindowState で、その後を実際の X 入力（xdotool）で操作し、収録専用のネストされたディスプレイ上で ffmpeg により収録する（「デモ動画の収録」参照）
+│   ├── demo_specs.json            # 動画のシーン一覧。シーンごとの開始状態と、それを操作する steps・ナレーション・表示時間
 │   ├── generate_foam_keywords.py  # app_config/keyword_generator.py の CLI ラッパー。--dir でインストールルートを指定（デフォルト: source 済み環境）
 │   └── roundtrip_corpus.py        # インストール済み tutorials の全辞書を parse+write してバイト単位で一致した件数を数える。リリースノートのラウンドトリップ数値の測定元
 ├── tutorials/               # 同梱サンプルケース（GPL-3.0、tutorials/README.md 参照）
@@ -74,14 +76,18 @@ foam-dictionary-editor/
 │   ├── control_dict.py
 │   ├── fv_schemes.py
 │   ├── fv_solution.py
+│   ├── momentum_transport.py    # foamlore から取り込んだ生成ファイル: constant/momentumTransport（OpenFOAM 8 以降の Foundation でのファイル名、Foundation v13）の乱流モデル係数
 │   ├── snappy_hex_mesh_dict/    # パッケージ: サブドメイン別に分割（geometry, castellated mesh, snap, layers, mesh quality）
 │   │   ├── __init__.py          # 各サブモジュールの SCHEMAS を統合し、TARGET_FILE を再エクスポート
 │   │   ├── _common.py           # 共有 SWITCH_CHOICES
+│   │   ├── _structure.py        # 4 つの制御辞書とその中のサブ辞書
 │   │   ├── _geometry.py
 │   │   ├── _castellated_mesh.py
 │   │   ├── _snap_controls.py
 │   │   ├── _add_layers.py
 │   │   └── _mesh_quality.py
+│   ├── turbulence_properties.py # foamlore から取り込んだ生成ファイル: constant/turbulenceProperties（OpenCFD v2512/v2606、Foundation v7）の乱流モデル係数
+│   ├── turbulence_structure.py  # 手書き: simulationType、RAS/LES、model セレクタ、LES delta — TARGET_FILES で両方のファイル名に対応
 │   └── registry.py
 ├── services/
 │   ├── case_copier.py
@@ -177,6 +183,7 @@ foam-dictionary-editor/
     │   ├── test_parser_fv_solution.py
     │   ├── test_parser_block_list.py
     │   ├── test_parser_named_dict_list.py
+    │   ├── test_parser_region_properties.py
     │   ├── test_parser_set_fields_dict.py
     │   ├── test_parser_topo_set_dict.py
     │   ├── test_include_resolver.py
@@ -228,9 +235,11 @@ foam-dictionary-editor/
     │   ├── test_main_window_split.py
     │   ├── test_manage_extra_files_dialog.py
     │   ├── test_rename_boundary.py
+    │   ├── test_reset_all_settings.py
     │   ├── test_run_tool_dialog.py
     │   ├── test_stays_open_menu.py
     │   ├── test_terminal_panel.py
+    │   ├── test_theme.py
     │   ├── test_tools_ops_mesh_actions.py
     │   ├── test_tree_block_crud.py
     │   ├── test_tree_color_lexer_dispatch.py
@@ -256,9 +265,12 @@ foam-dictionary-editor/
     │   ├── test_json_io.py
     │   └── test_keyword_generator.py
     ├── schemas/
-    │   └── test_schemas.py
+    │   ├── test_schemas.py
+    │   ├── test_schema_coverage.py
+    │   └── test_turbulence_schemas.py
     └── tools/
-        └── test_capture_dialog.py
+        ├── test_capture_dialog.py
+        └── test_demo_specs.py
 ```
 
 ### ドキュメントマップ
@@ -270,6 +282,7 @@ foam-dictionary-editor/
 | `DEVELOPER.md` | このファイル: プロジェクト構成、内部構造、開発環境のセットアップ、テスト。 |
 | `RELEASE_NOTES.md` | ユーザー向け変更履歴。新しい項目は `## Unreleased` の下に蓄積し、リリース時に見出しをバージョン番号へ変更します。 |
 | `docs/SCREENSHOTS.md` | メインウィンドウ・BlockMesh 3D オーバーレイ・主要ダイアログ/メニューの注釈付きスクリーンショットギャラリー。 |
+| `docs/DEMO_SCRIPTS.md` | デモ動画のショットごとの台本と収録方法。いずれも `tools/demo_specs.json` の実行可能なシーンなので、台本と実際の収録結果が食い違うことはない。 |
 
 各英語ドキュメントには日本語版（`*_ja.md`）があり、一方を編集したら必ずもう一方にも反映します。日本語ドキュメントではメニューラベルなどの UI 文字列は英語のまま表記します。
 
@@ -287,6 +300,7 @@ foam-dictionary-editor/
 - `test_parser_fv_solution.py` — `fvSolution` のパース: マクロおよび正規表現パターンのソルバーキー、`PIMPLE` ブロック、ソルバーの `tolerance`/`smoother` エントリ、round-trip 書き込み。
 - `test_parser_block_list.py` — `blockMeshDict` の `blocks ( … );` の展開: `hex` のみのリストが匿名・1 行の `block_list`/`block_entry` として解析されること、先読みにより空リスト・単純なマクロ単語リスト・ディレクティブのみのリスト・`hex` 以外の先頭形状（`hex2D`、`prism`）が通常の `raw_list` パスに留まること、hex ブロックと*併存*する `#include` は逆に `directive_entry` の子ノードを伴って展開され（リスト先頭でも途中でも）バイト単位で一致してラウンドトリップすること、各種の記法がそれぞれ 1 エントリとして解析されること（ゾーン名 + `grading`、`$blockInfo` のみの末尾、12 要素の `edgeGrading`、3 行にまたがるブロック、blockMesh の `name <blockName> hex …` プレフィックス。単独の `name` 単語ではエントリが分割されないことも確認）、コメントの配置（インライン / 次エントリの `leading_trivia`）、未変更時のラウンドトリップがバイト単位で一致すること、エントリ変更時に兄弟エントリが原文のまま出力されること。
 - `test_parser_named_dict_list.py` — 省略可能な名前付き辞書リスト構文: `sets`/`surfaces` の名前付き辞書の丸括弧リストが `named_dict_list`/`named_dict_entry` として解析されること（トップレベルとファンクションオブジェクト辞書内の入れ子の両方）、先読みにより単純な単語/文字列リスト（`sets (setA setB);`）や空リストが通常の値パスに留まること、未変更時のラウンドトリップがバイト単位で一致すること、エントリ変更時に兄弟エントリの名前が保持されること。
+- `test_parser_region_properties.py` — 無関係な 2 つの辞書が同じ `regions` というキーを使っている問題: `setFieldsDict` の名前付き辞書はこれまでどおり `region_block`/`region_entry` として解析され、`constant/regionProperties` の 名前と単語リストの組は、以前のような名前のない `unknown_raw_entry` ノード 2 つ ではなく `raw_list` に落ちること。いずれも解析エラーがなく、バイト単位の ラウンドトリップが一致することを確認します。同梱チュートリアルの両ファイルを 直接検証し、単純な `regions ( a b c );` と空リストも対象にしています。さらに、同じ内容を別のキーの下に置いたときとまったく同じ解析結果になることを検証する テストで、この修正が取り戻した原則を固定しています。
 - `test_parser_set_fields_dict.py` — `setFieldsDict` のパース: `defaultFieldValues`/`regions` のフィールド値エントリ（ベクトル値を含む）、`box_pair` のパース、編集後の round-trip 書き込み。
 - `test_parser_topo_set_dict.py` — `action_list`/`action_entry` の構造的パース: ノード型、エントリ数、名前付き子ノードの値、`box_pair` 座標、ソースなしエントリ、round-trip 書き込み、`_diff_action_list` による位置ベースの差分検出。
 - `test_snappy_hex_mesh_extractor.py` — `extract_snappy_hex_mesh_data`: `geometry` の box/sphere（スカラーおよびベクトル/だ円体 radius）/cylinder/cone の抽出、`name` による上書き解決（`geom.stl { name geom; }`）、`triSurfaceMesh`/`distributedTriSurfaceMesh` の `constant/triSurface/` に対するファイル解決（明示的な `file` 子ノード、キー名からの暗黙のファイル名、ファイル不在時の扱い）— `.gz` への透過的な解決を含む（プレーン名のエントリがディスク上に `.gz` のみ存在するファイルへ解決されるケース、`.gz` 付きのエントリキー／ファイルがそのまま解決されるケース、`.gz` 付きの参照がディスク上の非圧縮ファイルへフォールバックするケース）、`collection`（searchableSurfaceCollection）の box メンバーを `rotation none` および `e1`/`e3` 軸で解決（実際に回転するケースを含む）し、box 以外のベースや未指定・未対応の `transform` はスキップされること、`refinementSurfaces`/`refinementRegions` の完全一致および正規表現パターンキー（例：`"iglo.*"`）による照合、`locationInMesh`（単数）と `locationsInMesh`（複数）の点抽出、`$var`/`#eval{}` の解決。
@@ -340,9 +354,11 @@ foam-dictionary-editor/
 - `test_main_window_split.py` — Mixin 構造: 各 Mixin が正しいメソッドを保有すること（`_BoundaryOpsMixin` の `_on_patch_selected`、`_TreeCrudOpsMixin` の `_apply_comparison_value`、`_FoamMonitorOpsMixin` の foamMonitor 関連メソッドを含む）、Mixin 間の重複がないこと、`MainWindow` がすべての Mixin を継承していること。
 - `test_manage_extra_files_dialog.py` — `ManageExtraFilesDialog`: 登録済みの追加ファイル・ディレクトリの表示と削除操作。
 - `test_rename_boundary.py` — `find_rename_targets()`: `blockMeshDict` 内の `boundary_entry` ノードおよび `boundaryField` ブロック内のパッチ `dictionary` ノードの検出、無関係な辞書への誤検出なし、空入力のエッジケース。
+- `test_reset_all_settings.py` — **Reset All Settings** の後に `app_config.json` がどうなるかを検証します。ファイルを削除するだけでは処理の半分でしかありません。アプリケーションは動き続けており、`closeEvent` が終了時にセッションレイアウトとウィンドウサイズを保存していたため、ファイルが再生成され、ユーザーが消したばかりの設定がそのまま戻ってきていました。設定ファイルが削除された後の終了では何も書き込まないこと、削除されていない場合は従来どおり書き込むことを固定します。
 - `test_run_tool_dialog.py` — `RunToolDialog`: 初期状態のライブプレビューが `get_command()` と一致すること、チェックボックス/値編集によるコマンド更新、`last_values` の復元と `get_values()` の新しいダイアログへのラウンドトリップ、解析不能な追加オプションでの実行ボタン無効化、プレフィックスチェックボックスによるシェルプレフィックスの付加、Browse によるケース相対パスの挿入（ケース外は絶対パス）。
 - `test_stays_open_menu.py` — ツールバーのドロップダウンメニュー（`Vertices ▾`、`Blocks ▾`、`Scale ▾`、`topoSet ▾`、`snappyHexMesh ▾`）がチェック可能項目のクリックでは開いたままになり、チェック不可のアクションでは通常どおり閉じること。
 - `test_terminal_panel.py` — `SimpleTerminalWidget` と `TerminalPanel`: 初期状態、作業ディレクトリの切替、クリーンアップ、コマンド履歴、タブラベル、`run_command()`（シェル準備前のキューイングを含む）。
+- `test_theme.py` — `ui/theme.py` の配色テーブルをデータとして検証します: コントラスト計算、選択行の前景・背景ペアに関する慣習ルール（Windows のアクセントカラー `#0078d4` を明示的に指定したリグレッションテストを含む。黒と白のうちコントラストが高い方を選ぶ実装だと、この不具合を再現してしまうため）、どのアクセントカラーでも判読不能なペアが生じないことを網羅的に確認するテスト、両テーブルのすべての前景色がそのテーマの `Base` に対して 3:1 を下回らないこと、差分スウォッチと凡例の塗りが分離していること、そしてビューポートの文字色が `viewport_bg` に対して 3:1 を下回らないこと。いずれもテーブル単位の検査で、成立しない配色は検出しますが、単に見栄えが悪いだけの配色は検出しません。「テーマと配色」を参照。
 - `test_tools_ops_mesh_actions.py` — Tools メニューの「Run *」アクションと Run Allrun/Run Allclean/Clean Case: blockMesh/snappyHexMesh/topoSet/setFields/checkMesh の（実物の、exec をパッチした）`RunToolDialog` を受理した後に偽のターミナルパネルへ送信される正確なコマンド文字列、キャンセル時に何も送信されないこと、時間ディレクトリが存在する場合にダイアログへ渡される再実行警告テキスト、`state.run_tool_options` からの前回オプションの復元、setFields の 0/ 復元プレフィックスチェックボックス（`0.orig/` があれば存在しデフォルトでチェック、なければ非表示、チェックを外せば「そのまま実行」）。Allrun/Allclean のスクリプト欠如警告、`log.*` が存在する場合の Allrun 三択プレフライト — クリーンしてから実行・そのまま実行・キャンセル —、Allclean への委譲または `-auto` による 0/ 削除に言及する Clean Case ダイアログ、`_update_tools_actions()` によるこれらのアクションおよび View Log Summary（ターミナルは不要でケースのみ必要）の有効化。
 - `test_tree_block_crud.py` — `block_entry` 行に対する追加/複製/削除: `_new_sibling_for` が生成する `block_entry` のデフォルト値が実際のブロックとして再解析されること（辞書が親の場合は `word` エントリ）、`_delete_label` がブロックを位置で呼ぶこと、ブロックの削除・追加後に書き出されるファイル（兄弟はそのまま、リストは自分の行で閉じる、残りのブロックは位置で振り直される）、および MainWindow を通した削除 → エディタテキスト → Ctrl+Z の一連の往復。
 - `test_tree_color_lexer_dispatch.py` — `unknown_raw_entry` の琥珀色表示、パーサの `_PAREN_DISPATCH` テーブル。
@@ -371,10 +387,13 @@ foam-dictionary-editor/
 - `test_keyword_generator.py` — `keyword_generator`: `*.C`/`*.H` から辞書読み取り呼び出し（`lookup`/`get<…>`/`readEntry`/`found` など）を収集する `scan_src_lookup_keywords()`（キーワードでない形式は除外）、フィクスチャのインストールツリーに対する `generate(project_dir=…)` — 環境変数は無視、`version` はディレクトリ名由来、ペイロードの来歴メタデータ、何も収集できない場合の `RuntimeError`。
 
 **`tests/schemas/`**
-- `test_schemas.py` — `ChoiceItem`/`KeySchema`、`schema_config.json` の読み込み・保存・リセット・削除、`SchemaRegistry` のプレーン/親修飾/祖父母修飾ルックアップ、`snappyHexMeshDict` スキーマモジュール、設定済みモジュール一覧。
+- `test_schemas.py` — `ChoiceItem`/`KeySchema`、`schema_config.json` の読み込み・保存・リセット・削除、`SchemaRegistry` のプレーン/親修飾/祖父母修飾ルックアップ、他の名前空間の内側でフラットフォールバックを抑止する閉じた名前空間ルール（2 モデル構成の合成モジュールによる検証と、実在する `snappyHexMeshDict` の名前空間で過剰抑止が起きないことの確認）、`snappyHexMeshDict` スキーマモジュール、設定済みモジュール一覧。
+- `test_schema_coverage.py` — モジュールが丸ごと機能停止したことを検出できたはずのテスト。`tests/fixtures/schemas/` にある実際の辞書（v2606 のチュートリアルから無改変でコピーしたもの。スキーマに合わせて手を加えていない点が重要）をパースし、`DetailPanel` とまったく同じ方法（`node.name`、`node.parent.name`、`node.parent.parent.name`）で走査して、辞書ごとのカバレッジ下限を検証します。`fv_schemes.py` はかつてキーを `"<key>.<parent>"` と綴っていた一方でレジストリは `"<parent>.<key>"` で引いていたため、全エントリが到達不能で実際の fvSchemes の 0% しか解決されませんでした。それでもユニットテストが通っていたのは、UI が実際に行う呼び出しではなく内部テーブルの形を検証していたからです。さらにテーブルの不変条件を 2 つ検査します。ドット区切りキーのサフィックスは `KeySchema.key` と一致しなければならないこと（当該モジュールが破っていたまさにその規則）と、`use_instead`／`renamed_from` の参照先がそのファイルに documented なキーとして存在すること。加えて来歴の各ケースをエンドツーエンドで検証します。motorBike の `minFlatness` が `ineffective` として報告されること、`minMedianAxisAngle` が後継とバージョン付きの `renamed` であること、`mergeType` が無効な `merge` を決して提示しないことです。
+- `test_turbulence_schemas.py` — foamlore が生成した `turbulence_properties`/`momentum_transport` モジュール: `TARGET_FILE` と `SCHEMAS` の形状（値はすべて `KeySchema`、選択肢はすべて `ChoiceItem`）、`schemas/builtin.py` のモジュール一覧に両方が既定で登録されていること、`SchemaRegistry` による親修飾形式（`kOmegaSSTCoeffs.beta1`）と `RAS` 辞書直下へのプレーンなフォールバックの両方でのルックアップ、バージョン別の `supported_in` タグとソース既定値の選択肢（`decayControl` の OpenCFD 限定である旨の注記を含む）、そして `GENERATED` バナーがそのまま残っていること — これらのファイルは foamlore で再生成するものであり、手で編集してはいけません。
 
 **`tests/tools/`**
 - `test_capture_dialog.py` — `tools/capture_dialog.py` のショット一覧を素のデータとして検証するテストで、`test_window_state.py` のスクリーンショット spec 検査に対応するものです: 名前がキーと一致すること、同じファイルへ書き込むショットが 2 つないこと、すべてのショットが両言語のギャラリーページから参照されていて画像も存在すること、`requires()` がトレースバックではなく不足しているものを名指しすること。ショットは入力の出どころ（撮影マシンかリポジトリか）で分類され、3 つ目のテストがすべてのショットがそのどちらかに分類されていることを検証するため、ショットを追加すると必ずどちらかを選ぶことになります。さらに `find-examples` ショットが操作する `FindExamplesDialog` のプライベート属性名を固定し、run-tool ショットの警告文と前置き文字列が `ui/mixins/_tools_ops.py` に今も存在することを検証します。これによりアプリが決して表示しないダイアログをギャラリーが見せてしまうことはありません。キャプチャ自体は実 X ディスプレイを要するため対象外です。
+- `test_demo_specs.py` — `tools/demo_specs.json` のシーンを素のデータとして検証します。この中で最も費用対効果が高い検査です。収録には実 X ディスプレイと OpenFOAM のインストール、そして 1 分程度の実時間が必要なため、リネームされたメニュー項目を指しているシーンは、本来なら収録の途中で初めて失敗します。検証内容は、spec が strict な `WindowState` の経路で読み込めること、各ステップの種類と必須フィールド、ターゲットを取るステップがちょうど 1 つだけターゲットを指定していること（取らないステップは 1 つも指定していないこと）、パスと入力テキストのプレースホルダが `_expand` の知っているものであること、スクラッチ用 workdir がリポジトリの外にあること、そして同梱ケースについてのみ（`{cases}` のシーンは収録マシンに依存するため）ケースが存在し、シーンが開くファイルをすべて含んでいること。ラベルは上記 run-tool ショットと同じ考え方でUI のソースと突き合わせます: メニューバーのタイトル、省略記号付きのメニュー項目（ダイアログを開くアクションの慣習であり、ケースから読み出される形状名の行とは違ってソース中のリテラル）、ボタンのラベル、ウィジェットの属性名。実際に起きた不具合のためだけのテストも 1 つあります: ステップのマウスボタンは `with` であり、`button` は既にターゲット（クリックするボタンの名前）なので、`"button": "left"` は "left" という名前のターゲットとして解釈され、収録時にしか失敗しません。ステップの語彙は列挙ではなく `Runner` の `_step_*` メソッドから読み取るため、ドライバに新しいステップ種別を足してここが古いまま取り残されることはありません。操作と収録自体はディスプレイを要するため対象外です。
 
 ## パーサとデータモデル
 
@@ -405,7 +424,7 @@ foam-dictionary-editor/
 | `dictionary` | `key { … }` ブロック。`value=None`、子ノードが展開される |
 | `field_value_block` | `defaultFieldValues / fieldValues ( … );` |
 | `field_value` | `field_value_block` 内の個別アイテム |
-| `region_block` | `regions ( … );` |
+| `region_block` | 中身が名前付き辞書である `regions ( … );`。`constant/regionProperties` は同じキーを単純なリストに使っており、そちらは `raw_list` に落ちるため、先読みで判定する |
 | `region_entry` | `region_block` 内の名前付き `{ … }` エントリ |
 | `boundary_block` | `blockMeshDict` の `boundary ( … );` |
 | `boundary_entry` | `boundary_block` 内の名前付き `{ … }` エントリ。`boundary_block` は `directive_entry` の子ノードを持つこともある: パッチの代わりに置かれた `#include`（`boundary ( #include "…caseBoundary" outlet { … } );`）はブロック全体を失敗させずに独立した子ノードとしてパースされるため、その前後のパッチは構造的パースを維持する |
@@ -545,6 +564,9 @@ class ChoiceItem:
     description: str
     supported_in: tuple[str, ...] = ()
     note: str = ""
+    status: KeyStatus = "valid"
+    use_instead: str = ""
+    deprecated_since: str = ""
 
 @dataclass(frozen=True)
 class KeySchema:
@@ -554,19 +576,53 @@ class KeySchema:
     supported_in: tuple[str, ...] = ()
     note: str = ""
     choices: tuple[ChoiceItem, ...] = ()
+    status: KeyStatus = "valid"
+    use_instead: str = ""
+    renamed_from: tuple[str, ...] = ()
+    deprecated_since: str = ""
 ```
 
-`_base.py` は `supported_in` タプル用のバージョン文字列定数 `FOUNDATION_V13`、`OPENCFD_V2312`、`OPENCFD_V2512`、`OPENCFD_SERIES` もエクスポートします。スキーマモジュール間でバージョン文字列を統一するためにこれらをインポートします。
+`_base.py` はバージョン文字列定数もエクスポートします。`FOUNDATION_V7` 〜 `FOUNDATION_V13`、`OPENCFD_V2106` 〜 `OPENCFD_V2606` に加え、総称ラベルの `FOUNDATION_SERIES`、`OPENCFD_SERIES`、`BOTH_FORKS` です。共有ライブラリである `finiteVolume`/`lduMatrix` に属するキーには総称ラベルを使ってください。個別リリースを 1 つだけ指定すると、詳細ペインでは「そのリリースでしか使えない」と読めてしまいます。実際、61 個のエントリが中核キーを Foundation 限定であるかのように OpenCFD ユーザーへ表示していました。
+
+### キーが何であるかの記録: `status` フィールド
+
+実際の辞書には、すでに現行ではない名前や、そもそも一度も機能したことのない名前が数多く含まれます。`KeyStatus` は 3 値で、詳細ペインはこれに応じて説明文を切り替えます（`DetailPanel._apply_provenance`）。
+
+| status | 意味 | 例 |
+|---|---|---|
+| `valid` | 現行のキー | `scale` |
+| `renamed` | 旧称。`use_instead` が後継、`deprecated_since` がバージョンを示す | `convertToMeters` → `scale`（v1012） |
+| `ineffective` | 公式チュートリアルに現れるがどのリーダも読まないため、書いても何も起きない | `minFlatness` → `minFaceFlatness` |
+
+`renamed`／`ineffective` のキーは削除せず**残します**。旧称を含むケースを開いたユーザーにこそ、それが何なのかを伝える必要があるからです。`renamed_from` は**現行**キー側に置き、その旧称を列挙します。
+
+リネーム情報の出所: OpenCFD は `getCompat("newName", {{"oldName", apiVersion}})`、Foundation は `lookupBackwardsCompatible<T>({"newName", "oldName"})` という形で、リネームを機械可読な形でソースに宣言しています。この 2 系統の呼び出しをソースツリー全体から抽出すると、フォーク別のバージョン範囲付きで約 100 組の旧称→新称が得られます。そのうち 4 組は互換エントリが後に削除されたため古いツリーにしか残っておらず、たとえば `minMedianAxisAngle` は OpenCFD では v2206 まで、Foundation では現在も受け付けられます。FoDE 側にはこのためのジェネレータを意図的に置いていません。抽出は一度きりの調査であり、結果は手作業で転記します。
+
+### 生成モジュール（foamlore からのベンダリング）
+
+`schemas/turbulence_properties.py` と `schemas/momentum_transport.py` は**生成ファイル**で、姉妹リポジトリ foamlore の `facts/tools/generate_fode_schemas.py` から取り込んでいます。4 つのチェックアウト（Foundation 7/13、OpenCFD v2512/v2606）の OpenFOAM `.C` コンストラクタから機械的に抽出した乱流モデル係数（kOmegaSST、kEpsilon、SpalartAllmaras）を、バージョン別 `supported_in` タグとソース既定値の `ChoiceItem` 付きで収録します。係数キーは親修飾（`kOmegaSSTCoeffs.beta1`）で出力され、モデル間で一意な名前には素のフォールバックキーも付きます（OpenFOAM の `optionalSubDict` 読み取りイディオムに対応）。ここでは編集せず、foamlore で再生成して再コピーしてください（テストが `GENERATED` バナーの存在を検証します）。モジュールが 2 つあるのは、foundation が OpenFOAM 8 で `constant/turbulenceProperties` を `constant/momentumTransport` に改名し、レジストリが `TARGET_FILE` ごとにスキーマを保持するためです。
 
 ### SchemaRegistry
 
 `SchemaRegistry`（`schemas/registry.py`）は `schemas/__init__.py` がインポート時にロードするシングルトンです。`schema_config.json`（ファイルが存在しない場合は組み込みデフォルト）のモジュール名リストから `_file_key_schemas[ファイル名][ドット区切りキー] → KeySchema` の 2 階層辞書を構築します。
 
-`schema_for_file_key(file_path, key_name, parent_key, grandparent_key)` は次の 3 段階のルックアップを実施します。
+モジュールは対象を `TARGET_FILES`（タプル）または従来どおり単一の `TARGET_FILE` で宣言します。テーブルはファイルごとに**マージ**され（置換ではありません）、複数のモジュールが 1 つの辞書に寄与できます。衝突時は後のモジュールが優先されます。これにより、手書きの `turbulence_structure` モジュールを同じファイルの生成係数モジュールと併存させることができ、また 1 つのモジュールが `turbulenceProperties` と `momentumTransport` の両方を担当できます。
+
+`schema_for_file_key(file_path, key_name, parent_key, grandparent_key)` は次のルックアップを実施します。
 
 1. `f"{parent_key}.{key_name}"` — 直接の親コンテキスト。
 2. `f"{grandparent_key}.{key_name}"` — 祖父母コンテキスト（名前付き `refinementSurfaces` エントリなど、直接の親がユーザー定義の場合に使用）。
-3. プレーンな `key_name` — フラットフォールバック。
+3. `f"{parent_key}.*"` — ワイルドカード。子の名前がケース依存で列挙できない辞書のためのものです（`divSchemes { div(phi,U) … }`、`relaxationFactors { equations { U 0.7; } }`、`residualControl { p 1e-3; }`）。意図的に**直接の親のみ**に限定しています。祖父母からもワイルドカードを照合すると 1 階層行き過ぎてしまい、関数オブジェクト 1 つを説明する `functions.*` がその**中身**のすべてのキーにも答えてしまうためです。`*` サフィックスは接頭辞を名前空間として登録しますが、所有キー集合からは除外されます。含めると 5 のガードがファイル全体に対して発動してしまいます。
+4. プレーンな `key_name` — フラットフォールバック。ただし 5 が抑止する場合を除く。
+5. ドット区切りの接頭辞は**閉じた名前空間**です。あるモジュールが `kOmegaSSTCoeffs` の下にキーを 1 つでも修飾した時点で、そこに修飾されていないキーはその辞書のキーではなく、3 が代わりに答えてはいけません。したがってフラットフォールバックは、親（または祖父母）がそのファイルで宣言済みの接頭辞であり、**かつ**そのキーが別の接頭辞の下に修飾されている場合に抑止されます。どの接頭辞にも属さないキーは影響を受けず、これまでどおりどのコンテキストからでもフォールバックします。`snappyHexMeshDict` の 9 つの名前空間（いずれのキーもフラットな双子を持ちません）が従来どおり解決されるのはこのためです。このルールが必要なのは、係数が OpenFOAM の `optionalSubDict` 経由で読まれるため、各係数が修飾形とフラット形の 2 通り（`kOmegaSSTCoeffs.beta1` と、`RAS { beta1 …; }` という書き方のための `beta1`）で登録されているからです。これがないと、そのモデルが読まない係数を紛れ込ませた `kOmegaSSTCoeffs { C1 1.44; }` がフラットな `C1` で解決され、kOmegaSST の辞書の中で kEpsilon の係数を表示してしまいます。
+
+`_build_qualified_index` は 2 つの集合（そのファイルが宣言する接頭辞と、そのいずれかの下に修飾されたサフィックス）をキーテーブル自体から導出します。したがってモジュールはドット区切りキーを使うだけでこのルールの対象になります。
+
+名前空間でありながら任意のキーを正当に含む辞書もあります。`RAS` は自身の構造キー（`model`、`turbulence`）を持つ一方で、OpenFOAM の `optionalSubDict` イディオムによりモデル係数を直接書くこと（`RAS { Cmu 0.09; }`）も許されます。構造だけでは `kOmegaSSTCoeffs` と区別できないため、モジュールはそうした接頭辞を **`OPEN_NAMESPACES`** に列挙し、それらはフラットフォールバックを維持します。`schemas/turbulence_structure.py` は `RAS`、`LES`、`laminar` を宣言しています。`<model>Coeffs` 辞書は閉じたままです。
+
+### 設定: デフォルトは置換ではなくマージ
+
+`load_schema_config()` は保存されたファイルをそのまま返し、`SchemaRegistry._effective_config` が `union(組み込みデフォルト, 保存値) - disabled_modules` を計算します。以前は保存済みリストが唯一の正でした。そのため後のリリースで `schemas/builtin.py` にモジュールを追加しても、**Manage Schema Modules** を一度でも開いたことのあるユーザーには永久に届きませんでした。設定はその日のリストに固定されてしまうからです。現在は、ユーザーが明示的に削除したモジュール（`set_schema_modules` が `disabled_modules` に記録）だけが除外されます。`disabled_modules` が存在する前に書かれた設定には意図の記録がないため、当時削除したモジュールは一度だけ再表示されます。これは安全側の選択です。余分なスキーマは目に見えてクリック 1 回で削除できますが、欠けたスキーマは目に見えません。
 
 `reload()` は `schema_config.json` をディスクから再読み込みしてテーブルを再構築します。`apply_and_reload()` はディスクに触れずに現在のインメモリ設定からテーブルを再構築します（同一セッション内で **Settings > Manage Schema Modules** が変更を適用した後に使用）。
 
@@ -1001,6 +1057,43 @@ mkdir -p /tmp/OpenFOAM/run && cp -r "$FOAM_TUTORIALS/incompressible/simpleFoam/p
 
 spec は `light` で撮影し、`system` は使いません。system テーマのウィンドウは撮影マシンのデスクトップパレットを継承するため、他の環境で再現できない唯一の要素になります。ギャラリーの light 画像は 2026-07-30 まで `system` モードで手作業撮影されていました。現在の画像で選択行の塗りがデスクトップのアクセントカラーではなく FoDE 自身の青になり、ウィジェットがデスクトップのスタイルではなく Fusion になっているのはこのためです。
 
+## デモ動画の収録
+
+`docs/DEMO_SCRIPTS_ja.md` の動画は、`tools/demo_specs.json` のシーン定義をもとに `tools/demo_driver.py` が操作・収録します。`capture_screenshots.py` の姉妹ツールで、出発点も同じです。シーンの `state` は同じ `WindowState` で、同じ `defaults` を下敷きにします。その上に、`ffmpeg` で収録しながらウィンドウを操作する `steps` のリストが加わります。
+
+```bash
+python3 tools/demo_driver.py --list                                            # spec に定義されたシーン一覧
+DISPLAY=:1 python3 tools/demo_driver.py damBreak-end-to-end                    # リハーサル: 操作のみ、収録なし
+DISPLAY=:1 python3 tools/demo_driver.py damBreak-end-to-end --record out.mp4   # 収録
+DISPLAY=:1 python3 tools/demo_driver.py damBreak-end-to-end --stage            # 開始状態にしてウィンドウを手渡す
+```
+
+スクリーンショットツールが必要とする X ディスプレイに加えて、`ffmpeg`・`xdotool`・`Xephyr`（`xserver-xephyr`）が必要です。
+
+**ステップは実際の X 入力です。** `xdotool` がポインタを動かしてクリックするため、アプリは通常のマウス・キーボードイベントを受け取り、収録映像には実際のカーソルが実際のホバー状態の上を動く様子が写ります。アプリ内部に手を入れてクリックを偽装する処理はありません。カーソルはターゲット間をイーズインアウトの曲線で移動し、瞬間移動はしません。ステップはターゲットを意味的に指定し（メニュー項目、キーパスで指定したツリー行、ファイル行、ラベルで指定したボタン）、それが画面上の座標に解決されるのは**ステップの実行時**です。メニュー項目は、その前のクリックでメニューが開くまで存在しないからです。
+
+**収録は専用のネストされたディスプレイ上で行われます。** 実際の入力は、ウィンドウマネージャが最前面に置いたウィンドウと、フォーカスが移った先に届きます。使用中のデスクトップではそれは誰かのエディタであり、収録は不安定かつ迷惑なものになります。実際にテスト中に起きた失敗は、チャットウィンドウが自分を最前面に上げてクリックを奪い、次のステップが辞書の値をそこにタイプするというものでした。そのため、ドライバは Xephyr サーバを起動してその中で実行し、終了後に停止します。誰も操作していないマシンでは `--on-this-display` で無効化できます。`--stage` は決してネストしません。人にウィンドウを手渡すことがその目的だからです。副次的な利点として、ネストされたディスプレイにはウィンドウマネージャがないため装飾がなく、収録されるのはアプリケーションだけになります。
+
+**ステップはネストしたイベントループではなく `QTimer` チェーンで実行されます。** モーダルダイアログは自前のイベントループを回すため、`QEventLoop` を回して待つドライバは、自分が開いたダイアログの上でブロックし、それを閉じるステップを待ち続けることになります。タイマーはダイアログのループの中でも発火するので、チェーンは進み続けます。同じ事実は終了時にもう一度効いてきます。`app.quit()` は最も外側のループしか終わらせないため、ダイアログを開いたまま止まった収録は、終了前にそれを閉じます。さもなければハングします。
+
+チェーンは*アトム*（解決・移動・クリック）のキューで、`push` はそれらを**先頭**に積みます。これにより、あるアトムが後続より前に実行される処理を予約できます。この順序をわざわざ書き残すのは、逆にしたときに何も言わずに壊れるからです。移動を積んでからクリックを積むクリックステップは、クリックが**先に**、そのときポインタがあった場所で実行され、収録はほぼ正しく見えたまま進んでしまいます。
+
+**収録のたびにケースは新しくコピーされます。** シーンは `case_source` と `workdir` を指定し、ウィンドウを開く前に無条件でコピーされます。前回の収録の残骸（すでに生成されたメッシュ、すでに設定された `0/`）から始まった収録は、台本と違うものを記録します。また `blockMesh` を実行するシーンは、そうしなければリポジトリの `tutorials/` を汚します。`terminal_prelude` は収録開始前のステージング時に OpenFOAM 環境を Terminal タブに読み込ませます。シェルの設定作業を見せることはデモではないからです。`clean` はその対になるもので、ステージングがコピーするものではなく*ステップ*が作るものを対象にします。ケースを複製するシーンは `case_source` にも `copy_also` にも書かれていないディレクトリを作るので、前回の収録のものが残っていると次のステップが「上書きしますか？」のダイアログになってしまいます。`prepare_case` はリポジトリ内のパスの削除を拒否します。
+
+**`app_config.json` も収録ごとに新しくなります。** `seed_app_config` が workdir にスクラッチの設定ファイルを書き、`MainWindow` を組み立てる前にシングルトンをそちらへ向けます。理由は 2 つあり、2 つめがすべてのシーンで実行する理由です。収録が収録者の設定を*書いて*はいけません。「複製したケースを開きますか？」に Yes と答えると、その途中で新しい既定ケースディレクトリが保存されます。ウィンドウを閉じないだけでは防げません。そして収録が設定を*読んで*もいけません。機能フラグ、既定のケースディレクトリ、ケースライブラリはすべてこのファイル由来なので、そうしなければある機械で撮った動画が別の機械では違う場所を開くことになります。
+
+`case_library` はその上に乗ります。指定したディレクトリが、ケースライブラリの唯一の項目になります。同時に `$FOAM_TUTORIALS` にも代入します。`get_case_library_dirs` はこの変数を登録済みリストの先頭に足すので、項目が 2 つあるとファイル選択の前に「どちらのライブラリを見るか」を訊くダイアログが出てしまい、その中身は収録シェル次第になるからです。同じディレクトリを指させれば 2 つは 1 つに畳まれます。変数を消すのではなくこの向きにしているのは、`paraFoam` が OpenFOAM 環境の残りを必要とするためです。
+
+**ネストされたディスプレイには 2 つの代償があり、いずれもドライバ側で処理しています。** 閉じたメニューはピクセルを画面に残し、自力で再描画しないものの上に居座ります。3D ビューは VTK が描き直すので影響を受けず、結果としてエディタの上にメニュー型の穴が残り、そこに何かが描かれるまで消えません。`repaint()` でも `xrefresh` でも動かせませんが、1 ピクセルのリサイズなら消えます。内容だけでなく全ウィジェットのジオメトリを無効化するからです。ポップアップを閉じたステップの後にこれを実行しています。もう 1 つ、収録では Qt 自身のファイルダイアログを強制します（`AA_DontUseNativeDialogs`）。デスクトップのポータル製ファイル選択ダイアログは別プロセスなのでウィジェットに一切手が届かず、キーボードショートカットもデスクトップごとに異なります。さらにホームディレクトリを開いた状態で上部にユーザのアカウント名を表示するため、公開する動画には映せません。
+
+**収録はハングしません。** ステップが送出した例外はすべて収録を終了させます。メッセージとともに、そのとき画面に何が表示されていたかのスクリーンショットも残ります。メニュー項目の改名でターゲットを見失った状態は、外から見るとこう見えます。それ以外の理由で止まった収録はウォッチドッグが終了させます。止まった収録はディスプレイを占有したまま何も報告しないからです。
+
+細かい点が 2 つ、いずれも痛い目を見て分かったものです。`xdotool mousemove --sync` は、ポインタが**現在いる位置**への移動では決して発生しないモーションイベントを待ち、数秒間ブロックします。イージングによって、ゆっくり動く区間の複数ティックが同じピクセルに丸められるため、移動しない移動はスキップしなければなりません。もう 1 つ、ステップのマウスボタンは `button` ではなく `with` です。`button` はすでにターゲット（クリックするプッシュボタンの名前）だからです。
+
+スクリーンショットツールがユーザの設定を汚さないために行っていることは、すべてそのまま当てはまります。テーマは保存された設定ではなく spec から取り、言語は英語に固定し、ウィンドウを閉じないので `closeEvent` が `app_config.json` を書くこともなく、VTK の後始末がクリーンな `shutdown()` の後でも abort しうるためプロセスは `os._exit` で終わります。
+
+**1 つだけ、FoDE 以外のアプリケーションを操作するシーンがあります。** `cavity-full-workflow` は ParaView で終わります。ParaView は意味的には何も解決できないので、そのクリックは `point` ステップ、つまりリハーサルのスクリーンショットから読み取ったピクセル座標です。収録が既知のサイズでウィンドウマネージャのないディスプレイ上で行われ、ParaView が毎回原点に 1280×800 で開くからこそ成立しています。このシーンはさらに、OpenFOAM を source したシェルからドライバを起動する必要があります。`_on_open_paraview_clicked` は `PATH` 上の `paraFoam` を探し、無ければエラーにせず何も読み込んでいない素の `paraview` にフォールバックするからです。ネストされたディスプレイ上で ParaView を描画させるのは `LIBGL_ALWAYS_SOFTWARE=1` です。どちらも `docs/DEMO_SCRIPTS_ja.md` の「収録」節にあります。収録する人が見るのはそちらだからです。
+
 ## テスト
 
 ```bash
@@ -1065,6 +1158,23 @@ class _FileOpsMixin(_Base):
 - **インクルードスキャンの `#codeStream` 本体認識** — `parse_include_directive` の C++ ヘッダー除外（山括弧、`.H` 系拡張子）はヒューリスティックで、v2512 チュートリアルではたまたま過不足なく機能している（当該コーパスでは該当インクルードがすべて `.H` で終わる）。`#{ … #}` の深さ追跡なら厳密だが、安価な行スキャンに留めるべき処理の中で本物の字句解析が必要になる。現状の失敗様態は無害（認識されない対象は単に解決されないだけ）。
 - **ディレクティブの統一レジストリ** — `foam/lexer.py` は今も全 `#word` を 1 種類の `DIRECTIVE` トークンに潰しており、`foam/include_resolver.py` がコードベース初のディレクティブ別知識になっている。`#remove`、`#calc`、`#codeStream`、`#eval` とインクルード系を 1 つのテーブルにまとめれば、レキサーの一律トークンとテキストを読み直す 1 モジュールという現在の分裂を解消できる。
 - **インクルード解決におけるバージョン対応の `etc` 選択** — `include_scan.foam_etc_dirs()` はケースがどの OpenFOAM バージョン向けかを知り得ないため、ユーザーが明示的にインストールを選ばない限り、古いリリース向けに書かれたケースでも `#includeEtc` は最新の `etc` に対して解決される。ケースの `FoamFile` ヘッダーのバージョンを読むか、ケースごとの選択を記憶すれば驚きを減らせる。
+- **パーサに残る 4 つの失敗パターン** — 文法から推論するのではなく v2606 のチュートリアルを走査することで、パーサの不具合を 3 件修正した（エントリの値の中に入った辞書、値を持たないエントリ、キーと開き波括弧の間のコメント）。これによりコーパス上でパースエラーの出るファイルは 288 → 38 に減った。残る 38 ファイル・217 件のエラーはロングテールではなく、明確な形を持つ 4 つの原因に分かれる。いずれも「対応漏れ」ではなく実際のトレードオフを伴うため、意図的に手を付けていない。`/usr/lib/openfoam/openfoam2606/tutorials` の辞書ファイル 4435 件に対する実測値は次のとおり。
+
+  | 原因 | エラー数 | ファイル数 | 主な辞書 |
+  |---|---|---|---|
+  | `#{ … #}` の逐語コードブロック | 153 | 27 | blockMeshDict, controlDict |
+  | 複数行にわたる値の中のコメント | 49 | 11 | fvSchemes |
+  | 名前付きエントリを持つ `actions ( name { … } )` | 10 | 6 | setFieldsDict, topoSetDict |
+  | field-value リスト中のコメントや裸の語 | 5 | 3 | setFieldsDict |
+
+  **`#{ … #}`** が最大の原因で、これはパーサではなく**レキサ**の欠落である。`foam/lexer.py` には逐語ブロックという概念がないため、`codeExecute #{ … #};` の中の C++ が通常の辞書テキストとしてトークン化される。その波括弧が辞書を閉じ、その `;` がエントリを終わらせ、被害はファイル末尾まで波及する（153 件中 110 件が "unexpected EOF" として現れるのはこのため）。修正は `#{ … #}` を 1 つの不透明なトークンとして出すレキサの状態を追加するだけの追加的な変更だが、ここで実施しないのは、`#{` がディレクティブの一形態であり、レキサが現状すべての `#word` を 1 つのトークンに潰している以上、上記の「ディレクティブの一元的なレジストリ」と併せて扱うべきだからである。
+
+  **複数行の値の中のコメント**は、真にトレードオフのある項目である。`_read_value_text_until_semicolon` は深さ 0 のコメントで値を終わらせる。エントリがそこで終わるなら正しいが、値が次の行へ続く場合は誤りになる。fvSchemes の DEShybrid エントリがまさにそれで、10 行にわたる値の各行に行末コメントが付く。コメントを終端扱いしなければこの 49 件は解消するが、今度は `;` を本当に書き忘れたファイルがローカルに失敗せず EOF まで読み進んでしまう。つまり「正確なエラー」を「広範なエラー」と引き換えにすることになり、きちんとやるには先読みが要る。なお 49 件のうち 30 件は**カスケード**である。実際の発生箇所は 6 か所で、それぞれが再同期に失敗して後続行をエントリとして誤読した結果にすぎない。
+
+  **名前付きの `actions ( … )`** はパースではなく振り分けテーブルの問題である。`actions` は `_ANONYMOUS_BLOCK_PARAMS` に登録されているため `( { … } { … } )` を期待するが、`topoSetDict` は各ブロックの前に名前を置く `( heater { … } )` も許す。これは `_OPTIONAL_NAMED_BLOCK_PARAMS` が `sets`/`surfaces` に対してすでに行っている「名前は任意」の先読みと同じものである。ここで修正せず記載にとどめたのは、上記の「4 つの括弧ブロック振り分けテーブルの統合」に真正面から重なる項目であり、単独で対応すると、その項目が減らそうとしている 4 経路に 5 本目を足すことになるからである。
+
+  なお、これらはラウンドトリップの忠実性には影響しない。4435 件すべてが 3 つの修正の前後を通じてバイト単位で同一に書き戻される。パースに失敗したエントリは `unknown_raw_entry` としてそのまま保持されるためである。損なわれるのはディスク上のファイルではなく、該当エントリのツリー表示とスキーマヘルプ（誤りまたは非表示）である。
+
 - **`block_mesh_renderer._make_shape_mesh` のジオメトリ振り分けの型付け** — 現状は呼び出し側で dict のキー（`box`、`boxes`、`centre`+`radius`、`p1`+`p2`+`radius`、`origin`+`i`+`j`+`k`、`stl_path`、`planePoint`+`planeNormal` など）に対して duck-typing で振り分けており、今回のリファクタでは意図的にそのままにした。型付きのジオメトリ共用体（例: 種類ごとの dataclass）があれば、実行時のキーの有無に頼らず mypy で振り分けをチェックできる。
 
 

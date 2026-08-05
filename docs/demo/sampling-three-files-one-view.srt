@@ -1,0 +1,23 @@
+1
+00:00:00,000 --> 00:00:06,059
+Sampling is the odd one out among these dictionaries: it has no file of its own. It can be a function object inside controlDict, or a standalone dictionary, written in either of two list syntaxes. This case spreads its definitions across all three — and the panel draws them as one scene.
+
+2
+00:00:06,059 --> 00:00:09,851
+Probe locations are drawn as point markers, sample lines as tubes, sampling planes as discs.
+
+3
+00:00:09,851 --> 00:00:19,850
+And every row says where it came from. nearWallProbes out of controlDict, topSpan and scatter out of sample, midCut and lowCut out of surfaces — three files, one view, and no need to remember which of them you put a thing in.
+
+4
+00:00:19,850 --> 00:00:30,251
+They toggle like any other overlay, whichever file they came from.
+
+5
+00:00:30,251 --> 00:00:41,811
+Both planes are badged clipped, and always will be: a sampling plane is unbounded, so the disc is a display convenience cut back to the mesh you are looking at rather than a shape with edges of its own.
+
+6
+00:00:41,811 --> 00:00:45,811
+And this is one of the three: the probes, as a function object in controlDict, with the points that put those markers where they are. Sampling written anywhere the solver accepts it, and still drawn before the solver has run once.

@@ -10,11 +10,15 @@ from . import (
     _geometry,
     _mesh_quality,
     _snap_controls,
+    _structure,
 )
 
 TARGET_FILE = "snappyHexMeshDict"
 
+# _structure first, so a more specific entry in a stage module wins over the
+# generic container description.
 SCHEMAS: dict[str, KeySchema] = {
+    **_structure.SCHEMAS,
     **_geometry.SCHEMAS,
     **_castellated_mesh.SCHEMAS,
     **_snap_controls.SCHEMAS,

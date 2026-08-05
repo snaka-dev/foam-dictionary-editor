@@ -4,6 +4,8 @@ FoDE — Foam Dictionary Editor（読み方: "フォーディー"）
 
 Python と PySide6 で作られた、OpenFOAM 辞書ファイル向け GUI エディタです。
 
+🎬 **YouTube のデモ動画** — 短い紹介動画が 7 本あります。ショットごとの台本とあわせて [docs/DEMO_SCRIPTS_ja.md](docs/DEMO_SCRIPTS_ja.md) に一覧があります。まずは [編集し、見て、実行する](https://youtu.be/kGxfNhAe6xo)（約 74 秒）から。[ワークフロー全体](https://youtu.be/0FZPb92luw8)（約 3 分 38 秒）を通しで見ることもできます。
+
 > 📄 **[*SoftwareX*](https://doi.org/10.1016/j.softx.2026.102852)**（Elsevier）に掲載されました — 「[引用](#引用)」を参照してください。
 
 ## FoDE とは？
@@ -93,6 +95,7 @@ pip install pyvista pyvistaqt
 
 **[スキーマヘルプ](USER_GUIDE_ja.md#詳細ペイン)**
 - 主要な設定項目（`controlDict`、`fvSchemes`、`fvSolution`、`blockMeshDict`、`snappyHexMeshDict`）の説明と有効な選択肢を組み込み表示
+- `turbulenceProperties`/`momentumTransport` の乱流モデル係数（`kOmegaSST`、`kEpsilon`、`SpalartAllmaras`）を、OpenFOAM のフォーク・バージョン別にソース抽出した既定値付きで表示
 - 独自のスキーマモジュール（Python ファイル）で拡張可能
 
 **[BlockMesh 3D ビューア](USER_GUIDE_ja.md#blockmesh-パネル)** *(pyvista / pyvistaqt が必要)*

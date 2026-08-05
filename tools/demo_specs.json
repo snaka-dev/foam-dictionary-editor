@@ -1,0 +1,681 @@
+{
+  "_comment": [
+    "Scenes for tools/demo_driver.py — the demo movies in docs/DEMO_SCRIPTS.md.",
+    "Each scene's `state` is a ui/window_state.py WindowState laid over the",
+    "`defaults` below, exactly as tools/screenshot_specs.json does; `steps` is",
+    "what happens next. Paths may use {repo} for this repository, {cases} for",
+    "the recording machine's OpenFOAM run directory (--cases-dir), and {work}",
+    "for the scratch directory scene copies live in (--workdir).",
+    "A scene that runs a meshing or field tool must set `case_source`, so the",
+    "take starts from a pristine copy and writes its mesh, its 0/ and its logs",
+    "into scratch rather than into the case it was authored against.",
+    "`beat` is the shot label printed during a take; `say` is the narration",
+    "line, written out as a timed .srt beside the video."
+  ],
+  "defaults": {
+    "window_size": [1280, 800],
+    "upper_tab": "Tree",
+    "lower_tab": "Editor",
+    "terminal_mode": "simple",
+    "side_by_side": false
+  },
+  "scenes": {
+    "cavity-full-workflow": {
+      "note": "Movie 7: the paper's Appendix A — an empty window to the vortex in ParaView.",
+      "theme": "light",
+      "copy_also": [
+        {"source": "{repo}/tutorials/cavity/cavity",
+         "into": "{work}/tutorials/incompressible/icoFoam/cavity"},
+        {"source": "{repo}/tutorials/cavity/cavityGrade",
+         "into": "{work}/tutorials/incompressible/icoFoam/cavityGrade"},
+        {"source": "{repo}/tutorials/cavity/cavityClipped",
+         "into": "{work}/tutorials/incompressible/icoFoam/cavityClipped"}
+      ],
+      "case_library": "{work}/tutorials",
+      "clean": ["{work}/cavity"],
+      "terminal_prelude": [
+        "source /usr/lib/openfoam/openfoam2512/etc/bashrc",
+        "clear"
+      ],
+      "state": {
+        "block_mesh_visible": false,
+        "side_by_side": false,
+        "splitter_sizes": {
+          "main": [240, 1040],
+          "right": [500, 270],
+          "right_upper": [700, 0, 340]
+        }
+      },
+      "steps": [
+        {
+          "do": "wait", "ms": 5000,
+          "beat": "an empty window",
+          "say": "This is the worked example from the FoDE paper: the lid-driven cavity, solved with icoFoam, from nothing to a result — without leaving the editor."
+        },
+        {"do": "click", "menu": "Case", "then": 900, "beat": "the Case menu"},
+        {
+          "do": "click", "menu_item": "Duplicate from Case Library...", "then": 3000,
+          "beat": "the case library",
+          "say": "A case starts as a copy of another one. The case library is where the tutorials live, and duplicating from it leaves the original untouched."
+        },
+        {"do": "type", "text": "{work}/tutorials/incompressible/icoFoam/cavity",
+         "delay": 30, "then": 800},
+        {
+          "do": "key", "keys": "Return", "then": 4500,
+          "beat": "the Duplicate Case dialog",
+          "say": "The dialog asks where the copy goes, what to call it, and how much to copy — the whole directory, or only the dictionaries FoDE recognises."
+        },
+        {
+          "do": "click", "field": "New case name:", "then": 700,
+          "beat": "name it",
+          "say": "It proposes the source name with a copy suffix. Drop the suffix: this working case is just cavity."
+        },
+        {"do": "key", "keys": "ctrl+a", "then": 300},
+        {"do": "type", "text": "cavity", "delay": 70, "then": 2200},
+        {"do": "click", "button": "OK", "then": 2200, "beat": "copy it"},
+        {
+          "do": "click", "button": "Yes", "then": 5000,
+          "beat": "open the copy",
+          "say": "And open it."
+        },
+        {
+          "do": "wait", "ms": 6000,
+          "beat": "the dictionaries of a case",
+          "say": "Here is the whole case in one pane: controlDict, blockMeshDict, fvSchemes and fvSolution under system, transportProperties under constant, and the velocity and pressure fields under zero. No walking three directories to find out what a case contains."
+        },
+        {
+          "do": "click", "group": "system", "with": "right", "then": 2600,
+          "beat": "the [+] marker",
+          "say": "A directory marked with a plus holds files the list does not show by default."
+        },
+        {
+          "do": "click", "menu_item": "Add files from", "then": 2400,
+          "say": "Ask for them, and here is the one this case has: PDRblockMeshDict."
+        },
+        {"do": "click", "button": "Select All", "then": 1200},
+        {
+          "do": "click", "button": "Add Selected", "then": 3200,
+          "beat": "it joins the list",
+          "say": "Now it is in the list with the rest."
+        },
+        {
+          "do": "click", "file": "system/controlDict", "then": 4000,
+          "beat": "controlDict in the tree",
+          "say": "controlDict, parsed into a tree. The editor below holds the same file as text, and follows the tree: select an entry and the line it came from is highlighted."
+        },
+        {
+          "do": "click", "tree": ["writeControl"], "then": 6000,
+          "beat": "the schema-driven detail panel",
+          "say": "Select writeControl and the detail panel on the right explains it — what the key does, which distributions support it, and the values it accepts."
+        },
+        {"do": "click", "widget": "detail_panel._value_combo", "then": 600},
+        {
+          "do": "key", "keys": "alt+Down", "then": 5000,
+          "beat": "the documented choices",
+          "say": "The choices are a drop-down rather than something to remember: timeStep, runTime, adjustableRunTime, each with its own note."
+        },
+        {"do": "key", "keys": "Escape", "then": 1200},
+        {
+          "do": "click", "file": "system/fvSchemes", "then": 2600,
+          "beat": "another dictionary"
+        },
+        {
+          "do": "click", "tree": ["ddtSchemes"], "with": "right", "then": 5000,
+          "beat": "the tree context menu",
+          "say": "Entries are edited in the tree itself — copy and paste a value, add or duplicate an entry, comment one out and restore it later, or delete it."
+        },
+        {"do": "key", "keys": "Escape", "then": 1200},
+        {
+          "do": "click", "tab": "Boundary", "then": 7500,
+          "beat": "the boundary table",
+          "say": "Boundary conditions live in a file per field, so reading them as a set means opening every one. The Boundary tab gathers them into a table instead: every patch, every field, and the type each pair is given. The walls are no-slip, and the front and back are empty — this is a two-dimensional case."
+        },
+        {"do": "click", "widget": "boundary_panel._lines_spin", "then": 600},
+        {"do": "key", "keys": "Up", "then": 900},
+        {
+          "do": "key", "keys": "Up", "then": 5000,
+          "beat": "lines per cell",
+          "say": "Raise the lines per cell and the entries come with it, so the values are there too: the moving wall carries a uniform velocity of one metre per second along the top."
+        },
+        {
+          "do": "click", "cell": ["U", "movingWall"], "then": 5000,
+          "beat": "a cell, and its file",
+          "say": "Select a cell and the file it came from opens with that entry highlighted, so a correction is one click from the table that found it."
+        },
+        {
+          "do": "click", "button": "Transpose", "then": 3500,
+          "beat": "transpose",
+          "say": "Patches down or fields down, whichever way round you think about them."
+        },
+        {
+          "do": "click", "tab": "Terminal", "then": 2000,
+          "beat": "the terminal",
+          "say": "The case is ready to run, and the terminal is already in its directory."
+        },
+        {"do": "click", "widget": "terminal_panel._widget._input", "then": 600},
+        {"do": "type", "text": "blockMesh 2>&1 | tee log.blockMesh", "delay": 45, "then": 900},
+        {
+          "do": "key", "keys": "Return", "then": 8000,
+          "beat": "blockMesh",
+          "say": "blockMesh builds the mesh from blockMeshDict. It runs here, in the same window the dictionaries were edited in, and the file list picks up the mesh it wrote."
+        },
+        {"do": "type", "text": "icoFoam 2>&1 | tee log.icoFoam", "delay": 45, "then": 900},
+        {
+          "do": "key", "keys": "Return", "then": 9000,
+          "beat": "icoFoam",
+          "say": "Then icoFoam advances the solution to half a second. Four hundred cells, so it is over almost as soon as it starts — and the time directories it writes appear in the list as they land."
+        },
+        {"do": "click", "menu": "Tools", "then": 900, "beat": "the Tools menu"},
+        {
+          "do": "click", "menu_item": "View Log Summary…", "then": 9000,
+          "beat": "the run, condensed",
+          "say": "Those runs left logs behind, and FoDE condenses them: what ran, how far it got, the residuals it ended on, and every warning it printed along the way."
+        },
+        {"do": "key", "keys": "Escape", "then": 1500},
+        {"do": "click", "menu": "Tools", "then": 900},
+        {
+          "do": "click", "menu_item": "Open Mesh in ParaView…", "then": 26000,
+          "beat": "ParaView",
+          "say": "And the result goes to ParaView, on the case that is open, from the same menu as everything else. It comes up on the case directory, with the mesh and every field already found."
+        },
+        {
+          "do": "click", "point": [48, 457], "then": 9000,
+          "beat": "Apply",
+          "say": "Apply, and the cavity is there."
+        },
+        {
+          "do": "click", "point": [638, 42], "then": 7000,
+          "beat": "the last time step",
+          "say": "Skip to the last time written — half a second, where the run ended."
+        },
+        {"do": "click", "point": [320, 81], "then": 1800, "beat": "colour by"},
+        {
+          "do": "click", "point": [277, 56], "then": 9000,
+          "beat": "velocity magnitude",
+          "say": "Colour it by velocity magnitude, and there is the lid-driven cavity: the wall dragging the fluid along the top, the primary vortex turning underneath it. One case, one window, from an empty editor to that."
+        }
+      ]
+    },
+    "multiRegion-five-meshes-one-case": {
+      "note": "Movie 6: per-region file grouping, and the case-root scripts, on a chtMultiRegion case.",
+      "theme": "light",
+      "case_source": "{repo}/tutorials/snappyMultiRegionHeater",
+      "workdir": "{work}/snappyMultiRegionHeater",
+      "state": {
+        "block_mesh_visible": false,
+        "side_by_side": false,
+        "upper_tab": "Tree",
+        "current_file": "constant/heater/thermophysicalProperties",
+        "splitter_sizes": {
+          "main": [330, 950],
+          "right": [430, 340],
+          "right_upper": [950, 0, 0]
+        }
+      },
+      "steps": [
+        {
+          "do": "wait", "ms": 6000,
+          "beat": "five meshes",
+          "say": "A conjugate heat transfer case is not one case. This one is five meshes sharing a directory — two fluid regions and three solid ones — each with its own schemes, its own solution settings, its own material properties. On disk that means the same file names repeated under five subdirectories, twice over, in system and in constant."
+        },
+        {
+          "do": "move", "file": "system/heater/fvSolution", "then": 5000,
+          "beat": "the region groups",
+          "say": "FoDE recognises the layout and groups the list by region, so the heater's files sit under the heater's own headings — rather than a flat list of identical names you have to read directory prefixes off to tell apart."
+        },
+        {
+          "do": "click", "file": "system/heater/changeDictionaryDict", "then": 4500,
+          "beat": "changeDictionaryDict",
+          "say": "And this is the file that makes multi-region cases what they are — changeDictionaryDict, which patches the boundary conditions per region after the meshes are cut. There is one for every region, and they are the files you actually spend the time in."
+        },
+        {
+          "do": "click", "file": "system/bottomAir/fvSolution", "then": 3500,
+          "beat": "a fluid region",
+          "say": "The fluid regions sit next to them, solved with entirely different settings in the same case."
+        },
+        {
+          "do": "click", "file": "Allrun", "then": 5000,
+          "beat": "the case-root scripts",
+          "say": "And at the bottom, under case root, the scripts that drive the whole thing. They open as text with shell highlighting rather than being forced through a dictionary parser, they keep their executable bit when saved, and they travel with the case when you duplicate it. Reading Allrun is usually how you find out what a case actually does."
+        }
+      ]
+    },
+    "sampling-three-files-one-view": {
+      "note": "Movie 5: sampling geometry merged from controlDict, sample and surfaces.",
+      "theme": "light",
+      "case_source": "{repo}/tutorials/samplingShapes",
+      "workdir": "{work}/samplingShapes",
+      "state": {
+        "block_mesh_visible": true,
+        "side_by_side": false,
+        "upper_tab": "BlockMesh",
+        "preload_files": [
+          "system/blockMeshDict",
+          "system/controlDict",
+          "system/sample"
+        ],
+        "current_file": "system/surfaces",
+        "tree_selection": ["surfaces", "midCut", "normal"],
+        "splitter_sizes": {
+          "main": [200, 1080],
+          "right": [560, 210],
+          "right_upper": [1080, 0, 0]
+        },
+        "block_mesh": {
+          "toggles": {"boundary_faces": false, "vertex_table": false},
+          "label_font_size": 13,
+          "camera": [
+            [6.31, -3.49, 4.71],
+            [1.5, 1.5, 1.5],
+            [0.0, 0.0, 1.0]
+          ]
+        }
+      },
+      "steps": [
+        {
+          "do": "wait", "ms": 5000,
+          "beat": "open",
+          "say": "Sampling is the odd one out among these dictionaries: it has no file of its own. It can be a function object inside controlDict, or a standalone dictionary, written in either of two list syntaxes. This case spreads its definitions across all three — and the panel draws them as one scene."
+        },
+        {
+          "do": "drag", "widget": "block_mesh_panel", "by": [80, 25], "ticks": 20,
+          "then": 1800,
+          "beat": "orbit",
+          "say": "Probe locations are drawn as point markers, sample lines as tubes, sampling planes as discs."
+        },
+        {
+          "do": "click", "button": "sample ▾", "then": 4000,
+          "beat": "the sample menu",
+          "say": "And every row says where it came from. nearWallProbes out of controlDict, topSpan and scatter out of sample, midCut and lowCut out of surfaces — three files, one view, and no need to remember which of them you put a thing in."
+        },
+        {
+          "do": "click", "menu_item": "topSpan", "then": 800,
+          "beat": "uncheck two"
+        },
+        {"do": "click", "menu_item": "scatter", "then": 800},
+        {
+          "do": "key", "keys": "Escape", "then": 3200,
+          "beat": "the scene without them",
+          "say": "They toggle like any other overlay, whichever file they came from."
+        },
+        {
+          "do": "click", "button": "sample ▾", "then": 1200,
+          "beat": "reopen"
+        },
+        {
+          "do": "click", "menu_item": "Show all shapes", "then": 3000,
+          "beat": "show all"
+        },
+        {
+          "do": "wait", "ms": 4500,
+          "beat": "clipping",
+          "say": "Both planes are badged clipped, and always will be: a sampling plane is unbounded, so the disc is a display convenience cut back to the mesh you are looking at rather than a shape with edges of its own."
+        },
+        {
+          "do": "click", "tab": "Tree", "then": 1400,
+          "beat": "to the tree"
+        },
+        {
+          "do": "click", "file": "system/controlDict", "then": 2000,
+          "beat": "open controlDict"
+        },
+        {
+          "do": "click", "tree": ["functions", "nearWallProbes", "probeLocations"],
+          "then": 5000,
+          "beat": "where the probes came from",
+          "say": "And this is one of the three: the probes, as a function object in controlDict, with the points that put those markers where they are. Sampling written anywhere the solver accepts it, and still drawn before the solver has run once."
+        }
+      ]
+    },
+    "motorBike-snappy-overlay": {
+      "note": "Movie 4: snappyHexMeshDict's geometry, refinement and keep-point, on the case everyone knows.",
+      "theme": "light",
+      "case_source": "{cases}/motorBike",
+      "workdir": "{work}/motorBike",
+      "state": {
+        "block_mesh_visible": true,
+        "side_by_side": true,
+        "preload_files": ["system/blockMeshDict"],
+        "current_file": "system/snappyHexMeshDict",
+        "tree_expand": [["castellatedMeshControls", "refinementSurfaces", "motorBike"]],
+        "tree_selection": ["castellatedMeshControls", "refinementSurfaces", "motorBike", "level"],
+        "splitter_sizes": {
+          "main": [200, 1080],
+          "right": [540, 230],
+          "right_upper": [1080, 0, 0],
+          "tree_bm": [360, 670]
+        },
+        "block_mesh": {
+          "toggles": {"boundary_faces": false, "vertex_table": false},
+          "label_font_size": 11,
+          "camera": [
+            [15.75, -15.5, 10.45],
+            [4.0, 1.0, 2.0],
+            [0.0, 0.0, 1.0]
+          ]
+        }
+      },
+      "steps": [
+        {
+          "do": "wait", "ms": 5000,
+          "beat": "open",
+          "say": "snappyHexMesh builds a mesh around a surface, and its dictionary is mostly references to things you cannot see: a geometry file, a refinement region, a point that decides which side is fluid. Open it here and they are drawn — inside the background mesh they will be cut from."
+        },
+        {
+          "do": "drag", "widget": "block_mesh_panel", "by": [60, 18], "ticks": 6,
+          "then": 1200,
+          "beat": "orbit",
+          "say": "The bike is the triSurface the dictionary names, resolved from constant/triSurface and loaded for you."
+        },
+        {
+          "do": "scroll", "widget": "block_mesh_panel", "direction": "up", "amount": 8,
+          "then": 2500,
+          "beat": "zoom in",
+          "say": "Zoom in and it is the real surface, not a bounding box standing in for it."
+        },
+        {
+          "do": "click", "button": "snappyHexMesh ▾", "then": 3000,
+          "beat": "the snappy menu",
+          "say": "The rows are classified by how the dictionary uses each one — surfaces to snap to, regions to refine by, and the keep-point — because that is the distinction that matters when a mesh comes out wrong."
+        },
+        {
+          "do": "click", "menu_item": "motorBike", "then": 900,
+          "beat": "hide the surface"
+        },
+        {
+          "do": "key", "keys": "Escape", "then": 4000,
+          "beat": "the refinement box alone",
+          "say": "Hide the bike and the refinement region is left on its own — which is the thing you actually want to check. Does it enclose what it is meant to refine, and is it inside the background mesh at all?"
+        },
+        {
+          "do": "click", "button": "snappyHexMesh ▾", "then": 1200,
+          "beat": "reopen"
+        },
+        {
+          "do": "click", "menu_item": "Show all shapes", "then": 3000,
+          "beat": "show all"
+        },
+        {
+          "do": "click", "tree": ["castellatedMeshControls", "refinementRegions", "refinementBox"],
+          "then": 4500,
+          "beat": "tree to editor",
+          "say": "Select the region in the tree and the editor goes to the entry that defines it — the refinement levels, and the mode that says whether inside or outside is the part being refined."
+        },
+        {
+          "do": "wait", "ms": 5000,
+          "beat": "the keep-point",
+          "say": "And the marker is locationInMesh: the single point that tells snappyHexMesh which side of the surface to keep. Put it on the wrong side and the mesher happily deletes the domain instead of the bike. It is one line in the dictionary, and now it is somewhere you can look at."
+        }
+      ]
+    },
+    "cavity-boundary-and-compare": {
+      "note": "Movie 3: the boundary table, then comparing the case against another.",
+      "theme": "light",
+      "case_source": "{repo}/tutorials/cavity/cavity",
+      "workdir": "{work}/cavity",
+      "copy_also": [
+        {"source": "{repo}/tutorials/cavity/cavityGrade", "into": "{work}/cavityGrade"}
+      ],
+      "state": {
+        "block_mesh_visible": false,
+        "side_by_side": false,
+        "upper_tab": "Boundary",
+        "current_file": "0/U",
+        "splitter_sizes": {
+          "main": [220, 1060],
+          "right": [520, 250],
+          "right_upper": [1060, 0, 0]
+        }
+      },
+      "steps": [
+        {
+          "do": "wait", "ms": 4500,
+          "beat": "the boundary table",
+          "say": "Boundary conditions live in a file per field, so reading them as a set means opening every one. The Boundary tab lays them out as a table instead — every patch, every field, and the type each pair is given. This is a two-field case; on a real one the table is what stops you missing a patch."
+        },
+        {
+          "do": "click", "widget": "boundary_panel._lines_spin", "then": 500,
+          "beat": "lines per cell",
+          "say": "Raise the lines per cell and the entries under each type come with it — so the values are there too, not just the names."
+        },
+        {"do": "key", "keys": "Up", "then": 900},
+        {"do": "key", "keys": "Up", "then": 2600},
+        {
+          "do": "click", "button": "Transpose", "then": 3200,
+          "beat": "transpose",
+          "say": "Patches down or fields down, whichever way round you think about them."
+        },
+        {
+          "do": "click", "menu": "Case", "then": 1000,
+          "beat": "the Case menu"
+        },
+        {
+          "do": "click", "menu_item": "Compare with Case...", "then": 2200,
+          "beat": "pick a reference case",
+          "say": "A case rarely exists on its own — it came from a tutorial, or from last week's run. So point FoDE at the other one."
+        },
+        {"do": "type", "text": "{work}/cavityGrade", "delay": 35, "then": 700},
+        {
+          "do": "key", "keys": "Return", "then": 5000,
+          "beat": "the comparison",
+          "say": "Now both cases are on screen at once. Entries that differ are marked in place, and so are the ones present on only one side — and the file list carries the same information one level up, so you can see which files differ before opening any of them."
+        },
+        {"do": "click", "tab": "Tree", "then": 1200},
+        {
+          "do": "click", "file": "system/blockMeshDict", "then": 5000,
+          "beat": "a differing file",
+          "say": "A graded mesh against a uniform one, so blockMeshDict is where they part: one block on the left, four graded blocks on the right — found without reading either file."
+        },
+        {
+          "do": "click", "button": "Clear", "then": 3000,
+          "beat": "clear",
+          "say": "Nothing was modified by comparing. Clear ends it."
+        }
+      ]
+    },
+    "topoSet-overlay-tour": {
+      "note": "Movie 2: every shape the overlay draws, the per-shape menus, clipping, STL export.",
+      "theme": "light",
+      "case_source": "{repo}/tutorials/topoSetShapes",
+      "workdir": "{work}/topoSetShapes",
+      "state": {
+        "block_mesh_visible": true,
+        "side_by_side": false,
+        "upper_tab": "BlockMesh",
+        "preload_files": ["system/blockMeshDict"],
+        "current_file": "system/topoSetDict",
+        "tree_selection": ["actions", 5, "name"],
+        "splitter_sizes": {
+          "main": [200, 1080],
+          "right": [560, 210],
+          "right_upper": [1080, 0, 0]
+        },
+        "block_mesh": {
+          "toggles": {"boundary_faces": false, "vertex_table": false},
+          "label_font_size": 12,
+          "camera": [
+            [6.31, -3.49, 4.71],
+            [1.5, 1.5, 1.5],
+            [0.0, 0.0, 1.0]
+          ]
+        }
+      },
+      "steps": [
+        {
+          "do": "wait", "ms": 4000,
+          "beat": "open",
+          "say": "This case's topoSetDict exercises every geometry source the viewer can draw — boxes, spheres, cylinders, cones, points, planes. Nothing has been run here. This is the dictionary, drawn."
+        },
+        {
+          "do": "drag", "widget": "block_mesh_panel", "by": [70, 20], "ms": 1400,
+          "then": 1800,
+          "beat": "orbit",
+          "say": "It is a real 3-D scene, so you can look at it from anywhere."
+        },
+        {
+          "do": "click", "button": "topoSet ▾", "then": 2500,
+          "beat": "the topoSet menu",
+          "say": "Every source in the dictionary is a row in this menu, coloured by the action that produced it — new, add, subtract."
+        },
+        {
+          "do": "click", "menu_item": "ball", "then": 800,
+          "beat": "uncheck three shapes",
+          "say": "Uncheck the ones you are not interested in — the menu stays open, so you can work through a list."
+        },
+        {"do": "click", "menu_item": "pipe", "then": 800},
+        {"do": "click", "menu_item": "twinBoxes", "then": 800},
+        {
+          "do": "move", "menu_item": "midPlane", "then": 2800,
+          "beat": "the rest of the menu",
+          "say": "Sources with no geometry to draw are not silently dropped either — the last row counts them, so the menu accounts for the whole dictionary."
+        },
+        {
+          "do": "key", "keys": "Escape", "then": 3200,
+          "beat": "the scene without them",
+          "say": "And the scene is left with what you asked for."
+        },
+        {
+          "do": "click", "button": "topoSet ▾", "then": 1200,
+          "beat": "reopen the menu"
+        },
+        {
+          "do": "click", "menu_item": "Show all shapes", "then": 3000,
+          "beat": "show all",
+          "say": "Show all brings them back."
+        },
+        {
+          "do": "wait", "ms": 4000,
+          "beat": "clipping",
+          "say": "A shape reaching past the block mesh is drawn cut down to it, and its badge says so. That is display only — the dictionary is untouched, and an export writes the whole shape."
+        },
+        {
+          "do": "click", "tab": "Tree", "then": 1400,
+          "beat": "to the tree"
+        },
+        {
+          "do": "click", "tree": ["actions", 5, "name"], "then": 4000,
+          "beat": "tree to editor",
+          "say": "Select a source in the tree and the editor scrolls to the lines that define it — the same two-way link every dictionary has here."
+        },
+        {
+          "do": "click", "tab": "BlockMesh", "then": 1400,
+          "beat": "back to the view"
+        },
+        {
+          "do": "click", "button": "STL ▾", "then": 1500,
+          "beat": "the STL menu"
+        },
+        {
+          "do": "click", "menu_item": "Export Shapes as STL…", "then": 4500,
+          "beat": "export dialog",
+          "say": "Which is what this does. Every shape on screen can be written out as STL — real geometry, not a sketch."
+        },
+        {"do": "key", "keys": "Escape", "then": 1500}
+      ]
+    },
+    "damBreak-end-to-end": {
+      "note": "Movie 1: edit setFieldsDict, watch the geometry, run the tools, read the log.",
+      "theme": "light",
+      "case_source": "{repo}/tutorials/damBreak",
+      "workdir": "{work}/damBreak",
+      "terminal_prelude": [
+        "source /usr/lib/openfoam/openfoam2512/etc/bashrc",
+        "clear"
+      ],
+      "state": {
+        "block_mesh_visible": true,
+        "side_by_side": true,
+        "current_file": "system/blockMeshDict",
+        "tree_selection": ["vertices"],
+        "splitter_sizes": {
+          "main": [230, 1040],
+          "right": [520, 250],
+          "right_upper": [1040, 0, 0],
+          "tree_bm": [430, 600]
+        },
+        "block_mesh": {
+          "toggles": {"boundary_faces": false, "vertex_table": false},
+          "label_font_size": 12,
+          "camera": [
+            [0.292, 0.292, 1.55],
+            [0.292, 0.292, 0.007],
+            [0.0, 1.0, 0.0]
+          ]
+        }
+      },
+      "steps": [
+        {
+          "do": "wait", "ms": 4000,
+          "beat": "open",
+          "say": "This is an OpenFOAM case — the damBreak tutorial — open in FoDE. The dictionary is a tree on the left, the mesh it describes is drawn on the right."
+        },
+        {
+          "do": "click", "file": "system/setFieldsDict", "then": 3800,
+          "beat": "open setFieldsDict",
+          "say": "Open setFieldsDict, and the region it initialises is drawn straight onto that mesh."
+        },
+        {
+          "do": "click", "tree": ["regions", "boxToCell", "box"], "then": 3200,
+          "beat": "select the box row",
+          "say": "Select the box that defines it, and the editor below jumps to the line it came from."
+        },
+        {
+          "do": "click", "tree": ["regions", "boxToCell", "box"], "col": 2,
+          "double": true, "then": 900,
+          "beat": "edit the value",
+          "say": "Change the water column — make it wider and taller."
+        },
+        {"do": "key", "keys": "ctrl+a", "then": 250},
+        {
+          "do": "type", "text": "(0 0 -1) (0.35 0.4 1)", "delay": 70, "then": 500
+        },
+        {
+          "do": "key", "keys": "Return", "then": 4500,
+          "beat": "the overlay follows the edit",
+          "say": "The overlay follows the edit. No re-run, no export, no guessing at coordinates."
+        },
+        {
+          "do": "click", "button": "Save File", "then": 1600,
+          "beat": "save",
+          "say": "Save the file."
+        },
+        {
+          "do": "click", "menu": "Tools", "then": 900,
+          "beat": "Tools menu"
+        },
+        {
+          "do": "click", "menu_item": "Run blockMesh…", "then": 4000,
+          "say": "The mesh has to exist before the fields can be set, so run blockMesh."
+        },
+        {
+          "do": "click", "button": "Run", "then": 7000,
+          "beat": "blockMesh runs",
+          "say": "It runs in the Terminal tab, in the case directory, and tees its output to a log."
+        },
+        {
+          "do": "click", "menu": "Tools", "then": 900,
+          "beat": "Tools menu again"
+        },
+        {
+          "do": "click", "menu_item": "Run setFields…", "then": 8000,
+          "beat": "the setFields dialog",
+          "say": "Now setFields. The dialog offers the flags rather than asking you to remember them, and shows the exact command it will send. setFields rewrites 0/ in place, so it offers to restore 0/ from 0.orig first — checked by default, and visible in the command."
+        },
+        {
+          "do": "click", "button": "Run", "then": 7000,
+          "beat": "setFields runs",
+          "say": "Run it."
+        },
+        {
+          "do": "click", "menu": "Tools", "then": 900,
+          "beat": "Tools menu once more"
+        },
+        {
+          "do": "click", "menu_item": "View Log Summary…", "then": 7500,
+          "beat": "log summary",
+          "say": "And the logs those runs left behind are condensed to a report: what ran, what it produced, and every warning it printed."
+        }
+      ]
+    }
+  }
+}

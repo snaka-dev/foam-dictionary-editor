@@ -1,0 +1,19 @@
+1
+00:00:00,000 --> 00:00:07,148
+A conjugate heat transfer case is not one case. This one is five meshes sharing a directory — two fluid regions and three solid ones — each with its own schemes, its own solution settings, its own material properties. On disk that means the same file names repeated under five subdirectories, twice over, in system and in constant.
+
+2
+00:00:07,148 --> 00:00:13,374
+FoDE recognises the layout and groups the list by region, so the heater's files sit under the heater's own headings — rather than a flat list of identical names you have to read directory prefixes off to tell apart.
+
+3
+00:00:13,374 --> 00:00:18,900
+And this is the file that makes multi-region cases what they are — changeDictionaryDict, which patches the boundary conditions per region after the meshes are cut. There is one for every region, and they are the files you actually spend the time in.
+
+4
+00:00:18,900 --> 00:00:23,403
+The fluid regions sit next to them, solved with entirely different settings in the same case.
+
+5
+00:00:23,403 --> 00:00:27,403
+And at the bottom, under case root, the scripts that drive the whole thing. They open as text with shell highlighting rather than being forced through a dictionary parser, they keep their executable bit when saved, and they travel with the case when you duplicate it. Reading Allrun is usually how you find out what a case actually does.

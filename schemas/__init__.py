@@ -7,6 +7,7 @@ from schemas.config_store import delete_schema_config
 from schemas.registry import SchemaRegistry
 
 __all__ = [
+    "KeySchema",
     "delete_schema_config",
     "apply_schema_modules",
     "get_schema_modules",

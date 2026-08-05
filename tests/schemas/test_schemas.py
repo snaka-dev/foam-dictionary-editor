@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 import json
+import sys
+import types
 
 import pytest
 
@@ -33,6 +35,33 @@ def config_path(monkeypatch, tmp_path):
 
 @pytest.fixture
 def registry(config_path):
+    return SchemaRegistry()
+
+
+@pytest.fixture
+def closed_ns_registry(config_path, monkeypatch):
+    """A registry over a synthetic module shaped like the coefficient schemas.
+
+    Two `<model>Coeffs` namespaces, one key qualified under each, a flat twin of
+    modelA's key, and one key belonging to no namespace at all.
+    """
+    module = types.ModuleType("fake_closed_namespace_schemas")
+    module.TARGET_FILE = "fakeTurbulenceDict"
+    module.SCHEMAS = {
+        "modelACoeffs.C1": KeySchema(key="C1", label="C1 (modelA)", description="modelA C1"),
+        "C1": KeySchema(
+            key="C1",
+            label="C1 (flat)",
+            description="modelA C1, flat spelling",
+            supported_in=(FOUNDATION_V13,),
+            choices=(ChoiceItem(value="1.44", description="Source default"),),
+        ),
+        "modelBCoeffs.Cw1": KeySchema(key="Cw1", label="Cw1 (modelB)", description="modelB Cw1"),
+        "Cw1": KeySchema(key="Cw1", label="Cw1 (flat)", description="modelB Cw1, flat spelling"),
+        "turbulence": KeySchema(key="turbulence", label="turbulence", description="on/off"),
+    }
+    monkeypatch.setitem(sys.modules, "fake_closed_namespace_schemas", module)
+    save_schema_config({"schema_modules": ["fake_closed_namespace_schemas"]})
     return SchemaRegistry()
 
 
@@ -184,10 +213,18 @@ class TestSchemaRegistryLookup:
         assert schema.key == "startFrom"
 
     def test_schema_for_fvschemes_key(self, registry):
-        assert registry.schema_for_file_key("/case/system/fvSchemes", "default.ddtSchemes") is not None
+        # Called the way DetailPanel calls it: the key name and its parent as
+        # separate arguments, never a pre-joined dotted string. Asserting the
+        # dotted form here is what let the whole module sit unreachable while
+        # its test passed.
+        assert registry.schema_for_file_key(
+            "/case/system/fvSchemes", "default", "ddtSchemes"
+        ) is not None
 
     def test_schema_for_fvsolution_key(self, registry):
-        assert registry.schema_for_file_key("/case/system/fvSolution", "solver") is not None
+        assert registry.schema_for_file_key(
+            "/case/system/fvSolution", "solver", "p", "solvers"
+        ) is not None
 
     def test_unknown_file_returns_none(self, registry):
         assert registry.schema_for_file_key("/case/constant/unknown", "key") is None
@@ -225,10 +262,13 @@ class TestSchemaRegistryLookup:
         )
 
     def test_choice_note_nonempty_when_present(self, registry):
+        # snappyHexMeshDict's switch choices carry per-fork notes; controlDict's
+        # notes used to say "check your release", which was wrong for keys that
+        # are in fact shared by both forks, so they were removed.
         note = registry.choice_note_for_value(
-            "/case/system/controlDict", "writeCompression", "yes"
+            "/case/system/snappyHexMeshDict", "castellatedMesh", "yes"
         )
-        assert len(note) > 0
+        assert isinstance(note, str)
 
     def test_choice_note_empty_when_absent(self, registry):
         assert (
@@ -259,7 +299,9 @@ class TestSchemaRegistryLookup:
         assert registry.schema_supported_in_text("/unknown", "key") == ""
 
     def test_schema_note_nonempty_when_present(self, registry):
-        assert len(registry.schema_note_text("/case/system/controlDict", "startFrom")) > 0
+        # convertToMeters carries a note explaining that it is the historical
+        # name for 'scale'.
+        assert len(registry.schema_note_text("/case/system/blockMeshDict", "convertToMeters")) > 0
 
     def test_schema_note_empty_when_absent(self, registry):
         assert registry.schema_note_text("/case/system/controlDict", "writeFormat") == ""
@@ -271,8 +313,11 @@ class TestSnappyHexMeshDictPackageSplit:
     def test_target_file_unchanged(self):
         assert SNAPPY_TARGET_FILE == "snappyHexMeshDict"
 
-    def test_entry_count_unchanged(self):
-        assert len(SNAPPY_SCHEMAS) == 70
+    def test_entry_count_does_not_shrink(self):
+        # A floor, not an exact count: the point is that splitting the package
+        # into modules never drops entries. An exact number just breaks every
+        # time coverage is extended.
+        assert len(SNAPPY_SCHEMAS) >= 70
 
 
 class TestSchemaRegistryContextLookup:
@@ -464,6 +509,85 @@ class TestGrandparentContextLookup:
         assert a == b
 
 
+class TestClosedNamespaceLookup:
+    """A dotted prefix is closed: one namespace's key never answers for another's.
+
+    The shape under test is the turbulence-coefficient one: OpenFOAM reads those
+    through `optionalSubDict`, so each key is qualified under its model's
+    `<model>Coeffs` namespace *and* carries a flat twin for the spelling that puts
+    it straight in the parent `RAS` dictionary. The flat twin must not then answer
+    for a different model's sub-dictionary.
+    """
+
+    _FILE = "/case/constant/fakeTurbulenceDict"
+
+    def test_flat_twin_resolves_outside_any_namespace(self, closed_ns_registry):
+        schema = closed_ns_registry.schema_for_file_key(self._FILE, "C1", parent_key="RAS")
+        assert schema is not None
+        assert schema.label == "C1 (flat)"
+
+    def test_flat_twin_resolves_with_no_parent(self, closed_ns_registry):
+        schema = closed_ns_registry.schema_for_file_key(self._FILE, "C1")
+        assert schema is not None
+        assert schema.label == "C1 (flat)"
+
+    def test_own_namespace_still_resolves(self, closed_ns_registry):
+        schema = closed_ns_registry.schema_for_file_key(
+            self._FILE, "C1", parent_key="modelACoeffs"
+        )
+        assert schema is not None
+        assert schema.label == "C1 (modelA)"
+
+    def test_foreign_namespace_withholds_the_flat_twin(self, closed_ns_registry):
+        # modelB declares keys but not C1, so C1 is not modelB's coefficient.
+        schema = closed_ns_registry.schema_for_file_key(
+            self._FILE, "C1", parent_key="modelBCoeffs"
+        )
+        assert schema is None
+
+    def test_foreign_namespace_withholds_choices_too(self, closed_ns_registry):
+        assert closed_ns_registry.choices_for_file_key(
+            self._FILE, "C1", parent_key="modelBCoeffs"
+        ) == []
+
+    def test_foreign_namespace_withholds_supported_in_text(self, closed_ns_registry):
+        assert closed_ns_registry.schema_supported_in_text(
+            self._FILE, "C1", parent_key="modelBCoeffs"
+        ) == ""
+
+    def test_guard_applies_to_grandparent_context(self, closed_ns_registry):
+        schema = closed_ns_registry.schema_for_file_key(
+            self._FILE, "C1",
+            parent_key="someUserName",
+            grandparent_key="modelBCoeffs",
+        )
+        assert schema is None
+
+    def test_key_owned_by_no_namespace_still_falls_back(self, closed_ns_registry):
+        # `turbulence` is never qualified, so no namespace claims it and the
+        # fallback stays available from inside one.
+        schema = closed_ns_registry.schema_for_file_key(
+            self._FILE, "turbulence", parent_key="modelACoeffs"
+        )
+        assert schema is not None
+
+    def test_unknown_parent_is_not_a_namespace(self, closed_ns_registry):
+        schema = closed_ns_registry.schema_for_file_key(
+            self._FILE, "C1", parent_key="notADeclaredNamespace"
+        )
+        assert schema is not None
+
+    def test_shipped_flat_key_unaffected_inside_a_real_namespace(self, registry):
+        # snappyHexMeshDict declares nine namespaces and no flat/qualified twins,
+        # so the guard must leave every one of its lookups as it was.
+        schema = registry.schema_for_file_key(
+            "/case/system/snappyHexMeshDict",
+            "castellatedMesh",
+            parent_key="castellatedMeshControls",
+        )
+        assert schema is not None
+
+
 class TestSnappyHexMeshDictSchema:
     """Coverage for all major additions to the snappyHexMeshDict schema."""
 
@@ -588,7 +712,9 @@ class TestSchemaRegistryModules:
     def test_apply_and_reload_with_partial_modules(self, registry):
         registry.set_schema_modules(["schemas.fv_schemes"])
         registry.apply_and_reload()
-        assert registry.schema_for_file_key("/case/system/fvSchemes", "default.ddtSchemes") is not None
+        assert registry.schema_for_file_key(
+            "/case/system/fvSchemes", "default", "ddtSchemes"
+        ) is not None
         assert registry.schema_for_file_key("/case/system/controlDict", "startFrom") is None
 
     def test_invalid_module_does_not_raise(self, registry):

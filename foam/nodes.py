@@ -13,6 +13,10 @@ NodeType = Literal[
     # Leaf value types
     "int", "scalar", "bool", "word", "string", "macro", "compound",
     "vector", "int_list", "scalar_list", "raw_list", "box_pair", "nonuniform_list",
+    # A key with no value at all -- `fluxRequired { p; pcorr; }`, `cache { grad(U); }`.
+    # The name carries the whole meaning, so there is nothing to edit in the
+    # Value column and `_is_value_editable`'s allowlist deliberately omits it.
+    "valueless",
     # Structural types
     "dictionary", "field_value_block", "field_value", "region_block", "region_entry",
     "boundary_block", "boundary_entry", "action_list", "action_entry",

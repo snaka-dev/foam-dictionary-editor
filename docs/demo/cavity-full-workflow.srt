@@ -1,0 +1,99 @@
+1
+00:00:00,000 --> 00:00:08,105
+This is the worked example from the FoDE paper: the lid-driven cavity, solved with icoFoam, from nothing to a result — without leaving the editor.
+
+2
+00:00:08,105 --> 00:00:14,411
+A case starts as a copy of another one. The case library is where the tutorials live, and duplicating from it leaves the original untouched.
+
+3
+00:00:14,411 --> 00:00:19,404
+The dialog asks where the copy goes, what to call it, and how much to copy — the whole directory, or only the dictionaries FoDE recognises.
+
+4
+00:00:19,404 --> 00:00:28,207
+It proposes the source name with a copy suffix. Drop the suffix: this working case is just cavity.
+
+5
+00:00:28,207 --> 00:00:34,410
+And open it.
+
+6
+00:00:34,410 --> 00:00:41,205
+Here is the whole case in one pane: controlDict, blockMeshDict, fvSchemes and fvSolution under system, transportProperties under constant, and the velocity and pressure fields under zero. No walking three directories to find out what a case contains.
+
+7
+00:00:41,205 --> 00:00:45,007
+A directory marked with a plus holds files the list does not show by default.
+
+8
+00:00:45,007 --> 00:00:51,006
+Ask for them, and here is the one this case has: PDRblockMeshDict.
+
+9
+00:00:51,006 --> 00:00:55,405
+Now it is in the list with the rest.
+
+10
+00:00:55,405 --> 00:01:00,413
+controlDict, parsed into a tree. The editor below holds the same file as text, and follows the tree: select an entry and the line it came from is highlighted.
+
+11
+00:01:00,413 --> 00:01:09,205
+Select writeControl and the detail panel on the right explains it — what the key does, which distributions support it, and the values it accepts.
+
+12
+00:01:09,205 --> 00:01:19,807
+The choices are a drop-down rather than something to remember: timeStep, runTime, adjustableRunTime, each with its own note.
+
+13
+00:01:19,807 --> 00:01:27,806
+Entries are edited in the tree itself — copy and paste a value, add or duplicate an entry, comment one out and restore it later, or delete it.
+
+14
+00:01:27,806 --> 00:01:39,505
+Boundary conditions live in a file per field, so reading them as a set means opening every one. The Boundary tab gathers them into a table instead: every patch, every field, and the type each pair is given. The walls are no-slip, and the front and back are empty — this is a two-dimensional case.
+
+15
+00:01:39,505 --> 00:01:45,195
+Raise the lines per cell and the entries come with it, so the values are there too: the moving wall carries a uniform velocity of one metre per second along the top.
+
+16
+00:01:45,195 --> 00:01:51,404
+Select a cell and the file it came from opens with that entry highlighted, so a correction is one click from the table that found it.
+
+17
+00:01:51,404 --> 00:01:55,934
+Patches down or fields down, whichever way round you think about them.
+
+18
+00:01:55,934 --> 00:02:02,904
+The case is ready to run, and the terminal is already in its directory.
+
+19
+00:02:02,904 --> 00:02:13,405
+blockMesh builds the mesh from blockMeshDict. It runs here, in the same window the dictionaries were edited in, and the file list picks up the mesh it wrote.
+
+20
+00:02:13,405 --> 00:02:24,505
+Then icoFoam advances the solution to half a second. Four hundred cells, so it is over almost as soon as it starts — and the time directories it writes appear in the list as they land.
+
+21
+00:02:24,505 --> 00:02:38,505
+Those runs left logs behind, and FoDE condenses them: what ran, how far it got, the residuals it ended on, and every warning it printed along the way.
+
+22
+00:02:38,505 --> 00:03:05,405
+And the result goes to ParaView, on the case that is open, from the same menu as everything else. It comes up on the case directory, with the mesh and every field already found.
+
+23
+00:03:05,405 --> 00:03:15,407
+Apply, and the cavity is there.
+
+24
+00:03:15,407 --> 00:03:26,407
+Skip to the last time written — half a second, where the run ended.
+
+25
+00:03:26,407 --> 00:03:30,407
+Colour it by velocity magnitude, and there is the lid-driven cavity: the wall dragging the fluid along the top, the primary vortex turning underneath it. One case, one window, from an empty editor to that.

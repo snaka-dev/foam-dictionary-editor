@@ -20,6 +20,7 @@ from foam.utils import format_embedded_value
 from i18n import tr
 from model.tree_model import FoamTreeModel
 from schemas import (
+    KeySchema,
     choice_description_for_value,
     choice_note_for_value,
     choice_supported_in_for_value,
@@ -28,6 +29,7 @@ from schemas import (
     schema_note_text,
     schema_supported_in_text,
 )
+from ui.theme import colors
 
 _PAGE_EMPTY = 0
 _PAGE_NORMAL = 1
@@ -98,6 +100,10 @@ class DetailPanel(QWidget):
         self._key_description_label.setWordWrap(True)
         self._key_description_label.setVisible(False)
 
+        self._key_provenance_label = QLabel("")
+        self._key_provenance_label.setWordWrap(True)
+        self._key_provenance_label.setVisible(False)
+
         self._key_supported_in_label = QLabel("")
         self._key_supported_in_label.setWordWrap(True)
         self._key_supported_in_label.setVisible(False)
@@ -137,6 +143,7 @@ class DetailPanel(QWidget):
         form.addRow(tr("Key"), self._key_label)
         form.addRow(tr("Type"), self._type_label)
         form.addRow(tr("Key Help"), self._key_description_label)
+        form.addRow(tr("Key Status"), self._key_provenance_label)
         form.addRow(tr("Key Supported In"), self._key_supported_in_label)
         form.addRow(tr("Key Note"), self._key_note_label)
         form.addRow(tr("Value"), self._value_edit)
@@ -192,6 +199,8 @@ class DetailPanel(QWidget):
             self._key_description_label.clear()
             self._key_description_label.setVisible(False)
 
+        self._apply_provenance(schema)
+
         key_supported_in = schema_supported_in_text(file_path, node.name, parent_key, grandparent_key)
         self._key_supported_in_label.setText(key_supported_in)
         self._key_supported_in_label.setVisible(bool(key_supported_in))
@@ -210,6 +219,42 @@ class DetailPanel(QWidget):
             self._show_choice_editor(node.name, current_value, choices, editable)
         else:
             self._show_text_editor(current_value, editable)
+
+    def _apply_provenance(self, schema: KeySchema | None) -> None:
+        """Show whether a key is current, a historical name, or a dead entry.
+
+        The `ineffective` case is the one worth the screen space: keys such as
+        `minFlatness` are copied out of the official tutorials into thousands of
+        cases, and OpenFOAM reads straight past them without a word.
+        """
+        text = ""
+        warn = False
+
+        if schema is not None:
+            if schema.status == "renamed" and schema.use_instead:
+                since = f" in {schema.deprecated_since}" if schema.deprecated_since else ""
+                text = tr("Historical name — OpenFOAM reads '{0}'{1}.").format(
+                    schema.use_instead, since
+                )
+            elif schema.status == "ineffective":
+                target = schema.use_instead
+                text = (
+                    tr("Has no effect — OpenFOAM reads '{0}' instead.").format(target)
+                    if target
+                    else tr("Has no effect — no OpenFOAM reader consumes this entry.")
+                )
+                warn = True
+            elif schema.renamed_from:
+                text = tr("Formerly {0}.").format(
+                    ", ".join(f"'{name}'" for name in schema.renamed_from)
+                )
+
+        if warn:
+            self._key_provenance_label.setStyleSheet(f"color: {colors().warning_text};")
+        else:
+            self._key_provenance_label.setStyleSheet("")
+        self._key_provenance_label.setText(text)
+        self._key_provenance_label.setVisible(bool(text))
 
     def _populate_field_value(self, node: FoamNode, model: FoamTreeModel) -> None:
         data = node.value

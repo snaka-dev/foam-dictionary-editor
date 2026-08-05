@@ -12,5 +12,10 @@ def get_default_schema_config() -> dict:
             "schemas.fv_solution",
             "schemas.block_mesh_dict",
             "schemas.snappy_hex_mesh_dict",
+            # Structural keys first, then the generated coefficient modules —
+            # the registry merges them into one table per file.
+            "schemas.turbulence_structure",
+            "schemas.turbulence_properties",
+            "schemas.momentum_transport",
         ],
     }

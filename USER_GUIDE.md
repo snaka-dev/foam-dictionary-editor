@@ -63,6 +63,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 | Switch the colour theme (system / light / dark) | Settings > Appearance |
 | Open help links or reference sites | [Resources dialog](#resources-dialog) |
 | See annotated screenshots of the app | [Screenshot gallery](docs/SCREENSHOTS.md) |
+| Watch the app being used | [Demo movies](docs/DEMO_SCRIPTS.md) |
 
 ## Contents
 
@@ -901,7 +902,7 @@ Each `ChoiceItem` in the `choices` tuple has:
 | `supported_in` | `tuple[str, ...]` | Which distributions support this value |
 | `note` | `str` | Optional additional remark |
 
-`_base.py` exports pre-built version strings for `supported_in`: `FOUNDATION_V13`, `OPENCFD_V2312`, `OPENCFD_V2512`, and `OPENCFD_SERIES`. A minimal custom module looks like this:
+`_base.py` exports pre-built version strings for `supported_in`: `FOUNDATION_V7`, `FOUNDATION_V13`, `OPENCFD_V2312`, `OPENCFD_V2512`, `OPENCFD_V2606`, and `OPENCFD_SERIES`. A minimal custom module looks like this:
 
 ```python
 from schemas._base import ChoiceItem, KeySchema, FOUNDATION_V13, OPENCFD_SERIES
@@ -1500,11 +1501,23 @@ The right-side detail pane shows contextual information for the selected node an
 When a schema is defined for the selected key, the pane displays:
 
 - **Key Help** — a description of what the setting controls.
+- **Key Status** — shown only when the key is not simply current; see below.
 - **Key Supported In** — the solver types or configurations where the setting applies.
 - **Key Note** — additional remarks or caveats.
 - **Choices** — a drop-down list of valid or common values. Selecting a choice updates the help fields below to show the description, supported-in information, and notes specific to that value.
 
-These help fields are populated from schema modules. Because OpenFOAM is highly flexible and supports a large number of settings and solvers, the built-in schemas cover only a selection of common keys — not every possible entry. For keys without a schema annotation, the detail pane still shows the key name, type, and value, but the help fields are left blank. You can fill in the gaps by writing your own schema modules, which are plain Python files you can load at runtime via **Settings > Manage Schema Modules**.
+### Old names and entries that do nothing
+
+OpenFOAM renames dictionary keys from time to time, and the two forks do not always rename them together. Rather than hide a name that is no longer current, the pane tells you what it is:
+
+- **A renamed key** shows *Historical name — OpenFOAM reads '<new name>' in <version>*. For example `convertToMeters` was renamed to `scale`, and `minMedianAxisAngle` to `minMedialAxisAngle` in v1712 — the latter is still accepted by the Foundation releases but was removed from OpenCFD in v2212, so the same line behaves differently depending on which OpenFOAM you run.
+- **An entry that has no effect** is shown in warning colour: *Has no effect — OpenFOAM reads '<other key>' instead*. These are keys that appear in the official tutorials but that no OpenFOAM reader consumes, so writing them changes nothing. `minFlatness` in `meshQualityControls` is the notable one: the motorBike tutorial has shipped it in both forks since OpenFOAM-2.3.x, while the key actually read is `minFaceFlatness`. If you started from motorBike — as a great many cases do — that line in your dictionary is inert.
+
+### Coverage
+
+These help fields are populated from schema modules. The built-in schemas cover the great majority of entries in `controlDict`, `fvSchemes`, `fvSolution`, `blockMeshDict`, `snappyHexMeshDict`, and `turbulenceProperties` / `momentumTransport`, including entries named after your own case such as `div(phi,U)` or a solver block for a particular field. OpenFOAM is large, so other dictionaries are not yet covered: for a key without a schema the pane still shows its name, type, and value, but the help fields stay blank. You can fill in the gaps by writing your own schema modules, which are plain Python files you can load at runtime via **Settings > Manage Schema Modules**.
+
+Modules shipped with a new release are added to your list automatically. If you have previously removed a module, it stays removed.
 
 For ordinary nodes, the pane also shows Key, Type, and an editable Value field. For `field_value` nodes, the pane shows Field Type, Field Name, and Value.
 

@@ -36,8 +36,10 @@ class OpenFoamParser:
     _FIELD_VALUE_KEYS: frozenset[str] = frozenset({"defaultFieldValues", "default", "fieldValues"})
 
     # Add new named-block entries here; _try_parse_special_parenthesized_entry needs no changes.
+    # Only for keys whose parenthesised form is *always* `name { … }`. A key
+    # that also appears as a plain list belongs in _OPTIONAL_NAMED_BLOCK_PARAMS
+    # instead — see the note there about `regions`.
     _NAMED_BLOCK_PARAMS: dict[str, tuple[NodeType, NodeType]] = {
-        "regions":  ("region_block",   "region_entry"),
         "boundary": ("boundary_block", "boundary_entry"),
     }
 
@@ -51,7 +53,19 @@ class OpenFoamParser:
     # as plain word lists (topoSet's `sets (setA setB);`). A lookahead decides:
     # only `name {` content parses as a named block; anything else falls
     # through to the ordinary value path (raw_list etc.).
+    #
+    # `regions` is here rather than in _NAMED_BLOCK_PARAMS because the word is
+    # claimed twice over. setFieldsDict spells it `regions ( boxToCell { … } );`
+    # — named dicts, which is what the 3-D overlay reads — while
+    # constant/regionProperties spells it `regions ( fluid (bottomAir topAir)
+    # solid (heater leftSolid rightSolid) );`, an unrelated entry that happens
+    # to share the key. Treating the second as a failed first produced two
+    # nameless unknown_raw_entry rows, so the one file naming a multi-region
+    # case's regions was the one file about it that could not be edited through
+    # the tree. Gated, it falls through to raw_list, which is what an
+    # identically shaped entry under any other key already produces.
     _OPTIONAL_NAMED_BLOCK_PARAMS: dict[str, tuple[NodeType, NodeType]] = {
+        "regions":  ("region_block",    "region_entry"),
         "sets":     ("named_dict_list", "named_dict_entry"),
         "surfaces": ("named_dict_list", "named_dict_entry"),
     }
@@ -131,15 +145,44 @@ class OpenFoamParser:
 
         try:
             key = self._parse_key()
+
+            # A comment may sit between a dictionary's key and its opening
+            # brace, on the key's own line:
+            #     mixture // air at room temperature (293 K)
+            #     {
+            # `_skip_soft_trivia` covers whitespace and newlines but not
+            # comments, so the LBRACE check used to miss and the entry was read
+            # as a value that is not there ("empty value before semicolon").
+            # Only a comment followed by "{" is taken here; anything else
+            # rewinds, leaving the other paths seeing exactly what they did.
+            before_comment = self.index
+            brace_comment = self._collect_inline_comment()
             self._skip_soft_trivia()
 
             if self._check("LBRACE"):
-                return self._parse_dictionary_entry(key, start_index)
+                node = self._parse_dictionary_entry(key, start_index)
+                if brace_comment:
+                    node.inline_comment = brace_comment
+                return node
+
+            if brace_comment:
+                self.index = before_comment
+                self._skip_soft_trivia()
 
             if self._check("LPAREN"):
                 special = self._try_parse_special_parenthesized_entry(key, start_index)
                 if special is not None:
                     return special
+
+            if self._check("SEMICOLON"):
+                # A key with no value: `fluxRequired { p; pcorr; }`,
+                # `cache { grad(U); }`. OpenFOAM reads these as a set of names,
+                # so the key carries the whole meaning. Previously the value
+                # read raised "empty value before semicolon" and the entry
+                # degraded to unknown_raw_entry, losing its name.
+                self._advance()
+                node = FoamNode(name=key, node_type="valueless", value=None)
+                return self._finalize_node(node, start_index)
 
             value_text = self._read_value_text_until_semicolon()
             self._expect("SEMICOLON")
@@ -704,6 +747,17 @@ class OpenFoamParser:
                 continue
 
             if tok.kind in {"WORD", "STRING", "DIRECTIVE"}:
+                parts.append(tok.text)
+                continue
+
+            if tok.kind == "SEMICOLON":
+                # Only reachable at depth > 0 -- depth 0 ends the value above.
+                # A value may carry a whole dictionary, as in fvSchemes'
+                # `div(phi,Yi_h) Gauss multivariateSelection { O2 … 1; h … 1; };`,
+                # and every entry inside it ends with its own ";". Without this
+                # the value read fails at the first inner ";" and the entry
+                # degrades to unknown_raw_entry, which also strands the block's
+                # contents in the enclosing dictionary.
                 parts.append(tok.text)
                 continue
 

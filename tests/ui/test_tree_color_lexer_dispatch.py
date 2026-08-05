@@ -32,8 +32,11 @@ def test_normal_nodes_have_no_foreground_role():
 def test_paren_dispatch_contains_expected_keys():
     for key in ("defaultFieldValues", "default", "fieldValues"):
         assert key in OpenFoamParser._FIELD_VALUE_KEYS
-    for key in ("regions", "boundary"):
-        assert key in OpenFoamParser._NAMED_BLOCK_PARAMS
+    assert "boundary" in OpenFoamParser._NAMED_BLOCK_PARAMS
+    # `regions` is gated by a lookahead rather than unconditional, because the
+    # key is claimed by both setFieldsDict (named dicts) and regionProperties
+    # (a plain list). See the note on _OPTIONAL_NAMED_BLOCK_PARAMS.
+    assert "regions" in OpenFoamParser._OPTIONAL_NAMED_BLOCK_PARAMS
 
 
 def test_paren_dispatch_field_value_keys_use_same_handler():
@@ -43,12 +46,16 @@ def test_paren_dispatch_field_value_keys_use_same_handler():
 
 def test_paren_dispatch_regions_handler_differs():
     assert "regions" not in OpenFoamParser._FIELD_VALUE_KEYS
-    assert "regions" in OpenFoamParser._NAMED_BLOCK_PARAMS
+    assert "regions" not in OpenFoamParser._NAMED_BLOCK_PARAMS
+    assert OpenFoamParser._OPTIONAL_NAMED_BLOCK_PARAMS["regions"] == ("region_block", "region_entry")
 
 
 def test_paren_dispatch_boundary_handler_differs():
     assert "boundary" not in OpenFoamParser._FIELD_VALUE_KEYS
-    assert OpenFoamParser._NAMED_BLOCK_PARAMS["boundary"] != OpenFoamParser._NAMED_BLOCK_PARAMS["regions"]
+    assert (
+        OpenFoamParser._NAMED_BLOCK_PARAMS["boundary"]
+        != OpenFoamParser._OPTIONAL_NAMED_BLOCK_PARAMS["regions"]
+    )
 
 
 def test_paren_dispatch_extensible_at_runtime():

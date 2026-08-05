@@ -145,7 +145,12 @@ def _write_block(
         # Anonymous block (action_entry): the opener is the node's first line.
         parts.append((f"{_own_indent(node, indent)}{opener}", False))
     else:
-        parts.append((f"{_own_indent(node, indent)}{name}", False))
+        # A comment written between the key and the opening brace stays on the
+        # key's line, which is where the source had it.
+        head = f"{_own_indent(node, indent)}{name}"
+        if node.inline_comment:
+            head += node.inline_comment
+        parts.append((head, False))
         parts.append((f"{_indent(indent)}{opener}", False))
     parts.extend(_part(child, indent + 1) for child in node.children)
     parts.append((f"{_indent(indent)}{closer}", False))
@@ -204,8 +209,11 @@ def _write_block_entry(node: FoamNode, indent: int = 0) -> str:
 
 
 def _write_simple_entry(node: FoamNode, indent: int = 0) -> str:
-    value_text = _format_value(node)
-    line = f"{_own_indent(node, indent)}{node.name} {value_text};"
+    if node.node_type == "valueless":
+        # `p;` -- no value, and so no separating space either.
+        line = f"{_own_indent(node, indent)}{node.name};"
+    else:
+        line = f"{_own_indent(node, indent)}{node.name} {_format_value(node)};"
     if node.inline_comment:
         line += node.inline_comment
     return line

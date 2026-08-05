@@ -63,6 +63,7 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 | 配色テーマを切り替える（システム/ライト/ダーク） | Settings > Appearance |
 | ヘルプリンクや参照サイトを開く | [Resources ダイアログ](#resources-ダイアログ) |
 | アプリの注釈付きスクリーンショットを見る | [スクリーンショットギャラリー](docs/SCREENSHOTS_ja.md) |
+| アプリを実際に使っている様子を見る | [デモ動画](docs/DEMO_SCRIPTS_ja.md) |
 
 ## 目次
 
@@ -906,7 +907,7 @@ BlockMesh パネル下部のヒントバーに主要な操作が常時表示さ�
 | `supported_in` | `tuple[str, ...]` | この値に対応するディストリビューション |
 | `note` | `str` | オプションの補足注記 |
 
-`_base.py` は `supported_in` 用のバージョン文字列定数 `FOUNDATION_V13`、`OPENCFD_V2312`、`OPENCFD_V2512`、`OPENCFD_SERIES` をエクスポートしています。最小限のカスタムモジュールは次のようになります。
+`_base.py` は `supported_in` 用のバージョン文字列定数 `FOUNDATION_V7`、`FOUNDATION_V13`、`OPENCFD_V2312`、`OPENCFD_V2512`、`OPENCFD_V2606`、`OPENCFD_SERIES` をエクスポートしています。最小限のカスタムモジュールは次のようになります。
 
 ```python
 from schemas._base import ChoiceItem, KeySchema, FOUNDATION_V13, OPENCFD_SERIES
@@ -1499,11 +1500,23 @@ OpenCFD/ESI Group（openfoam.com）と OpenFOAM Foundation（openfoam.org）の 
 選択したキーにスキーマが定義されている場合、次の情報が表示されます。
 
 - **Key Help** — その設定が何を制御するかの説明。
+- **Key Status** — そのキーが単に現行のものではない場合にのみ表示されます（後述）。
 - **Key Supported In** — その設定が適用されるソルバー種別や構成。
 - **Key Note** — 補足事項や注意点。
 - **Choices** — 有効または一般的な値のドロップダウンリスト。選択肢を変えると、その値に固有の説明・Supported In・注記が下部のヘルプ欄に反映されます。
 
-これらのヘルプ情報はスキーマモジュールから提供されます。OpenFOAM は非常に柔軟で膨大な設定項目とソルバーをサポートしているため、組み込みスキーマが対象としているのは一部の代表的なキーに限られており、すべての設定を網羅しているわけではありません。スキーマ情報が定義されていないキーでも、詳細ペインにはキー名・型・値は表示されますが、ヘルプ欄は空白になります。不足している設定のスキーマは、独自のスキーマモジュール（Python ファイル）を作成し、**Settings > Manage Schema Modules** から実行時に読み込むことで補完できます。
+### 旧称のキーと、何も起きないエントリ
+
+OpenFOAM は辞書のキーを折に触れて改名しており、2 つのフォークが常に同時に改名するとは限りません。現行でない名前を隠すのではなく、詳細ペインはそれが何なのかを伝えます。
+
+- **改名されたキー**には *Historical name — OpenFOAM reads '<新しい名前>' in <バージョン>* と表示されます。たとえば `convertToMeters` は `scale` に、`minMedianAxisAngle` は v1712 に `minMedialAxisAngle` へ改名されました。後者は Foundation 系では現在も受け付けられますが OpenCFD は v2212 で削除したため、同じ 1 行でも使用中の OpenFOAM によって挙動が変わります。
+- **効果のないエントリ**は警告色で *Has no effect — OpenFOAM reads '<別のキー>' instead* と表示されます。公式チュートリアルには現れるものの、どの OpenFOAM リーダも読まないキーであり、書いても何も変わりません。代表例は `meshQualityControls` の `minFlatness` です。motorBike チュートリアルが OpenFOAM-2.3.x 以来、両フォークでこのキーを出荷し続けている一方、実際に読まれるのは `minFaceFlatness` です。motorBike を出発点にしたケース（非常に多くのケースがそうです）では、その 1 行は無効なまま残っています。
+
+### カバー範囲
+
+これらのヘルプ情報はスキーマモジュールから提供されます。組み込みスキーマは `controlDict`、`fvSchemes`、`fvSolution`、`blockMeshDict`、`snappyHexMeshDict`、`turbulenceProperties`／`momentumTransport` のエントリの大半をカバーしており、`div(phi,U)` や特定フィールドのソルバーブロックのように、ケース側の名前が付いたエントリも含みます。OpenFOAM は巨大なので、その他の辞書はまだ対象外です。スキーマのないキーでも詳細ペインにはキー名・型・値が表示されますが、ヘルプ欄は空白になります。不足している設定のスキーマは、独自のスキーマモジュール（Python ファイル）を作成し、**Settings > Manage Schema Modules** から実行時に読み込むことで補完できます。
+
+新しいリリースに同梱されたモジュールは、一覧に自動的に追加されます。以前に削除したモジュールは削除されたままになります。
 
 通常ノードでは Key、Type、編集可能な Value フィールドも表示されます。`field_value` ノードでは Field Type、Field Name、Value を表示します。
 

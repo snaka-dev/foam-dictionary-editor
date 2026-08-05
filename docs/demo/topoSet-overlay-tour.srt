@@ -1,0 +1,39 @@
+1
+00:00:00,000 --> 00:00:04,600
+This case's topoSetDict exercises every geometry source the viewer can draw — boxes, spheres, cylinders, cones, points, planes. Nothing has been run here. This is the dictionary, drawn.
+
+2
+00:00:04,600 --> 00:00:11,198
+It is a real 3-D scene, so you can look at it from anywhere.
+
+3
+00:00:11,198 --> 00:00:14,799
+Every source in the dictionary is a row in this menu, coloured by the action that produced it — new, add, subtract.
+
+4
+00:00:14,799 --> 00:00:23,929
+Uncheck the ones you are not interested in — the menu stays open, so you can work through a list.
+
+5
+00:00:23,929 --> 00:00:27,795
+Sources with no geometry to draw are not silently dropped either — the last row counts them, so the menu accounts for the whole dictionary.
+
+6
+00:00:27,795 --> 00:00:33,794
+And the scene is left with what you asked for.
+
+7
+00:00:33,794 --> 00:00:39,263
+Show all brings them back.
+
+8
+00:00:39,263 --> 00:00:46,801
+A shape reaching past the block mesh is drawn cut down to it, and its badge says so. That is display only — the dictionary is untouched, and an export writes the whole shape.
+
+9
+00:00:46,801 --> 00:00:57,800
+Select a source in the tree and the editor scrolls to the lines that define it — the same two-way link every dictionary has here.
+
+10
+00:00:57,800 --> 00:01:01,800
+Which is what this does. Every shape on screen can be written out as STL — real geometry, not a sketch.

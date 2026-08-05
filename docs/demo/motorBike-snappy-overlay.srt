@@ -1,0 +1,27 @@
+1
+00:00:00,000 --> 00:00:06,245
+snappyHexMesh builds a mesh around a surface, and its dictionary is mostly references to things you cannot see: a geometry file, a refinement region, a point that decides which side is fluid. Open it here and they are drawn — inside the background mesh they will be cut from.
+
+2
+00:00:06,245 --> 00:00:12,399
+The bike is the triSurface the dictionary names, resolved from constant/triSurface and loaded for you.
+
+3
+00:00:12,399 --> 00:00:19,960
+Zoom in and it is the real surface, not a bounding box standing in for it.
+
+4
+00:00:19,960 --> 00:00:26,749
+The rows are classified by how the dictionary uses each one — surfaces to snap to, regions to refine by, and the keep-point — because that is the distinction that matters when a mesh comes out wrong.
+
+5
+00:00:26,749 --> 00:00:40,597
+Hide the bike and the refinement region is left on its own — which is the thing you actually want to check. Does it enclose what it is meant to refine, and is it inside the background mesh at all?
+
+6
+00:00:40,597 --> 00:00:48,001
+Select the region in the tree and the editor goes to the entry that defines it — the refinement levels, and the mode that says whether inside or outside is the part being refined.
+
+7
+00:00:48,001 --> 00:00:52,001
+And the marker is locationInMesh: the single point that tells snappyHexMesh which side of the surface to keep. Put it on the wrong side and the mesher happily deletes the domain instead of the bike. It is one line in the dictionary, and now it is somewhere you can look at.

@@ -2,7 +2,13 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
-from schemas._base import FOUNDATION_V13, OPENCFD_SERIES, KeySchema
+from schemas._base import (
+    FOUNDATION_SERIES,
+    OPENCFD_SERIES,
+    OPENCFD_V2106,
+    OPENCFD_V2206,
+    KeySchema,
+)
 
 from ._common import SWITCH_CHOICES
 
@@ -16,7 +22,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "interpreted as fractions of the adjacent cell size. "
             "When false, they are absolute distances."
         ),
-        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
         choices=SWITCH_CHOICES,
     ),
     "addLayersControls.expansionRatio": KeySchema(
@@ -26,7 +32,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Growth ratio between successive layers away from the wall. "
             "Values greater than 1 make outer layers thicker."
         ),
-        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
     ),
     "addLayersControls.finalLayerThickness": KeySchema(
         key="finalLayerThickness",
@@ -35,7 +41,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Thickness of the layer farthest from the wall, as either a fraction of the "
             "adjacent cell size (relativeSizes true) or an absolute distance."
         ),
-        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
     ),
     "addLayersControls.minThickness": KeySchema(
         key="minThickness",
@@ -44,7 +50,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Minimum allowable layer thickness. Layers thinner than this are removed. "
             "Interpreted relative or absolute depending on relativeSizes."
         ),
-        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
     ),
     "addLayersControls.featureAngle": KeySchema(
         key="featureAngle",
@@ -53,7 +59,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Surface angle (degrees) used to identify sharp edges where layer extrusion "
             "should be reduced or stopped to avoid cell quality issues."
         ),
-        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
     ),
     "addLayersControls.slipFeatureAngle": KeySchema(
         key="slipFeatureAngle",
@@ -63,7 +69,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "slip along the edge rather than being fully constrained. "
             "Helps avoid collapsed layers on convex edges."
         ),
-        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
     ),
     "addLayersControls.nGrow": KeySchema(
         key="nGrow",
@@ -72,7 +78,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Number of cell layers of growth applied outward from the layer region "
             "before the final layer extrusion. Can improve stability near complex geometry."
         ),
-        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
     ),
     "addLayersControls.nSmoothSurfaceNormals": KeySchema(
         key="nSmoothSurfaceNormals",
@@ -81,7 +87,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Number of smoothing iterations for the surface normals used to determine "
             "the layer extrusion direction. More iterations produce a smoother normal field."
         ),
-        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
     ),
     "addLayersControls.nSmoothNormals": KeySchema(
         key="nSmoothNormals",
@@ -90,7 +96,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Number of smoothing iterations applied to the internal point-displacement "
             "normals during layer addition. Helps avoid kinks in the layer field."
         ),
-        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
     ),
     "addLayersControls.nSmoothThickness": KeySchema(
         key="nSmoothThickness",
@@ -99,7 +105,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Number of smoothing iterations applied to the layer-thickness field. "
             "Smoothing reduces abrupt thickness changes near patch boundaries."
         ),
-        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
     ),
     "addLayersControls.maxFaceThicknessRatio": KeySchema(
         key="maxFaceThicknessRatio",
@@ -109,7 +115,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Faces with a higher ratio are collapsed to avoid thin slivers. "
             "A value of 0.5 is a typical default."
         ),
-        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
     ),
     "addLayersControls.maxThicknessToMedialRatio": KeySchema(
         key="maxThicknessToMedialRatio",
@@ -119,17 +125,40 @@ SCHEMAS: dict[str, KeySchema] = {
             "distance (0–1). Prevents layers from being extruded into narrow gaps. "
             "A value of 0.3 is a typical default."
         ),
-        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
     ),
-    "addLayersControls.minMedianAxisAngle": KeySchema(
-        key="minMedianAxisAngle",
-        label="Min Median Axis Angle",
+    "addLayersControls.minMedialAxisAngle": KeySchema(
+        key="minMedialAxisAngle",
+        label="Min Medial Axis Angle",
         description=(
             "Minimum angle (degrees) used in the medial-axis analysis. Points near "
             "concave regions with a smaller angle have their layer thickness reduced. "
             "A value of 90 degrees is a typical default."
         ),
-        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        renamed_from=("minMedianAxisAngle",),
+    ),
+    "addLayersControls.minMedianAxisAngle": KeySchema(
+        key="minMedianAxisAngle",
+        label="Min Median Axis Angle",
+        description=(
+            "Historical spelling of minMedialAxisAngle — 'median' rather than "
+            "'medial'. Same meaning: the minimum angle used in the medial-axis "
+            "analysis."
+        ),
+        # Verified per tree: every Foundation release from v7 to dev still
+        # declares the compatibility entry, while OpenCFD carries it in v2106
+        # and v2206 only (medialAxisMeshMover.C).
+        supported_in=(FOUNDATION_SERIES, OPENCFD_V2106, OPENCFD_V2206),
+        status="renamed",
+        use_instead="minMedialAxisAngle",
+        deprecated_since="v1712",
+        note=(
+            "The code was renamed in DEC-2013. OpenCFD kept the old name as a "
+            "compatibility entry through v2206 and removed it in v2212, so an "
+            "OpenCFD case using this spelling is silently ignored today. "
+            "Foundation still accepts both."
+        ),
     ),
     "addLayersControls.nMedialAxisIter": KeySchema(
         key="nMedialAxisIter",
@@ -138,7 +167,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Number of iterations used to compute the medial axis. More iterations "
             "improve accuracy near complex surfaces but increase run time."
         ),
-        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
     ),
     "addLayersControls.nBufferCellsNoExtrude": KeySchema(
         key="nBufferCellsNoExtrude",
@@ -148,7 +177,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "that are also excluded from extrusion. Acts as a buffer zone to "
             "prevent layer quality issues at no-extrude boundaries."
         ),
-        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
     ),
     "addLayersControls.nRelaxIter": KeySchema(
         key="nRelaxIter",
@@ -157,7 +186,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Maximum number of relaxation iterations for the layer-addition mesh-displacement "
             "solver. Each iteration reduces displacement to avoid inverted cells near walls."
         ),
-        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
     ),
     "addLayersControls.nRelaxedIter": KeySchema(
         key="nRelaxedIter",
@@ -167,13 +196,13 @@ SCHEMAS: dict[str, KeySchema] = {
             "criteria (defined in meshQualityControls.relaxed) are applied instead of the "
             "standard ones. Allows the solver to escape local quality minima."
         ),
-        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
     ),
     "addLayersControls.nLayerIter": KeySchema(
         key="nLayerIter",
         label="Layer Iterations",
         description="Overall number of iterations for the layer-addition algorithm.",
-        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
     ),
 
     # ── addLayersControls.layers entries (grandparent = "layers") ────────────
@@ -186,7 +215,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Number of boundary layers to extrude on this patch (or patch group). "
             "Set to 0 to suppress layer addition on this patch entirely."
         ),
-        supported_in=(FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
     ),
 
 }
