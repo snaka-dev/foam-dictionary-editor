@@ -4,7 +4,7 @@ FoDE — Foam Dictionary Editor（読み方: "フォーディー"）
 
 Python と PySide6 で作られた、OpenFOAM 辞書ファイル向け GUI エディタです。
 
-🎬 **YouTube のデモ動画** — 短い紹介動画が 7 本あります。ショットごとの台本とあわせて [docs/DEMO_SCRIPTS_ja.md](docs/DEMO_SCRIPTS_ja.md) に一覧があります。まずは [編集し、見て、実行する](https://youtu.be/kGxfNhAe6xo)（約 74 秒）から。[ワークフロー全体](https://youtu.be/0FZPb92luw8)（約 3 分 38 秒）を通しで見ることもできます。
+🎬 **YouTube のデモ動画** — 短い紹介動画が 8 本あります。ショットごとの台本とあわせて [docs/DEMO_SCRIPTS_ja.md](docs/DEMO_SCRIPTS_ja.md) に一覧があります。まずは [編集し、見て、実行する](https://youtu.be/kGxfNhAe6xo)（約 74 秒）から。[ワークフロー全体](https://youtu.be/0FZPb92luw8)（約 3 分 38 秒）を通しで見ることもできます。
 
 > 📄 **[*SoftwareX*](https://doi.org/10.1016/j.softx.2026.102852)**（Elsevier）に掲載されました — 「[引用](#引用)」を参照してください。
 
@@ -95,7 +95,7 @@ pip install pyvista pyvistaqt
 
 **[スキーマヘルプ](USER_GUIDE_ja.md#詳細ペイン)**
 - 主要な設定項目（`controlDict`、`fvSchemes`、`fvSolution`、`blockMeshDict`、`snappyHexMeshDict`）の説明と有効な選択肢を組み込み表示
-- `turbulenceProperties`/`momentumTransport` の乱流モデル係数（`kOmegaSST`、`kEpsilon`、`SpalartAllmaras`）を、OpenFOAM のフォーク・バージョン別にソース抽出した既定値付きで表示
+- `turbulenceProperties`/`momentumTransport` の乱流モデル: 29 モデルそれぞれが何であるかを、OpenFOAM 自身のヘッダから引用した説明と定義論文つきで表示。各係数のソース既定値もフォーク・バージョン別に表示
 - 独自のスキーマモジュール（Python ファイル）で拡張可能
 
 **[BlockMesh 3D ビューア](USER_GUIDE_ja.md#blockmesh-パネル)** *(pyvista / pyvistaqt が必要)*
@@ -147,6 +147,7 @@ pip install pyvista pyvistaqt
 | `tutorials/cavity/cavityClipped/` | `icoFoam` | クリップ形状・`mapFieldsDict` |
 | `tutorials/snappyMultiRegionHeater/` | `chtMultiRegionFoam` | 境界条件ビューとリージョンファイル一覧のマルチリージョンケース |
 | `tutorials/damBreak/` | `interFoam` | 二相流・`setFieldsDict` と `0.orig/` のテスト |
+| `tutorials/pitzDaily/` | `simpleFoam` | RAS の定番ケース。同梱ケースで唯一の乱流ケースであり、乱流モデルのヘルプを実際に確認できる場所 |
 | `tutorials/oneBlocks/` | `icoFoam` | 3-D 単一ブロック・`blockMeshDict` 編集と 3-D メッシュビューア |
 | `tutorials/oneBlocks-vars/` | `icoFoam` | `oneBlocks` の変数置換・コンパクト面記法バリアント |
 | `tutorials/nineBlocks/` | `icoFoam` | 3×3 マルチブロック・正規表現パッチ |
@@ -154,7 +155,7 @@ pip install pyvista pyvistaqt
 | `tutorials/topoSetShapes/` | `icoFoam` | 3D ビューアがオーバーレイできる `topoSetDict` のジオメトリソースを、1 つの 3×3×3 ブロックに網羅 |
 | `tutorials/samplingShapes/` | `icoFoam` | 同じことをサンプリングオーバーレイについて行ったケース: プローブ点・線・点群・平面の 2 通りの記法 |
 
-`cavity/` 各ケース・`snappyMultiRegionHeater`・`damBreak` は OpenFOAM v2512 標準チュートリアルセットから取得しています。`oneBlocks*` および `nineBlocks*` は FoDE テスト用に cavity をベースにしたカスタム `blockMeshDict` ケースです。
+`cavity/` 各ケース・`snappyMultiRegionHeater`・`damBreak`・`pitzDaily` は OpenFOAM v2512 標準チュートリアルセットから取得しています。`oneBlocks*` および `nineBlocks*` は FoDE テスト用に cavity をベースにしたカスタム `blockMeshDict` ケースです。
 
 **ライセンス:** これらのケースファイルは **GPL-3.0** でライセンスされています（FoDE ソースコードの AGPL-3.0 とは別です）。詳細は `tutorials/README.md` を参照してください。
 
@@ -171,6 +172,8 @@ pip install pyvista pyvistaqt
 ## ライセンス
 
 Copyright (C) 2025-2026 Shinji NAKAGAWA。[GNU Affero General Public License v3.0 以降](LICENSE)（AGPL-3.0-or-later）で配布されます。
+
+本リポジトリには OpenFOAM 由来の素材が含まれており、それらは上記ライセンスの対象外です。同梱のチュートリアルケース、抽出したキーワード一覧、生成された乱流スキーマモジュール中の引用ドキュメントが該当します。これらは GPL-3.0-or-later であり、権利者は複数です（OpenFOAM Foundation、OpenCFD Ltd、Upstream CFD GmbH、Keysight Technologies）。ファイルごとの表示は [THIRD-PARTY.md](THIRD-PARTY.md) にあります（手で管理するのではなくソースから生成しています）。
 
 ## 免責事項
 

@@ -76,7 +76,8 @@ foam-dictionary-editor/
 │   ├── control_dict.py
 │   ├── fv_schemes.py
 │   ├── fv_solution.py
-│   ├── momentum_transport.py    # foamlore から取り込んだ生成ファイル: constant/momentumTransport（OpenFOAM 8 以降の Foundation でのファイル名、Foundation v13）の乱流モデル係数
+│   ├── _turbulence_coeffs.py    # foamlore から取り込んだ生成ファイル: 全 29 モデルの係数ファクトと build_schemas(target_file)
+│   ├── momentum_transport.py    # foamlore から取り込んだ生成ファイル: 薄いモジュール、TARGET_FILE = constant/momentumTransport（Foundation v8-v13）
 │   ├── snappy_hex_mesh_dict/    # パッケージ: サブドメイン別に分割（geometry, castellated mesh, snap, layers, mesh quality）
 │   │   ├── __init__.py          # 各サブモジュールの SCHEMAS を統合し、TARGET_FILE を再エクスポート
 │   │   ├── _common.py           # 共有 SWITCH_CHOICES
@@ -86,7 +87,7 @@ foam-dictionary-editor/
 │   │   ├── _snap_controls.py
 │   │   ├── _add_layers.py
 │   │   └── _mesh_quality.py
-│   ├── turbulence_properties.py # foamlore から取り込んだ生成ファイル: constant/turbulenceProperties（OpenCFD v2512/v2606、Foundation v7）の乱流モデル係数
+│   ├── turbulence_properties.py # foamlore から取り込んだ生成ファイル: 薄いモジュール、TARGET_FILE = constant/turbulenceProperties（OpenCFD v2106-v2606、Foundation v7）
 │   ├── turbulence_structure.py  # 手書き: simulationType、RAS/LES、model セレクタ、LES delta — TARGET_FILES で両方のファイル名に対応
 │   └── registry.py
 ├── services/
@@ -389,7 +390,7 @@ foam-dictionary-editor/
 **`tests/schemas/`**
 - `test_schemas.py` — `ChoiceItem`/`KeySchema`、`schema_config.json` の読み込み・保存・リセット・削除、`SchemaRegistry` のプレーン/親修飾/祖父母修飾ルックアップ、他の名前空間の内側でフラットフォールバックを抑止する閉じた名前空間ルール（2 モデル構成の合成モジュールによる検証と、実在する `snappyHexMeshDict` の名前空間で過剰抑止が起きないことの確認）、`snappyHexMeshDict` スキーマモジュール、設定済みモジュール一覧。
 - `test_schema_coverage.py` — モジュールが丸ごと機能停止したことを検出できたはずのテスト。`tests/fixtures/schemas/` にある実際の辞書（v2606 のチュートリアルから無改変でコピーしたもの。スキーマに合わせて手を加えていない点が重要）をパースし、`DetailPanel` とまったく同じ方法（`node.name`、`node.parent.name`、`node.parent.parent.name`）で走査して、辞書ごとのカバレッジ下限を検証します。`fv_schemes.py` はかつてキーを `"<key>.<parent>"` と綴っていた一方でレジストリは `"<parent>.<key>"` で引いていたため、全エントリが到達不能で実際の fvSchemes の 0% しか解決されませんでした。それでもユニットテストが通っていたのは、UI が実際に行う呼び出しではなく内部テーブルの形を検証していたからです。さらにテーブルの不変条件を 2 つ検査します。ドット区切りキーのサフィックスは `KeySchema.key` と一致しなければならないこと（当該モジュールが破っていたまさにその規則）と、`use_instead`／`renamed_from` の参照先がそのファイルに documented なキーとして存在すること。加えて来歴の各ケースをエンドツーエンドで検証します。motorBike の `minFlatness` が `ineffective` として報告されること、`minMedianAxisAngle` が後継とバージョン付きの `renamed` であること、`mergeType` が無効な `merge` を決して提示しないことです。
-- `test_turbulence_schemas.py` — foamlore が生成した `turbulence_properties`/`momentum_transport` モジュール: `TARGET_FILE` と `SCHEMAS` の形状（値はすべて `KeySchema`、選択肢はすべて `ChoiceItem`）、`schemas/builtin.py` のモジュール一覧に両方が既定で登録されていること、`SchemaRegistry` による親修飾形式（`kOmegaSSTCoeffs.beta1`）と `RAS` 辞書直下へのプレーンなフォールバックの両方でのルックアップ、バージョン別の `supported_in` タグとソース既定値の選択肢（`decayControl` の OpenCFD 限定である旨の注記を含む）、そして `GENERATED` バナーがそのまま残っていること — これらのファイルは foamlore で再生成するものであり、手で編集してはいけません。
+- `test_turbulence_schemas.py` — foamlore が生成した `turbulence_properties`/`momentum_transport` モジュール: `TARGET_FILE` と `SCHEMAS` の形状（値はすべて `KeySchema`、選択肢はすべて `ChoiceItem`）、`schemas/builtin.py` のモジュール一覧に両方が既定で登録されていること、`SchemaRegistry` による親修飾形式（`kOmegaSSTCoeffs.beta1`）と `RAS` 辞書直下へのプレーンなフォールバックの両方でのルックアップ、バージョン別の `supported_in` タグとソース既定値の選択肢（`decayControl` の OpenCFD 限定である旨の注記を含む）、そして `GENERATED` バナーがそのまま残っていること — これらのファイルは foamlore で再生成するものであり、手で編集してはいけません。 加えて手書きモジュールとの接合部: `RAS`/`LES` モデルセレクタを `DetailPanel` と同じ形（実際のファイルパスと親キー、`<Model>Coeffs` 辞書はどこにも存在しない状態）でルックアップし、その選択肢が `MODEL_DOCS` の説明と引用を持つことを検証します。これはこの変更自体が対象としたチェックです — レジストリ API 経由の確認だけでは、通常のケースでは何も表示されないのに散文が到達可能だと報告されていました。
 
 **`tests/tools/`**
 - `test_capture_dialog.py` — `tools/capture_dialog.py` のショット一覧を素のデータとして検証するテストで、`test_window_state.py` のスクリーンショット spec 検査に対応するものです: 名前がキーと一致すること、同じファイルへ書き込むショットが 2 つないこと、すべてのショットが両言語のギャラリーページから参照されていて画像も存在すること、`requires()` がトレースバックではなく不足しているものを名指しすること。ショットは入力の出どころ（撮影マシンかリポジトリか）で分類され、3 つ目のテストがすべてのショットがそのどちらかに分類されていることを検証するため、ショットを追加すると必ずどちらかを選ぶことになります。さらに `find-examples` ショットが操作する `FindExamplesDialog` のプライベート属性名を固定し、run-tool ショットの警告文と前置き文字列が `ui/mixins/_tools_ops.py` に今も存在することを検証します。これによりアプリが決して表示しないダイアログをギャラリーが見せてしまうことはありません。キャプチャ自体は実 X ディスプレイを要するため対象外です。
@@ -600,7 +601,13 @@ class KeySchema:
 
 ### 生成モジュール（foamlore からのベンダリング）
 
-`schemas/turbulence_properties.py` と `schemas/momentum_transport.py` は**生成ファイル**で、姉妹リポジトリ foamlore の `facts/tools/generate_fode_schemas.py` から取り込んでいます。4 つのチェックアウト（Foundation 7/13、OpenCFD v2512/v2606）の OpenFOAM `.C` コンストラクタから機械的に抽出した乱流モデル係数（kOmegaSST、kEpsilon、SpalartAllmaras）を、バージョン別 `supported_in` タグとソース既定値の `ChoiceItem` 付きで収録します。係数キーは親修飾（`kOmegaSSTCoeffs.beta1`）で出力され、モデル間で一意な名前には素のフォールバックキーも付きます（OpenFOAM の `optionalSubDict` 読み取りイディオムに対応）。ここでは編集せず、foamlore で再生成して再コピーしてください（テストが `GENERATED` バナーの存在を検証します）。モジュールが 2 つあるのは、foundation が OpenFOAM 8 で `constant/turbulenceProperties` を `constant/momentumTransport` に改名し、レジストリが `TARGET_FILE` ごとにスキーマを保持するためです。
+`schemas/_turbulence_coeffs.py`・`schemas/turbulence_properties.py`・`schemas/momentum_transport.py` は**生成ファイル**で、姉妹リポジトリ foamlore の `facts/tools/generate_fode_schemas.py` から取り込んでいます。**29 モデル**（RAS 16、LES/DES 13 — 両フォークが出荷する全モデル）の乱流モデル係数を、17 リリース全部（Foundation 7–13、OpenCFD v2106–v2606）の OpenFOAM `.C` コンストラクタから機械的に抽出し、それらのリリースにわたって実測した `supported_in` タグとソース既定値の `ChoiceItem` 付きで収録します。係数キーは親修飾（`kOmegaSSTCoeffs.beta1`）で出力され、OpenFOAM の `optionalSubDict` 読み取りイディオムに合わせて素のフォールバックキーも付きます。同じ名前を複数のモデルが読む場合、素のエントリは所有する全モデルを列挙し、各モデルの既定値を提示します。ここでは編集せず、foamlore で再生成して再コピーしてください（テストが `GENERATED` バナーの存在を検証します）。
+
+ファイルが 2 つではなく 3 つなのは、foundation が OpenFOAM 8 で `constant/turbulenceProperties` を `constant/momentumTransport` に改名したためです。`_turbulence_coeffs.py` が係数のファクトを 1 度だけ保持して `build_schemas(target_file)` を提供し、残り 2 つはそれぞれ約 25 行で自身の `TARGET_FILE` を宣言してこれを呼びます。`_turbulence_coeffs` は import されるだけで登録しません — `TARGET_FILE` を持たないので、どのみち `SchemaRegistry` は読み飛ばします。
+
+**この 2 つを `TARGET_FILES` の 1 モジュールに統合しないでください。** `_build_file_key_schemas` は複数ファイルを挙げたモジュールのテーブルを各ファイルへ**同一のまま**マージするため、OpenCFD 専用のキー（`decayControl`、`GEKOCoeffs` 全体）が `constant/momentumTransport` の中で解決してしまいます — OpenCFD のどのリリースも読まないファイルです。2 つの間で共有しているのはファクトだけで、バージョンタグ・注記・既定値一覧はすべて対象ファイルに依存します。文字どおりの統合を安全にするには、レジストリにキー単位の対象フィルタが必要です。
+
+`_turbulence_coeffs` は `MODEL_DOCS`（`モデル名 → (説明, 注記)`。モデル自身のヘッダにある要約と、引用している論文）も公開しており、`turbulence_structure.py` がこれを import して `RAS`/`LES` モデルセレクタの選択肢を組み立てます。手書きと生成の境界を意図的に跨いでおり、向きが重要です。選択肢の*リスト*とその `supported_in` タグは辞書についての構造的な事実であり手書きモジュールが所有し、各名前に対する散文は抽出されたものです。これがないと、モデルの説明は `<Model>Coeffs` — 既定値を上書きするケースにしか存在しないキー — 経由でしか到達できません。import する側のモジュールは `TARGET_FILE` を宣言せず登録もされないため、`schemas/builtin.py` の読み込み順は関係しません。セレクタのキー自体はこれとは異なり、生成側では意図的に出力していません（生成モジュールは `turbulence_structure` の*後*に読み込まれるため、出力すると衝突ではなく暗黙の上書きになります）。
 
 ### SchemaRegistry
 

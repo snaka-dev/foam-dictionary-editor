@@ -14,6 +14,7 @@ so that users can try FoDE on real cases and reproduce the worked tutorials.
 | `cavity/cavityClipped/`           | `incompressible/icoFoam/cavity/cavityClipped`                    | `icoFoam`            | Clipped geometry; tests `mapFieldsDict` and non-rectangular block topology            |
 | `snappyMultiRegionHeater/`        | `heatTransfer/chtMultiRegionFoam/snappyMultiRegionHeater`        | `chtMultiRegionFoam` | Multi-region overview, boundary view, symbolic links                                  |
 | `damBreak/`                       | `multiphase/interFoam/laminar/damBreak/damBreak`                 | `interFoam`          | Tests `setFieldsDict` (`defaultFieldValues`/`regions`), `0.orig/`, `sampling`         |
+| `pitzDaily/`                      | `incompressible/simpleFoam/pitzDaily`                            | `simpleFoam`         | The only bundled case with a turbulence model: RAS/`kEpsilon`, so the turbulence schema help has somewhere to show itself; also `#includeFunc`/`#includeEtc` |
 | `oneBlocks/`                      | Derived from `cavity` (custom `blockMeshDict`)                   | `icoFoam`            | 3-D single-block case; tests basic `blockMeshDict` editing and 3-D mesh viewer        |
 | `oneBlocks-vars/`                 | Derived from `cavity` (custom `blockMeshDict`)                   | `icoFoam`            | As `oneBlocks` but uses variable definitions and compact face notation `(block face)` |
 | `nineBlocks/`                     | Derived from `cavity` (custom `blockMeshDict`)                   | `icoFoam`            | 3×3 multi-block case; tests multi-block `blockMeshDict` and regex boundary patches    |
@@ -21,9 +22,9 @@ so that users can try FoDE on real cases and reproduce the worked tutorials.
 | `topoSetShapes/`                  | Custom (single 3×3×3 block + `topoSetDict`)                      | `icoFoam`            | Tests `topoSetDict` geometry overlay in the 3-D viewer (box incl. `min`/`max` and `boxes` forms, sphere incl. hollow `origin`+`innerRadius`, cylinder/cone family, point markers, `planeToFaceZone`, `$var`/`#eval`) |
 | `samplingShapes/`                 | Custom (single 3×3×3 block + sampling dictionaries)              | `icoFoam`            | Tests the sampling overlay in the 3-D viewer: probe points, span-based lines, a point cloud and both plane spellings, spread across a `controlDict` `functions {}` block and two standalone dictionaries that use the two different member-list syntaxes |
 
-The `cavity/` subdirectories, `snappyMultiRegionHeater`, and `damBreak` are
-taken unchanged from the standard tutorial set distributed with OpenFOAM
-(OpenCFD/ESI, OpenFOAM v2512).
+The `cavity/` subdirectories, `snappyMultiRegionHeater`, `damBreak`, and
+`pitzDaily` are taken unchanged from the standard tutorial set distributed with
+OpenFOAM (OpenCFD/ESI, OpenFOAM v2512).
 
 `snappyMultiRegionHeater/0/` is not present in the
 original source (it is generated at run time by `./Allrun`); the

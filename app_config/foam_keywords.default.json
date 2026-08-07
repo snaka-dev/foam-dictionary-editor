@@ -1,5 +1,5 @@
 {
-  "note": "Keyword identifier names mechanically extracted from an OpenFOAM installation for syntax highlighting. This file contains keyword names only, no source code. OpenFOAM is a registered trademark of OpenCFD Ltd.; OpenFOAM sources are Copyright OpenCFD Ltd. and licensed GPL-3.0.",
+  "note": "Keyword identifier names mechanically extracted from an OpenFOAM installation for syntax highlighting. This file contains keyword names only, no source code. OpenFOAM is a registered trademark of OpenCFD Ltd.; OpenFOAM sources are licensed GPL-3.0-or-later and are held by several parties — see THIRD-PARTY.md.",
   "source": "/usr/lib/openfoam/openfoam2512",
   "version": "openfoam2512",
   "generated": "2026-07-10",

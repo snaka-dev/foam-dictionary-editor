@@ -5,29 +5,23 @@
 
 # foam dictionary editor settings for user
 app_config.json
-
-# Generated mesh and run logs inside bundled example cases
-tutorials/**/constant/polyMesh/
-tutorials/**/log.*
-
-### This will be needed future update
-# User-generated keyword list (overrides the tracked foam_keywords.default.json)
-#app_config/foam_keywords.json
-
-# Local scratch files
-*.patch
-
-# Claude Code per-machine tool settings (local paths; not part of the release)
-.claude/settings.local.json
+schema_config.json
 
 #Python environment
 venv/
+.venv/
 
-# Python bytecode caches, at every level of the tree
+# Python interpreter to store compiled bytecode files (.pyc files)
 __pycache__/
-**/__pycache__/
-*.py[cod]
-*$py.class
+*.pyc
+
+# Nuitka
+main.onefile-build/
+main.dist/
+main.build/
+
+# Serena MCP
+.serena/
 
 # Node artifact files
 node_modules/
@@ -35,6 +29,9 @@ dist/
 
 # Compiled Java class files
 *.class
+
+# Compiled Python bytecode
+*.py[cod]
 
 # Log files
 *.log
@@ -60,6 +57,7 @@ Thumbs.db
 
 # xterm.js downloaded assets (auto-fetched on first terminal open)
 ui/xterm/
+ui/widgets/xterm/
 
 # Applications
 *.app
@@ -67,10 +65,31 @@ ui/xterm/
 *.war
 
 # Large media files
+# Demo movies land in docs/demo/ and are deliberately not tracked: they are
+# regenerated from tools/demo_specs.json, video does not delta-compress, and a
+# retake is a whole new blob in history forever. The published copies live on
+# YouTube (linked from docs/DEMO_SCRIPTS.md); the .srt files beside them *are*
+# tracked, being a couple of kilobytes of text and the caption track to upload.
 *.mp4
+*.gif
+*.webm
+*.mkv
 *.tiff
 *.avi
 *.flv
 *.mov
 *.wmv
 
+
+# Claude Code per-user local settings
+.claude/settings.local.json
+
+# Generated mesh and run logs inside bundled example cases
+tutorials/**/constant/polyMesh/
+tutorials/**/log.*
+
+# User-generated keyword list (overrides the tracked foam_keywords.default.json)
+app_config/foam_keywords.json
+
+# Local scratch files
+*.patch

@@ -13,6 +13,7 @@ Every movie below is **scripted in full and runs**: `tools/demo_driver.py` drive
 | 5 — Three files, one view | `sampling-three-files-one-view` | bundled `tutorials/samplingShapes` | ~50 s | https://youtu.be/ygXHtzqUZ_A |
 | 6 — Five meshes, one case | `multiRegion-five-meshes-one-case` | bundled `tutorials/snappyMultiRegionHeater` | ~31 s | https://youtu.be/exLu67fW-WU |
 | 7 — The whole workflow | `cavity-full-workflow` | bundled `tutorials/cavity` | ~3 min 38 s | https://youtu.be/0FZPb92luw8 |
+| 8 — What the model is | `pitzDaily-turbulence-notes` | bundled `tutorials/pitzDaily` | ~64 s | https://youtu.be/GUsqQgy9TyQ |
 
 ## Choosing what to show
 
@@ -170,6 +171,32 @@ Layout: no 3-D view, and the detail panel given real width instead of being coll
 Three beats are the ones to protect in a re-cut. **1:09**, because the schema drop-down is the feature the paper spends the most words on and the hardest to convey in a still. **1:45**, because the boundary table producing the file *and the line* is the aggregation paying for itself. And **2:13**, because the file list growing a time-directory row while the solver is still printing is the whole "one window" claim, unarguable and in passing.
 
 This is the only scene that drives an application other than FoDE. ParaView resolves nothing semantically — it is not our window — so its four clicks are `point` steps, pixel coordinates read off a rehearsal screenshot. They hold because the take runs on a display of a known size with no window manager, so ParaView opens at the origin at 1280×800 every time; they are the first thing to break if that changes, and re-reading them is a rehearsal and a screenshot.
+
+## Movie 8 — What the model is, not just its name (`pitzDaily`, ~64 s)
+
+**Scene:** `pitzDaily-turbulence-notes`. **Case:** bundled `tutorials/pitzDaily`. **What it argues:** the detail pane does not merely list the values a key accepts. It says what each one *is*, in OpenFOAM's own words, quoted from that model's source header with the paper that defines it — and it says nothing where upstream says nothing.
+
+Layout: the Tree tab, no 3-D view, and the detail pane at 560 px — wide enough that the longest note in the list wraps without the pane scrolling, which was measured across all seventeen choices rather than eyeballed on one. This is the only movie whose subject is a single form on the right-hand side, so the framing is unusually still: the cursor moves twice in the whole take.
+
+| At | Beat | On screen | Narration |
+|---|---|---|---|
+| 0:00 | Open | The whole dictionary in six tree rows — `simulationType`, `RAS`, and three entries inside it. No `kEpsilonCoeffs`, because the case overrides no default | A turbulence dictionary is a short file: a simulation type, a model, two switches. Nothing in it says what the model actually is. |
+| 0:06 | The model row | `RAS/RASModel` selected; **Key Status** reads *Historical name — OpenFOAM reads 'model' in v2006* | Select the model. RASModel is the old spelling — OpenFOAM reads 'model' now — and the pane says so rather than hiding it, because nearly every tutorial still writes it this way. |
+| 0:12 | kEpsilon | Choice Help: the header summary, RDT compression term and all. Choice Note: Launder & Spalding (1972) | And here is what kEpsilon is, in OpenFOAM's own words, quoted from the model's source header — with Launder and Spalding, the paper that defines it. |
+| 0:20 | kOmegaSST | One `Down`: the description changes, and **Choice Note is blank** | Step down the list and every value brings its own. Where upstream cites no paper the note is left empty rather than filled with a guess. |
+| 0:25 | SpalartAllmaras | A note running to three references | Some are three papers rather than one. |
+| 0:30 | realizableKE | | Sixteen models in this list, twenty-nine across RAS and LES. |
+| 0:34 | RNGkEpsilon | Yakhot & Orszag (1992) | Every one of them read out of the source of seventeen OpenFOAM releases. |
+| 0:38 | LaunderSharmaKE | **Choice Supported In**: `Foundation v7-v13, OpenCFD v2106-v2606` | Which is what the Supported In row is counting: measured, rather than assumed. |
+| 0:43 | The sweep | Eleven presses in three seconds; eleven more models' help flickering past | And it is not a handful of them that carry this. |
+| 0:50 | laminar | One short line, no note — the only entry in the list written by FoDE rather than quoted | The last row is the exception that proves it: laminar names no model class, so there is nothing upstream to quote — and that one sentence is FoDE's own. |
+| 0:56 | Nothing was written | The cursor returns to the tree: the row still reads `kEpsilon`, the file list carries no dirty marker, and the editor below still shows `RASModel kEpsilon;` on line 23 | Nothing has been changed. The tree still reads kEpsilon and the file is not marked dirty: the value moves only when you press Apply Value. Reading the list is free. |
+
+Two beats to protect in a re-cut, and they are the same claim from opposite sides. **0:20**, because a blank note where upstream wrote no reference is the whole credibility of the feature — a pane that always has something to say is a pane that is making things up. And **0:50**, because `laminar` is the one row FoDE speaks in its own voice, and the movie says so out loud rather than letting it pass as quoted.
+
+**The drop-down is deliberately not opened.** Movie 7 opens the same widget with `alt+Down` to show that `writeControl`'s choices are a list; here the popup would cover the Choice Help and Choice Note rows immediately below it, which are the entire subject. A closed combo box moves its index on a plain `Down`, and the help rows follow it live — so the scene clicks the box once for focus and then only presses a key.
+
+The take is also, incidentally, the check that browsing costs nothing: `DetailPanel` updates the help from `currentTextChanged` and writes the node only on **Apply Value**, which no step presses. The closing frame is the evidence, not the assurance.
 
 ## Recording
 

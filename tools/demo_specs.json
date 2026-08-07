@@ -676,6 +676,89 @@
           "say": "And the logs those runs left behind are condensed to a report: what ran, what it produced, and every warning it printed."
         }
       ]
+    },
+    "pitzDaily-turbulence-notes": {
+      "note": "Movie 8: a different note for every model, quoted from OpenFOAM's own headers.",
+      "theme": "light",
+      "case_source": "{repo}/tutorials/pitzDaily",
+      "workdir": "{work}/pitzDaily",
+      "state": {
+        "block_mesh_visible": false,
+        "current_file": "constant/turbulenceProperties",
+        "tree_selection": ["simulationType"],
+        "splitter_sizes": {
+          "main": [200, 1080],
+          "right": [660, 110],
+          "right_upper": [520, 0, 560]
+        }
+      },
+      "steps": [
+        {
+          "do": "wait", "ms": 5000,
+          "beat": "open",
+          "say": "A turbulence dictionary is a short file: a simulation type, a model, two switches. Nothing in it says what the model actually is."
+        },
+        {
+          "do": "click", "tree": ["RAS", "RASModel"], "then": 4500,
+          "beat": "the model row",
+          "say": "Select the model. RASModel is the old spelling — OpenFOAM reads 'model' now — and the pane says so rather than hiding it, because nearly every tutorial still writes it this way."
+        },
+        {
+          "do": "wait", "ms": 5000,
+          "beat": "kEpsilon",
+          "say": "And here is what kEpsilon is, in OpenFOAM's own words, quoted from the model's source header — with Launder and Spalding, the paper that defines it."
+        },
+        {"do": "click", "widget": "detail_panel._value_combo", "then": 900},
+        {
+          "do": "key", "keys": "Down", "then": 5000,
+          "beat": "kOmegaSST",
+          "say": "Step down the list and every value brings its own. Where upstream cites no paper the note is left empty rather than filled with a guess."
+        },
+        {
+          "do": "key", "keys": "Down", "then": 4500,
+          "beat": "SpalartAllmaras",
+          "say": "Some are three papers rather than one."
+        },
+        {
+          "do": "key", "keys": "Down", "then": 3400,
+          "beat": "realizableKE",
+          "say": "Sixteen models in this list, twenty-nine across RAS and LES."
+        },
+        {
+          "do": "key", "keys": "Down", "then": 3400,
+          "beat": "RNGkEpsilon",
+          "say": "Every one of them read out of the source of seventeen OpenFOAM releases."
+        },
+        {
+          "do": "key", "keys": "Down", "then": 4500,
+          "beat": "LaunderSharmaKE",
+          "say": "Which is what the Supported In row is counting: measured, rather than assumed."
+        },
+        {
+          "do": "key", "keys": "Down", "then": 280,
+          "beat": "the sweep",
+          "say": "And it is not a handful of them that carry this."
+        },
+        {"do": "key", "keys": "Down", "then": 280},
+        {"do": "key", "keys": "Down", "then": 280},
+        {"do": "key", "keys": "Down", "then": 280},
+        {"do": "key", "keys": "Down", "then": 280},
+        {"do": "key", "keys": "Down", "then": 280},
+        {"do": "key", "keys": "Down", "then": 280},
+        {"do": "key", "keys": "Down", "then": 280},
+        {"do": "key", "keys": "Down", "then": 280},
+        {"do": "key", "keys": "Down", "then": 280},
+        {
+          "do": "key", "keys": "Down", "then": 6000,
+          "beat": "laminar",
+          "say": "The last row is the exception that proves it: laminar names no model class, so there is nothing upstream to quote — and that one sentence is FoDE's own."
+        },
+        {
+          "do": "move", "tree": ["RAS", "RASModel"], "then": 5500,
+          "beat": "nothing was written",
+          "say": "Nothing has been changed. The tree still reads kEpsilon and the file is not marked dirty: the value moves only when you press Apply Value. Reading the list is free."
+        }
+      ]
     }
   }
 }

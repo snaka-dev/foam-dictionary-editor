@@ -12,6 +12,13 @@ from the generated `turbulence_properties` / `momentum_transport` modules, which
 are vendored from foamlore and must not be edited here; the registry merges all
 of them into one table per file.
 
+The model *names* are structural and stay here, but what each one is is quoted
+from its own OpenFOAM header through `_turbulence_coeffs.MODEL_DOCS`. A plain
+import, not a registration: the shared module declares no `TARGET_FILE`, so
+`schemas/builtin.py`'s module order does not come into it. Without this the
+extracted description would only ever be reachable through `<Model>Coeffs`, a
+key that exists only in the cases that override a default — which most do not.
+
 Model names are the directory listings under
 `src/TurbulenceModels/turbulenceModels/{RAS,LES}` (OpenCFD) and
 `src/MomentumTransportModels/momentumTransportModels/{RAS,LES}` (Foundation), so
@@ -25,6 +32,7 @@ from schemas._base import (
     ChoiceItem,
     KeySchema,
 )
+from schemas._turbulence_coeffs import MODEL_DOCS
 
 TARGET_FILES = ("turbulenceProperties", "momentumTransport")
 
@@ -49,41 +57,51 @@ _BOOL_CHOICES = (
     ChoiceItem("false", "Disabled.", _BOTH),
 )
 
+def _model(name: str, supported_in: tuple[str, ...] = _BOTH,
+           fallback: str = "") -> ChoiceItem:
+    """One entry of a model selector, in OpenFOAM's own words where they exist.
+
+    `MODEL_DOCS` carries the summary from the model's header and the paper it
+    cites, extracted and quote-verified by foamlore; it covers every model
+    class named below. `fallback` is for a choice that names no model class —
+    `laminar`, which is the absence of one — so nothing upstream describes it.
+    """
+    description, note = MODEL_DOCS.get(name, ("", ""))
+    return ChoiceItem(name, description or fallback, supported_in, note=note)
+
+
 _RAS_MODELS = (
-    ChoiceItem("kEpsilon", "Standard k-epsilon. The most widely used RAS model.", _BOTH),
-    ChoiceItem("kOmegaSST", "Menter k-omega SST. Good for adverse pressure gradients "
-                            "and separation.", _BOTH),
-    ChoiceItem("SpalartAllmaras", "One-equation eddy-viscosity model, common in "
-                                  "external aerodynamics.", _BOTH),
-    ChoiceItem("realizableKE", "Realizable k-epsilon; better for round jets and "
-                               "strong streamline curvature.", _BOTH),
-    ChoiceItem("RNGkEpsilon", "RNG k-epsilon; improved for swirling and low-Reynolds flow.", _BOTH),
-    ChoiceItem("LaunderSharmaKE", "Low-Reynolds k-epsilon that resolves the viscous sublayer.", _BOTH),
-    ChoiceItem("kOmega", "Wilcox k-omega.", _BOTH),
-    ChoiceItem("kOmegaSSTLM", "kOmegaSST with the Langtry-Menter transition model.", _BOTH),
-    ChoiceItem("kOmegaSSTSAS", "kOmegaSST with scale-adaptive simulation.", _BOTH),
-    ChoiceItem("LRR", "Launder-Reece-Rodi Reynolds-stress model.", _BOTH),
-    ChoiceItem("SSG", "Speziale-Sarkar-Gatski Reynolds-stress model.", _BOTH),
-    ChoiceItem("EBRSM", "Elliptic-blending Reynolds-stress model.", _OC),
-    ChoiceItem("GEKO", "Generalised k-omega with tunable coefficients.", _OC),
-    ChoiceItem("kEpsilonPhitF", "k-epsilon-phit-f four-equation model.", _OC),
-    ChoiceItem("kOmega2006", "Wilcox 2006 revision of k-omega.", _FD),
-    ChoiceItem("v2f", "v2-f four-equation model.", _FD),
-    ChoiceItem("laminar", "No turbulence model; laminar stress only.", _BOTH),
+    _model("kEpsilon"),
+    _model("kOmegaSST"),
+    _model("SpalartAllmaras"),
+    _model("realizableKE"),
+    _model("RNGkEpsilon"),
+    _model("LaunderSharmaKE"),
+    _model("kOmega"),
+    _model("kOmegaSSTLM"),
+    _model("kOmegaSSTSAS"),
+    _model("LRR"),
+    _model("SSG"),
+    _model("EBRSM", _OC),
+    _model("GEKO", _OC),
+    _model("kEpsilonPhitF", _OC),
+    _model("kOmega2006", _FD),
+    _model("v2f", _FD),
+    _model("laminar", _BOTH, "No turbulence model; laminar stress only."),
 )
 
 _LES_MODELS = (
-    ChoiceItem("kEqn", "One-equation eddy-viscosity SGS model.", _BOTH),
-    ChoiceItem("Smagorinsky", "Classic Smagorinsky SGS model.", _BOTH),
-    ChoiceItem("WALE", "Wall-adapting local eddy-viscosity; correct near-wall scaling.", _BOTH),
-    ChoiceItem("dynamicKEqn", "kEqn with a dynamically computed coefficient.", _BOTH),
-    ChoiceItem("dynamicLagrangian", "Lagrangian dynamic SGS model.", _BOTH),
-    ChoiceItem("DeardorffDiffStress", "Deardorff differential stress SGS model.", _BOTH),
-    ChoiceItem("sigma", "Sigma SGS model.", _OC),
-    ChoiceItem("SpalartAllmarasDES", "Spalart-Allmaras detached-eddy simulation.", _FD),
-    ChoiceItem("SpalartAllmarasDDES", "Delayed DES variant.", _FD),
-    ChoiceItem("SpalartAllmarasIDDES", "Improved delayed DES variant.", _FD),
-    ChoiceItem("kOmegaSSTDES", "kOmegaSST-based DES.", _FD),
+    _model("kEqn"),
+    _model("Smagorinsky"),
+    _model("WALE"),
+    _model("dynamicKEqn"),
+    _model("dynamicLagrangian"),
+    _model("DeardorffDiffStress"),
+    _model("sigma", _OC),
+    _model("SpalartAllmarasDES", _FD),
+    _model("SpalartAllmarasDDES", _FD),
+    _model("SpalartAllmarasIDDES", _FD),
+    _model("kOmegaSSTDES", _FD),
 )
 
 _DELTA_MODELS = (

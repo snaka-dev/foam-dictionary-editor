@@ -4,7 +4,7 @@ FoDE — Foam Dictionary Editor (pronounced "foh-dee")
 
 A GUI editor for OpenFOAM dictionary files, built with Python and PySide6.
 
-🎬 **Demo movies on YouTube** — seven short walkthroughs, listed with shot-by-shot scripts in [docs/DEMO_SCRIPTS.md](docs/DEMO_SCRIPTS.md). Start with [Edit, see, run](https://youtu.be/kGxfNhAe6xo) (~74 s), or watch [the whole workflow](https://youtu.be/0FZPb92luw8) end to end (~3 min 38 s).
+🎬 **Demo movies on YouTube** — eight short walkthroughs, listed with shot-by-shot scripts in [docs/DEMO_SCRIPTS.md](docs/DEMO_SCRIPTS.md). Start with [Edit, see, run](https://youtu.be/kGxfNhAe6xo) (~74 s), or watch [the whole workflow](https://youtu.be/0FZPb92luw8) end to end (~3 min 38 s).
 
 > 📄 **Now published in [*SoftwareX*](https://doi.org/10.1016/j.softx.2026.102852)** (Elsevier) — see [Citation](#citation).
 
@@ -95,7 +95,7 @@ Each heading links to the full documentation in [USER_GUIDE.md](USER_GUIDE.md).
 
 **[Schema help](USER_GUIDE.md#detail-pane)**
 - Built-in descriptions and valid choices for common settings (`controlDict`, `fvSchemes`, `fvSolution`, `blockMeshDict`, `snappyHexMeshDict`)
-- Turbulence-model coefficients (`kOmegaSST`, `kEpsilon`, `SpalartAllmaras`) in `turbulenceProperties`/`momentumTransport`, with source-extracted defaults per OpenFOAM fork and version
+- Turbulence models in `turbulenceProperties`/`momentumTransport`: what each of the 29 models is, quoted from its own OpenFOAM header with the paper that defines it, and every coefficient's source-extracted default per fork and version
 - Extend with your own schema modules (plain Python files)
 
 **[BlockMesh 3-D viewer](USER_GUIDE.md#blockmesh-panel)** *(requires pyvista / pyvistaqt)*
@@ -147,6 +147,7 @@ The `tutorials/` directory in the repository root contains ready-to-open OpenFOA
 | `tutorials/cavity/cavityClipped/` | `icoFoam` | Clipped geometry; `mapFieldsDict` |
 | `tutorials/snappyMultiRegionHeater/` | `chtMultiRegionFoam` | Multi-region case for the boundary view and region file listing |
 | `tutorials/damBreak/` | `interFoam` | Two-phase flow; tests `setFieldsDict` and `0.orig/` |
+| `tutorials/pitzDaily/` | `simpleFoam` | The canonical RAS case; the only bundled case that is not laminar, so it is where the turbulence-model help is visible |
 | `tutorials/oneBlocks/` | `icoFoam` | 3-D single-block; `blockMeshDict` editing and 3-D mesh viewer |
 | `tutorials/oneBlocks-vars/` | `icoFoam` | As `oneBlocks` with variable substitution and compact face notation |
 | `tutorials/nineBlocks/` | `icoFoam` | 3×3 multi-block; regex boundary patches |
@@ -154,7 +155,7 @@ The `tutorials/` directory in the repository root contains ready-to-open OpenFOA
 | `tutorials/topoSetShapes/` | `icoFoam` | Every `topoSetDict` geometry source the 3-D viewer can overlay, in one 3×3×3 block |
 | `tutorials/samplingShapes/` | `icoFoam` | The same for the sampling overlay: probe points, lines, a point cloud and both plane spellings |
 
-The `cavity/` cases, `snappyMultiRegionHeater`, and `damBreak` are from the OpenFOAM v2512 standard tutorial set. The `oneBlocks*` and `nineBlocks*` cases are custom `blockMeshDict` cases derived from cavity for FoDE testing.
+The `cavity/` cases, `snappyMultiRegionHeater`, `damBreak`, and `pitzDaily` are from the OpenFOAM v2512 standard tutorial set. The `oneBlocks*` and `nineBlocks*` cases are custom `blockMeshDict` cases derived from cavity for FoDE testing.
 
 **License:** these case files are licensed under the **GPL-3.0** (not the AGPL-3.0 that covers FoDE source code). See `tutorials/README.md` for full provenance and license details.
 
@@ -171,6 +172,8 @@ Citation is not required, but if FoDE has been useful in your research, a citati
 ## License
 
 Copyright (C) 2025-2026 Shinji NAKAGAWA. Released under the [GNU Affero General Public License v3.0 or later](LICENSE) (AGPL-3.0-or-later).
+
+Some material here comes from OpenFOAM and is **not** covered by that licence: the bundled tutorial cases, the extracted keyword list, and the documentation quoted in the generated turbulence schema modules. That material is GPL-3.0-or-later and is held by several parties — the OpenFOAM Foundation, OpenCFD Ltd, Upstream CFD GmbH and Keysight Technologies. See [THIRD-PARTY.md](THIRD-PARTY.md) for per-file credits, generated from the sources rather than maintained by hand.
 
 ## Disclaimer
 

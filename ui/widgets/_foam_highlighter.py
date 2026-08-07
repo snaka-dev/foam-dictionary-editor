@@ -75,6 +75,10 @@ def _load_foam_keywords() -> frozenset[str]:
     return frozenset()
 
 
+# A keyword worth highlighting is a word the user types, not an expression.
+_WORDLIKE = re.compile(r"[\w.:+-]+")
+
+
 def _collect_schema_keywords() -> frozenset[str]:
     """Extract keywords from the schema registry: key names and choice-item values.
 
@@ -93,8 +97,15 @@ def _collect_schema_keywords() -> frozenset[str]:
                         words.add(part)
                 for ci in ks.choices:
                     for tok in ci.value.split():
-                        if len(tok) >= 3 and not tok.replace(".", "").replace("-", "").isdigit():
-                            words.add(tok)
+                        if len(tok) < 3 or tok.replace(".", "").replace("-", "").isdigit():
+                            continue
+                        # A choice value is not always a word a user types: a
+                        # source default can be an expression, e.g. kOmegaSST's
+                        # `scalar(2)/scalar(3)`. Those are not keywords, and
+                        # the `(?<![\w.])` guard could not match them anyway.
+                        if not _WORDLIKE.fullmatch(tok):
+                            continue
+                        words.add(tok)
         return frozenset(words)
     except Exception:
         return frozenset()
@@ -112,7 +123,12 @@ def _build_value_kw_rules() -> list[tuple[QRegularExpression, QTextCharFormat]]:
     all_kw = sorted(_load_foam_keywords() | _collect_schema_keywords())
     rules = []
     for i in range(0, max(len(all_kw), 1), _KW_CHUNK):
-        pat = r"(?<![\w.])(" + "|".join(all_kw[i : i + _KW_CHUNK]) + r")(?![\w.])"
+        # Escape every alternative. A keyword is normally a plain identifier,
+        # for which this is a no-op — but one containing a regex metacharacter
+        # would otherwise make the whole chunk's pattern invalid, silently
+        # dropping highlighting for the several hundred keywords beside it.
+        chunk = (QRegularExpression.escape(kw) for kw in all_kw[i : i + _KW_CHUNK])
+        pat = r"(?<![\w.])(" + "|".join(chunk) + r")(?![\w.])"
         rules.append((QRegularExpression(pat), _VALUE_KW_FMT))
     return rules
 

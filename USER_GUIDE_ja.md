@@ -884,8 +884,10 @@ BlockMesh パネル下部のヒントバーに主要な操作が常時表示さ�
 
 スキーマモジュールには、次の 2 つのモジュールレベル変数を定義します。
 
-- `TARGET_FILE` — このモジュールが対応する辞書ファイル名（例: `"controlDict"`）。
+- `TARGET_FILE` — このモジュールが対応する辞書ファイル名（例: `"controlDict"`）。同じエントリが複数のファイル名に適用される場合は、タプルの `TARGET_FILES` を使います。OpenFOAM がリリース間で改名した辞書なら `("turbulenceProperties", "momentumTransport")` のように書きます。挙げたすべてのファイルに**同一の**テーブルが渡されるため、エントリが本当にそのすべてに属する場合にだけ使ってください。
 - `SCHEMAS` — エントリのキーとスキーマ定義を対応付ける `dict[str, KeySchema]`。
+
+同じファイルを対象とするモジュールは複数あってかまいません。テーブルはマージされ、両方が定義するキーについては後から読み込まれたモジュールが優先されます。組み込みの乱流スキーマはこの仕組みを使っており、構造キーを 1 つのモジュールに、係数をもう 1 つのモジュールに置いています。
 
 `KeySchema` のフィールド（`schemas/_base.py` に定義）：
 
@@ -1311,6 +1313,7 @@ Ctrl+C / Ctrl+V ショートカットはツリーウィジェット限定のス�
 | `tutorials/cavity/cavityClipped/` | `icoFoam` | クリップ形状・`mapFieldsDict` |
 | `tutorials/snappyMultiRegionHeater/` | `chtMultiRegionFoam` | マルチリージョン境界条件ビューとリージョンファイル一覧 |
 | `tutorials/damBreak/` | `interFoam` | 二相流・`setFieldsDict` と `0.orig/` のテスト |
+| `tutorials/pitzDaily/` | `simpleFoam` | 乱流モデルを持つ唯一の同梱ケース（RAS・`kEpsilon`）。`constant/turbulenceProperties` に対する[詳細ペイン](#詳細ペイン)のヘルプを実際に確認できる場所。`#includeFunc`/`#includeEtc` の実例でもある |
 | `tutorials/oneBlocks/` | `icoFoam` | 3-D 単一ブロック・`blockMeshDict` 編集と 3-D メッシュビューア |
 | `tutorials/oneBlocks-vars/` | `icoFoam` | `oneBlocks` の変数置換・コンパクト面記法バリアント |
 | `tutorials/nineBlocks/` | `icoFoam` | 3×3 マルチブロック・正規表現パッチ |

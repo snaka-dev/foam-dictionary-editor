@@ -32,6 +32,22 @@ OPENCFD_V2606  = "OpenCFD v2606"
 FOUNDATION_SERIES = "Foundation v7-v13"
 OPENCFD_SERIES    = "OpenCFD v2106-v2606"
 
+# Ranges, for an entry that arrived in a known release and has been there ever
+# since. Same purpose as the series labels — say where a key exists, not which
+# releases happened to be measured — but honest about the lower bound.
+# These are emitted by foamlore's generator, each because a coefficient or a
+# whole model arrived in that release and has been there since: v8 is the
+# Foundation rename of constant/turbulenceProperties to
+# constant/momentumTransport, v9 added kOmega2006, v10 moved Smagorinsky's Ck
+# into LESeddyViscosity, v2206 added EBRSM, v2212 added the SpalartAllmaras
+# ft2 term, and v2412 changed a GEKO default.
+FOUNDATION_V8_V13   = "Foundation v8-v13"
+FOUNDATION_V9_V13   = "Foundation v9-v13"
+FOUNDATION_V10_V13  = "Foundation v10-v13"
+OPENCFD_V2206_V2606 = "OpenCFD v2206-v2606"
+OPENCFD_V2212_V2606 = "OpenCFD v2212-v2606"
+OPENCFD_V2412_V2606 = "OpenCFD v2412-v2606"
+
 # What a key entry represents. Most keys are `valid`; the other two exist
 # because OpenFOAM dictionaries in the wild are full of names that are no
 # longer current, or that never worked at all.

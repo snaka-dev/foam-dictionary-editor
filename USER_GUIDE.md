@@ -879,8 +879,10 @@ For the complete list of internal node type strings, see [DEVELOPER.md](DEVELOPE
 
 Each schema module must define two module-level names.
 
-- `TARGET_FILE` — the dictionary filename the module applies to (e.g. `"controlDict"`).
+- `TARGET_FILE` — the dictionary filename the module applies to (e.g. `"controlDict"`). Use `TARGET_FILES`, a tuple, when the same entries apply to more than one filename — `("turbulenceProperties", "momentumTransport")` for a dictionary OpenFOAM renamed between releases. Every named file receives the same table, so use it only when the entries really do belong to all of them.
 - `SCHEMAS` — a `dict[str, KeySchema]` mapping entry keys to their schema definitions.
+
+Several modules may target the same file: their tables are merged, and a module loaded later wins on a key both define. That is how the built-in turbulence schemas are arranged — structural keys in one module, coefficients in another.
 
 `KeySchema` has the following fields (defined in `schemas/_base.py`):
 
@@ -1312,6 +1314,7 @@ The `tutorials/` directory in the repository root contains ready-to-open OpenFOA
 | `tutorials/cavity/cavityClipped/` | `icoFoam` | Clipped geometry; `mapFieldsDict` |
 | `tutorials/snappyMultiRegionHeater/` | `chtMultiRegionFoam` | Multi-region boundary view and region file listing |
 | `tutorials/damBreak/` | `interFoam` | Two-phase flow; `setFieldsDict` and `0.orig/` |
+| `tutorials/pitzDaily/` | `simpleFoam` | The only bundled case with a turbulence model (RAS, `kEpsilon`), so it is where the [Detail pane](#detail-pane) help for `constant/turbulenceProperties` can be seen; also `#includeFunc`/`#includeEtc` |
 | `tutorials/oneBlocks/` | `icoFoam` | 3-D single-block; `blockMeshDict` editing and 3-D mesh viewer |
 | `tutorials/oneBlocks-vars/` | `icoFoam` | As `oneBlocks` with variable substitution and compact face notation |
 | `tutorials/nineBlocks/` | `icoFoam` | 3×3 multi-block; regex boundary patches |

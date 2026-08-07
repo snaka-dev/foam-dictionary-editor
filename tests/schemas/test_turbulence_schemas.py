@@ -10,17 +10,20 @@ from pathlib import Path
 
 import pytest
 
-from schemas import momentum_transport, turbulence_properties
+from foam.parser import OpenFoamParser
+from schemas import _turbulence_coeffs, momentum_transport, turbulence_properties
 from schemas._base import (
     FOUNDATION_V7,
-    FOUNDATION_V13,
-    OPENCFD_V2512,
-    OPENCFD_V2606,
+    FOUNDATION_V8_V13,
+    OPENCFD_SERIES,
+    OPENCFD_V2212_V2606,
     ChoiceItem,
     KeySchema,
 )
 from schemas.builtin import get_default_schema_config
 from schemas.registry import SchemaRegistry
+
+ROOT = Path(__file__).resolve().parents[2]
 
 # ── fixtures ──────────────────────────────────────────────────────────────────
 
@@ -60,8 +63,30 @@ class TestModuleShape:
         assert "schemas.turbulence_properties" in modules
         assert "schemas.momentum_transport" in modules
 
+    def test_shared_body_is_not_registered(self):
+        # _turbulence_coeffs holds the coefficient facts both per-file modules
+        # build their tables from. It is imported, never registered: it has no
+        # TARGET_FILE, so the registry would skip it anyway.
+        modules = get_default_schema_config()["schema_modules"]
+        assert "schemas._turbulence_coeffs" not in modules
+        assert not hasattr(_turbulence_coeffs, "TARGET_FILE")
+        assert _turbulence_coeffs.TARGET_FILES == (
+            "turbulenceProperties", "momentumTransport")
+
+    def test_per_file_tables_differ(self):
+        # The reason there are two modules rather than one declaring
+        # TARGET_FILES: the registry merges a multi-file module's table into
+        # every file it names identically, so an OpenCFD-only model would
+        # become visible in constant/momentumTransport, which only Foundation
+        # v8+ reads and which no OpenCFD release reads at all.
+        tp = _turbulence_coeffs.build_schemas("turbulenceProperties")
+        mt = _turbulence_coeffs.build_schemas("momentumTransport")
+        assert "GEKOCoeffs" in tp and "GEKOCoeffs" not in mt
+        assert "v2fCoeffs" in mt
+
     @pytest.mark.parametrize(
-        "name", ["turbulence_properties", "momentum_transport"]
+        "name",
+        ["turbulence_properties", "momentum_transport", "_turbulence_coeffs"],
     )
     def test_generated_banner_present(self, name):
         # Guard against hand edits: the vendored files must keep the
@@ -80,31 +105,57 @@ class TestRegistryLookup:
         )
         assert schema is not None
         assert schema.key == "beta1"
-        assert OPENCFD_V2512 in schema.supported_in
-        assert FOUNDATION_V7 in schema.supported_in
+        # beta1 has been in every OpenCFD release foamlore scans, so it gets
+        # the fork label rather than the two releases that were once checked.
+        # Foundation stays at v7 alone: v8 renamed the file this schema is for.
+        assert schema.supported_in == (FOUNDATION_V7, OPENCFD_SERIES)
         assert any(c.value == "0.075" for c in schema.choices)
 
     def test_plain_fallback_in_ras_dict(self, registry):
-        # coefficient placed directly in the RAS dict (optionalSubDict idiom)
+        # coefficient placed directly in the RAS dict (optionalSubDict idiom).
+        # Cmu is read by several models, so the flat entry is a merged one:
+        # it names every owner and offers each distinct default, rather than
+        # disappearing because the name is ambiguous.
         schema = registry.schema_for_file_key(
             "constant/turbulenceProperties", "Cmu", parent_key="RAS"
         )
         assert schema is not None
         assert any(c.value == "0.09" for c in schema.choices)
+        assert "kEpsilon" in schema.description
+        assert "RNGkEpsilon" in schema.description
+        # inside a model's own dictionary that model's entry still wins
+        own = registry.schema_for_file_key(
+            "constant/turbulenceProperties", "Cmu", parent_key="RNGkEpsilonCoeffs"
+        )
+        assert own is not None and own.description != schema.description
 
     def test_momentum_transport_lookup(self, registry):
         schema = registry.schema_for_file_key(
             "constant/momentumTransport", "sigmaNut", parent_key="SpalartAllmarasCoeffs"
         )
         assert schema is not None
-        assert schema.supported_in == (FOUNDATION_V13,)
+        # Every release that reads constant/momentumTransport, i.e. v8 onward.
+        assert schema.supported_in == (FOUNDATION_V8_V13,)
 
-    def test_version_specific_coefficient(self, registry):
+    def test_fork_specific_coefficient(self, registry):
+        # Absent from Foundation's constructors entirely, so only the OpenCFD
+        # label appears — and it spans that fork rather than naming releases.
         schema = registry.schema_for_file_key(
             "constant/turbulenceProperties", "decayControl", parent_key="kOmegaSSTCoeffs"
         )
         assert schema is not None
-        assert schema.supported_in == (OPENCFD_V2512, OPENCFD_V2606)
+        assert schema.supported_in == (OPENCFD_SERIES,)
+        assert "Only present in" in schema.note
+
+    def test_version_specific_coefficient(self, registry):
+        # ft2 was added to SpalartAllmaras in v2212, so the tag has a real
+        # lower bound. This is the case the range labels exist for: the user
+        # needs to know it is unavailable below v2212.
+        schema = registry.schema_for_file_key(
+            "constant/turbulenceProperties", "ft2", parent_key="SpalartAllmarasCoeffs"
+        )
+        assert schema is not None
+        assert schema.supported_in == (OPENCFD_V2212_V2606,)
         assert "Only present in" in schema.note
 
     def test_coeffs_dict_entry(self, registry):
@@ -119,3 +170,85 @@ class TestRegistryLookup:
             registry.schema_for_file_key("system/controlDict", "beta1", parent_key="RAS")
             is None
         )
+
+
+# ── model selector prose ──────────────────────────────────────────────────────
+
+class TestModelSelectorProse:
+    """The seam between the two modules: hand-written keys, extracted prose.
+
+    `turbulence_structure` owns the selector and its choice *list*; the text
+    describing each model comes from `_turbulence_coeffs.MODEL_DOCS`. The
+    lookups here go through the registry with the real file path and parent
+    key, because that is what `DetailPanel` does — a normal case writes only
+    `RASModel kEpsilon;`, with no `kEpsilonCoeffs` dictionary to hang the
+    description on.
+    """
+
+    @pytest.mark.parametrize(
+        "path", ["constant/turbulenceProperties", "constant/momentumTransport"]
+    )
+    @pytest.mark.parametrize("key", ["RASModel", "model"])
+    def test_ras_selector_quotes_upstream(self, registry, path, key):
+        schema = registry.schema_for_file_key(path, key, parent_key="RAS")
+        assert schema is not None
+        choice = next(c for c in schema.choices if c.value == "kEpsilon")
+        assert choice.description == _turbulence_coeffs.MODEL_DOCS["kEpsilon"][0]
+        assert "rapid distortion" in choice.description
+        assert choice.note.startswith("Reference:")
+        assert "Launder" in choice.note
+
+    @pytest.mark.parametrize("key", ["LESModel", "model"])
+    def test_les_selector_quotes_upstream(self, registry, key):
+        schema = registry.schema_for_file_key(
+            "constant/turbulenceProperties", key, parent_key="LES"
+        )
+        assert schema is not None
+        choice = next(c for c in schema.choices if c.value == "WALE")
+        assert choice.description == _turbulence_coeffs.MODEL_DOCS["WALE"][0]
+        assert choice.note.startswith("Reference:")
+
+    def test_every_choice_is_described(self, registry):
+        for parent in ("RAS", "LES"):
+            schema = registry.schema_for_file_key(
+                "constant/turbulenceProperties", "model", parent_key=parent
+            )
+            assert schema is not None
+            for choice in schema.choices:
+                assert choice.description, f"{parent}.{choice.value}"
+
+    def test_fallback_covers_what_foamlore_does_not(self, registry):
+        # `laminar` names no model class, so MODEL_DOCS has nothing for it and
+        # the hand-written blurb stands. If foamlore ever covers every choice
+        # this is the test that says the fallback has become dead code.
+        assert "laminar" not in _turbulence_coeffs.MODEL_DOCS
+        schema = registry.schema_for_file_key(
+            "constant/turbulenceProperties", "RASModel", parent_key="RAS"
+        )
+        assert schema is not None
+        choice = next(c for c in schema.choices if c.value == "laminar")
+        assert choice.description == "No turbulence model; laminar stress only."
+        assert choice.note == ""
+
+    def test_bundled_pitz_daily_case(self, registry):
+        # The end-to-end version: parse the bundled case, walk it, ask what the
+        # pane would ask. pitzDaily is the only bundled case with a turbulence
+        # model and it writes the dictionary the way the upstream tutorial does
+        # — `RASModel kEpsilon;` and no coefficient dictionary at all, which is
+        # exactly the shape in which the extracted prose used to be invisible.
+        text = (
+            ROOT / "tutorials" / "pitzDaily" / "constant" / "turbulenceProperties"
+        ).read_text(encoding="utf-8")
+        ras = next(
+            c for c in OpenFoamParser(text).parse().children if c.name == "RAS"
+        )
+        assert not any(c.node_type == "dictionary" for c in ras.children or [])
+        selector = next(c for c in ras.children if c.name == "RASModel")
+        assert selector.value == "kEpsilon"
+
+        schema = registry.schema_for_file_key(
+            "constant/turbulenceProperties", selector.name, parent_key=ras.name
+        )
+        assert schema is not None
+        choice = next(c for c in schema.choices if c.value == selector.value)
+        assert choice.description and choice.note

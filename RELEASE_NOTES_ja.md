@@ -1,5 +1,33 @@
 # リリースノート
 
+## v1.13.0 — 2026-08-07
+
+### 新機能
+
+- **詳細ペインに、既定値だけでなく OpenFOAM 自身がその係数について書いている内容を表示するようになりました** — 値はソルバが何をするかを教えてくれますが、その係数が何を意味するのか、いつ変更すべきかまでは教えてくれません。OpenFOAM のヘッダにはそれが書かれており、foamlore がその散文を抽出して生成スキーマに取り込むようになりました。引用元のファイルと行番号を伴う逐語引用です。`<model>Coeffs` 辞書を選ぶと、そのモデルのヘッダにある説明が表示され（29 モデルすべてが持っています）、定義論文が Note 行に出ます。`kEpsilonCoeffs` なら Launder & Spalding、`GEKOCoeffs` なら Menter & Matyushenko (2025) です。上流が宣言箇所に記述している係数では、その記述が先頭に来ます。`F3` は機械的な既定値の文の前に "Flag to include the F3 term" と表示され、257 個の係数がこの記述を持っています。
+
+  きっかけになった事例は、これらより稀ですが、より有用です。GEKO の `CFbLam` はソース中で `1.0  // increase to 25 in case of transition simulations (MM:p. 4)` と書かれています。このコメントは係数を**いつ**変えるべきかを述べており、`MM` はそのモデル自身の参考文献ブロックへのタグです。この注記がキーに付き、引用タグは上位の辞書に表示される参考文献で解決できます。長い引用はペイン用に切り詰め、切り詰めた旨を明示します。全文は foamlore の `get_fact` が引用元付きで返します。
+
+- **モデルセレクタが、各モデルの説明を OpenFOAM 自身の言葉で表示するようになりました** — 通常の `constant/turbulenceProperties` は 5 行程度で、係数辞書はどこにも現れません。`simulationType RAS;` と `RAS { RASModel kEpsilon; turbulence on; printCoeffs on; }` だけです。上の項目で述べた内容はすべて `kEpsilonCoeffs` にぶら下がっていました。これは既定値を上書きするケースにしか存在しないキーであり、大半のケースには存在しません。つまり最も一般的なケースでは、そのどれにも到達できませんでした。`RASModel`（`model`、および LES 側の綴りも同様）を選ぶと、選んだ値について、そのモデルのヘッダにある説明と定義論文が表示されるようになりました。`kEpsilon` なら "Standard k-epsilon turbulence model for incompressible and compressible flows including rapid distortion theory (RDT) based compression term" と表示され、Launder & Spalding (1972) を引用します。2 つのセレクタにある 27 個のモデル選択肢すべてが対象です。`laminar` はモデルクラスではないため、従来の短い手書き説明のままです。選択肢のリスト自体と、どのフォークがどのモデルを出荷しているかは変更していません。これらはモデルではなく辞書についての事実であり、引き続き手作業で保守します。
+
+- **乱流モデル係数のヘルプが 3 モデルから 29 モデルに拡大しました** — 姉妹プロジェクト foamlore が生成するスキーマモジュールは `kOmegaSST`・`kEpsilon`・`SpalartAllmaras` だけを記述していました。同プロジェクトがモデルごとに手書きの抽出スクリプトを持つ設計で、モデルを 1 つ増やすたびにスクリプトが 1 つ必要だったためです。これがレジストリ方式(モデル 1 つ = 表の 1 行)に置き換わり、カバレッジは **RAS 16 モデル・LES/DES 13 モデル** — 両フォークが出荷する全モデル — になりました。17 リリース全体で実測しています。対象は `kOmega`・`kOmega2006`・`realizableKE`・`RNGkEpsilon`・`LaunderSharmaKE`・`LRR`・`SSG`・`EBRSM`・`GEKO`・`kEpsilonPhitF`・`v2f`・`kOmegaSSTLM`・`kOmegaSSTSAS`、`Smagorinsky`/`WALE`/`sigma`/`kEqn`/`dynamicKEqn`/`dynamicLagrangian`/`DeardorffDiffStress` の LES 一式、および `SpalartAllmaras`/`kOmegaSST` の DES・DDES・IDDES 系列です。これらの係数を選ぶと、詳細ペインにソース既定値・存在するリリース・読み取り元のコンストラクタが表示されます。
+
+  この規模から 2 つの帰結があります。モデルが自分では宣言せず継承している係数も、宣言元の基底クラスまで辿るようになりました。`kOmegaSSTSAS.C` に記述がなくても `kOmegaSSTSASCoeffs { betaStar 0.09; }` は実在するエントリです。また 134 個の係数名のうち 28 個が複数のモデルに読まれます(`Cmu` は 9 モデル)。従来はどの名前も所有モデルがちょうど 1 つでした。OpenFOAM の `optionalSubDict` が許すとおり `RAS { … }` に直接書いた場合、これらの名前は「読んでいる全モデルを列挙し、モデルごとの既定値を個別に提示する」単一のエントリとして解決します。`<model>Coeffs` 辞書の中に書いた場合は、従来どおりそのモデル自身のエントリが優先されます。
+
+### バグ修正
+
+- **括弧を含むスキーマ値 1 つで数百のキーワードのシンタックスハイライトが止まる問題を修正しました** — 値キーワードのハイライタは、スキーマのキーと選択肢の値を 1000 個ずつ `|` で連結してパターンを作りますが、エスケープをしていませんでした。これまでキーワードはすべて素の識別子だったため表面化しませんでしたが、正規表現のメタ文字を含む最初の選択肢値 — `scalar(2)/scalar(3)`、OpenCFD が v2212 まで実際に `sigmaNut` の既定値をそう書いていたもの — によってそのチャンクのパターン全体が不正になりました。Qt は不正なパターンを黙ってマッチさせないため、症状は「`application` や `PCG` など同じチャンクに含まれるキーワードの色が消える」という形で現れます。各要素をエスケープするようにし、さらに単語ではなく式である選択肢値はキーワードとして収集しないようにしました（`(?<![\w.])` の先読みでは元々マッチし得ないためです）。
+
+- **乱流モジュールのバージョン表示も実測に基づくものになりました** — v1.12.0 では、コアのスキーマと `snappyHexMeshDict` に残っていた一律の Foundation v13 タグを訂正しましたが、同じ過小表示が foamlore 生成の 2 つの乱流モジュールには残っている、と記載していました。Foundation v10 の利用者が `constant/momentumTransport` で `beta1` を選ぶと「Foundation v13」と表示され、OpenCFD v2106 の利用者には「OpenCFD v2512, v2606」と表示される状態です。これらは別リポジトリから取り込んだ生成ファイルであるため、手で編集せず生成側の仕様書に訂正を記録していましたが、その訂正が生成側で実施されました。foamlore はソースの対象範囲を 4 チェックアウトから、いずれかのフォークがバージョン定数を持つ 17 リリースすべてへ広げ、全リリースから係数を再抽出して再生成しました。その結果、`momentum_transport.py` の 111 エントリは `Foundation v8-v13`（このファイル名を読むすべてのリリース）に、`turbulence_properties.py` の共通 109 エントリは `OpenCFD v2106-v2606` になりました。`turbulence_properties.py` の Foundation タグは v7 単独のままです — これは元から正しく、v8 でファイル名が変わったためです。単一リリースでもフォーク全体でもない範囲を表す 2 つのラベル `FOUNDATION_V8_V13` と `OPENCFD_V2212_V2606` を `schemas/_base.py` に追加しました。
+
+  サンプリングではなく全リリースを実測したことで、本リポジトリ側の監査の誤りも 2 点訂正されました。いずれもサンプルから漏れていたリリースに由来します。SpalartAllmaras の `ft2` 項 — `ft2`・`Ct3`・`Ct4`・`ck` — が登場したのは v2306 ではなく **v2212** でした。また `sigmaNut` のソース既定値が v2212 で `scalar(2)/scalar(3)` からリテラル `0.66666` に変わっていました。小さいながら実際の数値の違いであり、以前ディスク上にあった 4 チェックアウトからは見えませんでした（v2512 も v2606 も新しい表記のため）。両方の既定値が、それぞれのバージョンタグ付きの選択肢として提示されるようになりました。
+
+### ドキュメント
+
+- **8 本目のデモ動画: 名前だけでなく、そのモデルが何であるか**（`pitzDaily-turbulence-notes`、約 64 秒） — 上の 2 項目は、このリリースで最も静止画にしにくい内容です。「注記がある」ことではなく「値ごとに*違う*注記がある」ことが主張だからです。そこで動画にしました。同梱の pitzDaily で `constant/turbulenceProperties` を開き、`RASModel` の行を選び、Choices のボックスをリストの下へたどっていくと、その下の Choice Help・Choice Supported In・Choice Note が次々に書き換わります。kEpsilon には Launder と Spalding、kOmegaSST はヘッダが論文を挙げていないので注記は空欄、SpalartAllmaras は 3 本。そこから 11 回下って `laminar` — リスト中で唯一 FoDE 自身が書いている行に着きます。最後のフレームが要点です: ツリーはいまも `kEpsilon` で、ファイルもダーティになっていません。ペインはコンボボックスからヘルプを更新するだけで、ノードを書き換えるのは **Apply Value** のときだけだからです。他の 7 本と同じく `tools/demo_specs.json` に台本があり `tools/demo_driver.py` が再生・収録するので、撮り直しはコマンド 1 つです。ショットごとの台本は `docs/DEMO_SCRIPTS_ja.md` にあります。
+
+- **実際に乱流である同梱ケースを追加しました**（`tutorials/pitzDaily/`） — `tutorials/` のケースはすべて層流でした。`damBreak` と `snappyMultiRegionHeater` の両リージョンは `simulationType laminar` であり、残りのケースには乱流の辞書自体がありません。そのため 2 リリースにわたって拡充してきた乱流モデルのヘルプは、同梱ケースでは試せず、解説を読む人も実物を見られませんでした。`pitzDaily` は RAS の定番チュートリアル（`simpleFoam`・`kEpsilon`・1 秒でメッシュが切れる後ろ向きステップ）で、OpenFOAM v2512 のチュートリアルセットから無改変で再配布します。ライセンスは `tutorials/` の他のケースと同じ GPL-3.0 です。このケースの `constant/turbulenceProperties` を開けば、モデルセレクタ・各選択肢の説明・係数表のすべてがその場にあります。加えて `controlDict` の `#includeFunc` から辿る `system/streamlines` は、インクルード機能の実例にもなっています。
+
 ## v1.12.0 — 2026-08-05
 
 ### 新機能

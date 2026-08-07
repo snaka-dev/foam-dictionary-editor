@@ -1,0 +1,43 @@
+1
+00:00:00,000 --> 00:00:06,016
+A turbulence dictionary is a short file: a simulation type, a model, two switches. Nothing in it says what the model actually is.
+
+2
+00:00:06,016 --> 00:00:11,899
+Select the model. RASModel is the old spelling — OpenFOAM reads 'model' now — and the pane says so rather than hiding it, because nearly every tutorial still writes it this way.
+
+3
+00:00:11,899 --> 00:00:20,100
+And here is what kEpsilon is, in OpenFOAM's own words, quoted from the model's source header — with Launder and Spalding, the paper that defines it.
+
+4
+00:00:20,100 --> 00:00:25,399
+Step down the list and every value brings its own. Where upstream cites no paper the note is left empty rather than filled with a guess.
+
+5
+00:00:25,399 --> 00:00:30,400
+Some are three papers rather than one.
+
+6
+00:00:30,400 --> 00:00:34,199
+Sixteen models in this list, twenty-nine across RAS and LES.
+
+7
+00:00:34,199 --> 00:00:37,999
+Every one of them read out of the source of seventeen OpenFOAM releases.
+
+8
+00:00:37,999 --> 00:00:42,899
+Which is what the Supported In row is counting: measured, rather than assumed.
+
+9
+00:00:42,899 --> 00:00:49,899
+And it is not a handful of them that carry this.
+
+10
+00:00:49,899 --> 00:00:56,399
+The last row is the exception that proves it: laminar names no model class, so there is nothing upstream to quote — and that one sentence is FoDE's own.
+
+11
+00:00:56,399 --> 00:01:00,399
+Nothing has been changed. The tree still reads kEpsilon and the file is not marked dirty: the value moves only when you press Apply Value. Reading the list is free.

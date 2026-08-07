@@ -26,7 +26,8 @@ _NOTE = (
     "Keyword identifier names mechanically extracted from an OpenFOAM "
     "installation for syntax highlighting. This file contains keyword names "
     "only, no source code. OpenFOAM is a registered trademark of OpenCFD "
-    "Ltd.; OpenFOAM sources are Copyright OpenCFD Ltd. and licensed GPL-3.0."
+    "Ltd.; OpenFOAM sources are licensed GPL-3.0-or-later and are held by "
+    "several parties — see THIRD-PARTY.md."
 )
 
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z]\w+$")

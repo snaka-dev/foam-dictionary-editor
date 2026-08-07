@@ -15,4 +15,9 @@ the schema. `snappyHexMeshDict` in particular still contains `minFlatness`,
 the key OpenFOAM silently ignores, which is exactly what one of the tests
 asserts we warn about.
 
-OpenFOAM is distributed under the GPL; these files are Copyright OpenCFD Ltd.
+These are verbatim OpenFOAM tutorial dictionaries, licensed GPL-3.0-or-later.
+They were taken from the OpenCFD (openfoam.com) distribution, so OpenCFD Ltd
+holds the copyright in them — but note that is specific to *these* files.
+Upstream material elsewhere in this repository is held by several parties;
+`THIRD-PARTY.md` records who holds what, generated from the sources rather
+than assumed.
