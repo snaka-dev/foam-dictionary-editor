@@ -4,6 +4,8 @@ import os
 import time
 from pathlib import Path
 
+import pytest
+
 from services.case_loader import (
     FIELD_DIRS,
     PHASE_FILE_BASES,
@@ -209,6 +211,114 @@ class TestConstants:
         assert "constant/dynamicMeshDict" in TARGET_FILES
         assert "constant/kinematicCloudProperties" in TARGET_FILES
         assert "constant/regionProperties" in TARGET_FILES
+
+    @pytest.mark.parametrize("subdir", ["system", "constant"])
+    def test_target_files_sorted_within_each_subdir(self, subdir):
+        """Each half of TARGET_FILES is alphabetical, so additions land somewhere.
+
+        Case-insensitive: PDRblockMeshDict and MRFProperties sort by their word,
+        not by their capitals.
+        """
+        names = [e.split("/", 1)[1] for e in TARGET_FILES if e.startswith(f"{subdir}/")]
+        assert names == sorted(names, key=str.lower)
+
+    def test_region_lists_are_drawn_from_target_files(self):
+        """A region-only name would be a name nothing else in the app knows.
+
+        The per-region lists name files inside system/<region>/ and
+        constant/<region>/, which are the same dictionaries as at the case root.
+        Keeping them a subset means one place to add a dictionary, not three.
+        """
+        system_names = {e.split("/", 1)[1] for e in TARGET_FILES if e.startswith("system/")}
+        constant_names = {e.split("/", 1)[1] for e in TARGET_FILES if e.startswith("constant/")}
+        assert set(REGION_SYSTEM_FILES) <= system_names
+        assert set(REGION_CONSTANT_FILES) <= constant_names
+        assert set(PHASE_FILE_BASES) <= constant_names
+
+    def test_non_dictionary_data_files_are_not_listed(self):
+        """Chemkin inputs and READMEs sit beside the dictionaries but are not ones.
+
+        `constant/foam.inp` / `foam.dat` are Chemkin-format data, not OpenFOAM
+        dictionaries; a sweep of the tutorial trees turns them up next to the
+        real entries, so the exclusion is worth pinning.
+        """
+        for entry in ("constant/foam", "system/README", "constant/README"):
+            assert entry not in TARGET_FILES
+
+
+class TestForkRenamePairs:
+    """Both spellings of a renamed dictionary must be listed, not just the older.
+
+    FoDE serves both forks, and a name absent from these lists is unreachable in
+    the app rather than merely unhelped. Foundation v8 renamed
+    constant/turbulenceProperties to constant/momentumTransport, v9 split
+    fvOptions into constant/fvModels + system/fvConstraints, and v10 folded
+    constant/transportProperties and constant/thermophysicalProperties into
+    constant/physicalProperties — so a Foundation v10+ case once opened with no
+    transport or thermophysical dictionary offered at all.
+    """
+
+    #: (pre-rename, post-rename) as they appear in TARGET_FILES.
+    TARGET_PAIRS = [
+        ("constant/turbulenceProperties", "constant/momentumTransport"),
+        ("constant/transportProperties", "constant/physicalProperties"),
+        ("constant/thermophysicalProperties", "constant/physicalProperties"),
+        ("constant/fvOptions", "constant/fvModels"),
+        ("system/fvOptions", "system/fvConstraints"),
+    ]
+
+    @pytest.mark.parametrize(("old", "new"), TARGET_PAIRS)
+    def test_both_spellings_in_target_files(self, old, new):
+        assert old in TARGET_FILES
+        assert new in TARGET_FILES
+
+    @pytest.mark.parametrize(
+        ("old", "new"),
+        [
+            ("turbulenceProperties", "momentumTransport"),
+            ("thermophysicalProperties", "physicalProperties"),
+            ("fvOptions", "fvModels"),
+        ],
+    )
+    def test_both_spellings_in_region_constant_files(self, old, new):
+        assert old in REGION_CONSTANT_FILES
+        assert new in REGION_CONSTANT_FILES
+
+    def test_region_system_files_cover_fv_constraints(self):
+        assert "fvOptions" in REGION_SYSTEM_FILES
+        assert "fvConstraints" in REGION_SYSTEM_FILES
+
+    @pytest.mark.parametrize(
+        ("old", "new"),
+        [
+            ("turbulenceProperties", "momentumTransport"),
+            ("thermophysicalProperties", "physicalProperties"),
+        ],
+    )
+    def test_both_spellings_in_phase_file_bases(self, old, new):
+        """Foundation spells phase variants momentumTransport.air, and so on."""
+        assert old in PHASE_FILE_BASES
+        assert new in PHASE_FILE_BASES
+
+    def test_foundation_v10_case_lists_its_dictionaries(self, tmp_path):
+        """A Foundation v10+ case shape: renamed names, plus phase variants."""
+        (tmp_path / "system").mkdir()
+        (tmp_path / "constant").mkdir()
+        names = [
+            "constant/momentumTransport",
+            "constant/momentumTransport.air",
+            "constant/physicalProperties",
+            "constant/physicalProperties.water",
+            "constant/fvModels",
+            "system/fvConstraints",
+        ]
+        for rel in names:
+            (tmp_path / rel).write_text("FoamFile{}", encoding="utf-8")
+
+        files = list_case_files(str(tmp_path))
+
+        for rel in names:
+            assert str(tmp_path / rel) in files
 
 
 class TestRootScripts:

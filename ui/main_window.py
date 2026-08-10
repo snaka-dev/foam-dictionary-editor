@@ -48,6 +48,13 @@ from ui.mixins._tree_crud_ops import _TreeCrudOpsMixin
 from ui.mixins._tree_sync_ops import _TreeSyncOpsMixin
 from ui.mixins._ui_ops import _UiOpsMixin
 from ui.mixins._undo_ops import _UndoOpsMixin
+from ui.pane_minimize import (
+    PANE_BOTTOM,
+    PANE_DETAIL,
+    PANE_FILE_LIST,
+    PaneMinimizer,
+    install_handle_double_click,
+)
 from ui.panels.comparison_tree_panel import ComparisonTreePanel
 from ui.panels.detail_panel import DetailPanel
 from ui.panels.editor_panel import EditorPanel
@@ -151,13 +158,9 @@ class MainWindow(
         save_btn = QPushButton(tr("Save File"))
         save_all_btn = QPushButton(tr("Save All Files"))
         reload_case_btn = QPushButton(tr("Reload Case"))
-        apply_btn = QPushButton(tr("Apply Text to Tree"))
-        reload_btn = QPushButton(tr("Reload from Tree"))
         save_btn.clicked.connect(self.save_file)
         save_all_btn.clicked.connect(self.save_all_files)
         reload_case_btn.clicked.connect(self.reload_case)
-        apply_btn.clicked.connect(self.apply_text_to_tree)
-        reload_btn.clicked.connect(self.reload_text_from_tree)
 
         self._foam_monitor_timer = QTimer(self)
         self._foam_monitor_timer.setInterval(2000)
@@ -180,8 +183,6 @@ class MainWindow(
         layout.addWidget(save_all_btn)
         layout.addWidget(reload_case_btn)
         layout.addWidget(sep)
-        layout.addWidget(apply_btn)
-        layout.addWidget(reload_btn)
         layout.addWidget(QLabel(tr("Case:")))
         layout.addWidget(self.current_case_label)
         layout.addSpacing(16)
@@ -227,6 +228,44 @@ class MainWindow(
         layout.addWidget(self.tree)
         return container
 
+    def _build_tree_text_sync_bar(self) -> QWidget:
+        """Build the editor↔tree sync buttons that sit on the bottom tab bar.
+
+        These two commands are the seam between the tree (upper pane) and the
+        editor text (lower pane), so they live on the boundary between the two
+        rather than in the top bar with the disk operations.  Riding the tab bar
+        as a corner widget costs no extra vertical space and keeps them visible
+        whichever tab either tab widget is showing.  The arrows read against the
+        vertical splitter: the tree is above, the editor below.
+
+        The pane-minimize button shares the bar because it is the one control
+        that has to survive its own pane collapsing — minimizing this row leaves
+        the tab bar as the visible sliver, so the button stays where the user
+        last clicked it (see ui/pane_minimize.py).
+        """
+        self._apply_text_btn = QPushButton("▲ " + tr("Apply Text to Tree"))
+        self._apply_text_btn.setToolTip(tr("Re-parse the editor text and rebuild the tree above"))
+        self._apply_text_btn.clicked.connect(self.apply_text_to_tree)
+
+        self._reload_text_btn = QPushButton("▼ " + tr("Reload from Tree"))
+        self._reload_text_btn.setToolTip(tr("Regenerate the editor text from the tree above"))
+        self._reload_text_btn.clicked.connect(self.reload_text_from_tree)
+
+        # The splitters do not exist yet (see _build_splitters), so the click is
+        # routed through a method that looks the minimizer up when it fires.
+        self._bottom_minimize_btn = QPushButton("▁")
+        self._bottom_minimize_btn.setFixedWidth(28)
+        self._bottom_minimize_btn.clicked.connect(self._on_toggle_bottom_pane_btn)
+
+        bar = QWidget()
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(0, 0, 6, 0)
+        layout.setSpacing(4)
+        layout.addWidget(self._apply_text_btn)
+        layout.addWidget(self._reload_text_btn)
+        layout.addWidget(self._bottom_minimize_btn)
+        return bar
+
     def _build_feature_panels(self) -> None:
         cfg = get_app_config()
         _feat_terminal  = cfg.get_feature("terminal")
@@ -240,6 +279,9 @@ class MainWindow(
         self.bottom_tabs.addTab(self.editor_panel, tr("Editor"))
         if self.terminal_panel is not None:
             self.bottom_tabs.addTab(self.terminal_panel, self.terminal_panel.tab_label)
+        self.bottom_tabs.setCornerWidget(
+            self._build_tree_text_sync_bar(), Qt.Corner.TopRightCorner
+        )
 
         from ui.panels.boundary_view_panel import BoundaryViewPanel
         self.boundary_panel = BoundaryViewPanel()
@@ -332,6 +374,41 @@ class MainWindow(
         layout.addWidget(self.main_splitter, 1)
         self.setCentralWidget(central)
 
+        self._build_pane_minimizers()
+
+    def _build_pane_minimizers(self) -> None:
+        """Register the minimizable panes and the double-click on their handles.
+
+        Called once every splitter has all of its widgets, because
+        ``install_handle_double_click`` can only watch the handles that exist.
+        ``_tree_bm_splitter`` is deliberately left out: it sets
+        ``setChildrenCollapsible(False)`` so that neither the tree nor the 3-D
+        panel can snap shut on the other, and a minimize control there would be
+        arguing with that.
+        """
+        right_upper = self.right_upper_splitter
+        assert right_upper is not None  # built by _build_splitters just above
+        self._pane_minimizers = {
+            PANE_FILE_LIST: PaneMinimizer(
+                self.main_splitter, 0, default_size=SPLITTER_FILE_LIST_WIDTH
+            ),
+            PANE_DETAIL: PaneMinimizer(
+                right_upper, 2, default_size=SPLITTER_DETAIL_WIDTH
+            ),
+            # A strip, not a collapse: the sliver left behind is the tab bar,
+            # which carries the Editor/Terminal tabs and the sync buttons.
+            PANE_BOTTOM: PaneMinimizer(
+                self.right_splitter,
+                1,
+                strip=lambda: self.bottom_tabs.tabBar().sizeHint().height() + 2,
+                default_size=SPLITTER_LOWER_HEIGHT,
+            ),
+        }
+        self._handle_filters = [
+            install_handle_double_click(splitter, self, self._on_splitter_handle_double_click)
+            for splitter in (self.main_splitter, self.right_splitter, right_upper)
+        ]
+
     def _connect_signals(self) -> None:
         self.file_list_panel.file_selected.connect(self.load_selected_file)
         self.file_list_panel.create_file_requested.connect(self._on_create_file_requested)
@@ -398,8 +475,16 @@ class MainWindow(
         case_menu.addAction(tr("Open from Case Library...")).triggered.connect(self.open_from_library)
         case_menu.addAction(tr("Reload Case")).triggered.connect(self.reload_case)
         case_menu.addSeparator()
+        _act(case_menu, tr("Save File"),              "Ctrl+S",       self.save_file)
         _act(case_menu, tr("Save Case"),              "Ctrl+Shift+S", self.save_all_files)
         case_menu.addAction(tr("Save as New Case...")).triggered.connect(self.save_as_new_case)
+        case_menu.addSeparator()
+        # Also on the bottom tab bar (see _build_tree_text_sync_bar).  Reload
+        # from Tree deliberately has no shortcut: it overwrites the editor text,
+        # discarding edits not yet applied, and any key near "Reload Case" would
+        # invite exactly that mistake.
+        _act(case_menu, tr("Apply Text to Tree"),     "Ctrl+Shift+A", self.apply_text_to_tree)
+        case_menu.addAction(tr("Reload from Tree")).triggered.connect(self.reload_text_from_tree)
         case_menu.addSeparator()
         case_menu.addAction(tr("Duplicate Case...")).triggered.connect(self.duplicate_case)
         case_menu.addAction(tr("Duplicate from Case Library...")).triggered.connect(
@@ -412,8 +497,6 @@ class MainWindow(
         case_menu.addAction(tr("Compare with Case...")).triggered.connect(self._compare_with_case)
         case_menu.addSeparator()
         _act(case_menu, tr("Exit"),                   "Ctrl+Q",       self.close)
-
-        QShortcut(QKeySequence("Ctrl+S"), self).activated.connect(self.save_file)
 
     def _build_settings_menu(self, menubar) -> None:
         settings_menu = menubar.addMenu(tr("Settings"))
@@ -456,6 +539,7 @@ class MainWindow(
         settings_menu.addAction(tr("Reset All Settings…")).triggered.connect(self.reset_all_settings)
         settings_menu.addSeparator()
         self._build_appearance_menu(settings_menu)
+        self._build_ui_scale_menu(settings_menu)
         self._build_language_menu(settings_menu)
 
     def _build_view_menu(self, menubar):
@@ -465,6 +549,9 @@ class MainWindow(
         self._show_type_action.setChecked(False)
         self._show_type_action.toggled.connect(self._on_toggle_type_column)
         view_menu.addAction(self._show_type_action)
+
+        view_menu.addSeparator()
+        self._build_pane_menu_actions(view_menu)
 
         self._blockmesh_action: QAction | None = None
         if self.block_mesh_panel is not None:

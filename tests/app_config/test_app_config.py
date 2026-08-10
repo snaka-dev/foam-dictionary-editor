@@ -1,10 +1,18 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 import json
+from pathlib import Path
 
 import pytest
 
-from app_config.app_config_manager import AppConfigManager
+from app_config.app_config_manager import (
+    CONFIG_PATH_ENV,
+    AppConfigManager,
+    default_config_path,
+)
+from app_config.defaults import DEFAULT_UI_SCALE, MAX_UI_SCALE, MIN_UI_SCALE
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture(autouse=True)
@@ -615,6 +623,89 @@ class TestOpenfoamDir:
         config_path.write_text("{ broken", encoding="utf-8")
         mgr = AppConfigManager(config_path=str(config_path))
         assert mgr.get_openfoam_dir() is None
+
+
+class TestConfigPathOverride:
+    """$FODE_CONFIG, the guard that keeps a scratch script off the real file."""
+
+    def test_the_env_var_decides_where_an_unnamed_config_lives(self, tmp_path, monkeypatch):
+        elsewhere = tmp_path / "throwaway.json"
+        monkeypatch.setenv(CONFIG_PATH_ENV, str(elsewhere))
+        assert AppConfigManager()._config_path == elsewhere
+
+    def test_an_explicit_path_still_wins(self, tmp_path, monkeypatch):
+        monkeypatch.setenv(CONFIG_PATH_ENV, str(tmp_path / "ignored.json"))
+        named = tmp_path / "named.json"
+        assert AppConfigManager(config_path=str(named))._config_path == named
+
+    def test_without_it_the_config_is_the_repository_one(self, monkeypatch):
+        # Read only — writing here is the accident the variable exists to stop.
+        monkeypatch.delenv(CONFIG_PATH_ENV, raising=False)
+        assert default_config_path().endswith("app_config.json")
+        assert str(REPO_ROOT) in default_config_path()
+
+    def test_it_is_read_per_call_not_at_import(self, tmp_path, monkeypatch):
+        # A test may set the variable and build a manager in the same process.
+        first, second = tmp_path / "one.json", tmp_path / "two.json"
+        monkeypatch.setenv(CONFIG_PATH_ENV, str(first))
+        assert AppConfigManager()._config_path == first
+        monkeypatch.setenv(CONFIG_PATH_ENV, str(second))
+        assert AppConfigManager()._config_path == second
+
+    def test_an_empty_value_is_not_a_path(self, monkeypatch):
+        monkeypatch.setenv(CONFIG_PATH_ENV, "")
+        assert default_config_path().endswith("app_config.json")
+
+
+class TestUiScale:
+    def test_default_is_no_scaling(self, manager):
+        assert manager.get_ui_scale() == DEFAULT_UI_SCALE
+
+    def test_set_get(self, manager):
+        manager.set_ui_scale(150)
+        assert manager.get_ui_scale() == 150
+
+    def test_persists_across_reload(self, config_path):
+        mgr1 = AppConfigManager(config_path=str(config_path))
+        mgr1.set_ui_scale(125)
+        mgr1.save()
+        mgr2 = AppConfigManager(config_path=str(config_path))
+        assert mgr2.get_ui_scale() == 125
+
+    def test_default_not_written_to_json(self, config_path, manager):
+        manager.save()
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+        assert "ui_scale" not in data
+
+    def test_reset_clears(self, manager):
+        manager.set_ui_scale(200)
+        manager.reset()
+        assert manager.get_ui_scale() == DEFAULT_UI_SCALE
+
+    def test_set_above_the_maximum_is_clamped(self, manager):
+        manager.set_ui_scale(5000)
+        assert manager.get_ui_scale() == MAX_UI_SCALE
+
+    def test_set_below_the_minimum_is_clamped(self, manager):
+        manager.set_ui_scale(1)
+        assert manager.get_ui_scale() == MIN_UI_SCALE
+
+    def test_hand_edited_out_of_range_value_is_clamped_on_load(self, config_path):
+        # A window scaled 50× has room for about two menu items, and no way
+        # left to reach the setting that did it.
+        config_path.write_text(json.dumps({"ui_scale": 5000}), encoding="utf-8")
+        mgr = AppConfigManager(config_path=str(config_path))
+        assert mgr.get_ui_scale() == MAX_UI_SCALE
+
+    def test_unreadable_value_falls_back_to_the_default(self, config_path):
+        config_path.write_text(json.dumps({"ui_scale": "big"}), encoding="utf-8")
+        mgr = AppConfigManager(config_path=str(config_path))
+        assert mgr.get_ui_scale() == DEFAULT_UI_SCALE
+
+    def test_broken_json_falls_back_to_the_default(self, config_path):
+        config_path.write_text("{ broken", encoding="utf-8")
+        mgr = AppConfigManager(config_path=str(config_path))
+        assert mgr.get_ui_scale() == DEFAULT_UI_SCALE
 
 
 class TestSessionRestore:

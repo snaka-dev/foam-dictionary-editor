@@ -7,7 +7,7 @@ This project quotes documentation from the OpenFOAM source code: each model's
 `Description` and `Reference` blocks, its `Usage` example, the `//-` comment
 on a coefficient's declaration, and any comment written beside a coefficient's
 default value. The quotes are verbatim and each carries the file and line it
-came from, recorded in foamlore's fact store.
+came from, recorded in `facts/store/`.
 
 That material is **not** covered by this project's licence. It is part of
 OpenFOAM and remains under its own terms and its own copyright holders, listed
@@ -35,7 +35,7 @@ The year range is the envelope across every file and release quoted from, not a 
 
 ## Where the quotes come from
 
-57 distinct source files, across 17 OpenFOAM checkouts. The exact commit for each checkout is recorded in foamlore and in the banner of every generated schema module.
+57 distinct source files, across 17 OpenFOAM checkouts. The exact commit for each checkout is recorded in `facts/VERIFICATION.md` and in the banner of every generated schema module.
 
 <details><summary>The full list of quoted files</summary>
 

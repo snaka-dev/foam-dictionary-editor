@@ -192,6 +192,12 @@ class WindowState:
     # ``splitters`` is applied first, so a size overrides the blob for that one.
     splitters: dict[str, str] = field(default_factory=dict)
     splitter_sizes: dict[str, list[int]] = field(default_factory=dict)
+    # Panes currently minimized, by the ui/pane_minimize.py PANE_* names, mapped
+    # to the size a restore should go back to. The splitter blobs above already
+    # carry the collapsed geometry, so this exists for the half they cannot: the
+    # pane's *former* size, which is gone the moment it collapses, and the fact
+    # that the collapse was deliberate rather than a handle dragged to the edge.
+    minimized_panes: dict[str, int] = field(default_factory=dict)
     # Tabs are addressed by label, not index: the BlockMesh tab comes and goes
     # with the terminal's mode, so indices are not stable.
     upper_tab: str | None = None
@@ -212,6 +218,10 @@ class WindowState:
     current_file: str | None = None  # relative to case_dir when inside it
     tree_selection: KeyPath | None = None
     tree_expand: list[KeyPath] = field(default_factory=list)
+    # The editor's zoom, in points either side of the application font's size —
+    # an offset rather than a size, so a state stays meaningful on a machine
+    # whose desktop font differs from the one it was captured on.
+    editor_zoom: int | None = None
     block_mesh: BlockMeshViewState | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -225,8 +235,10 @@ class WindowState:
         if self.splitter_sizes:
             data["splitter_sizes"] = {name: list(sizes)
                                       for name, sizes in self.splitter_sizes.items()}
+        if self.minimized_panes:
+            data["minimized_panes"] = dict(self.minimized_panes)
         for name in ("upper_tab", "lower_tab", "side_by_side", "block_mesh_visible",
-                     "terminal_mode", "case_dir", "current_file"):
+                     "terminal_mode", "case_dir", "current_file", "editor_zoom"):
             value = getattr(self, name)
             if value is not None:
                 data[name] = value
@@ -259,6 +271,11 @@ class WindowState:
                 lambda m: {str(name): [int(n) for n in sizes] for name, sizes in dict(m).items()},
                 strict,
             ) or {},
+            minimized_panes=_coerce(
+                data.get("minimized_panes") or None,
+                lambda m: {str(name): int(size) for name, size in dict(m).items()},
+                strict,
+            ) or {},
             upper_tab=data.get("upper_tab"),
             lower_tab=data.get("lower_tab"),
             side_by_side=data.get("side_by_side"),
@@ -271,6 +288,7 @@ class WindowState:
             tree_selection=_coerce(data.get("tree_selection") or None, list, strict),
             tree_expand=_coerce(data.get("tree_expand") or None,
                                 lambda paths: [list(path) for path in paths], strict) or [],
+            editor_zoom=_coerce(data.get("editor_zoom"), int, strict),
             block_mesh=_coerce(data.get("block_mesh") or None,
                                lambda d: BlockMeshViewState.from_dict(d, strict), strict),
         )
@@ -403,6 +421,11 @@ def capture_window_state(window: MainWindow) -> WindowState:
             name: encode_qt_state(splitter.saveState())
             for name, splitter in _splitters(window).items()
         },
+        minimized_panes={
+            name: minimizer.restore_size
+            for name, minimizer in window._pane_minimizers.items()
+            if minimizer.minimized
+        },
         upper_tab=tabs[0],
         lower_tab=tabs[1],
         side_by_side=window.state.bm_side_by_side,
@@ -420,6 +443,7 @@ def capture_window_state(window: MainWindow) -> WindowState:
         ],
         current_file=_relative_file(window.state.current_file, window.state.current_case_dir),
         tree_selection=tree_selection,
+        editor_zoom=window.editor_panel.editor.zoom_steps(),
         block_mesh=block_mesh,
     )
 
@@ -475,6 +499,11 @@ def apply_window_state(
     notes: list[str] = []
     _apply_geometry(window, state)
 
+    # Independent of everything below — it survives the file loads and the tab
+    # switches — so it is applied first and left alone.
+    if state.editor_zoom is not None:
+        window.editor_panel.editor.set_zoom_steps(state.editor_zoom)
+
     # Only on a real change, like side-by-side below: set_use_xterm already
     # no-ops when the mode matches, but settling costs the caller an event-loop
     # turn it does not owe — and at startup that turn is a visible stall.
@@ -525,6 +554,7 @@ def apply_window_state(
         splitter = _splitter(window, name, strict, notes)
         if splitter is not None:
             splitter.setSizes(sizes)
+    _apply_minimized_panes(window, state, strict, notes)
 
     apply_block_mesh_view(window, state)
     return notes
@@ -573,6 +603,35 @@ def _splitter(
             raise ValueError(f"unknown splitter {name!r}; known: {', '.join(SPLITTERS)}")
         notes.append(f"no {name!r} splitter in this layout")
     return splitter
+
+
+def _apply_minimized_panes(
+    window: MainWindow, state: WindowState, strict: bool, notes: list[str]
+) -> None:
+    """Re-minimize the panes the state names, and restore the ones it does not.
+
+    Runs after the splitter blobs, which is the whole point: restoring a blob
+    puts the pane back at whatever size it had when the state was captured, and
+    for a minimized pane that is the collapsed size with no memory of what it
+    collapsed *from*.
+
+    The remembered size is written *after* minimizing, not before. Minimizing
+    records the size it collapsed from — which here is the collapsed size the
+    blob just restored — so setting it first would only have it overwritten, and
+    the next restore would fall back to the pane's build-time default.
+    """
+    for name, minimizer in window._pane_minimizers.items():
+        remembered = state.minimized_panes.get(name)
+        window.set_pane_minimized(name, remembered is not None)
+        if remembered is not None:
+            minimizer.restore_size = remembered
+    unknown = sorted(set(state.minimized_panes) - set(window._pane_minimizers))
+    for name in unknown:
+        if strict:
+            raise ValueError(
+                f"unknown pane {name!r}; known: {', '.join(sorted(window._pane_minimizers))}"
+            )
+        notes.append(f"no {name!r} pane in this layout")
 
 
 def apply_block_mesh_view(window: MainWindow, state: WindowState) -> None:

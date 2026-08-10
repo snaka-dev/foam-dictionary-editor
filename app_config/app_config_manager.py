@@ -2,9 +2,16 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
-from app_config.defaults import DEFAULT_RESTORE_SESSION, DEFAULT_THEME
+from app_config.defaults import (
+    DEFAULT_RESTORE_SESSION,
+    DEFAULT_THEME,
+    DEFAULT_UI_SCALE,
+    MAX_UI_SCALE,
+    MIN_UI_SCALE,
+)
 from app_config.foam_env import foam_env_dirs
 from app_config.json_io import load_json, save_json
 
@@ -15,13 +22,51 @@ from app_config.json_io import load_json, save_json
 # here: they would only fragment the stored layouts for no benefit.
 _LAYOUT_FEATURES = ("terminal", "blockmesh")
 
+# Redirects the config file for one process. Named like FODE_CASES_DIR, which
+# tools/capture_screenshots.py already reads for the same sort of reason.
+CONFIG_PATH_ENV = "FODE_CONFIG"
+
+
+def _clamp_ui_scale(value: object) -> int:
+    """Coerce *value* to a usable scale percentage.
+
+    Anything unreadable falls back to the default rather than raising: this runs
+    while the config file is being loaded, and a bad number in one key is no
+    reason for the application not to open.
+    """
+    try:
+        percent = int(value)  # type: ignore[call-overload]
+    except (TypeError, ValueError):
+        return DEFAULT_UI_SCALE
+    return max(MIN_UI_SCALE, min(MAX_UI_SCALE, percent))
+
+
+def default_config_path() -> str:
+    """Where the config lives when nobody names a path.
+
+    ``$FODE_CONFIG`` wins over the repository's own ``app_config.json``, which
+    is what makes it safe to run a throwaway script against a real checkout.
+    Anything that builds a MainWindow can end up saving — ``closeEvent`` does,
+    and so does any code path that calls ``save()`` — and a scratch script that
+    flips a feature flag to keep a test light should not be able to leave the
+    developer's own settings flipped. ``tests/conftest.py`` belts this with
+    braces by pointing the singleton at a ``tmp_path`` file for every test.
+
+    Read on each call rather than at import, so a test may set the variable and
+    build a manager in the same process.
+    """
+    override = os.environ.get(CONFIG_PATH_ENV)
+    if override:
+        return override
+    return str(Path(__file__).parent.parent / "app_config.json")
+
 
 class AppConfigManager:
     MIN_WIDTH, MIN_HEIGHT = 400, 300
 
     def __init__(self, config_path: str | None = None):
         if config_path is None:
-            config_path = str(Path(__file__).parent.parent / "app_config.json")
+            config_path = default_config_path()
         self._config_path = Path(config_path)
         self._window_size: list[int] | None = None
         self._default_case_dir: str | None = None
@@ -31,6 +76,7 @@ class AppConfigManager:
         self._language: str = "en"
         self._openfoam_dir: str | None = None
         self._theme: str = DEFAULT_THEME
+        self._ui_scale: int = DEFAULT_UI_SCALE
         self._restore_session: bool = DEFAULT_RESTORE_SESSION
         self._sessions: dict[str, dict] = {}
         self._settings_were_reset = False
@@ -48,6 +94,7 @@ class AppConfigManager:
             self._features = {}
             self._openfoam_dir = None
             self._theme = DEFAULT_THEME
+            self._ui_scale = DEFAULT_UI_SCALE
             self._restore_session = DEFAULT_RESTORE_SESSION
             self._sessions = {}
             return
@@ -59,6 +106,7 @@ class AppConfigManager:
         self._language = data.get("language", "en")
         self._openfoam_dir = data.get("openfoam_dir", None)
         self._theme = data.get("theme", DEFAULT_THEME)
+        self._ui_scale = _clamp_ui_scale(data.get("ui_scale", DEFAULT_UI_SCALE))
         self._restore_session = bool(data.get("restore_session", DEFAULT_RESTORE_SESSION))
         sessions = data.get("sessions")
         # Kept as raw dicts: this layer has no business knowing what a window
@@ -82,6 +130,8 @@ class AppConfigManager:
                 data["openfoam_dir"] = self._openfoam_dir
             if self._theme != DEFAULT_THEME:
                 data["theme"] = self._theme
+            if self._ui_scale != DEFAULT_UI_SCALE:
+                data["ui_scale"] = self._ui_scale
             if self._restore_session != DEFAULT_RESTORE_SESSION:
                 data["restore_session"] = self._restore_session
             if self._sessions:
@@ -99,6 +149,7 @@ class AppConfigManager:
         self._language = "en"
         self._openfoam_dir = None
         self._theme = DEFAULT_THEME
+        self._ui_scale = DEFAULT_UI_SCALE
         self._restore_session = DEFAULT_RESTORE_SESSION
         self._sessions = {}
 
@@ -236,6 +287,18 @@ class AppConfigManager:
     def set_theme(self, mode: str) -> None:
         """Set the theme mode. Does not auto-save."""
         self._theme = mode
+
+    def get_ui_scale(self) -> int:
+        """Return the interface scale in percent (100 = Qt's own DPI handling)."""
+        return self._ui_scale
+
+    def set_ui_scale(self, percent: int) -> None:
+        """Set the interface scale in percent. Does not auto-save.
+
+        Applied by ``main.py`` before the QApplication exists, so a change only
+        shows after a restart — the same contract as the theme and language.
+        """
+        self._ui_scale = _clamp_ui_scale(percent)
 
     # ── session restore ───────────────────────────────────────────────────────
 

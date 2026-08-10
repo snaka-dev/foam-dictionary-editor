@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from app_config import get_app_config
 from i18n import tr
 from ui.dialogs.about_dialog import DISCLAIMER
+from ui.label_fit import fit_wrapped_labels
 from ui.theme import colors
 
 _DIALOG_WIDTH = 540
@@ -266,6 +267,20 @@ class OpenFOAMResourcesDialog(QDialog):
         bottom.addWidget(close_btn)
         layout.addLayout(bottom)
 
+        self._labels_fitted = False
+
+    def showEvent(self, event):
+        """Give the wrapped labels their real heights, once — see the About
+        dialog's copy of this, and ui/label_fit.py for why it cannot happen at
+        construction time. Both tabs are laid out by the time this runs, so the
+        one pass covers the tab that is not in front."""
+        super().showEvent(event)
+        if not self._labels_fitted:
+            self._labels_fitted = True
+            fit_wrapped_labels(self)
+            self.layout().activate()
+            self.resize(self.width(), self.sizeHint().height())
+
     def _make_openfoam_tab(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -294,8 +309,10 @@ class OpenFOAMResourcesDialog(QDialog):
         disclaimer_label = QLabel(DISCLAIMER)
         disclaimer_label.setWordWrap(True)
         disclaimer_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        # Body size, like the About dialog's copy of it: a disclaimer should be
+        # as readable as the text around it.
         disclaimer_label.setStyleSheet(
-            f"color: {colors().secondary_text}; font-size: 13px; padding: 8px;"
+            f"color: {colors().secondary_text}; padding: 8px;"
             f"background: {colors().info_box_bg}; border: 1px solid {colors().info_box_border};"
             " border-radius: 4px;"
         )

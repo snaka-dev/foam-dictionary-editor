@@ -12,6 +12,8 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtWidgets import QApplication, QVBoxLayout, QWidget
 
+from ui.fonts import css_pixel_size
+
 _XTERM_AVAILABLE = False
 if sys.platform != "win32":
     try:
@@ -243,8 +245,13 @@ if _XTERM_AVAILABLE:
                 return
 
             template = (ui_dir / "xterm_terminal.html").read_text(encoding="utf-8")
-            html = template.replace("<!--XTERM_CSS-->", css_tag).replace(
-                "<!--XTERM_JS-->", js_tags
+            # xterm.js sizes its font in CSS pixels, so the application font's
+            # point size is converted rather than passed through.
+            font_tag = f"<script>window.fodeFontSize = {css_pixel_size()};</script>"
+            html = (
+                template.replace("<!--XTERM_CSS-->", css_tag)
+                .replace("<!--XTERM_JS-->", js_tags)
+                .replace("<!--XTERM_FONT_SIZE-->", font_tag)
             )
             base_url = QUrl.fromLocalFile(str(ui_dir) + "/")
             self._view.setHtml(html, base_url)

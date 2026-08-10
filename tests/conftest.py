@@ -1,15 +1,63 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
+import os
+
 import pytest
 
 
 @pytest.fixture
-def main_window(qapp):
-    """A real MainWindow instance, with the terminal/blockmesh features disabled
-    to keep instantiation light and independent of VTK/QtWebEngine availability."""
-    from app_config import get_app_config
+def config_path(tmp_path):
+    """The throwaway config file :func:`temp_config` writes to."""
+    return tmp_path / "app_config.json"
 
-    cfg = get_app_config()
+
+@pytest.fixture(autouse=True)
+def temp_config(config_path):
+    """Point the config singleton at a throwaway file, for every test.
+
+    Autouse and unconditional, because the ways a test can end up writing the
+    repository's own ``app_config.json`` are not obvious from the test: closing
+    a window saves, and so does anything that calls ``save()`` — and a test that
+    turns a feature flag off to keep itself light would leave it off for the
+    developer. That happened, so this is no longer left to each test to
+    remember.
+
+    ``$FODE_CONFIG`` is set as well as the singleton replaced: the first covers
+    a manager built later from scratch, the second the one that already exists.
+
+    Deliberately *not* implemented with ``monkeypatch``. An autouse fixture that
+    requests it makes monkeypatch the earliest-created fixture in every test,
+    which moves its undo to the end of teardown — and at least one test module
+    relies on its patches being undone before its own teardown runs.
+    """
+    import app_config
+    from app_config.app_config_manager import CONFIG_PATH_ENV, AppConfigManager
+
+    previous_env = os.environ.get(CONFIG_PATH_ENV)
+    previous_singleton = app_config._app_config
+
+    os.environ[CONFIG_PATH_ENV] = str(config_path)
+    manager = AppConfigManager(config_path=str(config_path))
+    app_config._app_config = manager
+    try:
+        yield manager
+    finally:
+        app_config._app_config = previous_singleton
+        if previous_env is None:
+            os.environ.pop(CONFIG_PATH_ENV, None)
+        else:
+            os.environ[CONFIG_PATH_ENV] = previous_env
+
+
+@pytest.fixture
+def main_window(qapp, temp_config):
+    """A real MainWindow instance, with the terminal/blockmesh features disabled
+    to keep instantiation light and independent of VTK/QtWebEngine availability.
+
+    Takes ``temp_config`` explicitly rather than trusting autouse ordering: the
+    window this builds is one of the things that writes a config on the way out.
+    """
+    cfg = temp_config
     original = {name: cfg.get_feature(name) for name in ("terminal", "blockmesh")}
     cfg.set_feature("terminal", False)
     cfg.set_feature("blockmesh", False)

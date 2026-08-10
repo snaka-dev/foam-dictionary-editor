@@ -6,64 +6,200 @@ import dataclasses
 import re
 from pathlib import Path
 
+# Files offered for every case. Both forks are covered, so the list carries a
+# name and its post-rename successor side by side: only one of each pair exists
+# in a given case, and `list_case_files` skips whatever is absent. Foundation
+# renamed constant/turbulenceProperties to constant/momentumTransport in v8,
+# folded constant/transportProperties and constant/thermophysicalProperties into
+# constant/physicalProperties in v10, and split fvOptions into constant/fvModels
+# plus system/fvConstraints in v9 — measured across the OpenFOAM-7…dev and
+# OpenCFD v2106…v2606 tutorial trees. Omitting a successor makes the file
+# unreachable in the app, not merely unhelped: a name absent here is never
+# listed, so a Foundation v10+ case showed no transport or thermophysical
+# dictionary at all.
+#
+# Beyond the renames, the list is a measured sweep of the same trees: a name is
+# here when it is a dictionary a user edits and it appears in at least four
+# cases in at least one tree. Deliberately excluded are files that only look
+# like dictionaries — Chemkin inputs (`constant/foam.inp`, `foam.dat`), READMEs
+# — and numbered or templated variants of names already listed
+# (`topoSetDict.1`, `blockMeshDict.m4`, `controlDict.orig`), which the Add
+# files dialog covers. Some families are open-ended by nature: the Lagrangian
+# clouds are named per case (`limestoneCloud1Properties` and friends), so only
+# the common names are listed and the rest are added per case.
 TARGET_FILES = [
     "system/blockMeshDict",
+    "system/caseProperties",
     "system/changeDictionaryDict",
+    "system/collapseDict",
+    "system/columnAverage",
+    "system/configDict",
     "system/controlDict",
     "system/createBafflesDict",
+    "system/createNonConformalCouplesDict",
     "system/createPatchDict",
+    "system/createZonesDict",
+    "system/cuttingPlane",
     "system/decomposeParDict",
+    "system/dsmcInitialiseDict",
     "system/extrudeMeshDict",
+    "system/extrudeToRegionMeshDict",
+    "system/faMeshDefinition",
+    "system/faOptions",
+    "system/faSchemes",
+    "system/faSolution",
+    "system/foamyHexMeshDict",
+    "system/forceCoeffs",
+    "system/functions",
+    "system/fvConstraints",
     "system/fvOptions",
     "system/fvSchemes",
     "system/fvSolution",
+    "system/mapFieldsDict",
+    "system/mdEquilibrationDict",
+    "system/mdInitialiseDict",
+    "system/meshDict",
     "system/meshQualityDict",
     "system/mirrorMeshDict",
+    "system/optimisationDict",
+    "system/PDRblockMeshDict",
     "system/probes",
     "system/refineMeshDict",
+    "system/residuals",
+    "system/runTimePostProcessing",
     "system/sample",
+    "system/sampling",
+    "system/setAlphaFieldDict",
     "system/setFieldsDict",
+    "system/setWavesDict",
     "system/singleGraph",
     "system/snappyHexMeshDict",
+    "system/solverInfo",
+    "system/streamLines",
+    "system/streamlines",
+    "system/subsetMeshDict",
     "system/surfaceFeatureExtractDict",
+    "system/surfaceFeaturesDict",
     "system/surfaces",
     "system/topoSetDict",
+    "system/vtkWrite",
+    "constant/additionalControls",
+    "constant/adjointRASProperties",
     "constant/boundaryRadiationProperties",
+    "constant/chemistryProperties",
+    "constant/cloudPositions",
+    "constant/cloudProperties",
+    "constant/combustionProperties",
+    "constant/dsmcProperties",
     "constant/dynamicMeshDict",
+    "constant/fvModels",
     "constant/fvOptions",
     "constant/g",
+    "constant/heatTransfer",
+    "constant/hRef",
+    "constant/initialConditions",
+    "constant/kinematicCloudPositions",
     "constant/kinematicCloudProperties",
+    "constant/moleculeProperties",
+    "constant/momentumTransfer",
+    "constant/momentumTransport",
+    "constant/motionProperties",
+    "constant/MRFProperties",
+    "constant/parcelInjectionProperties",
+    "constant/particleTrackProperties",
+    "constant/PDRProperties",
+    "constant/phaseProperties",
+    "constant/physicalProperties",
+    "constant/porosityProperties",
+    "constant/potentialDict",
+    "constant/pRef",
+    "constant/pyrolysisZones",
     "constant/radiationProperties",
+    "constant/reactingCloud1Positions",
+    "constant/reactingCloud1Properties",
+    "constant/reactionProperties",
+    "constant/reactions",
+    "constant/reactionsGRI",
     "constant/regionProperties",
+    "constant/speciesThermo",
+    "constant/sprayCloudProperties",
+    "constant/surfaceFilmProperties",
+    "constant/thermo",
+    "constant/thermodynamicProperties",
     "constant/thermophysicalProperties",
+    "constant/thermophysicalTransport",
     "constant/transportProperties",
     "constant/turbulenceProperties",
+    "constant/viewFactorsDict",
+    "constant/waveProperties",
+    "constant/zonesGenerator",
 ]
 
-# Default files to look for inside each region's system/ subdirectory.
+# Default files to look for inside each region's system/ subdirectory. Shorter
+# than TARGET_FILES on purpose: this is what a multi-region case actually splits
+# per region, measured the same way. The finite-area trio and faOptions appear
+# only here — OpenCFD's tutorials put them under system/<region>/, not at the
+# case root.
 REGION_SYSTEM_FILES = [
+    "blockMeshDict",
+    "caseProperties",
     "changeDictionaryDict",
+    "createBafflesDict",
+    "createPatchDict",
     "decomposeParDict",
+    "extrudeToRegionMeshDict",
+    "faMeshDefinition",
+    "faOptions",
+    "faSchemes",
+    "faSolution",
+    "fvConstraints",
     "fvOptions",
     "fvSchemes",
     "fvSolution",
     "meshQualityDict",
+    "setFieldsDict",
+    "topoSetDict",
 ]
 
 # Default files to look for inside each region's constant/ subdirectory.
 REGION_CONSTANT_FILES = [
     "boundaryRadiationProperties",
+    "chemistryProperties",
+    "cloudProperties",
     "dynamicMeshDict",
+    "fvModels",
     "fvOptions",
+    "g",
+    "momentumTransport",
+    "parcelInjectionProperties",
+    "phaseProperties",
+    "physicalProperties",
+    "pRef",
     "radiationProperties",
+    "reactions",
+    "speciesThermo",
+    "thermo",
     "thermophysicalProperties",
+    "thermophysicalTransport",
     "turbulenceProperties",
+    "viewFactorsDict",
 ]
 
 # Base names whose phase variants (e.g. thermophysicalProperties.air) are
-# auto-collected from constant/ and constant/<region>/ by glob.
+# auto-collected from constant/ and constant/<region>/ by glob. Foundation's
+# multiphase cases spell the same variants as momentumTransport.air /
+# physicalProperties.water, so both successors need an entry here too, and the
+# thermo/reaction data files are suffixed the same way (thermo.compressibleGas,
+# reactions.vapour). The glob needs a literal dot, so "thermo" here does not
+# also collect thermophysicalProperties.
 PHASE_FILE_BASES = [
+    "momentumTransport",
+    "physicalProperties",
+    "reactions",
+    "reactionsGRI",
+    "thermo",
     "thermophysicalProperties",
+    "thermophysicalTransport",
     "turbulenceProperties",
 ]
 

@@ -192,6 +192,14 @@ PANEL_OPS_METHODS = [
     "_on_toggle_bm_side_by_side",
     "_update_bm_side_by_side_btn",
     "_on_terminal_mode_changed",
+    "_build_pane_menu_actions",
+    "set_pane_minimized",
+    "toggle_pane_minimized",
+    "_on_pane_action_toggled",
+    "_on_toggle_bottom_pane_btn",
+    "_on_splitter_handle_double_click",
+    "_auto_minimize_detail_for_side_by_side",
+    "_update_pane_minimize_controls",
 ]
 
 UNDO_OPS_METHODS = [

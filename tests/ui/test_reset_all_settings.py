@@ -13,30 +13,11 @@ from __future__ import annotations
 
 import json
 
-import pytest
 from PySide6.QtGui import QCloseEvent
 
-from app_config.app_config_manager import AppConfigManager
-
-
-@pytest.fixture(autouse=True)
-def temp_config(tmp_path, monkeypatch):
-    """Point the config singleton at a throwaway file.
-
-    Autouse so it is in place before the ``main_window`` fixture builds a
-    window: these tests close a window, which saves, and that must not land in
-    the repository's own app_config.json.
-    """
-    import app_config
-
-    manager = AppConfigManager(config_path=str(tmp_path / "app_config.json"))
-    monkeypatch.setattr(app_config, "_app_config", manager)
-    return manager
-
-
-@pytest.fixture
-def config_path(tmp_path):
-    return tmp_path / "app_config.json"
+# ``temp_config`` and ``config_path`` come from tests/conftest.py, which points
+# every test at a throwaway config file — these tests close a window, which
+# saves, and that must not land in the repository's own app_config.json.
 
 
 class TestCloseAfterReset:

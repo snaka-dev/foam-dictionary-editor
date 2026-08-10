@@ -111,7 +111,8 @@ foam-dictionary-editor/
 ├── ui/
 │   ├── app_state.py            # AppState データクラス: 共有可変フィールドすべて（`current_case_dir`、`current_file`、`current_root`、`current_model`、`file_buffers`、`file_dirty`、`text_dirty`、`source_lines_valid`、`syncing`、`case_files_config`、`parsed_roots`、`diff`、`foam_monitor`、`run_tool_options`、`undo`、`bm_side_by_side`）。`diff` は `DiffState` サブデータクラス（`case_dir`、`parsed_roots`）。`foam_monitor` は `FoamMonitorState` サブデータクラス（`proc`、`script_tmp`、`last_file`、`last_options`）。`undo` は `UndoState` サブデータクラス（ファイルごとの `UndoSnapshot` スタックと `op_active`/`restoring` ガード）。`MainWindow.__init__` が `self.state = AppState()` を生成し、すべての Mixin が `self.state.<field>` として共有状態にアクセス
 │   ├── theme.py               # テーマモード（system/light/dark）、Qt がデスクトップから継承する Highlight/HighlightedText の組を修復する readable_selection_pair() のコントラスト規則、および colors() 経由で解決されるすべての UI 意味色を保持する ThemeColors テーブル
-│   ├── window_state.py         # WindowState / BlockMeshViewState データクラスと capture_window_state() / apply_window_state()。レイアウトのうち「結果」ではなく「選択」である部分（ジオメトリ、スプリッタ、タブ、開いているファイル、ツリー選択、3-D のトグルとカメラ）を扱う。JSON 化できるため、状態をプロセス間で受け渡せる。strict / lenient の使い分け（from_dict と apply_window_state の `strict` フラグ、load_saved_state）は、2 つの利用側の要求が逆であることに由来する: スクリーンショット spec は失敗を大きく報せるべきで、復元されるセッションは静かに劣化すべき
+│   ├── pane_minimize.py       # PaneMinimizer: QSplitter の 1 ペインをワンクリックで畳む/戻す。ハンドルのダブルクリック用イベントフィルタも含む。方式は 2 つ: `sizes`（0 まで畳む — ファイル一覧・Detail ペイン）と `strip`（ウィジェットの最大サイズを固定して細い帯を残す — Editor/Terminal 行。この splitter は setCollapsible(False) を設定しており、その下では setSizes が QTabWidget の minimumSizeHint までしかクランプされず畳めない。残る帯はタブバーなので、タブと同期ボタンは操作可能なまま）。畳む直前のサイズ列全体を記憶するため、開閉のたびに 1 px ずつ失われることがない。外部から（復元セッションなど）サイズを設定するとこの記憶は破棄される
+│   ├── window_state.py         # WindowState / BlockMeshViewState データクラスと capture_window_state() / apply_window_state()。レイアウトのうち「結果」ではなく「選択」である部分（ジオメトリ、スプリッタ、タブ、開いているファイル、ツリー選択、3-D のトグルとカメラ、および `minimized_panes` — どのペインが最小化されているかと各ペインの復帰サイズ。スプリッタの blob では表せない半分）を扱う。JSON 化できるため、状態をプロセス間で受け渡せる。strict / lenient の使い分け（from_dict と apply_window_state の `strict` フラグ、load_saved_state）は、2 つの利用側の要求が逆であることに由来する: スクリーンショット spec は失敗を大きく報せるべきで、復元されるセッションは静かに劣化すべき
 │   ├── session_restore.py      # window_state.py の上に載る「実行間の配線」。save_session() は MainWindow.closeEvent から（パネル破棄前、自動保存はしない）、restore_session() は main.py の show() 後から呼ばれる。レイアウトは AppConfigManager.session_key() ごとに保存し、ケース読み込み時の描画が reset_camera() で終わるため 3-D カメラはタイマーで再適用、スキップした部分はステータスバーに表示
 │   ├── main_window.py          # オーケストレータ。`MainWindow` は 13 個の Mixin を継承。自身のファイルは `__init__`、`_build_ui`、共有ヘルパーのみを扱う。`file_list_panel`、`tree`、`editor_panel` などの UI ウィジェット参照は素の `self` 属性のまま残り、可変データ状態はすべて `self.state` に置かれる
 │   ├── mixins/
@@ -235,6 +236,7 @@ foam-dictionary-editor/
     │   ├── test_main_window_save_refresh.py
     │   ├── test_main_window_split.py
     │   ├── test_manage_extra_files_dialog.py
+    │   ├── test_pane_minimize.py
     │   ├── test_rename_boundary.py
     │   ├── test_reset_all_settings.py
     │   ├── test_run_tool_dialog.py
@@ -247,6 +249,7 @@ foam-dictionary-editor/
     │   ├── test_tree_copy_paste.py
     │   ├── test_tree_inline_edit_dirty.py
     │   ├── test_tree_undo_redo.py
+    │   ├── test_tree_text_sync_bar.py
     │   ├── test_update_viewer_panels.py
     │   ├── test_view_log_summary_action.py
     │   ├── test_session_restore.py
@@ -284,6 +287,8 @@ foam-dictionary-editor/
 | `RELEASE_NOTES.md` | ユーザー向け変更履歴。新しい項目は `## Unreleased` の下に蓄積し、リリース時に見出しをバージョン番号へ変更します。 |
 | `docs/SCREENSHOTS.md` | メインウィンドウ・BlockMesh 3D オーバーレイ・主要ダイアログ/メニューの注釈付きスクリーンショットギャラリー。 |
 | `docs/DEMO_SCRIPTS.md` | デモ動画のショットごとの台本と収録方法。いずれも `tools/demo_specs.json` の実行可能なシーンなので、台本と実際の収録結果が食い違うことはない。 |
+| `docs/OPENFOAM_VERSIONS.md` | ユーザー向け: OpenFOAM のリリース間・フォーク間で起きた辞書ファイルの改名を、チュートリアルツリーの実測に基づいてまとめたもの。`services/case_loader.py` が新旧両方の綴りを持つ理由の出典。 |
+| `docs/SCHEMA_CANDIDATES.md` | 次にどの辞書のスキーマを書くか。実測した出現頻度とキー数で順位付けし、FoDE で手書きすべきか foamlore で生成すべきかを示す。 |
 
 各英語ドキュメントには日本語版（`*_ja.md`）があり、一方を編集したら必ずもう一方にも反映します。日本語ドキュメントではメニューラベルなどの UI 文字列は英語のまま表記します。
 
@@ -369,6 +374,8 @@ foam-dictionary-editor/
 - `test_tree_inline_edit_dirty.py` — Tree パネルのインラインセル編集がファイルをダーティにしエディタテキストを再生成すること、拒否された編集はファイルをクリーンなままにすること。
 - `test_view_log_summary_action.py` — `_on_view_log_summary_clicked`: ダイアログを閉じた後の再表示（閉じても破棄はされず非表示になるだけなので、キャッシュ済みインスタンスは再度 raise するのではなく show し直す必要がある）、ケースディレクトリ未設定時の no-op、ケース切り替えへの追従（`_load_case_dir` が次のメニュークリックを待たず、開いたままのダイアログへ `set_case_dir()` で即座に新しいディレクトリを反映する）。
 - `test_window_state.py` — `ui/window_state.py` とそこへ渡すスクリーンショット spec: 全フィールドの JSON ラウンドトリップ、未知キーと不正なカメラ値の拒否、デフォルトのマージ（`side_by_side` が必要とする、`False` が `True` のデフォルトを上書きする挙動を含む）、名前によるキーパス指定と匿名エントリの行番号指定、実際の `MainWindow` からのキャプチャ、それらすべての寛容版（未知キーの破棄、不正なカメラ・サイズ・スプリッタサイズの破棄、使用不能な blob が `None` になること。存在しないケースディレクトリ・ファイル、辞書ではない大きなファイル、未知のタブ・スプリッタ、消えたツリー行は、例外ではなく戻り値のノートに記録してスキップされること）、`tools/screenshot_specs.json` の構造検査（state の妥当性、同一ファイルへ書き込むショットがないこと、パスのプレースホルダが既知であること、比較ショットが 2 つのケースをどちらも `$HOME` の外に指定していること — 差分バーが参照ケースのフルパスを画像に出力するため）。撮影ツール自体は実 X ディスプレイを要するため対象外。
+- `test_pane_minimize.py` — `ui/pane_minimize.py` と、それが接続された 3 つのペイン: 畳む/戻すの往復、2 回続けて畳んでも復帰サイズを忘れないこと、`strip` 方式がウィジェットの最大サイズを固定し*かつ解除*すること、空いた領域が他ペインへ比例配分されること、View メニュー項目とペインが互いに無限ループせずに同期すること、下段がタブバーの高さで止まり（タブとコーナーウィジェットが残る）こと、ハンドルのダブルクリック（最小化できるペインが隣にないハンドルでは何も起きないことを含む）、サイドバイサイドが Detail ペインを退避させる一方、ユーザーが先に退避させていたものは戻さないこと、そして `minimized_panes` の capture/apply 往復（復帰サイズは最小化の*後*に書かないと、畳んだ後のサイズで上書きされる）。1 つのテストはピクセル値ではなくドリフトしない性質を固定します: Qt 自身の配分は最初の 1 周で行から 1 px を失い、これは変えられませんが、2 周目も 10 周目も 1 周目と同じ位置に着地しなければなりません。
+- `test_tree_text_sync_bar.py` — **Apply Text to Tree** / **Reload from Tree** の配置: タブページの内部ではなく下段タブバーのコーナーにあること（内部だとタブ切り替えで消え、3D オーバーレイを更新するのは `apply_text_to_tree` である）、上部アクションバーからは消えていること、実際のメソッドに接続されていること（ウィンドウ構築*前*にクラス側でパッチするため、テストが張り直した接続ではなく本物の配線を検証する）、そして Case メニューにも並び、Apply には `Ctrl+Shift+A` があり Reload には意図的にないこと（エディタのテキストを上書きするため）。
 - `test_session_restore.py` — `ui/session_restore.py`: 終了時に正しいキーでレイアウトが保存されること、設定オフでは何も保存しないこと、適用対象がないときに restore が正直に報告すること、壊れた blob（改名されたフィールド、形の変わったフィールド、切り詰められたカメラ、移動したケース、別言語のタブラベル）で例外を出さないこと、そして実際の `MainWindow` から別の `MainWindow` へケース・開いているファイル・選択ツリー行が往復すること。
 
 **`tests/services/`**
@@ -469,7 +476,7 @@ foam-dictionary-editor/
 パーサが実行され（ツリーが再構築され）るのは正確に 2 つのタイミングだけです。
 
 - **ファイルオープン** — ファイル一覧でファイルが選択されたとき、またはプログラムから読み込まれたとき。
-- **Apply Text to Tree** — アクションバーの手動ボタン。
+- **Apply Text to Tree** — 下段タブバー右上の手動ボタン。
 
 キーストロークやファイル保存では自動再パースは行われません。テキストエディタを手動編集すると、ツリーとソース行番号は古い状態になります。この状態は、次のパースまで「Auto-scroll editor (stale)」というラベルで示されます。
 
@@ -892,9 +899,12 @@ python3 main.py                                   # 標準（ターミナル + B
 python3 main.py --variant no-terminal             # ターミナルタブなし
 python3 main.py --variant no-terminal-blockmesh   # ターミナルなし + BlockMesh 常時表示
 python3 main.py --theme dark                      # この実行のみ。保存された設定は変更されない
+python3 main.py --ui-scale 150                    # この実行のみ。QT_SCALE_FACTOR より優先される
 ```
 
 `--theme` フラグ（`system`/`light`/`dark`）は、保存済みの **Settings > Appearance** の値をそのプロセスに限って上書きし、書き戻しません。異なるテーマのウィンドウを同時に起動しても、次回起動時のテーマは変わりません。`tools/capture_screenshots.py` はこの動作を利用しています。
+
+`--ui-scale` フラグ（50〜400、パーセント）は、保存済みの **Settings > UI Scale** の値と環境変数 `QT_SCALE_FACTOR` の両方を、そのプロセスに限って上書きします。書き戻しは行いません。実際の動作は後述の「フォントサイズと表示スケーリング」を参照してください。
 
 `--variant` フラグは `presets/<name>.json` を読み込み、設定シングルトンの `features` 辞書を上書きして、終了時に `app_config.json` へ保存します。次回以降は `--variant` なしでも保存した設定が使われます。`features` キーがない場合はすべて `true` として扱われるため、開発者個人の `app_config.json`（git 管理外で通常 `features` キーを持たない）は常に標準モードで動作します。
 
@@ -957,6 +967,50 @@ apply_theme(app, get_app_config().get_theme())   # "system" | "light" | "dark"
 `tests/ui/test_theme.py` は、コントラスト計算、慣習ルール（`#0078d4` を明示的に指定した回帰テストを含む）、どのアクセントカラーでも判読不能な組が生じないことを確認する走査、両テーブルのすべての前景色がそのテーマの `Base` に対して 3:1 を下回らないこと、上述のスウォッチと凡例バー塗り色の分離、およびビューアのテキスト色が `viewport_bg` に対して 3:1 を下回らないことを検証します。ただしこれらはテーブルレベルの検査です — 「成立し得ない色」は捕捉できますが「その場で見て違和感がある色」は捕捉できないため、3D ビューアを変更した際は実際のシーンを目視する価値があります（下記参照）。
 
 VTK パネルを目視確認のためにレンダリングするには実際の X ディスプレイが必要です — `QT_QPA_PLATFORM=offscreen` では `QtInteractor` が `BadWindow` で異常終了し、またネイティブ子ウィンドウであるため `QWidget.grab()` は黒画像を返します。シーン自体のキャプチャには `plotter.screenshot(path)` を使ってください。
+
+## フォントサイズと表示スケーリング
+
+仕組みは 2 つあり、どちらも「文字が小さすぎる」という形で現れるため混同されがちです。
+
+### サイズはアプリケーションフォントから決まる
+
+`ui/fonts.py` は等幅フォントのサイズをすべて `QApplication.font()` から導出します。UI 側でポイント数を直接指定している箇所はありません。このモジュールを追加する前は 3 か所が指定していました — エディタ 10 pt、シンプルターミナル 10 pt、xterm.js のページ 13 CSS px — その結果、デスクトップのフォントが 11 pt の環境では、本文が置かれている 2 つのペインがウィンドウ内でもっとも小さい文字になり、しかもユーザーがデスクトップのフォントサイズを上げても変化しませんでした。
+
+- `ui_point_size()` はアプリケーションフォントに*設定された*サイズを読み、ピクセル指定のフォント（そう指定するプラットフォームテーマがあり、その場合ポイントサイズは `-1` を返します）のときにだけ `QFontInfo` にフォールバックします。この順序には意味があります。`QFontInfo` は fontconfig が実際に*マッチさせた*フォントのサイズを、ピクセル単位に量子化して返すため（96 dpi の 13 pt は 12.75 pt として返ります）、ユーザーが選んだサイズを問い合わせのたびに丸めるのは、この層の仕事ではありません。
+- `monospace_font()` はファミリ一覧とそのサイズを組み合わせたもの、`css_pixel_size()` は xterm.js ページ用に CSS ピクセル（固定の 96/72）へ変換したものです。後者は `ui/xterm_terminal.html` の `<!--XTERM_FONT_SIZE-->` プレースホルダ（既存の CSS/JS 用と同じ方式）経由で渡されます。Qt 6 では論理 DPI が 96 に固定され、スケーリングはデバイスピクセル比が担います。WebEngine は CSS ピクセルにも同じ比率を適用するため、両者の比は一定に保たれます。
+
+- `small_point_size()` / `small_font()` は補助的なテキスト — BlockMesh パネルのマウス操作ヒント行と「⚙ Variable-based」バッジ、About ダイアログのバージョン・ライセンス・謝辞の各行 — を、アプリケーションフォントに対する比率（`SMALL_TEXT_RATIO`。下限として `SMALL_TEXT_MIN_POINT_SIZE` を設け、もともと小さいデスクトップフォントに引きずられて読めなくならないようにしています）で扱います。
+- `heading_point_size()` / `heading_font()` は 1 段大きいサイズ（`HEADING_TEXT_RATIO`）で、About ダイアログのアプリ名の行が使います。併用する太字はスタイルシートに残しています。ウェイトはサイズではなくスタイルだからです。
+
+この 2 つで、固定されていた 8 か所のピクセル指定（11, 11, 16, 12, 12, 12, 13, 13）を置き換えました。2 つの免責事項ボックスにはヘルパーを使わず、`font-size: 13px` を単に削除しています。免責事項は周囲の本文と同じ読みやすさであるべきで、それはまさにアプリケーションフォントそのものだからです。
+
+ここから導かれる原則があります。**サイズはフォントで、スタイルはスタイルシートで指定する。** スタイルシートの `font-size` はウィジェット自身のフォントを上書きするため、その上で `setFont` を呼んでも効きません。色・パディング・イタリックだけを指定したスタイルシートなら、サイズには手を触れません。`tests/ui/test_block_mesh_panel_fonts.py` と `tests/ui/test_dialog_fonts.py` が両方を固定しており、後者にはどちらのダイアログのラベルもサイズを再び固定していないことを確認する検査も含まれています。
+
+インポート時のキャッシュは行いません。アプリケーションフォントは最初のウィジェットが作られる前にプラットフォームテーマが確定させるためで、`ui/theme.py` が構築時に `colors()` を読むのと同じ理由です。
+
+**エディタのズーム**（`CodeEditor.set_zoom_steps`）は、絶対サイズではなくアプリケーションフォントからのポイント単位の差分として保持されます。そのため、デスクトップのフォントが異なるマシンでも保存されたズームが意味を保ち、`WindowState.editor_zoom` として永続化しても安全です。クランプは呼び出し側ではなくセッター側で行うので、キーを押しっぱなしにしても、画面に反映されなかった段階が溜まることはありません。`Ctrl+ホイール` には明示的な `wheelEvent` が必要です。`QPlainTextEdit` は実装を持っていますが、読み取り専用のときにしか働きません。
+
+### 折り返しラベルが申告する高さ
+
+関連する落とし穴で、About / Resources ダイアログでテキストが切れていた原因でもあります。折り返し表示の `QLabel` の `sizeHint()` は、実際に与えられる幅ではなく Qt が推定した幅で測られます。幅固定のダイアログではこの推定は常に楽観的で、About ダイアログの謝辞ラベルは実際の幅 458 px では 176 px 必要なのに 102 px と申告していました。レイアウトは小さい方の値を割り当て、残りの行は描画されませんでした。11 pt という一般的なデスクトップフォントでも発生し、フォントが大きいほど悪化します。
+
+`ui/label_fit.py` の `fit_wrapped_labels(root)` は、各折り返しラベルの*最小*高さを `heightForWidth(width())` まで引き上げます。呼び出し方について重要な点が 3 つあります。
+
+- **最初のレイアウト完了後に**、`showEvent` から呼ぶこと。それ以前にラベルは自分の幅を知らず、既定の幅から求めた最小高さを固定してしまうと、以後ずっと誤った値のままになります。
+- **リサイズの前に `layout().activate()`** を呼ぶこと。新しい最小高さがレイアウトを遡って伝わってから、ダイアログ自身のサイズヒントを読む必要があります。
+- **`adjustSize()` ではなく `resize(width(), sizeHint().height())`** を使うこと。前者はウィンドウを画面高さの 2/3 にクランプするため、小さいディスプレイではまさにそこでテキストがまた切れてしまいます。
+
+修正手段として*効かない*ものにも触れておきます。`QSizePolicy.setHeightForWidth` を有効にすることです。これらのラベルでは `hasHeightForWidth()` はすでに true であり、レイアウトは height-for-width を無視しているのではなく、それと矛盾する `sizeHint` を渡されているだけです。
+
+`tests/ui/test_dialog_label_fit.py` が 9 / 11 / 16 pt の 3 通りで両ダイアログを構築し、どの折り返しラベルにも必要な高さ未満が割り当てられていないことを検証します。
+
+### Qt のスケール係数と、設定に再起動が必要な理由
+
+Qt はスケール係数を `QApplication` の構築時に確定し、その後に変更する手段を提供していません。そのため **Settings > UI Scale** は、プロセス内から環境変数 `QT_SCALE_FACTOR` を書き込む形になっています（`main._apply_ui_scale`。`parse_known_args` と `QApplication` の間で呼ばれ、モジュール冒頭の `QTWEBENGINE_CHROMIUM_FLAGS` と同じ「Qt が起動する前に設定する」手法です）。値は `ui_scale` キー（パーセント。`AppConfigManager.get_ui_scale`/`set_ui_scale`、他と同じく自動保存なし）として永続化され、設定時と読み込み時の両方で `MIN_UI_SCALE`/`MAX_UI_SCALE` にクランプされます。手で 5000 と書かれた設定ファイルは、それを直すための設定画面にたどり着けないウィンドウを開いてしまうためです。
+
+設定ファイル由来の値は `setdefault` で入れるため、既存の `QT_SCALE_FACTOR` が優先されます。環境変数はユーザーが今使っているマシンに合わせて設定されたものだからです。`--ui-scale` は代入で上書きします。明示的に渡すというのはそういう意味だからです。
+
+この設定が必要なのは、Qt の高 DPI 対応がセッションから伝えられる情報以上のことはできないためです。X11 ではスケール係数は `Xft.dpi` だけから決まるので、`GDK_SCALE` で拡大しているデスクトップや、フラクショナルスケーリングされた XWayland セッションでは、隣の GTK アプリケーションが正しく表示されていても Qt は 1 倍のままになります。ユーザー向けの説明は USER_GUIDE_ja.md の「文字サイズと表示スケーリング」にあり、`QT_FONT_DPI` と `QT_SCALE_FACTOR_ROUNDING_POLICY` という逃げ道も含めて記載しています。
 
 ## GPU / OpenGL に関する注意
 
@@ -1111,6 +1165,20 @@ python3 -m pytest -q
 
 `tests/test_lint.py` はテストスイートの一部として `ruff` と `mypy` を実行するため（後述）、`pytest -q` を実行するだけで lint / 型チェックの regression も検出できます。
 
+### テスト実行が開発者の設定を書き換えないこと
+
+`tests/conftest.py` の autouse フィクスチャ `temp_config` は、**すべての**テストについて設定シングルトンと `$FODE_CONFIG` を `tmp_path` 上のファイルに向けます。無条件に適用しているのは、テストが `app_config.json` を書いてしまう経路がテスト自身からは見えないためです。ウィンドウを閉じれば保存され、`save()` を呼ぶものはすべて保存し、動作を軽くするために機能フラグを false にするテストは、それを実行した開発者のチェックアウトでフラグを false のまま残します。最後の事例が実際に発生したため、個々のテストの心がけに任せるのをやめました。フィクスチャが適用されなくなった場合は `tests/test_config_isolation.py` が失敗します。
+
+`AppConfigManager` はパスが渡されなかったときに **`$FODE_CONFIG`** を読みます。pytest の外でも同じ保護が効くので、実際のチェックアウトに対して `MainWindow` を作るような使い捨てスクリプトではこれを設定してください。
+
+```bash
+FODE_CONFIG=/tmp/throwaway.json python3 some_scratch_script.py
+```
+
+明示的な `config_path=` は環境変数より優先されます。また環境変数は import 時ではなく呼び出しごとに読むため、同一プロセス内で変数を設定してからマネージャを構築できます。
+
+このフィクスチャに手を入れる場合の注意が 2 つあります。1 つは、`monkeypatch` ではなく素朴な保存・復元で実装している点です。autouse フィクスチャが `monkeypatch` を要求すると、全テストで monkeypatch が最初に生成されるフィクスチャとなり、その取り消しが teardown の最後に回ります。`tests/ui/test_included_files.py` は `include_scan.foam_etc_dirs`（`lru_cache`）をパッチし、自身の teardown でそのキャッシュをクリアするため、先にパッチが取り消されている必要があります。もう 1 つは、`main_window` が autouse の順序に頼らず `temp_config` を明示的に要求している点です。このフィクスチャが作るウィンドウ自体が、保存を行うものの 1 つだからです。
+
 ## Lint と型チェック
 
 設定は `pyproject.toml` にあります。`ruff` はリポジトリ全体を対象とします（`.venv/` などの ruff 自身の既定の除外を除き、`include`/`exclude` 制限はありません）。リポジトリ全体がクリーンなので、スコープ指定なしで実行します。
@@ -1153,6 +1221,14 @@ class _FileOpsMixin(_Base):
 ## 更新候補
 
 将来のリリースに向けたメモ（現時点では未計画）:
+
+- **一覧済み辞書のサフィックス付き派生ファイルを glob で拾う** — `services/case_loader.py` は完全一致の名前を並べているため、`topoSetDict.1`、`decomposeParDict.4`、`controlDict.orig` などは見えません。これらはチュートリアルツリーの `system/`+`constant/` ファイルの約 9% を占め、未収録グループとしては最大です。`PHASE_FILE_BASES` が `constant/` に対してすでに行っているように、`TARGET_FILES` の各要素について `<name>.*` を glob すれば、数行でほぼ全部拾えます。あえて行っていないのは、同じ glob が `blockMeshDict.m4`（25 ケース）も拾ってしまうためです。これは辞書ではない m4 テンプレートで、解析できません。したがってこの変更には除外規則か、スクリプトやログにすでに与えているテキスト専用扱いが必要であり、1 行の拡張では済みません。
+
+- **未カバーの辞書のスキーマモジュール** — 一覧している 105 個の名前のうち、モジュールがあるのは 6 個です。`docs/SCHEMA_CANDIDATES.md` が残りを実測の出現頻度とキー数で順位付けし、FoDE で手書きするものと foamlore で生成するものに理由付きで分けています。最も安いのは `meshQualityDict` で、`schemas/snappy_hex_mesh_dict/_mesh_quality.py` がすでにキーを記述しており、単独ファイルにも応答させるには `TARGET_FILES` タプルを足すだけです。
+
+- **ケースのフォークとリリースを判定して活用する** — 辞書の先頭バナーは両方を書いています（`Version: v2606` / `www.openfoam.com`）。`docs/OPENFOAM_VERSIONS.md` にその間で何が変わるかを記録しました。使い道が 2 つあります。Detail ペインが、ケース自身のリリースを含まない `supported_in` をグレーアウトすれば、ユーザが文字列を突き合わせる必要がなくなります。また `include_scan.foam_etc_dirs()` が `#includeEtc` を最新ではなく該当インストールに対して解決できます（後者は下の「インクルードの etc 選択をバージョン対応にする」項目を逆側から見たものです）。
+
+- **foamlore に OpenCFD v2112 のチェックアウトを追加する** — ジェネレータのチェックアウト一式は v2106 から v2206 へ飛んでいるため、その範囲に一貫して存在する係数が「OpenCFD v2106, OpenCFD v2206」という明示ペアで描画され、存在しない欠落があるかのように読めます。生成側の仕様書の項目 6 として依頼済みです。FoDE 側は対応済みで、`schemas/_base.py` が `OPENCFD_V2112` をエクスポートし、この範囲をまたぐ唯一の手書きタグがこれを含みます（測定ではなく前後のリリースからの推論です）。
 
 - **比較モードでのサイドバイサイドの参照*テキスト*エディタ** — 比較モードは現在、参照ケースを読み取り専用の*ツリー*として表示している。参照ファイルのテキストを読み取り専用エディタとしてメインの Editor タブの横に表示できれば、キーや値を自由にコピー＆ペーストできる（現状、例のケースについては非モーダルな Find OpenFOAM Examples のプレビュー + 「選択範囲をコピー」で代用できるが、任意の参照ケースには使えない）。比較モードの更新の一環として再検討する。
 - **`foam/parser.py` の 4 つの括弧ブロック振り分けテーブルの統合** — `_NAMED_BLOCK_PARAMS`、`_ANONYMOUS_BLOCK_PARAMS`、`_OPTIONAL_NAMED_BLOCK_PARAMS`、`_POSITIONAL_BLOCK_PARAMS` はそれぞれ `(...)` で区切られたブロックに対する異なる先読み/振り分け経路を担っている。個別に参照される 4 つの辞書ではなく、先読みフラグ付きのエントリ名をキーとする 1 つのテーブルにまとめられる可能性がある。

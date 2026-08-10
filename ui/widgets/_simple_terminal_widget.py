@@ -7,7 +7,7 @@ import shlex
 import sys
 
 from PySide6.QtCore import QEvent, QObject, QProcess, Qt
-from PySide6.QtGui import QColor, QFont, QKeyEvent, QPalette
+from PySide6.QtGui import QColor, QKeyEvent, QPalette
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -18,6 +18,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from ui.fonts import monospace_font
 
 _ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
@@ -33,7 +35,7 @@ class SimpleTerminalWidget(QWidget):
         self._history_pos: int = 0
         self._closing = False
 
-        font = QFont("Consolas" if sys.platform == "win32" else "Monospace", 10)
+        font = monospace_font()
 
         self._output = QPlainTextEdit()
         self._output.setReadOnly(True)

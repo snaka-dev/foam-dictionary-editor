@@ -54,6 +54,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QPushButton,
     QSplitter,
     QTabWidget,
@@ -65,6 +66,7 @@ from foam.parser import OpenFoamParser
 from ui.app_state import AppState, UndoSnapshot
 from ui.dialogs.find_examples_dialog import FindExamplesDialog
 from ui.dialogs.log_summary_dialog import LogSummaryDialog
+from ui.pane_minimize import PaneMinimizer
 from ui.panels.block_mesh_panel import BlockMeshPanel
 from ui.panels.boundary_view_panel import BoundaryViewPanel
 from ui.panels.comparison_tree_panel import ComparisonTreePanel
@@ -95,9 +97,15 @@ class MainWindowProtocol(QMainWindow):
     bottom_tabs: QTabWidget
     upper_tabs: QTabWidget
     main_splitter: QSplitter
+    right_splitter: QSplitter
     right_upper_splitter: QSplitter | None
     _tree_bm_splitter: QSplitter
     _bm_side_by_side_btn: QPushButton | None
+    _bottom_minimize_btn: QPushButton
+    # Minimizable panes, by the ui/pane_minimize.py PANE_* names.
+    _pane_minimizers: dict[str, PaneMinimizer]
+    _pane_actions: dict[str, QAction]
+    _detail_auto_minimized: bool
     _diff_bar: QFrame
     _diff_path_label: QLabel
     _side_by_side_cb: QCheckBox
@@ -242,6 +250,14 @@ class MainWindowProtocol(QMainWindow):
     def _on_toggle_bm_side_by_side(self, checked: bool) -> None: ...
     def _update_bm_side_by_side_btn(self) -> None: ...
     def _on_terminal_mode_changed(self, use_xterm: bool) -> None: ...
+    def _build_pane_menu_actions(self, view_menu: QMenu) -> None: ...
+    def set_pane_minimized(self, name: str, minimized: bool) -> None: ...
+    def toggle_pane_minimized(self, name: str) -> None: ...
+    def _on_pane_action_toggled(self, name: str, checked: bool) -> None: ...
+    def _on_toggle_bottom_pane_btn(self) -> None: ...
+    def _on_splitter_handle_double_click(self, splitter: QSplitter, index: int) -> None: ...
+    def _auto_minimize_detail_for_side_by_side(self, side_by_side: bool) -> None: ...
+    def _update_pane_minimize_controls(self) -> None: ...
 
     # ── from _ToolsOpsMixin (ui/mixins/_tools_ops.py) ─────────────────────────
     def _run_in_terminal(self, cmd: str) -> None: ...

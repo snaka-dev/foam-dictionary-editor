@@ -66,6 +66,7 @@ class TestSerialisation:
             current_file="system/snappyHexMeshDict",
             tree_selection=["actions", 0, "name"],
             tree_expand=[["castellatedMeshControls"]],
+            editor_zoom=2,
             block_mesh=BlockMeshViewState(
                 toggles={"boundary_faces": False},
                 overlays={"topo_set": True},
@@ -306,6 +307,30 @@ class TestCaptureLiveWindow:
     def test_capture_round_trips_through_json(self, main_window):
         state = capture_window_state(main_window)
         assert WindowState.from_dict(json.loads(json.dumps(state.to_dict()))) == state
+
+    def test_captures_the_editor_zoom(self, main_window):
+        main_window.editor_panel.editor.set_zoom_steps(3)
+        try:
+            assert capture_window_state(main_window).editor_zoom == 3
+        finally:
+            main_window.editor_panel.editor.reset_zoom()
+
+    def test_applying_a_state_restores_the_editor_zoom(self, main_window):
+        editor = main_window.editor_panel.editor
+        try:
+            apply_window_state(main_window, WindowState(editor_zoom=4))
+            assert editor.zoom_steps() == 4
+        finally:
+            editor.reset_zoom()
+
+    def test_a_state_that_says_nothing_about_zoom_leaves_it_alone(self, main_window):
+        editor = main_window.editor_panel.editor
+        editor.set_zoom_steps(2)
+        try:
+            apply_window_state(main_window, WindowState(upper_tab="Tree"))
+            assert editor.zoom_steps() == 2
+        finally:
+            editor.reset_zoom()
 
 
 class TestScreenshotSpec:

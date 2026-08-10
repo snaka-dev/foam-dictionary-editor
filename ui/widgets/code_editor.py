@@ -2,14 +2,30 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+import math
+
 from PySide6.QtCore import QPoint, QRect, QSize, Qt
-from PySide6.QtGui import QColor, QPainter, QTextCursor, QTextFormat
+from PySide6.QtGui import (
+    QColor,
+    QKeySequence,
+    QPainter,
+    QShortcut,
+    QTextCursor,
+    QTextFormat,
+)
 from PySide6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
 
+from ui.fonts import monospace_font, ui_point_size
 from ui.theme import colors
 from ui.widgets._foam_highlighter import FoamHighlighter
 
 _FOLD_GUTTER_W = 14  # pixel width of the clickable fold-triangle column
+
+# Zoom bounds, in points. Wide enough to be useful on a projector or a 4-K
+# panel, closed enough that a stuck modifier key cannot leave the editor at a
+# size the user has to guess their way back from.
+ZOOM_MIN_POINT_SIZE = 5.0
+ZOOM_MAX_POINT_SIZE = 48.0
 
 
 class LineNumberArea(QWidget):
@@ -71,13 +87,12 @@ class CodeEditor(QPlainTextEdit):
         self.update_line_number_area_width(0)
         self.highlight_current_line()
 
-        font = self.font()
-        font.setFamilies(["Consolas", "Menlo", "Monaco", "DejaVu Sans Mono", "monospace"])
-        font.setPointSize(10)
-        self.setFont(font)
+        self._zoom_steps = 0
+        self.setFont(monospace_font())
 
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-        self.setTabStopDistance(self.fontMetrics().horizontalAdvance(" ") * 4)
+        self._apply_font_metrics()
+        self._install_zoom_shortcuts()
 
     # ── public API ────────────────────────────────────────────────────────────
 
@@ -91,6 +106,76 @@ class CodeEditor(QPlainTextEdit):
     def set_shell_mode(self, enabled: bool) -> None:
         """Switch the highlighter between shell-script and OpenFOAM rules."""
         self._highlighter.set_mode("shell" if enabled else "foam")
+
+    # ── zoom ──────────────────────────────────────────────────────────────────
+
+    def zoom_steps(self) -> int:
+        """Return the zoom offset in points from the application font's size."""
+        return self._zoom_steps
+
+    def set_zoom_steps(self, steps: int) -> None:
+        """Zoom to *steps* points either side of the application font's size.
+
+        An offset rather than an absolute size, so it keeps its meaning when the
+        desktop font changes: two steps up stays two steps up. Out-of-range
+        values are clamped here rather than at the call sites, which also stops
+        a held-down key banking steps the editor never showed.
+        """
+        base = ui_point_size()
+        low = math.ceil(ZOOM_MIN_POINT_SIZE - base)
+        high = math.floor(ZOOM_MAX_POINT_SIZE - base)
+        self._zoom_steps = max(low, min(high, int(steps)))
+        self.setFont(monospace_font(base + self._zoom_steps))
+        self._apply_font_metrics()
+
+    def zoom_in(self) -> None:
+        self.set_zoom_steps(self._zoom_steps + 1)
+
+    def zoom_out(self) -> None:
+        self.set_zoom_steps(self._zoom_steps - 1)
+
+    def reset_zoom(self) -> None:
+        """Go back to the application font's size."""
+        self.set_zoom_steps(0)
+
+    def _apply_font_metrics(self) -> None:
+        """Re-derive everything measured in the current font."""
+        self.setTabStopDistance(self.fontMetrics().horizontalAdvance(" ") * 4)
+        self.update_line_number_area_width(0)
+
+    def _install_zoom_shortcuts(self) -> None:
+        """Bind zoom keys to this editor only.
+
+        ``WidgetShortcut`` because the window has other consumers of Ctrl+wheel
+        and Ctrl+0 — the 3-D viewer among them — and a zoom that fires from
+        whatever last had focus is worse than no shortcut at all. Ctrl+= is
+        bound alongside the standard sequence because that is the key people
+        actually press: on most layouts Ctrl++ needs Shift as well.
+        """
+        bindings: list[tuple[QKeySequence, object]] = [
+            (QKeySequence(QKeySequence.StandardKey.ZoomIn), self.zoom_in),
+            (QKeySequence("Ctrl+="), self.zoom_in),
+            (QKeySequence(QKeySequence.StandardKey.ZoomOut), self.zoom_out),
+            (QKeySequence("Ctrl+0"), self.reset_zoom),
+        ]
+        for sequence, slot in bindings:
+            shortcut = QShortcut(sequence, self)
+            shortcut.setContext(Qt.ShortcutContext.WidgetShortcut)
+            shortcut.activated.connect(slot)
+
+    def wheelEvent(self, event):
+        """Ctrl+wheel zooms; everything else scrolls.
+
+        QPlainTextEdit does this itself, but only while read-only, so an
+        editable editor has to say so explicitly.
+        """
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            delta = event.angleDelta().y()
+            if delta:
+                self.set_zoom_steps(self._zoom_steps + (1 if delta > 0 else -1))
+            event.accept()
+            return
+        super().wheelEvent(event)
 
     def setPlainText(self, text: str) -> None:
         self._fold_map = {}

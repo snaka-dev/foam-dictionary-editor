@@ -35,6 +35,7 @@ from foam.set_fields_extractor import SetFieldsShape, extract_set_fields_data
 from foam.snappy_hex_mesh_extractor import extract_snappy_hex_mesh_data
 from foam.topo_set_extractor import TopoShape, extract_topo_set_data
 from ui.dialogs.export_stl_dialog import ExportStlDialog
+from ui.fonts import small_font
 from ui.panels.block_mesh_renderer import (
     _ACTION_COLORS,
     _SAMPLING_COLOR,
@@ -394,7 +395,8 @@ class BlockMeshPanel(QWidget):
         self._vtx_group = vtx_group
 
         hint_label = QLabel(_MOUSE_HINT)
-        hint_label.setStyleSheet(f"color: {colors().hint_text}; font-size: 11px; font-style: italic;")
+        hint_label.setFont(small_font(italic=True))
+        hint_label.setStyleSheet(f"color: {colors().hint_text};")
         hint_label.setToolTip(_MOUSE_HINT_TOOLTIP)
         hint_label.setWordWrap(True)
 
@@ -684,9 +686,10 @@ class BlockMeshPanel(QWidget):
         )
 
         vtx_vars_label = QLabel("⚙ Variable-based")
+        vtx_vars_label.setFont(small_font())
         vtx_vars_label.setStyleSheet(
             f"color: {colors().banner_fg}; background: {colors().banner_bg}; "
-            "padding: 1px 6px; border-radius: 3px; font-size: 11px;"
+            "padding: 1px 6px; border-radius: 3px;"
         )
 
         self._vtx_info_bar = QWidget()

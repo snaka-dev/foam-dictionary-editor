@@ -16,6 +16,9 @@
   }
 </style>
 <!--XTERM_CSS-->
+<!-- Replaced by _xterm_widget.py with the size derived from the application
+     font; the fallback below keeps this page usable when opened on its own. -->
+<!--XTERM_FONT_SIZE-->
 </head>
 <body>
 <div id="terminal"></div>
@@ -31,7 +34,7 @@
       selectionBackground: '#264f78',
     },
     fontFamily: 'Consolas, "Courier New", monospace',
-    fontSize: 13,
+    fontSize: window.fodeFontSize || 13,
     cursorBlink: true,
     scrollback: 5000,
   });

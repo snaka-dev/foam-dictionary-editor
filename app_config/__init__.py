@@ -40,7 +40,9 @@ def get_app_config(config_path: str | None = None) -> AppConfigManager:
     machine's settings nor write its own back (see DEVELOPER.md's "Demo
     recording"), so it points the singleton at a scratch file before the
     window is built. Everything in the application itself calls this with no
-    argument and gets the one config in the repository root.
+    argument and gets the one config in the repository root — or whatever
+    ``$FODE_CONFIG`` names, which is how a test run or a scratch script keeps
+    off the developer's real settings (see ``default_config_path``).
     """
     global _app_config
     if _app_config is None:

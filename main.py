@@ -23,8 +23,11 @@ from PySide6.QtWidgets import QApplication
 
 from app_config import get_app_config
 from app_config.defaults import (
+    DEFAULT_UI_SCALE,
     DEFAULT_WINDOW_HEIGHT,
     DEFAULT_WINDOW_WIDTH,
+    MAX_UI_SCALE,
+    MIN_UI_SCALE,
 )
 from i18n import set_language
 from ui.main_window import MainWindow
@@ -45,6 +48,28 @@ def _apply_variant(variant: str) -> None:
     get_app_config().set_features(features)
 
 
+def _apply_ui_scale(percent: int, forced: bool) -> None:
+    """Put the interface scale into the environment, before Qt reads it.
+
+    Qt settles its scale factor when the QApplication is constructed and offers
+    no way to change it afterwards, so this is an environment variable set from
+    inside the process — the same trick QTWEBENGINE_CHROMIUM_FLAGS uses above.
+
+    A scale that came from the config file yields to a QT_SCALE_FACTOR already
+    in the environment: a desktop or a wrapper script that sets one knows more
+    about the display in front of the user than a setting they last touched on
+    another machine. One passed on the command line overrides it instead, since
+    overriding is the whole point of passing it.
+    """
+    if percent == DEFAULT_UI_SCALE:
+        return
+    value = f"{percent / 100:g}"
+    if forced:
+        os.environ["QT_SCALE_FACTOR"] = value
+    else:
+        os.environ.setdefault("QT_SCALE_FACTOR", value)
+
+
 def main():
     parser = argparse.ArgumentParser(description="foam dictionary editor")
     parser.add_argument(
@@ -61,12 +86,30 @@ def main():
         "overrides the saved setting without changing it",
     )
     parser.add_argument(
+        "--ui-scale",
+        type=int,
+        metavar="PERCENT",
+        help=f"scale the whole interface by this percentage ({MIN_UI_SCALE}-{MAX_UI_SCALE}) "
+        "for this run only; overrides the saved setting and QT_SCALE_FACTOR "
+        "without changing either",
+    )
+    parser.add_argument(
         "--no-restore",
         action="store_true",
         help="start with a default layout instead of the last session's, for this run only; "
         "the stored session is kept and the next normal launch uses it again",
     )
     args, qt_args = parser.parse_known_args()
+
+    if args.ui_scale is not None and not MIN_UI_SCALE <= args.ui_scale <= MAX_UI_SCALE:
+        print(f"Error: --ui-scale must be between {MIN_UI_SCALE} and {MAX_UI_SCALE}")
+        sys.exit(1)
+
+    # Before the QApplication, which is the point at which Qt reads it.
+    _apply_ui_scale(
+        args.ui_scale if args.ui_scale is not None else get_app_config().get_ui_scale(),
+        forced=args.ui_scale is not None,
+    )
 
     app = QApplication([sys.argv[0]] + qt_args)
 

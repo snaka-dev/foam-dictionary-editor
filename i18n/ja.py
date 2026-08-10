@@ -14,6 +14,9 @@ TRANSLATIONS: dict[str, str] = {
     "Light": "ライト",
     "Dark": "ダーク",
     "The theme will change after restarting the application.": "アプリケーションを再起動するとテーマが変わります。",
+    "UI Scale": "UI の拡大率",
+    "UI Scale Changed": "UI 拡大率の変更",
+    "The interface scale will change after restarting the application.": "アプリケーションを再起動すると UI の拡大率が変わります。",
 
     # ── menus ─────────────────────────────────────────────────────────────────
     "Case": "ケース",
@@ -91,14 +94,30 @@ TRANSLATIONS: dict[str, str] = {
     # ── top bar buttons / labels ──────────────────────────────────────────────
     "Save File": "ファイルを保存",
     "Save All Files": "すべてのファイルを保存",
-    "Apply Text to Tree": "テキストをツリーに適用",
-    "Reload from Tree": "ツリーから再読み込み",
     "Case:": "ケース:",
     "File:": "ファイル:",
     "Current case name": "現在のケース名",
     "Current file name": "現在のファイル名",
     "No case opened": "ケースが開かれていません",
     "No file loaded": "ファイルが読み込まれていません",
+
+    # ── editor↔tree sync bar (bottom tab bar corner) ──────────────────────────
+    "Apply Text to Tree": "テキストをツリーに適用",
+    "Reload from Tree": "ツリーから再読み込み",
+    "Re-parse the editor text and rebuild the tree above":
+        "エディタのテキストを解析し直して上のツリーを再構築します",
+    "Regenerate the editor text from the tree above":
+        "上のツリーからエディタのテキストを生成し直します",
+    "Minimize the editor pane to its tab bar": "エディタペインをタブバーまで最小化",
+    "Restore the editor pane": "エディタペインを元に戻す",
+
+    # ── View menu: pane minimize ──────────────────────────────────────────────
+    "File List": "ファイル一覧",
+    "Detail Pane": "詳細ペイン",
+    "Editor / Terminal Pane": "Editor / Terminal ペイン",
+    "Editor Pane": "Editor ペイン",
+    "Panes (show / minimize)": "ペイン（表示 / 最小化）",
+    "Minimize a pane": "ペインを最小化",
 
     # ── tree area ─────────────────────────────────────────────────────────────
     "Filter keys…": "キーをフィルタ…",
@@ -493,12 +512,30 @@ TRANSLATIONS: dict[str, str] = {
         "（system/controlDict, fvSchemes, fvSolution, …, constant/g, 0/, 0.orig/）",
     "Select Destination Directory": "保存先ディレクトリを選択",
     "Keyboard Shortcuts": "キーボードショートカット",
-    "BlockMesh 3-D viewer (mouse)": "BlockMesh 3Dビューア（マウス）",
+    # Help > Keyboard Shortcuts: section titles and row labels.
+    "Application": "アプリケーション",
+    "Find": "検索",
+    "Find Next": "次を検索",
+    "Find Previous": "前を検索",
+    "Find in Tree": "ツリー内で検索",
+    "Undo": "元に戻す",
+    "Redo": "やり直す",
+    "Cut": "切り取り",
+    "Copy Value": "値をコピー",
+    "Paste Value": "値を貼り付け",
+    "Zoom In": "拡大",
+    "Zoom Out": "縮小",
+    "Reset Zoom": "拡大率をリセット",
+    "Zoom (mouse)": "ズーム（マウス）",
+    "BlockMesh 3-D viewer": "BlockMesh 3Dビューア",
     "Rotate": "回転",
     "Pan": "パン",
     "Zoom": "ズーム",
     "Reset camera": "カメラをリセット",
+    "Isometric view": "等角投影ビュー",
     "Fly to point": "ポイントへ移動",
+    "Wireframe / Surface": "ワイヤフレーム / サーフェス",
+    "Point & line size": "点と線のサイズ",
     "Rename Boundary": "境界名を変更",
     'Rename "{name}" to:': '"{name}" を次の名前に変更:',
     "Apply to:": "適用先:",

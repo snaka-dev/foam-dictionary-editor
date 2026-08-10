@@ -38,6 +38,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 | View snappyHexMeshDict surfaces/regions in 3-D | [snappyHexMeshDict overlay](#snappyhexmeshdict-overlay) |
 | View setFieldsDict regions in 3-D | [setFieldsDict overlay](#setfieldsdict-overlay) |
 | See the tree and the 3-D view at the same time | [Side-by-side mode](#side-by-side-mode) |
+| Give the 3-D view more room by parking a pane | [Minimizing panes](#minimizing-panes) |
 | Tweak vertex coordinates and see the 3-D effect instantly | [Vertices table](#vertices-table) |
 | Export topoSet/snappyHexMesh/setFields shapes as STL, or overlay an STL/OBJ file | [Geometry controls](#geometry-controls) |
 | View the generated mesh in ParaView | [Open Mesh in ParaView](#open-mesh-in-paraview) |
@@ -61,9 +62,11 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 | Configure application settings | [Application settings](#application-settings) |
 | Switch the UI language (English / 日本語) | Settings > Language |
 | Switch the colour theme (system / light / dark) | Settings > Appearance |
+| Make the text bigger, or fix a window that looks half-size | [Text size and display scaling](#text-size-and-display-scaling) |
 | Open help links or reference sites | [Resources dialog](#resources-dialog) |
 | See annotated screenshots of the app | [Screenshot gallery](docs/SCREENSHOTS.md) |
 | Watch the app being used | [Demo movies](docs/DEMO_SCRIPTS.md) |
+| Work out why a case from another OpenFOAM release does not run | [OpenFOAM version differences](docs/OPENFOAM_VERSIONS.md) |
 
 ## Contents
 
@@ -163,6 +166,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 
 **Reference**
 - [Appearance and colours](#appearance-and-colours)
+- [Text size and display scaling](#text-size-and-display-scaling)
 - [Supported syntax and node types](#supported-syntax-and-node-types)
 - [Limitations](#limitations)
 - [Disclaimer](#disclaimer)
@@ -239,14 +243,22 @@ The main window is divided into two top-level columns separated by a horizontal 
     - **Editor** — plain-text editor with line numbers.
     - **Terminal** — integrated terminal with a mode toggle (see [Terminal tab](#terminal-tab) below).
 
+    The lower row's tab bar carries **▲ Apply Text to Tree** and **▼ Reload from Tree** in its top-right corner — see below.
+
 The top action bar contains the frequently used commands and the current case and file display.
 
 - Save File.
-- Save Case.
-- Apply Text to Tree.
-- Reload from Tree.
+- Save All Files.
+- Reload Case.
 - Case: current case name display.
 - File: current file name display.
+
+The two commands that move content between the tree and the editor text sit on the *seam* between the two panes, in the top-right corner of the lower row's tab bar, rather than in the top action bar with the disk operations. The arrows read against the vertical splitter: the tree is the upper pane, the editor the lower one.
+
+- **▲ Apply Text to Tree** — re-parse the editor text and rebuild the tree above. Also **Case > Apply Text to Tree** `Ctrl+Shift+A`.
+- **▼ Reload from Tree** — regenerate the editor text from the tree above. Also **Case > Reload from Tree**; no shortcut, since it overwrites the editor text.
+
+Because they ride the tab bar rather than sitting inside a tab page, both stay available whichever tab either row is showing — **Apply Text to Tree** still refreshes the BlockMesh 3-D overlays while the **BlockMesh** tab is in front.
 
 The **Editor** tab has its own toolbar row with text search operations.
 
@@ -273,11 +285,14 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, a *
 - Case > Compare with Case...
 - Case > Save File `Ctrl+S`.
 - Case > Save Case `Ctrl+Shift+S`.
+- Case > Apply Text to Tree `Ctrl+Shift+A` — the same action as the **▲ Apply Text to Tree** button on the lower tab bar.
+- Case > Reload from Tree — the same action as the **▼ Reload from Tree** button. Deliberately without a shortcut: it overwrites the editor text, discarding any edits not yet applied to the tree.
 - Case > Exit `Ctrl+Q`.
 
 **View menu:**
 
 - View > Show Type Column (checkable; hidden by default).
+- View > File List `Ctrl+1`, View > Detail Pane `Ctrl+2`, View > Editor / Terminal Pane `Ctrl+3` — checkable; unticking one minimizes that pane. See [Minimizing panes](#minimizing-panes).
 - View > BlockMesh 3-D Panel (checkable; shows or hides the BlockMesh tab. Grayed out — with the label "BlockMesh 3-D Panel  (unavailable: xterm active)" — while xterm terminal mode is active due to the GPU conflict).
 - View > View Log Summary… — the same action as Tools > View Log Summary…, listed here too for discoverability. See [View Log Summary](#view-log-summary).
 
@@ -291,6 +306,7 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, a *
 - Settings > Reset Window Size.
 - Settings > Reset All Settings…
 - Settings > Appearance — select the colour theme: **Follow System** (default), **Light**, or **Dark**. Takes effect after restarting the application. See [Appearance and colours](#appearance-and-colours).
+- Settings > UI Scale — scale the whole interface by 100 % (default), 125 %, 150 %, 175 % or 200 %. Takes effect after restarting the application. See [Text size and display scaling](#text-size-and-display-scaling).
 - Settings > Language — select the UI language (English / 日本語). Takes effect after restarting the application.
 - Settings > Generate OpenFOAM Keywords… — rebuild the syntax-highlighter keyword list from a selected OpenFOAM installation. See [Generate OpenFOAM Keywords](#generate-openfoam-keywords).
 
@@ -1081,6 +1097,23 @@ Select **Settings > Reset All Settings** to reset `app_config.json`, `schema_con
 
 Resetting the application settings deletes `app_config.json`, and the reset holds: from that point on, closing the window writes nothing back. In particular the window layout and size of that session are not saved, so the next launch starts from the defaults the reset asked for — which is why the dialog asks you to restart. Settings you change deliberately after the reset, such as the theme, are still saved as usual.
 
+## Minimizing panes
+
+Three panes can be parked out of the way in one click and brought back the same way: the **file list**, the **Detail pane** to the right of the tree, and the **Editor / Terminal** row along the bottom. Dragging a splitter handle across the window does the same thing, but takes several mouse moves and leaves you to find the handle again afterwards.
+
+Three ways to do it, all equivalent:
+
+- **View menu** — **File List** `Ctrl+1`, **Detail Pane** `Ctrl+2`, **Editor / Terminal Pane** `Ctrl+3`. Ticked means shown. These items are also the guaranteed way *back*, which matters because the state is remembered between runs (see below).
+- **The ▁ button** on the right of the Editor/Terminal tab bar, for the bottom row only. It becomes **▔** while the row is minimized.
+- **Double-click a splitter handle** — the handle between the tree and the Detail pane, above the Editor row, or to the right of the file list. Double-clicking a handle with no minimizable pane beside it does nothing.
+
+The file list and the Detail pane collapse to nothing. The Editor/Terminal row is different: it minimizes down to its **tab bar**, not to zero, so the Editor and Terminal tabs stay clickable and **▲ Apply Text to Tree** / **▼ Reload from Tree** stay where they were. Clicking **▔** puts the row back at the height it had before.
+
+Entering [side-by-side mode](#side-by-side-mode) minimizes the Detail pane for you and restores it on the way out, since a file being inspected in 3-D has little use for it and the width is better spent on the 3-D view. If you had already minimized the pane by hand, leaving side-by-side mode leaves it minimized.
+
+Which panes are minimized — and the size each one should come back to — is part of the saved session, so a window closed with the Detail pane parked reopens that way. The View menu items are always present and always show the current state, so nothing is ever stranded off-screen.
+
+
 ## Terminal tab
 
 The bottom panel contains an **Editor** tab and a **Terminal** tab. The Terminal tab has two modes that can be switched at runtime.
@@ -1584,6 +1617,58 @@ FoDE now recomputes the pair itself in all three modes, so a selected row is leg
 - otherwise the fill is darkened slightly, keeping its hue, so white text clears — your accent colour stays recognisable rather than the text flipping to black.
 
 This applies to the tree, the file list, the boundary table, and the comparison panel.
+
+## Text size and display scaling
+
+Every piece of text in FoDE is sized from the desktop's own font setting — the tree, the file list, the Detail pane, the editor and both terminals. Raise the system font size and all of them grow together; there is nothing to set inside the application to keep them in step. Two extra controls exist for when that is not enough.
+
+### Settings > UI Scale
+
+Scales the entire interface — text, icons, spacing and all — by **100 %** (default), **125 %**, **150 %**, **175 %** or **200 %**. The choice is saved in `app_config.json` and takes effect after restarting, because Qt settles its scale factor when the application starts and offers no way to change it while running.
+
+This is the one to reach for when *everything* in FoDE looks too small next to your other applications — see [When the desktop is scaled but FoDE is not](#when-the-desktop-is-scaled-but-fode-is-not) below for why that happens.
+
+To try a scale without changing the saved setting, pass `--ui-scale` on the command line: `python3 main.py --ui-scale 150` applies it for one run only. Anything from 50 to 400 is accepted there, not just the five values in the menu.
+
+### Zooming the editor
+
+The editor text can be sized on its own, without touching anything else in the window:
+
+| Action | Shortcut |
+|--------|----------|
+| Zoom in | `Ctrl` + `+`  (or `Ctrl` + `=`) |
+| Zoom out | `Ctrl` + `-` |
+| Back to the desktop's size | `Ctrl` + `0` |
+| Zoom by mouse | `Ctrl` + scroll wheel |
+
+The keys work while the editor has focus, so they never fire from the tree or the 3-D viewer. The zoom is an offset from the desktop's font size rather than a fixed size — two steps up stays two steps up if you later change that font — and it is saved with the session, so it is still there after a restart.
+
+### When the desktop is scaled but FoDE is not
+
+On X11, Qt works out its scale factor from the `Xft.dpi` X resource and nothing else. Desktops that scale through some other mechanism — GDK's `GDK_SCALE`, or fractional scaling applied by a Wayland compositor to XWayland clients — leave `Xft.dpi` at 96, and every Qt application then draws at 1× while the GTK applications beside it look right. That is the usual cause of a FoDE window that looks half-size on a high-resolution display.
+
+Three ways out, in increasing order of permanence:
+
+```bash
+python3 main.py --ui-scale 150
+```
+
+```bash
+QT_SCALE_FACTOR=1.5 python3 main.py
+```
+
+```bash
+echo "Xft.dpi: 144" >> ~/.Xresources && xrdb -merge ~/.Xresources
+```
+
+The first covers FoDE only and can be made permanent in **Settings > UI Scale**. The second covers any Qt application launched that way. The third covers every Qt application from then on, and takes effect for applications started after the next login.
+
+Two variations are worth knowing:
+
+- `QT_FONT_DPI=144` grows the text without growing icons and spacing. It keeps more content on screen than a full scale-up, at the cost of a slightly cramped look.
+- `QT_SCALE_FACTOR_ROUNDING_POLICY=PassThrough` stops Qt rounding a fractional scale down to a whole number, which is what makes a 125 % desktop come out at 100 %.
+
+`QT_SCALE_FACTOR` set in the environment wins over the saved **Settings > UI Scale** value, on the grounds that a variable in your environment was chosen for the machine you are sitting at. `--ui-scale` overrides both.
 
 ## Supported syntax and node types
 

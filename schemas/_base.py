@@ -14,8 +14,11 @@ FOUNDATION_V11 = "Foundation v11"
 FOUNDATION_V12 = "Foundation v12"
 FOUNDATION_V13 = "Foundation v13"
 
-# OpenCFD (OpenFOAM.com) releases.
+# OpenCFD (OpenFOAM.com) releases. Two a year, `yymm` with mm = 06 or 12; the
+# list is complete, so a gap in it is a missing release rather than a year in
+# which OpenCFD shipped once.
 OPENCFD_V2106  = "OpenCFD v2106"
+OPENCFD_V2112  = "OpenCFD v2112"
 OPENCFD_V2206  = "OpenCFD v2206"
 OPENCFD_V2212  = "OpenCFD v2212"
 OPENCFD_V2306  = "OpenCFD v2306"

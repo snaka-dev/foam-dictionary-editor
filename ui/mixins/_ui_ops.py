@@ -9,6 +9,7 @@ from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import QMessageBox
 
 from app_config import get_app_config
+from app_config.defaults import UI_SCALE_CHOICES
 from i18n import available_languages, get_language, tr
 from model.tree_model import FoamTreeModel
 from ui.dialogs.about_dialog import AboutDialog
@@ -103,6 +104,31 @@ class _UiOpsMixin(_Base):
             self,
             tr("Appearance Changed"),
             tr("The theme will change after restarting the application."),
+        )
+
+    def _build_ui_scale_menu(self, parent_menu) -> None:
+        self._build_radio_menu(
+            parent_menu,
+            tr("UI Scale"),
+            [(percent, f"{percent}%") for percent in UI_SCALE_CHOICES],
+            get_app_config().get_ui_scale(),
+            self._on_ui_scale_changed,
+        )
+
+    def _on_ui_scale_changed(self, action: QAction) -> None:
+        percent = action.data()
+        cfg = get_app_config()
+        if percent == cfg.get_ui_scale():
+            return
+        cfg.set_ui_scale(percent)
+        cfg.save()
+        # Qt fixes its scale factor when the QApplication is built, so this one
+        # cannot be applied live at all — not a widget-construction limitation
+        # like the theme's, but the same restart for the user either way.
+        QMessageBox.information(
+            self,
+            tr("UI Scale Changed"),
+            tr("The interface scale will change after restarting the application."),
         )
 
     def _on_restore_session_toggled(self, enabled: bool) -> None:

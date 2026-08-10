@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
 
 from _version import get_version
 from i18n import tr
+from ui.fonts import heading_font, small_font
+from ui.label_fit import fit_wrapped_labels
 from ui.theme import colors
 
 _APP_NAME = "Foam Dictionary Editor (FoDE)"
@@ -58,7 +60,8 @@ class AboutDialog(QDialog):
 
         # ── app name ──────────────────────────────────────────────────────────
         name_label = QLabel(_APP_NAME)
-        name_label.setStyleSheet("font-size: 16px; font-weight: bold;")
+        name_label.setFont(heading_font())
+        name_label.setStyleSheet("font-weight: bold;")
         name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(name_label)
 
@@ -66,7 +69,8 @@ class AboutDialog(QDialog):
         version_label = QLabel(tr("Version {v}").format(v=get_version()))
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         version_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        version_label.setStyleSheet(f"color: {colors().hint_text}; font-size: 12px;")
+        version_label.setFont(small_font())
+        version_label.setStyleSheet(f"color: {colors().hint_text};")
         layout.addWidget(version_label)
 
         # ── description ───────────────────────────────────────────────────────
@@ -79,7 +83,8 @@ class AboutDialog(QDialog):
         license_label = QLabel(_LICENSE)
         license_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         license_label.setWordWrap(True)
-        license_label.setStyleSheet(f"color: {colors().secondary_text}; font-size: 12px;")
+        license_label.setFont(small_font())
+        license_label.setStyleSheet(f"color: {colors().secondary_text};")
         layout.addWidget(license_label)
 
         # ── separator ─────────────────────────────────────────────────────────
@@ -92,15 +97,18 @@ class AboutDialog(QDialog):
         ack_label = QLabel(_ACKNOWLEDGEMENTS)
         ack_label.setWordWrap(True)
         ack_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        ack_label.setStyleSheet(f"color: {colors().secondary_text}; font-size: 12px;")
+        ack_label.setFont(small_font())
+        ack_label.setStyleSheet(f"color: {colors().secondary_text};")
         layout.addWidget(ack_label)
 
         # ── disclaimer ────────────────────────────────────────────────────────
         disclaimer_label = QLabel(DISCLAIMER)
         disclaimer_label.setWordWrap(True)
         disclaimer_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        # No size of its own: a disclaimer is the one thing here that should be
+        # as readable as body text, which is what the application font is.
         disclaimer_label.setStyleSheet(
-            f"color: {colors().secondary_text}; font-size: 13px; padding: 8px;"
+            f"color: {colors().secondary_text}; padding: 8px;"
             f"background: {colors().info_box_bg}; border: 1px solid {colors().info_box_border};"
             " border-radius: 4px;"
         )
@@ -114,3 +122,25 @@ class AboutDialog(QDialog):
         close_btn.clicked.connect(self.accept)
         bottom.addWidget(close_btn)
         layout.addLayout(bottom)
+
+        self._labels_fitted = False
+
+    def showEvent(self, event):
+        """Give the wrapped labels their real heights, once.
+
+        Only after the first layout pass does a label know its width, which is
+        what its height depends on — see ui/label_fit.py. Once, because the
+        dialog is resizable in height and re-fitting on every show would undo
+        whatever size the user had left it at.
+        """
+        super().showEvent(event)
+        if not self._labels_fitted:
+            self._labels_fitted = True
+            fit_wrapped_labels(self)
+            # activate() first: the new minimum heights have to travel back up
+            # through the layout before the dialog's own size hint reflects
+            # them. Then resize() rather than adjustSize(), because the latter
+            # clamps a window to two thirds of the screen height — which on a
+            # small display is exactly where the text would be cut off again.
+            self.layout().activate()
+            self.resize(self.width(), self.sizeHint().height())

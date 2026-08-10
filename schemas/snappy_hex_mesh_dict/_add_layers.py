@@ -6,6 +6,7 @@ from schemas._base import (
     FOUNDATION_SERIES,
     OPENCFD_SERIES,
     OPENCFD_V2106,
+    OPENCFD_V2112,
     OPENCFD_V2206,
     KeySchema,
 )
@@ -147,9 +148,12 @@ SCHEMAS: dict[str, KeySchema] = {
             "analysis."
         ),
         # Verified per tree: every Foundation release from v7 to dev still
-        # declares the compatibility entry, while OpenCFD carries it in v2106
-        # and v2206 only (medialAxisMeshMover.C).
-        supported_in=(FOUNDATION_SERIES, OPENCFD_V2106, OPENCFD_V2206),
+        # declares the compatibility entry, while OpenCFD carries it up to
+        # v2206 and drops it in v2212 (medialAxisMeshMover.C). v2112 sits
+        # between two releases that both declare it and is listed on that
+        # basis — it is the one release in the v2106-v2606 span with no local
+        # source tree to check.
+        supported_in=(FOUNDATION_SERIES, OPENCFD_V2106, OPENCFD_V2112, OPENCFD_V2206),
         status="renamed",
         use_instead="minMedialAxisAngle",
         deprecated_since="v1712",
