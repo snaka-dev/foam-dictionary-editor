@@ -162,6 +162,17 @@ class FileListPanel(QWidget):
         self._list = QListWidget()
         self._list.setAlternatingRowColors(False)
         self._list.setUniformItemSizes(True)
+        # Long paths (`constant/transportProperties`) used to grow a horizontal
+        # scrollbar instead of wrapping or eliding, so a narrow panel showed
+        # only the truncated head of the name with no way to read the rest
+        # short of scrolling sideways. Turning the horizontal bar off makes
+        # QListView clamp item width to the viewport, and ElideRight (not
+        # ElideMiddle) keeps the informative head visible -- file rows are
+        # already base-name-only under a group header, and an indicator row's
+        # informative part ("constant/polyMesh: 12,225 cells") is its head too.
+        # Every row already carries the untruncated text as a tooltip.
+        self._list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._list.setTextElideMode(Qt.TextElideMode.ElideRight)
         self._list.itemSelectionChanged.connect(self._on_selection_changed)
         self._list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._list.customContextMenuRequested.connect(self._on_context_menu)
@@ -550,6 +561,11 @@ def _make_header(
     # ItemIsEnabled so context menus work; not ItemIsSelectable so clicks skip it.
     item.setFlags(Qt.ItemFlag.ItemIsEnabled)
     item.setData(_HEADER_GROUP_ROLE, group_name)
+    # Every other row kind already carries a full-text tooltip; a header's own
+    # label is normally short enough not to need one, but with the horizontal
+    # scrollbar turned off (see __init__) a narrow panel can elide even this,
+    # so it gets the same treatment for consistency.
+    item.setToolTip(label)
     if is_extra_dir:
         item.setData(_EXTRA_DIR_HEADER_ROLE, True)
         item.setForeground(QColor(colors().file_extra_dir_header_fg))

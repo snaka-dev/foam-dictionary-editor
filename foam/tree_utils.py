@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 
-from foam.nodes import FoamNode
+from foam.nodes import FoamNode, NodeType
 from foam.utils import parse_box_pair
 from foam.var_resolver import eval_foam_expr, substitute_vars
 
@@ -33,6 +33,14 @@ def find_child_any(entry: FoamNode, *keys: str) -> FoamNode | None:
         node = find_child(entry, key)
         if node is not None:
             return node
+    return None
+
+
+def find_child_by_type(entry: FoamNode, node_type: NodeType) -> FoamNode | None:
+    """Return the first child whose node_type matches, else None."""
+    for child in entry.children:
+        if child.node_type == node_type:
+            return child
     return None
 
 

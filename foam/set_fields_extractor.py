@@ -14,7 +14,7 @@ import dataclasses
 from foam.nodes import FoamNode
 from foam.shapes import SourceShape
 from foam.topo_set_extractor import is_non_geometric_source, resolve_source_geometry
-from foam.tree_utils import find_child
+from foam.tree_utils import find_child, find_child_by_type
 from foam.var_resolver import build_var_map
 
 # Keys that are structural in setFieldsDict (not variable definitions).
@@ -53,18 +53,11 @@ def _field_values_label(entry: FoamNode) -> str:
     return ", ".join(parts)
 
 
-def _find_region_block(root: FoamNode) -> FoamNode | None:
-    for child in root.children:
-        if child.node_type == "region_block":
-            return child
-    return None
-
-
 def extract_set_fields_data(root: FoamNode) -> SetFieldsData:
     """Walk region_block → region_entry nodes and collect renderable shapes."""
     var_map = build_var_map(root, skip_keys=_SET_FIELDS_STRUCTURAL)
 
-    region_block = _find_region_block(root)
+    region_block = find_child_by_type(root, "region_block")
     if region_block is None:
         return SetFieldsData(shapes=[])
 

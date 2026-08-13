@@ -19,9 +19,10 @@
 #   kOmegaSST.derived.json, kOmegaSSTDDES.derived.json, kOmegaSSTDES.derived.json,
 #   kOmegaSSTIDDES.derived.json, kOmegaSSTLM.derived.json, kOmegaSSTSAS.derived.json,
 #   realizableKE.derived.json, sigma.derived.json, v2f.derived.json
-# Source commits: foundation-7=6334942, opencfd-v2106=c15bfde3, opencfd-v2206=76d719d1,
-#   opencfd-v2212=66908158, opencfd-v2306=a6e826bd, opencfd-v2312=1d8f0d55, opencfd-v2406=630d60de,
-#   opencfd-v2412=d3949086, opencfd-v2506=615aae61, opencfd-v2512=87ed40d, opencfd-v2606=481094f
+# Source commits: foundation-7=6334942, opencfd-v2106=c15bfde3, opencfd-v2112=14aeaf8d,
+#   opencfd-v2206=76d719d1, opencfd-v2212=66908158, opencfd-v2306=a6e826bd, opencfd-v2312=1d8f0d55,
+#   opencfd-v2406=630d60de, opencfd-v2412=d3949086, opencfd-v2506=615aae61, opencfd-v2512=87ed40d,
+#   opencfd-v2606=481094f
 from __future__ import annotations
 
 from schemas._base import KeySchema

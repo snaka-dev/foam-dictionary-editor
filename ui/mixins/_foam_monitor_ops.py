@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import os
-import shutil
 import signal
 import subprocess
 import sys
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PySide6.QtWidgets import QDialog, QMessageBox
 
 from i18n import tr
+from services.foam_monitor import patched_foam_monitor
 from ui.dialogs.foam_monitor_dialog import FoamMonitorDialog
 
 if TYPE_CHECKING:
@@ -50,7 +49,7 @@ class _FoamMonitorOpsMixin(_Base):
         self.state.foam_monitor.last_options = dlg.get_options()
         if sys.platform == "win32":
             return
-        launcher = self._patched_foam_monitor()
+        launcher = patched_foam_monitor()
         if launcher is None:
             QMessageBox.warning(
                 self,
@@ -116,35 +115,3 @@ class _FoamMonitorOpsMixin(_Base):
             tr("Launch foamMonitor to plot residuals or other data with gnuplot")
         )
         self._foam_monitor_action.setEnabled(running or self.state.current_case_dir is not None)
-
-    @staticmethod
-    def _patched_foam_monitor() -> str | None:
-        """Return path to a temp copy of foamMonitor with the gnuplot reread fix.
-
-        Newer gnuplot versions deprecate `reread`.  The fix replaces it with
-        `load ARG0` and changes the invocation to `gnuplot -e "load '$GPFILE'"`
-        so that ARG0 is set to the script path before the loop starts.
-        """
-        import tempfile
-
-        original = shutil.which("foamMonitor")
-        if original is None:
-            return None
-        try:
-            src = Path(original).read_text(encoding="utf-8")
-        except OSError:
-            return None
-
-        src = src.replace(
-            '$GNUPLOT "$GPFILE" &',
-            '$GNUPLOT -e "load \'$GPFILE\'" &',
-        )
-        src = src.replace("\nreread\n", "\nload ARG0\n")
-
-        tmp = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".sh", delete=False, encoding="utf-8"
-        )
-        tmp.write(src)
-        tmp.close()
-        os.chmod(tmp.name, 0o755)
-        return tmp.name

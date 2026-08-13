@@ -3,20 +3,9 @@
 """Tests for BoundaryViewPanel copy-table helpers."""
 from __future__ import annotations
 
-import sys
-
-import pytest
 from PySide6.QtWidgets import QApplication, QTableWidgetItem
 
 from ui.panels.boundary_view_panel import BoundaryViewPanel
-
-
-@pytest.fixture(scope="module")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv[:1])
-    return app
 
 
 def _make_panel(qapp, rows: list[str], cols: list[str], cells: list[list[str]]) -> BoundaryViewPanel:

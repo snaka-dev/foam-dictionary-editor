@@ -1,0 +1,6 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- Copyright (C) 2025-2026 Shinji NAKAGAWA -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="2" stroke-linejoin="round">
+  <path d="M2 2h12v12H2z"/>
+  <path d="M5 2v4h6V2"/>
+</svg>

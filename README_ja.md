@@ -55,9 +55,9 @@ pip install pyvista pyvistaqt
    選択したバリアントは終了時に `app_config.json` へ保存され、次回以降の起動時にも自動的に適用されます。
 
 2. **ケースを開く** — いずれかを選択:
-   - *自分のケース:* **Case > Open Case** → ケースディレクトリを選択
+   - *自分のケース:* **Case > Open Case…** → ケースディレクトリを選択
    - *ドラッグ＆ドロップ:* ファイルマネージャからケースディレクトリをウィンドウ上の任意の場所にドロップ
-   - *チュートリアルから始める:* **Case > Duplicate from Case Library** → `$FOAM_TUTORIALS` を参照 → 作業ディレクトリへコピー
+   - *チュートリアルから始める:* **Case > Duplicate from Case Library…** → `$FOAM_TUTORIALS` を参照 → 作業ディレクトリへコピー
    - *同梱サンプルを使う:* リポジトリルートの `tutorials/` ディレクトリにあるケースを直接開く（「[サンプルケース](#サンプルケース)」参照）
 
 3. **ファイルを選択** — 左パネルから対象ファイルを選ぶ（例: `system/controlDict`、`0/U`）
@@ -128,7 +128,7 @@ pip install pyvista pyvistaqt
 - **Settings > Language** — English と 日本語 を切り替えられます（再起動で反映）。`i18n/` に翻訳ファイルを1つ追加するだけで新しい言語を追加できます
 
 **[参照リンク](USER_GUIDE_ja.md#resources-ダイアログ)**
-- **Help > Resources...** — OpenFOAM 公式ドキュメントへのリンクと、個人用の **My Links** リスト
+- **Help > Resources** — OpenFOAM 公式ドキュメントへのリンクと、個人用の **My Links** リスト
 
 ## 全リファレンス
 
@@ -174,6 +174,8 @@ pip install pyvista pyvistaqt
 Copyright (C) 2025-2026 Shinji NAKAGAWA。[GNU Affero General Public License v3.0 以降](LICENSE)（AGPL-3.0-or-later）で配布されます。
 
 本リポジトリには OpenFOAM 由来の素材が含まれており、それらは上記ライセンスの対象外です。同梱のチュートリアルケース、抽出したキーワード一覧、生成された乱流スキーマモジュール中の引用ドキュメントが該当します。これらは GPL-3.0-or-later であり、権利者は複数です（OpenFOAM Foundation、OpenCFD Ltd、Upstream CFD GmbH、Keysight Technologies）。ファイルごとの表示は [THIRD-PARTY.md](THIRD-PARTY.md) にあります（手で管理するのではなくソースから生成しています）。
+
+`ui/assets/icons/` のツールバー・メニューアイコンは、既存のアイコンセットから持ち込んだものではなく本プロジェクトのために描き起こしたものです。したがって上記ライセンスの対象であり、第三者への表示義務は生じません。フォルダ・ディスク・回転矢印・虫眼鏡といった意図的にありふれた形状を、実際に描画されるサイズで滲まないよう 16 ピクセルのグリッドに合わせて配置しています。
 
 ## 免責事項
 

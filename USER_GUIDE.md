@@ -45,7 +45,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 | Filter tree keys | [Tree key filter](#tree-key-filter-and-editor-sync) |
 | Jump to a tree entry from the editor | [Find in Tree](#tree-key-filter-and-editor-sync) |
 | Find text in the editor | [Editor toolbar](#current-ui-layout) |
-| View keyboard shortcuts | Help > Keyboard Shortcuts… |
+| View keyboard shortcuts | Help > Keyboard Shortcuts |
 | Run OpenFOAM commands from FoDE | [Terminal tab](#terminal-tab) |
 | Check whether the mesh is up to date | [Mesh presence/staleness indicator](#mesh-presencestaleness-indicator) |
 | Run blockMesh or restore 0/ without leaving FoDE | [Run blockMesh](#run-blockmesh) / [Restore 0/ from 0.orig](#restore-0-from-0orig) |
@@ -184,14 +184,14 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 - Automatically list the case-root `All*` scripts (`Allrun`, `Allrun.pre`, `Allclean`, …) under a **case root** group so the scripts run from the Tools menu can be inspected and edited; they open as text with shell syntax highlighting (no tree view), keep their executable permission when saved, and are included when the case is duplicated. Other case-root files (`log.*`, results, `*.foam`) stay hidden.
 - Display symbolic links in the file list with a `⇢` marker and italic text; hovering shows the link target in the tooltip.
 - Add files not in the default list to the file panel at runtime via right-click on a directory header.
-- Add entire directories to the file list so that all files inside are scanned automatically, just like `0/` and `0.orig/`. Each directory can be scanned flat (direct files only, default) or recursively (all subdirectories). Useful for custom field directories (`initial/`), restart time steps (`0.5/`), or deep subdirectories (`lagrangian/chemkin/`) and cases that include a `validation/` tree. Extra directories are shown with a distinct (purple) header. Right-click the **Results** indicator to add a numeric time directory directly; use **Settings > Manage Extra Files & Directories…** or the indicator button for arbitrary directories.
+- Add entire directories to the file list so that all files inside are scanned automatically, just like `0/` and `0.orig/`. Each directory can be scanned flat (direct files only, default) or recursively (all subdirectories). Useful for custom field directories (`initial/`), restart time steps (`0.5/`), or deep subdirectories (`lagrangian/chemkin/`) and cases that include a `validation/` tree. Extra directories are shown with a distinct (purple) header. Right-click the **Results** indicator to add a numeric time directory directly; use **Case > Manage Extra Files & Directories…** or the indicator button for arbitrary directories.
 - Create a new file from a FoamFile template in any directory group via right-click on the directory header.
 - Save per-case extra file and directory selections to `.foam-editor-files.json` inside the case directory.
 - Show an indicator at the top of the file list when extra files or directories are registered for the current case, with a link to the management dialog.
 - Remove extra files individually via right-click, or manage files and directories in bulk via the management dialog.
 - Create a timestamped backup of any file via right-click on a file in the file list.
 - Delete any file from disk via right-click on a file in the file list. A confirmation dialog offers three choices: create a backup and delete, delete without a backup, or cancel. The deletion cannot be undone.
-- Clean up accumulated backup files for the current case via **Case > Clean Backup Files...**. A dialog lists all `.bak_*` files found in the case directory with checkboxes (all selected by default) and **Select All** / **Deselect All** buttons for quick bulk selection.
+- Clean up accumulated backup files for the current case via **Case > Clean Backup Files…**. A dialog lists all `.bak_*` files found in the case directory with checkboxes (all selected by default) and **Select All** / **Deselect All** buttons for quick bulk selection.
 - Duplicate any file in the file list via right-click; a dialog prompts for a new name and the `object` field in the FoamFile header is updated automatically to the new name. If the source file has unsaved changes, the application asks whether to save first or duplicate with the unsaved state.
 - Duplicate the `0/` or `0.orig/` directory to create the missing counterpart via right-click on the group header (shown only when exactly one of the two directories exists).
 - Delete the `0/` directory from disk via right-click on the `0` group header. Shown only when `0.orig` exists. A confirmation dialog shows the full path; any open files inside `0/` are closed and the deletion cannot be undone.
@@ -211,12 +211,12 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 - Rebuild the tree from edited text with **Apply Text to Tree**.
 - Save the current file from the raw text editor with **Save File**.
 - Save all modified files at once with **Save Case**.
-- Reload the current case from disk with the **Reload Case** button in the top bar or **Case > Reload Case**, discarding all in-memory edits. If there are unsaved changes, a confirmation dialog shows the number of affected files before proceeding.
-- Duplicate the open case to a new directory with **Case > Duplicate Case**, choosing between a full directory copy or a copy of only the app-visible files.
-- Save the currently open case as a new case with **Case > Save as New Case...**, which copies files from disk (all files or app-visible files only, selectable) and then writes any unsaved in-memory edits on top, then switches to the new case.
+- Reload the current case from disk with the **Reload Case** button in the toolbar or **Case > Reload Case**, discarding all in-memory edits. If there are unsaved changes, a confirmation dialog shows the number of affected files before proceeding.
+- Duplicate the open case to a new directory with **Case > Duplicate Case…**, choosing between a full directory copy or a copy of only the app-visible files.
+- Save the currently open case as a new case with **Case > Save as New Case…**, which copies files from disk (all files or app-visible files only, selectable) and then writes any unsaved in-memory edits on top, then switches to the new case.
 - Register reference case directories in the **Case Library** for quick access. The `$FOAM_TUTORIALS` directory is included automatically whenever the environment variable is set.
-- Open a case directly from any Case Library directory with **Case > Open from Case Library...**.
-- Duplicate a case from the Case Library into the working directory with **Case > Duplicate from Case Library...**, with the Default Case Directory pre-filled as the destination parent.
+- Open a case directly from any Case Library directory with **Case > Open from Case Library…**.
+- Duplicate a case from the Case Library into the working directory with **Case > Duplicate from Case Library…**, with the Default Case Directory pre-filled as the destination parent.
 - Show a warning when the selected directory contains neither `system/` nor `constant/`, suggesting it may not be a valid OpenFOAM case, with an option to open it anyway.
 - Open a case by dragging a directory from the file manager and dropping it anywhere on the application window. If there are unsaved changes, a confirmation dialog is shown first.
 - Add, duplicate, comment out, restore, or delete tree nodes via the right-click context menu in the tree view.
@@ -225,7 +225,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 - Undo, redo, cut, copy, paste, select all, and find text via the edit toolbar.
 - Keep the text editor usable even if parsing fails.
 - Configure schema modules and application settings at runtime via the **Settings** menu.
-- Open **Help > Resources...** to access official OpenFOAM documentation links and manage personal reference links. The **My Links** tab lets you add, edit, reorder, and remove links; double-click any entry to open it in your browser. Links are saved to `app_config.json`.
+- Open **Help > Resources** to access official OpenFOAM documentation links and manage personal reference links. The **My Links** tab lets you add, edit, reorder, and remove links; double-click any entry to open it in your browser. Links are saved to `app_config.json`.
 
 ## Current UI layout
 
@@ -245,13 +245,16 @@ The main window is divided into two top-level columns separated by a horizontal 
 
     The lower row's tab bar carries **▲ Apply Text to Tree** and **▼ Reload from Tree** in its top-right corner — see below.
 
-The top action bar contains the frequently used commands and the current case and file display.
+The top action bar is a toolbar docked above the tab strip, holding the frequently used commands and the current case and file display. Its buttons carry an icon and draw flat until you hover over them, rather than each standing out as its own raised, bordered rectangle — the earlier flat-button row read as a second tab bar sitting right above **Tree** / **Boundary** / **BlockMesh**, which this fixes. Right-clicking the toolbar does nothing: there is nothing else to show there, so Qt's usual "hide this toolbar" context menu is turned off rather than offering a way to hide it with no way back.
 
+- Open Case — the same command as **Case > Open Case…** `Ctrl+O`.
 - Save File.
-- Save All Files.
+- Save Case.
 - Reload Case.
 - Case: current case name display.
 - File: current file name display.
+
+**Save File**, **Save Case**, **Reload Case**, and **Open Case** are each backed by the same command the matching **Case** menu entry uses, so the two can never show different labels or a different enabled state for what is really one action — this button used to read **Save All Files** while the menu called the identical command **Save Case**; it is **Save Case** in both places now.
 
 The two commands that move content between the tree and the editor text sit on the *seam* between the two panes, in the top-right corner of the lower row's tab bar, rather than in the top action bar with the disk operations. The arrows read against the vertical splitter: the tree is the upper pane, the editor the lower one.
 
@@ -260,7 +263,7 @@ The two commands that move content between the tree and the editor text sit on t
 
 Because they ride the tab bar rather than sitting inside a tab page, both stay available whichever tab either row is showing — **Apply Text to Tree** still refreshes the BlockMesh 3-D overlays while the **BlockMesh** tab is in front.
 
-The **Editor** tab has its own toolbar row with text search operations.
+The **Editor** tab has its own toolbar row with text search operations — the same real-toolbar, icon-plus-label, flat-until-hovered treatment as the top action bar.
 
 - Find — opens a search dialog (Ctrl+F).
 - Find Prev — wraps to the previous match (Shift+F3).
@@ -273,42 +276,44 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, a *
 
 **Case menu:**
 
-- Case > Open Case `Ctrl+O`.
-- Case > Open from Case Library...
+- Case > Open Case… `Ctrl+O` — also on the top toolbar.
+- Case > Open from Case Library…
 - *Drag and drop:* drag a case directory from your file manager onto any part of the application window to open it. If there are unsaved changes, a confirmation dialog is shown first.
 - Case > Reload Case.
-- Case > Duplicate Case...
-- Case > Duplicate from Case Library...
-- Case > Find OpenFOAM Examples… — the same action as Tools > Find OpenFOAM Examples…, listed here too because it can duplicate a tutorial case as the starting point for a new case. See [Find OpenFOAM Examples](#find-openfoam-examples).
-- Case > Save as New Case...
-- Case > Clean Backup Files...
-- Case > Compare with Case...
 - Case > Save File `Ctrl+S`.
 - Case > Save Case `Ctrl+Shift+S`.
+- Case > Save as New Case…
 - Case > Apply Text to Tree `Ctrl+Shift+A` — the same action as the **▲ Apply Text to Tree** button on the lower tab bar.
 - Case > Reload from Tree — the same action as the **▼ Reload from Tree** button. Deliberately without a shortcut: it overwrites the editor text, discarding any edits not yet applied to the tree.
+- Case > Duplicate Case…
+- Case > Duplicate from Case Library…
+- Case > Find OpenFOAM Examples… — the same action as Tools > Find OpenFOAM Examples…, listed here too because it can duplicate a tutorial case as the starting point for a new case. See [Find OpenFOAM Examples](#find-openfoam-examples).
+- Case > Clean Backup Files…
+- Case > Manage Extra Files & Directories… — moved here from the Settings menu: it acts on the currently open case, not on an application-wide setting. See [Adding extra directories](#adding-extra-directories).
+- Case > Reset File List — moved here alongside Manage Extra Files & Directories, which is all it ever undoes. See [Removing extra files and directories](#removing-extra-files-and-directories).
+- Case > Compare with Case…
 - Case > Exit `Ctrl+Q`.
 
 **View menu:**
 
 - View > Show Type Column (checkable; hidden by default).
 - View > File List `Ctrl+1`, View > Detail Pane `Ctrl+2`, View > Editor / Terminal Pane `Ctrl+3` — checkable; unticking one minimizes that pane. See [Minimizing panes](#minimizing-panes).
+- View > Reset Window Size — moved here from the Settings menu, alongside the pane-toggle items above it: all of them are about the window's on-screen geometry. See [Window size](#window-size).
 - View > BlockMesh 3-D Panel (checkable; shows or hides the BlockMesh tab. Grayed out — with the label "BlockMesh 3-D Panel  (unavailable: xterm active)" — while xterm terminal mode is active due to the GPU conflict).
 - View > View Log Summary… — the same action as Tools > View Log Summary…, listed here too for discoverability. See [View Log Summary](#view-log-summary).
 
 **Settings menu:**
 
-- Settings > Set Default Case Directory.
+- Settings > Set Default Case Directory…
 - Settings > Manage Case Library…
-- Settings > Manage Extra Files & Directories…
-- Settings > Reset File List.
-- Settings > Manage Schema Modules.
-- Settings > Reset Window Size.
+- Settings > Manage Schema Modules…
+- Settings > Generate OpenFOAM Keywords… — rebuild the syntax-highlighter keyword list from a selected OpenFOAM installation. See [Generate OpenFOAM Keywords](#generate-openfoam-keywords).
 - Settings > Reset All Settings…
 - Settings > Appearance — select the colour theme: **Follow System** (default), **Light**, or **Dark**. Takes effect after restarting the application. See [Appearance and colours](#appearance-and-colours).
 - Settings > UI Scale — scale the whole interface by 100 % (default), 125 %, 150 %, 175 % or 200 %. Takes effect after restarting the application. See [Text size and display scaling](#text-size-and-display-scaling).
 - Settings > Language — select the UI language (English / 日本語). Takes effect after restarting the application.
-- Settings > Generate OpenFOAM Keywords… — rebuild the syntax-highlighter keyword list from a selected OpenFOAM installation. See [Generate OpenFOAM Keywords](#generate-openfoam-keywords).
+
+**Manage Extra Files & Directories…**, **Reset File List**, and **Reset Window Size** used to live here; they moved to the **Case** and **View** menus above because each acts on one open case or one window, not on an application-wide setting.
 
 **Tools menu:**
 
@@ -319,6 +324,8 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, a *
 - Tools > Run topoSet… — choose options and run `topoSet` in the case directory. See [Run topoSet](#run-toposet).
 - Tools > Run setFields… — choose options and run `setFields` in the case directory, offering to restore `0/` from `0.orig/` first. See [Run setFields](#run-setfields).
 - Tools > Run checkMesh… — choose options and run `checkMesh` in the case directory. See [Run checkMesh](#run-checkmesh).
+
+  A separator follows the mesh/field utilities above, and another follows each of the next two entries — **Run Allrun Script** is a whole workflow rather than one more per-utility action, and **Open Mesh in ParaView…** is a viewer rather than a run, so each gets its own group in the menu.
 - Tools > Run Allrun Script — run the case's `./Allrun` script, including the solver. See [Run Allrun Script](#run-allrun-script).
 - Tools > Open Mesh in ParaView… — open the current case in ParaView. See [Open Mesh in ParaView](#open-mesh-in-paraview).
 - Tools > Run Allclean Script — run the case's `./Allclean` script. See [Run Allclean Script](#run-allclean-script).
@@ -328,13 +335,15 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, a *
 
 **Help menu:**
 
-- Help > About Foam Dictionary Editor (FoDE)... — shows the application version (with a short dev-build suffix when run from a git checkout), license, and acknowledgements.
-- Help > Keyboard Shortcuts...
-- Help > Resources...
+- Help > About Foam Dictionary Editor (FoDE) — shows the application version (with a short dev-build suffix when run from a git checkout), license, and acknowledgements.
+- Help > Keyboard Shortcuts
+- Help > Resources
+
+None of the three carries an ellipsis: each only displays information, it never asks you for anything first.
 
 ## Current case and file display
 
-The top bar shows the current case as its directory name and the current file as `parent-directory/file-name`. For example, `system/controlDict` and `constant/transportProperties` are shown in that form.
+The toolbar shows the current case as its directory name and the current file as `parent-directory/file-name`. For example, `system/controlDict` and `constant/transportProperties` are shown in that form.
 
 If no case or file is loaded, the labels show `-`.
 
@@ -450,7 +459,7 @@ Right-click any directory header in the file list — including the **case root*
 - **Duplicate '\<dir\>' → '\<counterpart\>'...** — copy a `0/` or `0.orig/` directory to create the missing counterpart (see [Duplicating a field directory](#duplicating-a-field-directory)). This action is shown only for `0` and `0.orig` headers, and only when exactly one of the two directories is present.
 - **Delete '0' directory...** — permanently delete the `0/` directory from disk (see [Deleting a field directory](#deleting-a-field-directory)). Shown only on the `0` header, and only when `0.orig` exists.
 
-Added files are saved to `.foam-editor-files.json` in the case directory and are restored the next time the case is opened. The config file is also copied when **Duplicate Case** uses the app-visible files only mode.
+Added files are saved to `.foam-editor-files.json` in the case directory and are restored the next time the case is opened. The config file is also copied when **Duplicate Case…** uses the app-visible files only mode.
 
 Extra files are displayed in a distinct colour in the file list so they can be told apart from the default target files at a glance.
 
@@ -471,7 +480,7 @@ Hidden files and directories (names starting with `.`, such as the app's own `.f
 Right-click the **Results: …** row at the bottom of the file list. A submenu lists each time directory; click one to add it. Directories already added are greyed out.
 
 **Adding an arbitrary directory via the management dialog:**  
-Open **Settings > Manage Extra Files & Directories…** (or click the indicator button at the top of the file list). In the **Extra Directories** tab, click **Add Directory…**. A folder picker opens rooted at the case directory; select any subdirectory and click **OK**. The selected directory is added with flat (non-recursive) scanning by default and the file list refreshes.
+Open **Case > Manage Extra Files & Directories…** (or click the indicator button at the top of the file list). In the **Extra Directories** tab, click **Add Directory…**. A folder picker opens rooted at the case directory; select any subdirectory and click **OK**. The selected directory is added with flat (non-recursive) scanning by default and the file list refreshes.
 
 **Enabling recursive scan:**  
 By default a directory is scanned flat — only files directly inside it are listed. To include files in subdirectories, check the entry in the **Extra Directories** tab and click **Toggle Recursive**. The entry label changes to `<dir>  [recursive]` to indicate the mode. Click **Toggle Recursive** again on the same entry to revert to flat scanning.
@@ -533,7 +542,7 @@ Files created in directories other than `0/` and `0.orig/` are registered in `.f
 
 ### Cleaning up backup files
 
-Select **Case > Clean Backup Files...** to remove accumulated `.bak_*` files from the current case. The dialog scans the entire case directory recursively and lists every file whose name matches the `.bak_YYYYMMDD_HHMMSS` pattern, showing each relative path and file size.
+Select **Case > Clean Backup Files…** to remove accumulated `.bak_*` files from the current case. The dialog scans the entire case directory recursively and lists every file whose name matches the `.bak_YYYYMMDD_HHMMSS` pattern, showing each relative path and file size.
 
 All files are checked by default. Use the checkboxes to select individual files, or use **Select All** / **Deselect All** to change the entire selection at once. The **Delete Selected (N)** button shows the current count of checked files and is disabled when nothing is selected.
 
@@ -579,7 +588,7 @@ This action deletes files from disk and cannot be undone.
 
 ### Resetting the file list
 
-Select **Settings > Reset File List** to remove all user-added files and directories for the current case. This deletes `.foam-editor-files.json` from the case directory and reloads the file list with the default target files only.
+Select **Case > Reset File List** to remove all user-added files and directories for the current case. This deletes `.foam-editor-files.json` from the case directory and reloads the file list with the default target files only.
 
 ## Boundary view
 
@@ -873,7 +882,7 @@ A compact hint bar at the bottom of the BlockMesh panel shows the key bindings a
 | Reset camera | `R` |
 | Fly to point | `F` |
 
-The full reference is also available in **Help > Keyboard Shortcuts…** under "BlockMesh 3-D viewer (mouse)".
+The full reference is also available in **Help > Keyboard Shortcuts** under "BlockMesh 3-D viewer (mouse)".
 
 ## Schema module configuration
 
@@ -953,11 +962,11 @@ For blocks whose parent name is user-defined (such as named entries inside `refi
 
 The lookup order is: parent-qualified match → grandparent-qualified match → plain key. Existing flat keys continue to work without any changes.
 
-The registry imports each configured module and reads these two names. Any module that follows this convention can be added through **Settings > Manage Schema Modules** without further configuration.
+The registry imports each configured module and reads these two names. Any module that follows this convention can be added through **Settings > Manage Schema Modules…** without further configuration.
 
 ### schema_config.json
 
-`schema_config.json` is created the first time the user modifies schema settings via **Settings > Manage Schema Modules** or triggers a settings reset. If the file does not exist, the built-in default modules are used in memory without writing to disk. The file records the list of schema modules to load.
+`schema_config.json` is created the first time the user modifies schema settings via **Settings > Manage Schema Modules…** or triggers a settings reset. If the file does not exist, the built-in default modules are used in memory without writing to disk. The file records the list of schema modules to load.
 
 ```json
 {
@@ -971,7 +980,7 @@ The registry imports each configured module and reads these two names. Any modul
 }
 ```
 
-To add a custom schema module, select **Settings > Manage Schema Modules** in the application, then use the **Add Module from File** button to select a Python file. The change is saved to `schema_config.json` and takes effect immediately.
+To add a custom schema module, select **Settings > Manage Schema Modules…** in the application, then use the **Add Module from File** button to select a Python file. The change is saved to `schema_config.json` and takes effect immediately.
 
 ## Generate OpenFOAM Keywords
 
@@ -1040,9 +1049,9 @@ General application settings are stored in `app_config.json`, which is separate 
 | Key | Description |
 |---|---|
 | `window_size` | Main window size on startup. Saved automatically when the application is closed. |
-| `default_case_dir` | Initial directory shown when **Case > Open Case** is used. Updated automatically to the parent of the last opened case. Also used as the default destination parent in **Case > Duplicate from Case Library...** and **Case > Save as New Case...**. |
+| `default_case_dir` | Initial directory shown when **Case > Open Case…** is used. Updated automatically to the parent of the last opened case. Also used as the default destination parent in **Case > Duplicate from Case Library…** and **Case > Save as New Case…**. |
 | `case_library_dirs` | User-added Case Library directories. The `$FOAM_TUTORIALS` directory is not stored here; it is included dynamically from the environment variable. |
-| `user_links` | User-defined reference links shown in **Help > Resources... > My Links**. Each entry is `{"label": "…", "url": "…"}`. |
+| `user_links` | User-defined reference links shown in **Help > Resources > My Links**. Each entry is `{"label": "…", "url": "…"}`. |
 | `features` | Feature flags set by `--variant` (see [Variants](#variants)). Omitting this key is equivalent to `{"terminal": true, "blockmesh": true}`. |
 | `openfoam_dir` | OpenFOAM installation chosen via **Browse…** in [Find OpenFOAM Examples](#find-openfoam-examples). Only written after browsing; auto-discovered installations are not stored. |
 | `restore_session` | Whether **Settings > Restore Last Session on Startup** is on. Only written when turned off; absent means on. See [Session restore](#session-restore). |
@@ -1050,11 +1059,11 @@ General application settings are stored in `app_config.json`, which is separate 
 
 ### Setting the default case directory
 
-Select **Settings > Set Default Case Directory** to set the directory that opens when **Case > Open Case** is used. The directory is also updated automatically to the parent of the last opened case, so the next session starts from the same location.
+Select **Settings > Set Default Case Directory…** to set the directory that opens when **Case > Open Case…** is used. The directory is also updated automatically to the parent of the last opened case, so the next session starts from the same location.
 
 ### Window size
 
-The main window opens at the size recorded in `app_config.json`. If the file does not exist, the default size of 1200×800 is used. The size is saved automatically on exit. To restore the default size, select **Settings > Reset Window Size**.
+The main window opens at the size recorded in `app_config.json`. If the file does not exist, the default size of 1200×800 is used. The size is saved automatically on exit. To restore the default size, select **View > Reset Window Size**.
 
 ## Session restore
 
@@ -1355,7 +1364,7 @@ The `tutorials/` directory in the repository root contains ready-to-open OpenFOA
 | `tutorials/topoSetShapes/` | `icoFoam` | Every `topoSetDict` geometry source the [topoSetDict overlay](#toposetdict-overlay) can draw, in one 3×3×3 block |
 | `tutorials/samplingShapes/` | `icoFoam` | The same for the [sampling overlay](#sampling-overlay): probe points, lines, a point cloud and both plane spellings, across all three files sampling can be written in |
 
-Open any case directly with **Case > Open Case** and navigate to the case subdirectory, or duplicate it to a working directory with **Case > Duplicate from Case Library** after adding `tutorials/` to the Case Library.
+Open any case directly with **Case > Open Case…** and navigate to the case subdirectory, or duplicate it to a working directory with **Case > Duplicate from Case Library…** after adding `tutorials/` to the Case Library.
 
 These case files are licensed under the **GPL-3.0**, separate from the AGPL-3.0 that covers FoDE source code. See `tutorials/README.md` for full provenance and license details.
 
@@ -1369,18 +1378,18 @@ When the `FOAM_TUTORIALS` environment variable is set and points to an existing 
 
 ### Managing user-added directories
 
-Select **Settings > Manage Case Library...** to open the library management dialog. The dialog shows two sections.
+Select **Settings > Manage Case Library…** to open the library management dialog. The dialog shows two sections.
 
 - **Auto-detected (read-only)** — shows the `$FOAM_TUTORIALS` path if the environment variable is active. This entry cannot be removed here; it disappears automatically when the variable is unset.
 - **User-added directories** — directories you have added manually. Use **Add Directory...** to browse for a directory to register. Check one or more entries and click **Remove Selected (N)** to remove them. Changes are saved to `app_config.json`.
 
 ### Opening a case from the library
 
-Select **Case > Open from Case Library...** to browse within a library directory and open a case from it. If multiple library directories are registered (including the auto-detected one), the application first asks which library to start from via a drop-down prompt, then opens a directory picker rooted at the chosen library.
+Select **Case > Open from Case Library…** to browse within a library directory and open a case from it. If multiple library directories are registered (including the auto-detected one), the application first asks which library to start from via a drop-down prompt, then opens a directory picker rooted at the chosen library.
 
 ### Duplicating a case from the library
 
-Select **Case > Duplicate from Case Library...** to copy a case from the library into your working directory. The workflow is as follows.
+Select **Case > Duplicate from Case Library…** to copy a case from the library into your working directory. The workflow is as follows.
 
 1. Choose a library directory (if more than one is available).
 2. Navigate to and select the source case inside that library.
@@ -1388,11 +1397,11 @@ Select **Case > Duplicate from Case Library...** to copy a case from the library
 4. Adjust the destination and name if needed, then click **OK** to copy.
 5. After a successful copy, the application offers to open the new case immediately.
 
-The copy mode options (full copy vs. app-visible files only) are the same as for **Case > Duplicate Case**.
+The copy mode options (full copy vs. app-visible files only) are the same as for **Case > Duplicate Case…**.
 
 ## Resources dialog
 
-Select **Help > Resources...** to open the Resources dialog. It has two tabs.
+Select **Help > Resources** to open the Resources dialog. It has two tabs.
 
 ### OpenFOAM tab
 
@@ -1412,7 +1421,7 @@ Changes are saved to `app_config.json` when the dialog is closed.
 
 ## Saving as a new case
 
-Select **Case > Save as New Case...** to write the current editor state to a new case directory and immediately switch to it. Unlike **Duplicate Case** (which copies files from disk), this operation captures whatever is in the in-memory buffers — including unsaved edits — so the new case reflects the exact state visible in the editor at the moment the command is used. The original case is not modified.
+Select **Case > Save as New Case…** to write the current editor state to a new case directory and immediately switch to it. Unlike **Duplicate Case…** (which copies files from disk), this operation captures whatever is in the in-memory buffers — including unsaved edits — so the new case reflects the exact state visible in the editor at the moment the command is used. The original case is not modified.
 
 A dialog shows the following fields.
 
@@ -1429,7 +1438,7 @@ After the copy, the application opens the new case automatically.
 
 ## Duplicating a case
 
-Select **Case > Duplicate Case** to save a copy of the current case under a new name. A dialog is shown with the following fields.
+Select **Case > Duplicate Case…** to save a copy of the current case under a new name. A dialog is shown with the following fields.
 
 - **Save in** — the parent directory for the new case (defaults to the parent of the current case).
 - **New case name** — the name for the new case directory (defaults to the current name with `_copy` appended).
@@ -1440,13 +1449,13 @@ Select **Case > Duplicate Case** to save a copy of the current case under a new 
 
 If the destination already exists, a confirmation prompt is shown before overwriting. After a successful copy, the application offers to open the new case immediately.
 
-If there are unsaved changes when **Duplicate Case** is pressed, the application asks whether to save all modified files before copying so that the duplicated case reflects the latest edits.
+If there are unsaved changes when **Duplicate Case…** is pressed, the application asks whether to save all modified files before copying so that the duplicated case reflects the latest edits.
 
-To duplicate a case from a reference directory rather than the currently open case, use **Case > Duplicate from Case Library...** (see [Case Library](#case-library)). To duplicate an OpenFOAM tutorial case found by keyword search, use the **Duplicate this case…** button in [Find OpenFOAM Examples](#find-openfoam-examples).
+To duplicate a case from a reference directory rather than the currently open case, use **Case > Duplicate from Case Library…** (see [Case Library](#case-library)). To duplicate an OpenFOAM tutorial case found by keyword search, use the **Duplicate this case…** button in [Find OpenFOAM Examples](#find-openfoam-examples).
 
 ## Case comparison
 
-Select **Case > Compare with Case...** to pick a reference case directory and compare it against the currently open case.
+Select **Case > Compare with Case…** to pick a reference case directory and compare it against the currently open case.
 
 Once a reference is selected, a diff bar appears below the action bar. It shows a colour legend, the reference case name and full path, a **Side by side** toggle, and a **Clear** button to exit compare mode.
 
@@ -1507,11 +1516,11 @@ A **Changed files only** checkbox appears in the file list panel while compare m
 
 ### Clearing compare mode
 
-Click **Clear** in the diff bar to exit compare mode. This removes all `≠` markers from the file list, all background highlights from both trees, closes the reference pane, and hides the **Changed files only** filter. Selecting **Case > Compare with Case...** again replaces the current reference with a new one.
+Click **Clear** in the diff bar to exit compare mode. This removes all `≠` markers from the file list, all background highlights from both trees, closes the reference pane, and hides the **Changed files only** filter. Selecting **Case > Compare with Case…** again replaces the current reference with a new one.
 
 ## Reloading a case
 
-Click the **Reload Case** button in the top bar or select **Case > Reload Case** to discard all in-memory edits and reload the current case from disk. All file buffers and dirty state are cleared, and the file list and boundary panel are refreshed exactly as if the case had just been opened.
+Click the **Reload Case** button in the toolbar or select **Case > Reload Case** to discard all in-memory edits and reload the current case from disk. All file buffers and dirty state are cleared, and the file list and boundary panel are refreshed exactly as if the case had just been opened.
 
 If there are unsaved changes, a confirmation dialog shows the number of affected files and asks whether to proceed. Clicking **Yes** discards all changes; clicking **No** leaves the current state unchanged.
 
@@ -1551,7 +1560,7 @@ OpenFOAM renames dictionary keys from time to time, and the two forks do not alw
 
 ### Coverage
 
-These help fields are populated from schema modules. The built-in schemas cover the great majority of entries in `controlDict`, `fvSchemes`, `fvSolution`, `blockMeshDict`, `snappyHexMeshDict`, and `turbulenceProperties` / `momentumTransport`, including entries named after your own case such as `div(phi,U)` or a solver block for a particular field. OpenFOAM is large, so other dictionaries are not yet covered: for a key without a schema the pane still shows its name, type, and value, but the help fields stay blank. You can fill in the gaps by writing your own schema modules, which are plain Python files you can load at runtime via **Settings > Manage Schema Modules**.
+These help fields are populated from schema modules. The built-in schemas cover the great majority of entries in `controlDict`, `fvSchemes`, `fvSolution`, `blockMeshDict`, `snappyHexMeshDict`, and `turbulenceProperties` / `momentumTransport`, including entries named after your own case such as `div(phi,U)` or a solver block for a particular field. OpenFOAM is large, so other dictionaries are not yet covered: for a key without a schema the pane still shows its name, type, and value, but the help fields stay blank. You can fill in the gaps by writing your own schema modules, which are plain Python files you can load at runtime via **Settings > Manage Schema Modules…**.
 
 Modules shipped with a new release are added to your list automatically. If you have previously removed a module, it stays removed.
 

@@ -10,22 +10,11 @@ case must clear the comparison; reloading the same case must keep it armed
 """
 from __future__ import annotations
 
-import sys
-
 import pytest
-from PySide6.QtWidgets import QApplication
 
 _CONTROL_DICT_TEXT = """FoamFile { version 2.0; format ascii; class dictionary; object controlDict; }
 application interFoam;
 """
-
-
-@pytest.fixture(scope="module")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv[:1])
-    return app
 
 
 def _make_case(tmp_path, name: str) -> str:

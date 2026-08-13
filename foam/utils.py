@@ -58,6 +58,17 @@ def is_log_filename(name: str) -> bool:
     return name.startswith("log.")
 
 
+def is_text_only(text: str, path: str | None) -> bool:
+    """Return True when a loaded buffer should be treated as text-only.
+
+    Covers both cases that get no dictionary tree: a shell script (sniffed
+    from ``text``'s shebang) or a ``log.*`` run log (sniffed from ``path``'s
+    filename). ``path`` may be None (e.g. no file is current yet), in which
+    case only the script check applies.
+    """
+    return is_script_text(text) or (path is not None and is_log_filename(Path(path).name))
+
+
 def is_script_path(path: str | Path) -> bool:
     """Return True when the file at path starts with a shebang (``#!``)."""
     try:

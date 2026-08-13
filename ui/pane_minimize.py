@@ -47,8 +47,6 @@ PANE_FILE_LIST = "file_list"
 PANE_DETAIL = "detail"
 PANE_BOTTOM = "bottom"
 
-PANE_NAMES = (PANE_FILE_LIST, PANE_DETAIL, PANE_BOTTOM)
-
 # Qt's QWIDGETSIZE_MAX, which PySide6 does not export.
 _QWIDGETSIZE_MAX = (1 << 24) - 1
 

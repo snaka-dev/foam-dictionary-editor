@@ -12,7 +12,7 @@ from foam.utils import read_foam_file
 from foam.writer import write_root
 from i18n import tr
 from ui.app_state import UndoSnapshot
-from ui.layout_constants import STATUS_SHORT as _STATUS_SHORT
+from ui.layout_constants import STATUS_SHORT
 
 # Stack caps: at most this many snapshots, and no more than this many bytes of
 # serialized text in total (whichever is hit first), so a long editing session
@@ -197,7 +197,7 @@ class _UndoOpsMixin(_Base):
         # represents no real change, so drop it before stepping the history.
         self.state.undo.pending = None
         if not from_stack:
-            self.statusBar().showMessage(empty_msg, _STATUS_SHORT)
+            self.statusBar().showMessage(empty_msg, STATUS_SHORT)
             return
         snap = from_stack.pop()
         current = self._undo_snapshot_of(list(snap.texts))
@@ -207,7 +207,7 @@ class _UndoOpsMixin(_Base):
         others = sum(1 for p in snap.texts if p != self.state.current_file)
         if others:
             done_msg = tr("{msg} (+{n} more file(s))").format(msg=done_msg, n=others)
-        self.statusBar().showMessage(done_msg, _STATUS_SHORT)
+        self.statusBar().showMessage(done_msg, STATUS_SHORT)
 
     def _restore_undo_snapshot(self, snap: UndoSnapshot) -> None:
         undo = self.state.undo

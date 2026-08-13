@@ -54,7 +54,7 @@
         },
         {"do": "click", "menu": "Case", "then": 900, "beat": "the Case menu"},
         {
-          "do": "click", "menu_item": "Duplicate from Case Library...", "then": 3000,
+          "do": "click", "menu_item": "Duplicate from Case Library…", "then": 3000,
           "beat": "the case library",
           "say": "A case starts as a copy of another one. The case library is where the tutorials live, and duplicating from it leaves the original untouched."
         },
@@ -450,7 +450,7 @@
           "beat": "the Case menu"
         },
         {
-          "do": "click", "menu_item": "Compare with Case...", "then": 2200,
+          "do": "click", "menu_item": "Compare with Case…", "then": 2200,
           "beat": "pick a reference case",
           "say": "A case rarely exists on its own — it came from a tutorial, or from last week's run. So point FoDE at the other one."
         },

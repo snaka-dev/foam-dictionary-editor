@@ -5,7 +5,7 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QColor, QIcon, QPixmap
@@ -32,8 +32,10 @@ from foam.block_mesh_extractor import BlockMeshData, extract_block_mesh_data
 from foam.nodes import FoamNode
 from foam.sampling_extractor import SamplingData, extract_sampling_data
 from foam.set_fields_extractor import SetFieldsShape, extract_set_fields_data
+from foam.shapes import SourceShape
 from foam.snappy_hex_mesh_extractor import extract_snappy_hex_mesh_data
 from foam.topo_set_extractor import TopoShape, extract_topo_set_data
+from i18n import tr
 from ui.dialogs.export_stl_dialog import ExportStlDialog
 from ui.fonts import small_font
 from ui.panels.block_mesh_renderer import (
@@ -45,8 +47,8 @@ from ui.panels.block_mesh_renderer import (
     BlockMeshRenderer,
     LoadedSurface,
     RenderSettings,
-    read_surface_mesh,
 )
+from ui.panels.shape_mesh import read_surface_mesh
 from ui.theme import colors
 from ui.widgets.flow_layout import FlowLayout
 from ui.window_state import BlockMeshViewState, decode_qt_state, encode_qt_state
@@ -97,14 +99,37 @@ def _color_swatch(color_name: str, size: int = 12) -> QIcon:
 
 
 def _menu_button(text: str, menu: QMenu, tooltip: str | None = None) -> QToolButton:
-    """Build a QToolButton that instant-pops *menu*; used by the geometry toolbar."""
+    """Build a QToolButton that instant-pops *menu*; used by the geometry toolbar.
+
+    *text* is expected to already be translated (via ``tr()``) by the caller;
+    the trailing " ▾" marker is appended here rather than baked into a
+    translation key, since it is chrome, not prose (see DEVELOPER.md's i18n
+    section). The composed labels — "Vertices ▾", "Blocks ▾", "topoSet ▾",
+    "snappyHexMesh ▾", "setFields ▾", "sample ▾", "Scale ▾", "STL ▾" — are
+    each named here in full so tools/demo_specs.json's button-label targets
+    still resolve to a literal in ui/ (tests/tools/test_demo_specs.py scans
+    for a quoted string, not the rendered widget text).
+    """
     btn = QToolButton()
-    btn.setText(text)
+    btn.setText(text + " ▾")
     btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
     btn.setMenu(menu)
     if tooltip is not None:
         btn.setToolTip(tooltip)
     return btn
+
+
+_T = TypeVar("_T", bound=SourceShape)
+
+
+def _exportable(shapes: list[_T]) -> list[_T]:
+    """Shapes from *shapes* that produce a meaningful STL surface.
+
+    Point markers have no surface and a planeToFaceZone disc's extent is
+    display-only, so neither is offered for export. Generic over the concrete
+    SourceShape subclass so callers keep their specific return type.
+    """
+    return [s for s in shapes if not ({"points", "planePoint"} & s.geometry.keys())]
 
 
 class _StaysOpenMenu(QMenu):
@@ -166,8 +191,10 @@ class _ShapeOverlayMenu:
         self.menu = menu if menu is not None else _StaysOpenMenu(parent)
         self.master = QAction(master_label, self.menu, checkable=True, checked=True)
         self.menu.addAction(self.master)
-        self.show_all = QAction(f"Show all {item_noun}", self.menu)
-        self.hide_all = QAction(f"Hide all {item_noun}", self.menu)
+        # item_noun ("shapes" / "surfaces") is itself tr()'d here rather than at
+        # the call site, since it is folded into the sentence below.
+        self.show_all = QAction(tr("Show all {noun}").format(noun=tr(item_noun)), self.menu)
+        self.hide_all = QAction(tr("Hide all {noun}").format(noun=tr(item_noun)), self.menu)
         self.menu.addAction(self.show_all)
         self.menu.addAction(self.hide_all)
         self.menu.addSeparator()
@@ -270,7 +297,8 @@ class _ShapeOverlayMenu:
 
         if self.non_geometric:
             self.info_menu = QMenu(
-                f"Non-geometric sources ({len(self.non_geometric)})", self.menu
+                tr("Non-geometric sources ({n})").format(n=len(self.non_geometric)),
+                self.menu,
             )
             for shape in self.non_geometric:
                 act = QAction(self._info_row(shape), self.info_menu)
@@ -290,6 +318,15 @@ class _ShapeOverlayMenu:
         if not self.master.isChecked():
             return []
         return [p for p, a in zip(self.locations, self.location_actions) if a.isChecked()]
+
+
+@dataclasses.dataclass
+class GeometryToolbar:
+    """Return value of BlockMeshPanel._build_geometry_toolbar()."""
+
+    toolbar: FlowLayout
+    refresh_btn: QPushButton
+    load_stl_act: QAction
 
 
 class BlockMeshPanel(QWidget):
@@ -366,8 +403,7 @@ class BlockMeshPanel(QWidget):
 
         if not _PYVISTA_OK:
             lbl = QLabel(
-                "pyvista / pyvistaqt is not installed.\n"
-                "Run:  pip install pyvista pyvistaqt"
+                tr("pyvista / pyvistaqt is not installed.\nRun:  pip install pyvista pyvistaqt")
             )
             lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             QVBoxLayout(self).addWidget(lbl)
@@ -378,7 +414,10 @@ class BlockMeshPanel(QWidget):
     # ── UI construction ───────────────────────────────────────────────────────
 
     def _build_controls(self) -> None:
-        toolbar, refresh_btn, load_stl_act = self._build_geometry_toolbar()
+        geometry_toolbar = self._build_geometry_toolbar()
+        toolbar = geometry_toolbar.toolbar
+        refresh_btn = geometry_toolbar.refresh_btn
+        load_stl_act = geometry_toolbar.load_stl_act
         vtx_group = self._build_vertex_table()
 
         plotter_container = QWidget()
@@ -394,15 +433,21 @@ class BlockMeshPanel(QWidget):
         self._view_splitter = splitter
         self._vtx_group = vtx_group
 
-        hint_label = QLabel(_MOUSE_HINT)
+        # _MOUSE_HINT/_MOUSE_HINT_TOOLTIP are module constants (their own English
+        # translation key), so tr() is applied here rather than at definition —
+        # the module is imported before main.py's set_language() call, and a
+        # module-level tr() would freeze the text as English forever.
+        hint_label = QLabel(tr(_MOUSE_HINT))
         hint_label.setFont(small_font(italic=True))
         hint_label.setStyleSheet(f"color: {colors().hint_text};")
-        hint_label.setToolTip(_MOUSE_HINT_TOOLTIP)
+        hint_label.setToolTip(tr(_MOUSE_HINT_TOOLTIP))
         hint_label.setWordWrap(True)
 
         self._preview_banner = QLabel(
-            "Preview mode — changes shown in 3-D view only. "
-            "Tree and file are not modified. Click Refresh to reset."
+            tr(
+                "Preview mode — changes shown in 3-D view only. "
+                "Tree and file are not modified. Click Refresh to reset."
+            )
         )
         self._preview_banner.setStyleSheet(
             f"background: {colors().banner_bg}; color: {colors().banner_fg}; "
@@ -445,193 +490,20 @@ class BlockMeshPanel(QWidget):
             act.triggered.connect(self._render)
         self._label_font_size.valueChanged.connect(self._render)
 
-    def _build_geometry_toolbar(self) -> tuple:
+    def _build_geometry_toolbar(self) -> GeometryToolbar:
         """Build the wrapping toolbar; set geometry-visibility action attrs.
 
         All controls live in a single FlowLayout that reflows onto more
         lines as the panel narrows, so the toolbar never dictates a large
-        minimum panel width.
+        minimum panel width. Split by section below: vertex/block menus,
+        the per-source overlay menus, the STL menu, the scale/label
+        controls, and finally the view buttons.
         """
-        vtx_menu = _StaysOpenMenu(self)
-        self._show_vertices  = QAction("Vertices",       vtx_menu, checkable=True, checked=True)
-        self._show_labels    = QAction("Vertex labels",  vtx_menu, checkable=True, checked=False)
-        self._act_vtx_table  = QAction("Vertices table", vtx_menu, checkable=True, checked=True)
-        vtx_menu.addAction(self._show_vertices)
-        vtx_menu.addAction(self._show_labels)
-        vtx_menu.addAction(self._act_vtx_table)
-
-        vtx_btn = _menu_button("Vertices ▾", vtx_menu)
-
-        blk_menu = _StaysOpenMenu(self)
-        self._show_edges        = QAction("Block edges",  blk_menu, checkable=True, checked=True)
-        self._show_block_labels = QAction("Block labels", blk_menu, checkable=True, checked=False)
-        self._color_blocks      = QAction("Color blocks", blk_menu, checkable=True, checked=False)
-        self._solid_blocks      = QAction("Solid blocks", blk_menu, checkable=True, checked=False)
-        blk_menu.addAction(self._show_edges)
-        blk_menu.addAction(self._show_block_labels)
-        blk_menu.addAction(self._color_blocks)
-        blk_menu.addAction(self._solid_blocks)
-
-        blk_btn = _menu_button("Blocks ▾", blk_menu)
-
-        self._show_boundary = QCheckBox("Boundary faces")
-        self._show_boundary.setChecked(True)
-
-        self._topo = _ShapeOverlayMenu(
-            self,
-            master_label="Show topoSet geometry",
-            legend_title="Action colours",
-            legend={a: _ACTION_COLORS[a] for a in ("new", "add", "subtract", "subset", "invert")},
-            shape_row=lambda s: (
-                _color_swatch(_ACTION_COLORS.get(s.action, "gray")),
-                f"{s.label or '(unnamed)'}  ·  {s.kind}",
-            ),
-            info_row=lambda s: f"{s.label or '(unnamed)'}  ·  {s.kind}  (no geometry)",
-            on_changed=self._render,
-        )
-
-        topo_btn = _menu_button(
-            "topoSet ▾",
-            self._topo.menu,
-            "Show geometry sources from topoSetDict, or toggle individual shapes\n"
-            "(load topoSetDict to populate)",
-        )
-
-        self._snappy = _ShapeOverlayMenu(
-            self,
-            master_label="Show snappyHexMesh geometry",
-            legend_title="Category colours",
-            legend={
-                c: _SNAPPY_CATEGORY_COLORS[c] for c in ("surface", "region", "geometry")
-            },
-            shape_row=lambda s: (
-                _color_swatch(_SNAPPY_CATEGORY_COLORS.get(s.category, "gray")),
-                f"{s.label}  ·  {s.kind}  {s.level or s.mode or ''}".strip(),
-            ),
-            info_row=lambda s: f"{s.label}  ·  {s.kind}  (no geometry)",
-            location_row=lambda location: f"📍 {location[1]}",
-            on_changed=self._render,
-        )
-
-        snappy_btn = _menu_button(
-            "snappyHexMesh ▾",
-            self._snappy.menu,
-            "Show geometry/refinementSurfaces/refinementRegions from\n"
-            "snappyHexMeshDict, or toggle individual shapes\n"
-            "(load snappyHexMeshDict to populate)",
-        )
-
-        self._set_fields = _ShapeOverlayMenu(
-            self,
-            master_label="Show setFields regions",
-            legend_title="Region colour",
-            legend={"region": _SET_FIELDS_REGION_COLOR},
-            shape_row=lambda s: (
-                _color_swatch(_SET_FIELDS_REGION_COLOR),
-                f"{s.label or '(no fieldValues)'}  ·  {s.kind}",
-            ),
-            info_row=lambda s: f"{s.label or '(no fieldValues)'}  ·  {s.kind}  (no geometry)",
-            on_changed=self._render,
-        )
-
-        set_fields_btn = _menu_button(
-            "setFields ▾",
-            self._set_fields.menu,
-            "Show region sources from setFieldsDict, or toggle individual shapes\n"
-            "(load setFieldsDict to populate). Regions larger than the block mesh\n"
-            "are clipped in the view and marked '(clipped)'.",
-        )
-
-        self._sampling = _ShapeOverlayMenu(
-            self,
-            master_label="Show sampling geometry",
-            legend_title="Sampling colour",
-            legend={"probes / lines / planes": _SAMPLING_COLOR},
-            shape_row=lambda s: (
-                _color_swatch(_SAMPLING_COLOR),
-                f"{s.label or '(unnamed)'}  ·  {s.kind}  [{s.source_file}]",
-            ),
-            info_row=lambda s: (
-                f"{s.label or '(unnamed)'}  ·  {s.kind}  [{s.source_file}]"
-                "  (no geometry)"
-            ),
-            on_changed=self._render,
-        )
-
-        sampling_btn = _menu_button(
-            "sample ▾",
-            self._sampling.menu,
-            "Show sampling geometry — probes, sample lines, sample planes — from\n"
-            "controlDict's functions {} block or a standalone sampling dict\n"
-            "(sample / probes / surfaces / singleGraph), or toggle individual\n"
-            "shapes (load one of those files to populate)",
-        )
-
-        scale_menu = _StaysOpenMenu(self)
-        self._act_axes   = QAction("Axes",       scale_menu, checkable=True, checked=True)
-        self._act_grid   = QAction("Grid",       scale_menu, checkable=True, checked=True)
-        self._act_bounds = QAction("Dimensions", scale_menu, checkable=True, checked=True)
-        scale_menu.addAction(self._act_axes)
-        scale_menu.addAction(self._act_grid)
-        scale_menu.addAction(self._act_bounds)
-
-        scale_btn = _menu_button("Scale ▾", scale_menu)
-
-        # Stays open so the per-file visibility rows below can be multi-toggled;
-        # the plain actions added here still dismiss it as usual.
-        stl_menu = _StaysOpenMenu(self)
-        load_stl_act = stl_menu.addAction("Load STL / OBJ…")
-        self._unload_stl_menu = QMenu("Unload", stl_menu)
-        self._unload_stl_menu.setEnabled(False)
-        stl_menu.addMenu(self._unload_stl_menu)
-        self._clear_stl_act = stl_menu.addAction("Clear STL")
-        self._clear_stl_act.setEnabled(False)
-        stl_menu.addSeparator()
-        self._export_stl_act = stl_menu.addAction("Export Shapes as STL…")
-        self._export_stl_act.setEnabled(False)
-        self._export_stl_act.setToolTip(
-            "Save topoSetDict / snappyHexMeshDict / setFieldsDict shapes as\n"
-            "individual STL files (load one of those dicts to populate)"
-        )
-        stl_menu.addSeparator()
-
-        # Adopts the menu built above so Load/Unload/Clear/Export stay at the
-        # top and the per-file rows are appended underneath. Each row carries
-        # its own colour swatch, so there is no static legend to show.
-        self._loaded_surfaces = _ShapeOverlayMenu(
-            self,
-            master_label="Show loaded surfaces",
-            legend_title="",
-            legend={},
-            shape_row=lambda s: (_color_swatch(s.color), f"{s.label}  ·  {s.kind}"),
-            info_row=lambda s: s.label,
-            on_changed=self._render,
-            menu=stl_menu,
-            item_noun="surfaces",
-        )
-
-        stl_btn = _menu_button(
-            "STL ▾",
-            stl_menu,
-            "Load STL/OBJ surfaces as a reference overlay, toggle or unload\n"
-            "individual ones, or export dictionary shapes as STL files",
-        )
-
-        refresh_btn = QPushButton("Refresh")
-
-        self._label_font_size = QSpinBox()
-        self._label_font_size.setRange(6, 32)
-        self._label_font_size.setValue(10)
-        self._label_font_size.setToolTip("Font size for vertex and block labels")
-        self._label_font_size.setFixedWidth(52)
-
-        # "Label size:" and its spinbox wrap as one unit.
-        label_size_group = QWidget()
-        label_size_layout = QHBoxLayout(label_size_group)
-        label_size_layout.setContentsMargins(0, 0, 0, 0)
-        label_size_layout.setSpacing(4)
-        label_size_layout.addWidget(QLabel("Label size:"))
-        label_size_layout.addWidget(self._label_font_size)
+        vtx_btn, blk_btn = self._build_vertex_and_block_menus()
+        topo_btn, snappy_btn, set_fields_btn, sampling_btn = self._build_overlay_menus()
+        refresh_btn = QPushButton(tr("Refresh"))
+        stl_btn, load_stl_act = self._build_stl_menu()
+        scale_btn, label_size_group = self._build_scale_and_label_controls()
 
         toolbar = FlowLayout()
         toolbar.addWidget(vtx_btn)
@@ -645,7 +517,235 @@ class BlockMeshPanel(QWidget):
         toolbar.addWidget(stl_btn)
         toolbar.addWidget(scale_btn)
         toolbar.addWidget(label_size_group)
-        toolbar.addWidget(QLabel("View:"))
+        toolbar.addWidget(QLabel(tr("View:")))
+        self._build_view_buttons(toolbar)
+
+        return GeometryToolbar(toolbar=toolbar, refresh_btn=refresh_btn, load_stl_act=load_stl_act)
+
+    def _build_vertex_and_block_menus(self) -> tuple[QToolButton, QToolButton]:
+        """Build the Vertices ▾ / Blocks ▾ menus and the boundary-faces checkbox."""
+        vtx_menu = _StaysOpenMenu(self)
+        self._show_vertices  = QAction(tr("Vertices"),       vtx_menu, checkable=True, checked=True)
+        self._show_labels    = QAction(tr("Vertex labels"),  vtx_menu, checkable=True, checked=False)
+        self._act_vtx_table  = QAction(tr("Vertices table"), vtx_menu, checkable=True, checked=True)
+        vtx_menu.addAction(self._show_vertices)
+        vtx_menu.addAction(self._show_labels)
+        vtx_menu.addAction(self._act_vtx_table)
+
+        vtx_btn = _menu_button(tr("Vertices"), vtx_menu)
+
+        blk_menu = _StaysOpenMenu(self)
+        self._show_edges        = QAction(tr("Block edges"),  blk_menu, checkable=True, checked=True)
+        self._show_block_labels = QAction(tr("Block labels"), blk_menu, checkable=True, checked=False)
+        self._color_blocks      = QAction(tr("Color blocks"), blk_menu, checkable=True, checked=False)
+        self._solid_blocks      = QAction(tr("Solid blocks"), blk_menu, checkable=True, checked=False)
+        blk_menu.addAction(self._show_edges)
+        blk_menu.addAction(self._show_block_labels)
+        blk_menu.addAction(self._color_blocks)
+        blk_menu.addAction(self._solid_blocks)
+
+        blk_btn = _menu_button(tr("Blocks"), blk_menu)
+
+        self._show_boundary = QCheckBox(tr("Boundary faces"))
+        self._show_boundary.setChecked(True)
+
+        return vtx_btn, blk_btn
+
+    def _build_overlay_menus(self) -> tuple[QToolButton, QToolButton, QToolButton, QToolButton]:
+        """Build the topoSet ▾ / snappyHexMesh ▾ / setFields ▾ / sample ▾ menus.
+
+        One _ShapeOverlayMenu construction per source, kept as five
+        straight-line blocks rather than a data table: they share only the
+        constructor, not enough fields in common to be worth one (see
+        DEVELOPER.md's "Update candidates").
+        """
+        # shape_row/info_row lambdas mix static prose ("(unnamed)", "(no geometry)")
+        # with data straight out of the user's dictionary (s.label, s.kind); only
+        # the static parts are translated. The action/category words themselves
+        # ("new"/"add"/…, "surface"/"region"/"geometry") are OpenFOAM vocabulary —
+        # the literal keywords in the dictionary file being viewed — and are
+        # deliberately left untranslated so the legend still matches the file.
+        self._topo = _ShapeOverlayMenu(
+            self,
+            master_label=tr("Show topoSet geometry"),
+            legend_title=tr("Action colours"),
+            legend={a: _ACTION_COLORS[a] for a in ("new", "add", "subtract", "subset", "invert")},
+            shape_row=lambda s: (
+                _color_swatch(_ACTION_COLORS.get(s.action, "gray")),
+                f"{s.label or tr('(unnamed)')}  ·  {s.kind}",
+            ),
+            info_row=lambda s: f"{s.label or tr('(unnamed)')}  ·  {s.kind}  {tr('(no geometry)')}",
+            on_changed=self._render,
+        )
+
+        topo_btn = _menu_button(
+            tr("topoSet"),
+            self._topo.menu,
+            tr(
+                "Show geometry sources from topoSetDict, or toggle individual shapes\n"
+                "(load topoSetDict to populate)"
+            ),
+        )
+
+        self._snappy = _ShapeOverlayMenu(
+            self,
+            master_label=tr("Show snappyHexMesh geometry"),
+            legend_title=tr("Category colours"),
+            legend={
+                c: _SNAPPY_CATEGORY_COLORS[c] for c in ("surface", "region", "geometry")
+            },
+            shape_row=lambda s: (
+                _color_swatch(_SNAPPY_CATEGORY_COLORS.get(s.category, "gray")),
+                f"{s.label}  ·  {s.kind}  {s.level or s.mode or ''}".strip(),
+            ),
+            info_row=lambda s: f"{s.label}  ·  {s.kind}  {tr('(no geometry)')}",
+            location_row=lambda location: f"📍 {location[1]}",
+            on_changed=self._render,
+        )
+
+        snappy_btn = _menu_button(
+            tr("snappyHexMesh"),
+            self._snappy.menu,
+            tr(
+                "Show geometry/refinementSurfaces/refinementRegions from\n"
+                "snappyHexMeshDict, or toggle individual shapes\n"
+                "(load snappyHexMeshDict to populate)"
+            ),
+        )
+
+        self._set_fields = _ShapeOverlayMenu(
+            self,
+            master_label=tr("Show setFields regions"),
+            legend_title=tr("Region colour"),
+            legend={"region": _SET_FIELDS_REGION_COLOR},
+            shape_row=lambda s: (
+                _color_swatch(_SET_FIELDS_REGION_COLOR),
+                f"{s.label or tr('(no fieldValues)')}  ·  {s.kind}",
+            ),
+            info_row=lambda s: f"{s.label or tr('(no fieldValues)')}  ·  {s.kind}  {tr('(no geometry)')}",
+            on_changed=self._render,
+        )
+
+        set_fields_btn = _menu_button(
+            tr("setFields"),
+            self._set_fields.menu,
+            tr(
+                "Show region sources from setFieldsDict, or toggle individual shapes\n"
+                "(load setFieldsDict to populate). Regions larger than the block mesh\n"
+                "are clipped in the view and marked '(clipped)'."
+            ),
+        )
+
+        self._sampling = _ShapeOverlayMenu(
+            self,
+            master_label=tr("Show sampling geometry"),
+            legend_title=tr("Sampling colour"),
+            legend={tr("probes / lines / planes"): _SAMPLING_COLOR},
+            shape_row=lambda s: (
+                _color_swatch(_SAMPLING_COLOR),
+                f"{s.label or tr('(unnamed)')}  ·  {s.kind}  [{s.source_file}]",
+            ),
+            info_row=lambda s: (
+                f"{s.label or tr('(unnamed)')}  ·  {s.kind}  [{s.source_file}]"
+                f"  {tr('(no geometry)')}"
+            ),
+            on_changed=self._render,
+        )
+
+        sampling_btn = _menu_button(
+            tr("sample"),
+            self._sampling.menu,
+            tr(
+                "Show sampling geometry — probes, sample lines, sample planes — from\n"
+                "controlDict's functions {} block or a standalone sampling dict\n"
+                "(sample / probes / surfaces / singleGraph), or toggle individual\n"
+                "shapes (load one of those files to populate)"
+            ),
+        )
+
+        return topo_btn, snappy_btn, set_fields_btn, sampling_btn
+
+    def _build_stl_menu(self) -> tuple[QToolButton, QAction]:
+        """Build the STL ▾ menu: load/unload/clear/export plus loaded-surface rows."""
+        stl_menu = _StaysOpenMenu(self)
+        load_stl_act = stl_menu.addAction(tr("Load STL / OBJ…"))
+        self._unload_stl_menu = QMenu(tr("Unload"), stl_menu)
+        self._unload_stl_menu.setEnabled(False)
+        stl_menu.addMenu(self._unload_stl_menu)
+        self._clear_stl_act = stl_menu.addAction(tr("Clear STL"))
+        self._clear_stl_act.setEnabled(False)
+        stl_menu.addSeparator()
+        self._export_stl_act = stl_menu.addAction(tr("Export Shapes as STL…"))
+        self._export_stl_act.setEnabled(False)
+        self._export_stl_act.setToolTip(
+            tr(
+                "Save topoSetDict / snappyHexMeshDict / setFieldsDict shapes as\n"
+                "individual STL files (load one of those dicts to populate)"
+            )
+        )
+        stl_menu.addSeparator()
+
+        # Adopts the menu built above so Load/Unload/Clear/Export stay at the
+        # top and the per-file rows are appended underneath. Each row carries
+        # its own colour swatch, so there is no static legend to show.
+        self._loaded_surfaces = _ShapeOverlayMenu(
+            self,
+            master_label=tr("Show loaded surfaces"),
+            legend_title="",
+            legend={},
+            shape_row=lambda s: (_color_swatch(s.color), f"{s.label}  ·  {s.kind}"),
+            info_row=lambda s: s.label,
+            on_changed=self._render,
+            menu=stl_menu,
+            item_noun="surfaces",
+        )
+
+        stl_btn = _menu_button(
+            tr("STL"),
+            stl_menu,
+            tr(
+                "Load STL/OBJ surfaces as a reference overlay, toggle or unload\n"
+                "individual ones, or export dictionary shapes as STL files"
+            ),
+        )
+
+        return stl_btn, load_stl_act
+
+    def _build_scale_and_label_controls(self) -> tuple[QToolButton, QWidget]:
+        """Build the Scale ▾ menu (axes/grid/dimensions) and the label-size spinbox."""
+        scale_menu = _StaysOpenMenu(self)
+        self._act_axes   = QAction(tr("Axes"),       scale_menu, checkable=True, checked=True)
+        self._act_grid   = QAction(tr("Grid"),       scale_menu, checkable=True, checked=True)
+        self._act_bounds = QAction(tr("Dimensions"), scale_menu, checkable=True, checked=True)
+        scale_menu.addAction(self._act_axes)
+        scale_menu.addAction(self._act_grid)
+        scale_menu.addAction(self._act_bounds)
+
+        scale_btn = _menu_button(tr("Scale"), scale_menu)
+
+        self._label_font_size = QSpinBox()
+        self._label_font_size.setRange(6, 32)
+        self._label_font_size.setValue(10)
+        self._label_font_size.setToolTip(tr("Font size for vertex and block labels"))
+        self._label_font_size.setFixedWidth(52)
+
+        # "Label size:" and its spinbox wrap as one unit.
+        label_size_group = QWidget()
+        label_size_layout = QHBoxLayout(label_size_group)
+        label_size_layout.setContentsMargins(0, 0, 0, 0)
+        label_size_layout.setSpacing(4)
+        label_size_layout.addWidget(QLabel(tr("Label size:")))
+        label_size_layout.addWidget(self._label_font_size)
+
+        return scale_btn, label_size_group
+
+    def _build_view_buttons(self, toolbar: FlowLayout) -> None:
+        """Append the +X/-X/…/Iso camera-view buttons to *toolbar*.
+
+        Axis symbols and "Iso" are identical in Japanese, so these are
+        deliberately not tr()-wrapped (see the axis-label entries in
+        tests/ui/test_translatable_strings.py's _ALLOWED).
+        """
         for _label, _fn, _kw in [
             ("+X", "view_yz",        {"negative": False}),
             ("-X", "view_yz",        {"negative": True}),
@@ -662,11 +762,10 @@ class BlockMeshPanel(QWidget):
             )
             toolbar.addWidget(_btn)
 
-        return toolbar, refresh_btn, load_stl_act
-
     def _build_vertex_table(self) -> QGroupBox:
         """Build the vertex table with the variable-preview info bar; return the group box."""
         self._vtx_table = QTableWidget(0, 4)
+        # "#"/"X"/"Y"/"Z" are coordinate/index headers, identical in Japanese.
         self._vtx_table.setHorizontalHeaderLabels(["#", "X", "Y", "Z"])
         self._vtx_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._vtx_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
@@ -677,15 +776,17 @@ class BlockMeshPanel(QWidget):
         for col in (1, 2, 3):
             hdr.setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
 
-        self._preview_btn = QPushButton("Preview")
+        self._preview_btn = QPushButton(tr("Preview"))
         self._preview_btn.setCheckable(True)
         self._preview_btn.setToolTip(
-            "Enable Preview mode: edit vertex coordinates in the table.\n"
-            "Changes are shown in the 3-D view only — tree and file are not modified.\n"
-            "Click Refresh to reset to the tree values."
+            tr(
+                "Enable Preview mode: edit vertex coordinates in the table.\n"
+                "Changes are shown in the 3-D view only — tree and file are not modified.\n"
+                "Click Refresh to reset to the tree values."
+            )
         )
 
-        vtx_vars_label = QLabel("⚙ Variable-based")
+        vtx_vars_label = QLabel(tr("⚙ Variable-based"))
         vtx_vars_label.setFont(small_font())
         vtx_vars_label.setStyleSheet(
             f"color: {colors().banner_fg}; background: {colors().banner_bg}; "
@@ -701,7 +802,7 @@ class BlockMeshPanel(QWidget):
         info_row.addStretch()
         self._vtx_info_bar.setVisible(False)
 
-        vtx_group = QGroupBox("Vertices")
+        vtx_group = QGroupBox(tr("Vertices"))
         vtx_inner = QVBoxLayout(vtx_group)
         vtx_inner.setContentsMargins(2, 4, 2, 2)
         vtx_inner.setSpacing(2)
@@ -962,7 +1063,9 @@ class BlockMeshPanel(QWidget):
 
         if truncated:
             msg = QTableWidgetItem(
-                f"… {n} vertices total (table limited to {shown})"
+                tr("… {n} vertices total (table limited to {shown})").format(
+                    n=n, shown=shown
+                )
             )
             msg.setFlags(Qt.ItemFlag.ItemIsEnabled)
             self._vtx_table.setItem(shown, 0, msg)
@@ -1108,9 +1211,9 @@ class BlockMeshPanel(QWidget):
         if not _PYVISTA_OK:
             return
         paths, _ = QFileDialog.getOpenFileNames(
-            self, "Load STL / OBJ", "",
-            "STL / OBJ files (*.stl *.STL *.stlb *.obj *.OBJ "
-            "*.stl.gz *.STL.gz *.obj.gz *.OBJ.gz *.stlb.gz);;All files (*)",
+            self, tr("Load STL / OBJ"), "",
+            f"{tr('STL / OBJ files')} (*.stl *.STL *.stlb *.obj *.OBJ "
+            f"*.stl.gz *.STL.gz *.obj.gz *.OBJ.gz *.stlb.gz);;{tr('All files')} (*)",
         )
         if not paths:
             return
@@ -1148,7 +1251,8 @@ class BlockMeshPanel(QWidget):
             self._render()
         if failures:
             QMessageBox.warning(
-                self, "STL Load Error", "Could not load:\n" + "\n".join(failures)
+                self, tr("STL Load Error"),
+                tr("Could not load:\n{files}").format(files="\n".join(failures)),
             )
 
     def _surface_index(self, path: str) -> int | None:
@@ -1204,24 +1308,12 @@ class BlockMeshPanel(QWidget):
     # ── STL export ────────────────────────────────────────────────────────────
 
     def _exportable_topo_shapes(self) -> list[TopoShape]:
-        """topoSet shapes that produce a meaningful STL surface.
-
-        Point markers have no surface and a planeToFaceZone disc's extent is
-        display-only, so neither is offered for export.
-        """
-        topo_shapes = self._topo.shapes if self._topo is not None else []
-        return [
-            s for s in topo_shapes
-            if not ({"points", "planePoint"} & s.geometry.keys())
-        ]
+        """topoSet shapes that produce a meaningful STL surface (see _exportable())."""
+        return _exportable(self._topo.shapes if self._topo is not None else [])
 
     def _exportable_set_fields_shapes(self) -> list[SetFieldsShape]:
         """setFields regions that produce a meaningful STL surface (unclipped)."""
-        set_fields_shapes = self._set_fields.shapes if self._set_fields is not None else []
-        return [
-            s for s in set_fields_shapes
-            if not ({"points", "planePoint"} & s.geometry.keys())
-        ]
+        return _exportable(self._set_fields.shapes if self._set_fields is not None else [])
 
     def _update_export_stl_enabled(self) -> None:
         if self._export_stl_act is not None:

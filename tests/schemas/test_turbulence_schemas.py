@@ -28,14 +28,14 @@ ROOT = Path(__file__).resolve().parents[2]
 # ── fixtures ──────────────────────────────────────────────────────────────────
 
 @pytest.fixture
-def config_path(monkeypatch, tmp_path):
+def schema_config_path(monkeypatch, tmp_path):
     path = tmp_path / "schema_config.json"
     monkeypatch.setattr("schemas.config_store.CONFIG_FILE", path)
     return path
 
 
 @pytest.fixture
-def registry(config_path):
+def registry(schema_config_path):
     return SchemaRegistry()
 
 

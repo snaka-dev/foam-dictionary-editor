@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from i18n import tr
 from services.case_loader import list_directory_files
 from ui.panels.file_list_panel import group_display_name
+from ui.widgets._checkable_list import checked_items, set_all_check_states
 
 _DIALOG_WIDTH = 400
 _DIALOG_HEIGHT = 300
@@ -90,32 +91,19 @@ class AddFilesDialog(QDialog):
             bottom.addWidget(close_btn)
             layout.addLayout(bottom)
 
-    def _checked_items(self) -> list[QListWidgetItem]:
-        return [
-            self._list.item(i)
-            for i in range(self._list.count())
-            if self._list.item(i).checkState() == Qt.CheckState.Checked
-        ]
-
     def _update_add_btn(self) -> None:
-        n = len(self._checked_items())
+        n = len(checked_items(self._list))
         self._add_btn.setText(tr("Add Selected ({n})").format(n=n))
         self._add_btn.setEnabled(n > 0)
 
     def _select_all(self) -> None:
-        self._list.blockSignals(True)
-        for i in range(self._list.count()):
-            self._list.item(i).setCheckState(Qt.CheckState.Checked)
-        self._list.blockSignals(False)
+        set_all_check_states(self._list, Qt.CheckState.Checked)
         self._update_add_btn()
 
     def _deselect_all(self) -> None:
-        self._list.blockSignals(True)
-        for i in range(self._list.count()):
-            self._list.item(i).setCheckState(Qt.CheckState.Unchecked)
-        self._list.blockSignals(False)
+        set_all_check_states(self._list, Qt.CheckState.Unchecked)
         self._update_add_btn()
 
     @property
     def selected_paths(self) -> list[str]:
-        return [item.data(Qt.ItemDataRole.UserRole) for item in self._checked_items()]
+        return [item.data(Qt.ItemDataRole.UserRole) for item in checked_items(self._list)]

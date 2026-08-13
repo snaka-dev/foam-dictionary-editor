@@ -3,8 +3,8 @@
 """Tests for the rename-boundary scanner (find_rename_targets)."""
 from __future__ import annotations
 
+from foam.boundary_patch import find_rename_targets
 from foam.parser import OpenFoamParser
-from ui.dialogs.rename_boundary_dialog import find_rename_targets
 
 
 def _parse(text: str):

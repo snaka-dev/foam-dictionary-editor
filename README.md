@@ -55,9 +55,9 @@ Without these packages the BlockMesh tab shows an install prompt and the 3-D vie
    The chosen variant is saved to `app_config.json` on exit and used automatically on the next launch.
 
 2. **Open a case** — choose one:
-   - *Your own case:* **Case > Open Case** → select your case directory
+   - *Your own case:* **Case > Open Case…** → select your case directory
    - *Drag and drop:* drag a case directory from your file manager onto any part of the application window
-   - *Start from a tutorial:* **Case > Duplicate from Case Library** → browse `$FOAM_TUTORIALS` → copy to your working directory
+   - *Start from a tutorial:* **Case > Duplicate from Case Library…** → browse `$FOAM_TUTORIALS` → copy to your working directory
    - *Use a bundled example:* open any case from the `tutorials/` directory in the repository root (see [Example Cases](#example-cases))
 
 3. **Select a file** from the left panel (e.g. `system/controlDict`, `0/U`)
@@ -128,7 +128,7 @@ Each heading links to the full documentation in [USER_GUIDE.md](USER_GUIDE.md).
 - **Settings > Language** — switch between English and 日本語 (takes effect after restart); add more languages by dropping a translation file into `i18n/`
 
 **[Reference links](USER_GUIDE.md#resources-dialog)**
-- **Help > Resources...** — official OpenFOAM documentation links, plus a personal **My Links** list
+- **Help > Resources** — official OpenFOAM documentation links, plus a personal **My Links** list
 
 ## Full Reference
 
@@ -174,6 +174,8 @@ Citation is not required, but if FoDE has been useful in your research, a citati
 Copyright (C) 2025-2026 Shinji NAKAGAWA. Released under the [GNU Affero General Public License v3.0 or later](LICENSE) (AGPL-3.0-or-later).
 
 Some material here comes from OpenFOAM and is **not** covered by that licence: the bundled tutorial cases, the extracted keyword list, and the documentation quoted in the generated turbulence schema modules. That material is GPL-3.0-or-later and is held by several parties — the OpenFOAM Foundation, OpenCFD Ltd, Upstream CFD GmbH and Keysight Technologies. See [THIRD-PARTY.md](THIRD-PARTY.md) for per-file credits, generated from the sources rather than maintained by hand.
+
+The toolbar and menu icons in `ui/assets/icons/` were drawn for this project rather than taken from an existing icon set, so they are covered by the licence above and carry no third-party attribution requirement. They are deliberately plain conventional forms — a folder, a disk, a circular arrow, a magnifier — laid out on a 16-pixel grid so they stay sharp at the size they are actually drawn.
 
 ## Disclaimer
 

@@ -53,6 +53,13 @@ SMALL_TEXT_MIN_POINT_SIZE = 7.0
 # usually goes with it is a style, and stays in the stylesheet.
 HEADING_TEXT_RATIO = 1.25
 
+# Toolbar/menu icons, as a multiple of the CSS pixel size text renders at. 1.30
+# of the 9 pt default's 12 px comes to 16 — the conventional small-icon size —
+# and grows with the desktop font the same as everything else here, rather
+# than pinning 16px outright and leaving icons behind when text grows.
+ICON_TO_TEXT_RATIO = 1.30
+ICON_MIN_PIXEL_SIZE = 12
+
 
 def ui_point_size() -> float:
     """Return the application font's size in points.
@@ -135,3 +142,16 @@ def css_pixel_size(point_size: float | None = None) -> int:
     if point_size is None:
         point_size = ui_point_size()
     return max(1, round(point_size * _CSS_PIXELS_PER_POINT))
+
+
+def icon_pixel_size() -> int:
+    """Return the side length, in pixels, for a toolbar/menu icon.
+
+    Routed through :func:`css_pixel_size` rather than a pinned 16: the rule
+    here is size through the font, style through the stylesheet (see
+    DEVELOPER.md's "Font sizes and display scaling"), and an icon sized apart
+    from the text beside it would be exactly the kind of thing that rule
+    exists to prevent. The floor keeps an icon usable on a desktop font small
+    enough that the ratio alone would shrink it past recognition.
+    """
+    return max(ICON_MIN_PIXEL_SIZE, round(css_pixel_size() * ICON_TO_TEXT_RATIO))

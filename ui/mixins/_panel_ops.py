@@ -11,19 +11,11 @@ from PySide6.QtGui import QAction, QKeySequence
 
 from i18n import tr
 from ui.layout_constants import (
-    BLOCKMESH_DICT_NAME as _BLOCKMESH_DICT_NAME,
-)
-from ui.layout_constants import (
-    SAMPLING_DICT_NAMES as _SAMPLING_DICT_NAMES,
-)
-from ui.layout_constants import (
-    SETFIELDS_DICT_NAME as _SETFIELDS_DICT_NAME,
-)
-from ui.layout_constants import (
-    SNAPPY_HEX_MESH_DICT_NAME as _SNAPPY_HEX_MESH_DICT_NAME,
-)
-from ui.layout_constants import (
-    TOPOSET_DICT_NAME as _TOPOSET_DICT_NAME,
+    BLOCKMESH_DICT_NAME,
+    SAMPLING_DICT_NAMES,
+    SETFIELDS_DICT_NAME,
+    SNAPPY_HEX_MESH_DICT_NAME,
+    TOPOSET_DICT_NAME,
 )
 from ui.pane_minimize import PANE_BOTTOM, PANE_DETAIL, PANE_FILE_LIST
 
@@ -84,11 +76,11 @@ class _PanelOpsMixin(_Base):
             self.state.current_file
             and Path(self.state.current_file).name
             in (
-                _BLOCKMESH_DICT_NAME,
-                _TOPOSET_DICT_NAME,
-                _SNAPPY_HEX_MESH_DICT_NAME,
-                _SETFIELDS_DICT_NAME,
-                *_SAMPLING_DICT_NAMES,
+                BLOCKMESH_DICT_NAME,
+                TOPOSET_DICT_NAME,
+                SNAPPY_HEX_MESH_DICT_NAME,
+                SETFIELDS_DICT_NAME,
+                *SAMPLING_DICT_NAMES,
             )
         )
         xterm_active = (

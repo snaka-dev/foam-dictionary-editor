@@ -87,16 +87,7 @@ class AppConfigManager:
         if data is None:
             if self._config_path.exists():
                 print("Warning: Failed to load config file: invalid JSON")
-            self._window_size = None
-            self._default_case_dir = None
-            self._case_library_dirs = []
-            self._user_links = []
-            self._features = {}
-            self._openfoam_dir = None
-            self._theme = DEFAULT_THEME
-            self._ui_scale = DEFAULT_UI_SCALE
-            self._restore_session = DEFAULT_RESTORE_SESSION
-            self._sessions = {}
+            self.reset()
             return
         self._window_size = data.get("window_size", None)
         self._default_case_dir = data.get("default_case_dir", None)

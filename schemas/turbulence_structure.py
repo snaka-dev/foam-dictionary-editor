@@ -27,10 +27,12 @@ entries that exist in only one fork are tagged accordingly.
 from __future__ import annotations
 
 from schemas._base import (
+    BOTH,
     FOUNDATION_SERIES,
     OPENCFD_SERIES,
     ChoiceItem,
     KeySchema,
+    entry,
 )
 from schemas._turbulence_coeffs import MODEL_DOCS
 
@@ -44,20 +46,11 @@ TARGET_FILES = ("turbulenceProperties", "momentumTransport")
 # never explained by another's.
 OPEN_NAMESPACES = ("RAS", "LES", "laminar")
 
-_BOTH = (FOUNDATION_SERIES, OPENCFD_SERIES)
 _OC = (OPENCFD_SERIES,)
 _FD = (FOUNDATION_SERIES,)
 
-_BOOL_CHOICES = (
-    ChoiceItem("on", "Enabled.", _BOTH),
-    ChoiceItem("off", "Disabled.", _BOTH),
-    ChoiceItem("yes", "Enabled.", _BOTH),
-    ChoiceItem("no", "Disabled.", _BOTH),
-    ChoiceItem("true", "Enabled.", _BOTH),
-    ChoiceItem("false", "Disabled.", _BOTH),
-)
 
-def _model(name: str, supported_in: tuple[str, ...] = _BOTH,
+def _model(name: str, supported_in: tuple[str, ...] = BOTH,
            fallback: str = "") -> ChoiceItem:
     """One entry of a model selector, in OpenFOAM's own words where they exist.
 
@@ -87,7 +80,7 @@ _RAS_MODELS = (
     _model("kEpsilonPhitF", _OC),
     _model("kOmega2006", _FD),
     _model("v2f", _FD),
-    _model("laminar", _BOTH, "No turbulence model; laminar stress only."),
+    _model("laminar", BOTH, "No turbulence model; laminar stress only."),
 )
 
 _LES_MODELS = (
@@ -105,36 +98,39 @@ _LES_MODELS = (
 )
 
 _DELTA_MODELS = (
-    ChoiceItem("cubeRootVol", "Cube root of the cell volume. The usual choice.", _BOTH),
-    ChoiceItem("vanDriest", "Adds van Driest damping near walls.", _BOTH),
-    ChoiceItem("smooth", "Limits how fast delta may change between neighbouring cells.", _BOTH),
-    ChoiceItem("maxDeltaxyz", "Largest cell edge length.", _BOTH),
-    ChoiceItem("Prandtl", "Prandtl-based damping.", _BOTH),
-    ChoiceItem("IDDESDelta", "Delta formulation required by IDDES.", _BOTH),
+    ChoiceItem("cubeRootVol", "Cube root of the cell volume. The usual choice.", BOTH),
+    ChoiceItem("vanDriest", "Adds van Driest damping near walls.", BOTH),
+    ChoiceItem("smooth", "Limits how fast delta may change between neighbouring cells.", BOTH),
+    ChoiceItem("maxDeltaxyz", "Largest cell edge length.", BOTH),
+    ChoiceItem("Prandtl", "Prandtl-based damping.", BOTH),
+    ChoiceItem("IDDESDelta", "Delta formulation required by IDDES.", BOTH),
     ChoiceItem("maxDeltaxyzCubeRootLESDelta", "Blend of maxDeltaxyz and cubeRootVol.", _OC),
     ChoiceItem("DeltaOmegaTilde", "Vorticity-based delta.", _OC),
     ChoiceItem("SLADelta", "Shear-layer-adapted delta.", _OC),
 )
 
 
-def _entry(key: str, label: str, description: str,
-           choices: tuple[ChoiceItem, ...] = (),
-           supported_in: tuple[str, ...] = _BOTH, note: str = "") -> KeySchema:
-    return KeySchema(
-        key=key, label=label, description=description,
-        supported_in=supported_in, choices=choices, note=note,
-    )
-
-
 # `turbulence` and `printCoeffs` sit in whichever of RAS/LES is active.
+# Deliberately not `schemas._base.SWITCH_CHOICES`: the shared tuple leads with
+# yes/no, but the tutorials spell these two keys `turbulence on;`, so on/off
+# comes first here. The Detail panel shows the choices in this order.
+_BOOL_CHOICES = (
+    ChoiceItem("on", "Enabled.", BOTH),
+    ChoiceItem("off", "Disabled.", BOTH),
+    ChoiceItem("yes", "Enabled.", BOTH),
+    ChoiceItem("no", "Disabled.", BOTH),
+    ChoiceItem("true", "Enabled.", BOTH),
+    ChoiceItem("false", "Disabled.", BOTH),
+)
+
 _SHARED = {
-    "turbulence": _entry(
+    "turbulence": entry(
         "turbulence", "Turbulence",
         "Switches the turbulence model on. With it off the model is constructed "
         "but contributes nothing, leaving a laminar solution.",
         _BOOL_CHOICES,
     ),
-    "printCoeffs": _entry(
+    "printCoeffs": entry(
         "printCoeffs", "Print Coefficients",
         "Prints the model's coefficients to the log at start-up — the quickest "
         "way to see which defaults are actually in force.",
@@ -143,21 +139,21 @@ _SHARED = {
 }
 
 SCHEMAS: dict[str, KeySchema] = {
-    "simulationType": _entry(
+    "simulationType": entry(
         "simulationType", "Simulation Type",
         "Which family of turbulence treatment the case uses. Selects which of "
         "the dictionaries below is read.",
         (
-            ChoiceItem("RAS", "Reynolds-averaged simulation; reads the RAS dictionary.", _BOTH),
-            ChoiceItem("LES", "Large-eddy simulation; reads the LES dictionary.", _BOTH),
-            ChoiceItem("laminar", "No turbulence modelling.", _BOTH),
+            ChoiceItem("RAS", "Reynolds-averaged simulation; reads the RAS dictionary.", BOTH),
+            ChoiceItem("LES", "Large-eddy simulation; reads the LES dictionary.", BOTH),
+            ChoiceItem("laminar", "No turbulence modelling.", BOTH),
         ),
     ),
 
     # ── RAS ───────────────────────────────────────────────────────────────────
-    "RAS": _entry("RAS", "RAS Settings",
+    "RAS": entry("RAS", "RAS Settings",
         "Settings for Reynolds-averaged simulation, read when simulationType is RAS."),
-    "RAS.model": _entry(
+    "RAS.model": entry(
         "model", "RAS Model",
         "Which Reynolds-averaged model to use.",
         _RAS_MODELS,
@@ -168,7 +164,7 @@ SCHEMAS: dict[str, KeySchema] = {
         key="RASModel", label="RAS Model (former name)",
         description="Former name of the RAS 'model' selector, still accepted by "
                     "both forks and still the spelling in most tutorials.",
-        supported_in=_BOTH,
+        supported_in=BOTH,
         status="renamed",
         use_instead="model",
         deprecated_since="v2006",
@@ -177,9 +173,9 @@ SCHEMAS: dict[str, KeySchema] = {
     **{f"RAS.{k}": v for k, v in _SHARED.items()},
 
     # ── LES ───────────────────────────────────────────────────────────────────
-    "LES": _entry("LES", "LES Settings",
+    "LES": entry("LES", "LES Settings",
         "Settings for large-eddy simulation, read when simulationType is LES."),
-    "LES.model": _entry(
+    "LES.model": entry(
         "model", "LES Model",
         "Which sub-grid-scale model to use.",
         _LES_MODELS,
@@ -190,88 +186,88 @@ SCHEMAS: dict[str, KeySchema] = {
         key="LESModel", label="LES Model (former name)",
         description="Former name of the LES 'model' selector, still accepted by "
                     "both forks and still the spelling in most tutorials.",
-        supported_in=_BOTH,
+        supported_in=BOTH,
         status="renamed",
         use_instead="model",
         deprecated_since="v2006",
         choices=_LES_MODELS,
     ),
     **{f"LES.{k}": v for k, v in _SHARED.items()},
-    "LES.delta": _entry(
+    "LES.delta": entry(
         "delta", "Delta Model",
         "How the sub-grid length scale is computed from the mesh. Each choice "
         "reads its own <name>Coeffs sub-dictionary.",
         _DELTA_MODELS,
     ),
-    "LES.filter": _entry(
+    "LES.filter": entry(
         "filter", "Filter",
         "Filter used by the dynamic SGS models.",
         (
-            ChoiceItem("simple", "Simple box filter.", _BOTH),
-            ChoiceItem("anisotropic", "Anisotropic filter.", _BOTH),
-            ChoiceItem("laplace", "Laplacian filter.", _BOTH),
+            ChoiceItem("simple", "Simple box filter.", BOTH),
+            ChoiceItem("anisotropic", "Anisotropic filter.", BOTH),
+            ChoiceItem("laplace", "Laplacian filter.", BOTH),
         ),
     ),
-    "LES.turbulenceModelCoeffs": _entry("turbulenceModelCoeffs", "Model Coefficients",
+    "LES.turbulenceModelCoeffs": entry("turbulenceModelCoeffs", "Model Coefficients",
         "Coefficients for the selected SGS model."),
 
     # ── delta coefficient dictionaries ────────────────────────────────────────
-    "LES.cubeRootVolCoeffs": _entry("cubeRootVolCoeffs", "cubeRootVol Coefficients",
+    "LES.cubeRootVolCoeffs": entry("cubeRootVolCoeffs", "cubeRootVol Coefficients",
         "Coefficients for the cubeRootVol delta model."),
-    "LES.vanDriestCoeffs": _entry("vanDriestCoeffs", "vanDriest Coefficients",
+    "LES.vanDriestCoeffs": entry("vanDriestCoeffs", "vanDriest Coefficients",
         "Coefficients for the vanDriest delta model."),
-    "LES.smoothCoeffs": _entry("smoothCoeffs", "smooth Coefficients",
+    "LES.smoothCoeffs": entry("smoothCoeffs", "smooth Coefficients",
         "Coefficients for the smooth delta model."),
-    "LES.maxDeltaxyzCoeffs": _entry("maxDeltaxyzCoeffs", "maxDeltaxyz Coefficients",
+    "LES.maxDeltaxyzCoeffs": entry("maxDeltaxyzCoeffs", "maxDeltaxyz Coefficients",
         "Coefficients for the maxDeltaxyz delta model."),
-    "LES.PrandtlCoeffs": _entry("PrandtlCoeffs", "Prandtl Coefficients",
+    "LES.PrandtlCoeffs": entry("PrandtlCoeffs", "Prandtl Coefficients",
         "Coefficients for the Prandtl delta model."),
-    "LES.IDDESDeltaCoeffs": _entry("IDDESDeltaCoeffs", "IDDESDelta Coefficients",
+    "LES.IDDESDeltaCoeffs": entry("IDDESDeltaCoeffs", "IDDESDelta Coefficients",
         "Coefficients for the IDDES delta model."),
 
-    "deltaCoeff": _entry("deltaCoeff", "Delta Coefficient",
+    "deltaCoeff": entry("deltaCoeff", "Delta Coefficient",
         "Scaling applied to the computed delta. Usually 1."),
-    "maxDeltaRatio": _entry("maxDeltaRatio", "Maximum Delta Ratio",
+    "maxDeltaRatio": entry("maxDeltaRatio", "Maximum Delta Ratio",
         "Largest permitted ratio of delta between neighbouring cells, used by "
         "the smooth delta model."),
-    "Cdelta": _entry("Cdelta", "Cdelta",
+    "Cdelta": entry("Cdelta", "Cdelta",
         "Delta coefficient of the Prandtl and van Driest delta models."),
-    "Aplus": _entry("Aplus", "A+",
+    "Aplus": entry("Aplus", "A+",
         "Van Driest damping constant, normally 26."),
-    "Cmu": _entry("Cmu", "Cmu",
+    "Cmu": entry("Cmu", "Cmu",
         "Cmu as used by the delta models when converting between length scales."),
-    "kappa": _entry("kappa", "von Karman Constant",
+    "kappa": entry("kappa", "von Karman Constant",
         "Von Karman constant, normally 0.41."),
 
     # Each delta model reads its own sub-dictionary, whose entries are the
     # scalars above; the wildcard keeps them answerable without repeating each
     # coefficient under every dictionary name.
     # ── laminar ───────────────────────────────────────────────────────────────
-    "laminar": _entry("laminar", "Laminar Settings",
+    "laminar": entry("laminar", "Laminar Settings",
         "Settings read when simulationType is laminar — the stress model used in "
         "place of a turbulence model."),
-    "laminar.model": _entry(
+    "laminar.model": entry(
         "model", "Laminar Stress Model",
         "Which laminar stress model to use.",
         (
-            ChoiceItem("Stokes", "Newtonian Stokes stress. The usual choice.", _BOTH),
-            ChoiceItem("Maxwell", "Maxwell viscoelastic stress model.", _BOTH),
-            ChoiceItem("lambdaThixotropic", "Thixotropic viscoelastic model.", _BOTH),
-            ChoiceItem("generalisedNewtonian", "Generalised Newtonian stress.", _BOTH),
+            ChoiceItem("Stokes", "Newtonian Stokes stress. The usual choice.", BOTH),
+            ChoiceItem("Maxwell", "Maxwell viscoelastic stress model.", BOTH),
+            ChoiceItem("lambdaThixotropic", "Thixotropic viscoelastic model.", BOTH),
+            ChoiceItem("generalisedNewtonian", "Generalised Newtonian stress.", BOTH),
         ),
     ),
     **{f"laminar.{k}": v for k, v in _SHARED.items()},
     "laminar.laminarModel": KeySchema(
         key="laminarModel", label="Laminar Model (former name)",
         description="Former name of the laminar 'model' selector.",
-        supported_in=_BOTH, status="renamed", use_instead="model",
+        supported_in=BOTH, status="renamed", use_instead="model",
         deprecated_since="v2006",
     ),
-    "density": _entry("density", "Density Treatment",
+    "density": entry("density", "Density Treatment",
         "Whether the transport model is solved in incompressible or compressible form.",
         (
-            ChoiceItem("incompressible", "Incompressible formulation.", _BOTH),
-            ChoiceItem("compressible", "Compressible formulation.", _BOTH),
+            ChoiceItem("incompressible", "Incompressible formulation.", BOTH),
+            ChoiceItem("compressible", "Compressible formulation.", BOTH),
         )),
 
     # ── per-model coefficient dictionaries ────────────────────────────────────
@@ -279,7 +275,7 @@ SCHEMAS: dict[str, KeySchema] = {
     # name the dictionaries that hold them, including models the generator does
     # not yet cover.
     **{
-        f"{family}.{model}Coeffs": _entry(
+        f"{family}.{model}Coeffs": entry(
             f"{model}Coeffs", f"{model} Coefficients",
             f"Coefficients overriding the {model} model's source defaults. Any "
             f"coefficient left out keeps its built-in value.",
@@ -301,7 +297,7 @@ SCHEMAS: dict[str, KeySchema] = {
     # from its dictionary. Exact entries win, so this never shadows them — and
     # it keeps one model's coefficient from being explained by another's.
     **{
-        f"{model}Coeffs.*": _entry(
+        f"{model}Coeffs.*": entry(
             "*", f"{model}Coeffs/<coefficient>",
             f"A coefficient of the {model} model.",
         )
@@ -316,16 +312,16 @@ SCHEMAS: dict[str, KeySchema] = {
         )
     },
 
-    "cubeRootVolCoeffs.*": _entry("*", "cubeRootVolCoeffs/<entry>",
+    "cubeRootVolCoeffs.*": entry("*", "cubeRootVolCoeffs/<entry>",
         "Coefficient of the cubeRootVol delta model."),
-    "vanDriestCoeffs.*": _entry("*", "vanDriestCoeffs/<entry>",
+    "vanDriestCoeffs.*": entry("*", "vanDriestCoeffs/<entry>",
         "Coefficient of the vanDriest delta model."),
-    "smoothCoeffs.*": _entry("*", "smoothCoeffs/<entry>",
+    "smoothCoeffs.*": entry("*", "smoothCoeffs/<entry>",
         "Coefficient of the smooth delta model."),
-    "maxDeltaxyzCoeffs.*": _entry("*", "maxDeltaxyzCoeffs/<entry>",
+    "maxDeltaxyzCoeffs.*": entry("*", "maxDeltaxyzCoeffs/<entry>",
         "Coefficient of the maxDeltaxyz delta model."),
-    "PrandtlCoeffs.*": _entry("*", "PrandtlCoeffs/<entry>",
+    "PrandtlCoeffs.*": entry("*", "PrandtlCoeffs/<entry>",
         "Coefficient of the Prandtl delta model."),
-    "IDDESDeltaCoeffs.*": _entry("*", "IDDESDeltaCoeffs/<entry>",
+    "IDDESDeltaCoeffs.*": entry("*", "IDDESDeltaCoeffs/<entry>",
         "Coefficient of the IDDES delta model."),
 }

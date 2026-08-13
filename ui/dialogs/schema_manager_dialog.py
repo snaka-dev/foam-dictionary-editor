@@ -78,16 +78,16 @@ class SchemaManagerDialog(QDialog):
         if module_name is None:
             QMessageBox.warning(
                 self,
-                "Invalid File",
-                "Please select a file within the 'schemas' directory.",
+                tr("Invalid File"),
+                tr("Please select a file within the 'schemas' directory."),
             )
             return
 
         if module_name in self._modules:
             QMessageBox.information(
                 self,
-                "Already Added",
-                f"Module '{module_name}' is already in the list.",
+                tr("Already Added"),
+                tr("Module '{name}' is already in the list.").format(name=module_name),
             )
             return
 
@@ -97,14 +97,14 @@ class SchemaManagerDialog(QDialog):
     def _remove_module(self) -> None:
         item = self._list.currentItem()
         if item is None:
-            QMessageBox.warning(self, "No Selection", "Please select a module to remove.")
+            QMessageBox.warning(self, tr("No Selection"), tr("Please select a module to remove."))
             return
 
         module_name = item.text()
         reply = QMessageBox.question(
             self,
-            "Confirm Removal",
-            f"Remove module '{module_name}' from the list?",
+            tr("Confirm Removal"),
+            tr("Remove module '{name}' from the list?").format(name=module_name),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -119,8 +119,8 @@ class SchemaManagerDialog(QDialog):
         save_current_config()
         QMessageBox.information(
             self,
-            "Saved",
-            "Configuration saved and schemas reloaded successfully!",
+            tr("Saved"),
+            tr("Configuration saved and schemas reloaded successfully!"),
         )
         self.accept()
 

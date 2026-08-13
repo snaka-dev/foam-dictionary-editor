@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 from foam.include_resolver import ResolvedInclude
 from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser, ParseError
-from foam.utils import is_large_non_foam_file, is_log_filename, is_script_text, read_foam_file
+from foam.utils import is_large_non_foam_file, is_script_text, is_text_only, read_foam_file
 from i18n import tr
 from services.case_files_config import CaseFilesConfig
 from services.case_loader import FIELD_DIRS, list_case_files
@@ -23,15 +23,7 @@ from services.include_scan import (
     resolve_directive_text,
     scan_includes,
 )
-from ui.layout_constants import (
-    STATUS_NORMAL as _STATUS_NORMAL,
-)
-from ui.layout_constants import (
-    STATUS_SHORT as _STATUS_SHORT,
-)
-from ui.layout_constants import (
-    STATUS_WARNING as _STATUS_WARNING,
-)
+from ui.layout_constants import STATUS_NORMAL, STATUS_SHORT, STATUS_WARNING
 from ui.panels.file_list_panel import display_file_name
 
 if TYPE_CHECKING:
@@ -49,16 +41,16 @@ def _include_failure_message(resolved: ResolvedInclude) -> tuple[str, int]:
     if resolved.status == "missing_optional":
         return (
             tr("Optional include not present: {target}").format(target=resolved.ref.arg),
-            _STATUS_SHORT,
+            STATUS_SHORT,
         )
     if resolved.status == "no_installation":
         return (
             tr("No OpenFOAM installation found — #includeEtc/#includeFunc cannot be resolved."),
-            _STATUS_WARNING,
+            STATUS_WARNING,
         )
     return (
         tr("Include not found: {target}").format(target=resolved.ref.arg),
-        _STATUS_WARNING,
+        STATUS_WARNING,
     )
 
 
@@ -231,7 +223,7 @@ class _FileOpsMixin(_Base):
                     return
                 self.statusBar().showMessage(
                     tr("Loading large file: {name} — please wait…").format(name=Path(path).name),
-                    _STATUS_SHORT,
+                    STATUS_SHORT,
                 )
             try:
                 text = read_foam_file(path)
@@ -249,9 +241,9 @@ class _FileOpsMixin(_Base):
             self._update_window_title()
             self._update_file_label()
             self.file_list_panel.mark_dirty(path, self.state.text_dirty)
-            self.statusBar().showMessage(tr("Loaded: {path}").format(path=path), _STATUS_NORMAL)
+            self.statusBar().showMessage(tr("Loaded: {path}").format(path=path), STATUS_NORMAL)
 
-            if is_script_text(text) or is_log_filename(Path(path).name):
+            if is_text_only(text, path):
                 # Shell script (Allrun, …) or run log: text editing only, no tree.
                 self.state.parsed_roots.pop(path, None)
                 self._load_tree(FoamNode(name="root", node_type="dictionary"))
@@ -262,25 +254,32 @@ class _FileOpsMixin(_Base):
                     if is_script_text(text)
                     else tr("Text file — no dictionary tree: {path}")
                 )
-                self.statusBar().showMessage(message.format(path=path), _STATUS_NORMAL)
+                self.statusBar().showMessage(message.format(path=path), STATUS_NORMAL)
                 return
             try:
                 _parser = self._parse_and_update(path, text)
                 self.detail_panel.show_empty()
                 if _parser.errors:
                     n = len(_parser.errors)
+                    # Singular and plural are separate keys rather than one
+                    # key with the noun interpolated: the interpolated word
+                    # would not itself go through tr(), so a translation that
+                    # renders the rest of the sentence would still splice the
+                    # English "entry"/"entries" into it.
                     self.statusBar().showMessage(
-                        tr("Parsed: {path} — {n} unrecognized {entries}").format(
-                            path=path, n=n, entries=("entry" if n == 1 else "entries")
+                        tr("Parsed: {path} — 1 unrecognized entry").format(path=path)
+                        if n == 1
+                        else tr("Parsed: {path} — {n} unrecognized entries").format(
+                            path=path, n=n
                         ),
-                        _STATUS_WARNING,
+                        STATUS_WARNING,
                     )
                 else:
                     self.statusBar().showMessage(
-                        tr("Parsed successfully: {path}").format(path=path), _STATUS_NORMAL
+                        tr("Parsed successfully: {path}").format(path=path), STATUS_NORMAL
                     )
             except ParseError as e:
-                self.statusBar().showMessage(tr("Parse warning: {e}").format(e=e), _STATUS_WARNING)
+                self.statusBar().showMessage(tr("Parse warning: {e}").format(e=e), STATUS_WARNING)
                 QMessageBox.warning(
                     self,
                     tr("Parse Warning"),
@@ -301,7 +300,7 @@ class _FileOpsMixin(_Base):
                 tr("Read-only file — outside the case directory: {name}").format(
                     name=Path(self.state.current_file).name
                 ),
-                _STATUS_WARNING,
+                STATUS_WARNING,
             )
             return
 
@@ -316,10 +315,10 @@ class _FileOpsMixin(_Base):
             self.file_list_panel.mark_dirty(self.state.current_file, False)
             self._reload_file_list()
             self.statusBar().showMessage(
-                tr("Saved: {path}").format(path=self.state.current_file), _STATUS_NORMAL
+                tr("Saved: {path}").format(path=self.state.current_file), STATUS_NORMAL
             )
 
-            if is_script_text(text) or is_log_filename(Path(self.state.current_file).name):
+            if is_text_only(text, self.state.current_file):
                 return  # shell script or run log: no tree to refresh
 
             try:
@@ -327,20 +326,22 @@ class _FileOpsMixin(_Base):
                 if _parser.errors:
                     n = len(_parser.errors)
                     self.statusBar().showMessage(
-                        tr("Saved: {path} — {n} unrecognized {entries}").format(
-                            path=self.state.current_file,
-                            n=n,
-                            entries=("entry" if n == 1 else "entries"),
+                        tr("Saved: {path} — 1 unrecognized entry").format(
+                            path=self.state.current_file
+                        )
+                        if n == 1
+                        else tr("Saved: {path} — {n} unrecognized entries").format(
+                            path=self.state.current_file, n=n
                         ),
-                        _STATUS_WARNING,
+                        STATUS_WARNING,
                     )
                 else:
                     self.statusBar().showMessage(
                         tr("Saved and parsed: {path}").format(path=self.state.current_file),
-                        _STATUS_NORMAL,
+                        STATUS_NORMAL,
                     )
             except ParseError as e:
-                self.statusBar().showMessage(tr("Saved, but parse failed: {e}").format(e=e), _STATUS_WARNING)
+                self.statusBar().showMessage(tr("Saved, but parse failed: {e}").format(e=e), STATUS_WARNING)
                 QMessageBox.warning(
                     self,
                     tr("Saved with Parse Warning"),
@@ -361,7 +362,7 @@ class _FileOpsMixin(_Base):
             p for p, dirty in self.state.file_dirty.items() if dirty and not self._is_read_only(p)
         ]
         if not dirty_paths:
-            self.statusBar().showMessage(tr("No unsaved files."), _STATUS_SHORT)
+            self.statusBar().showMessage(tr("No unsaved files."), STATUS_SHORT)
             return
 
         saved = []
@@ -393,7 +394,7 @@ class _FileOpsMixin(_Base):
                 tr("Failed to save the following files:\n{files}").format(files=failed_names),
             )
         else:
-            self.statusBar().showMessage(tr("Saved {n} file(s).").format(n=len(saved)), _STATUS_NORMAL)
+            self.statusBar().showMessage(tr("Saved {n} file(s).").format(n=len(saved)), STATUS_NORMAL)
 
     # ── file list settings ────────────────────────────────────────────────────
 
@@ -403,7 +404,7 @@ class _FileOpsMixin(_Base):
             return
         config = CaseFilesConfig(self.state.current_case_dir)
         if not config.exists:
-            self.statusBar().showMessage(tr("No extra files configured for this case."), _STATUS_SHORT)
+            self.statusBar().showMessage(tr("No extra files configured for this case."), STATUS_SHORT)
             return
         reply = QMessageBox.question(
             self,
@@ -419,7 +420,7 @@ class _FileOpsMixin(_Base):
             return
         config.delete_config_file()
         self._load_case_dir(self.state.current_case_dir)
-        self.statusBar().showMessage(tr("File list reset to default."), _STATUS_SHORT)
+        self.statusBar().showMessage(tr("File list reset to default."), STATUS_SHORT)
 
     # ── scan-group / cache helpers ────────────────────────────────────────────
 
@@ -429,7 +430,7 @@ class _FileOpsMixin(_Base):
         self.state.case_files_config.add_dir(dir_name)
         self.state.case_files_config.save()
         self._reload_file_list()
-        self.statusBar().showMessage(tr("Added directory: {dir}/").format(dir=dir_name), _STATUS_SHORT)
+        self.statusBar().showMessage(tr("Added directory: {dir}/").format(dir=dir_name), STATUS_SHORT)
 
     def _on_remove_extra_dir(self, rel_dir: str) -> None:
         if not self.state.case_files_config:
@@ -438,7 +439,7 @@ class _FileOpsMixin(_Base):
         self.state.case_files_config.save()
         self._reload_file_list()
         self.statusBar().showMessage(
-            tr("Removed directory from file list: {dir}/").format(dir=rel_dir), _STATUS_SHORT
+            tr("Removed directory from file list: {dir}/").format(dir=rel_dir), STATUS_SHORT
         )
 
     def _purge_file_caches(self, path: str) -> None:

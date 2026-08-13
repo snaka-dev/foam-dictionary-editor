@@ -15,7 +15,7 @@ from Tree is left without one on purpose: it overwrites the editor text.
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
-from PySide6.QtWidgets import QMenu, QPushButton
+from PySide6.QtWidgets import QMenu, QPushButton, QToolBar
 
 
 def _sync_buttons(win):
@@ -120,10 +120,15 @@ class TestTreeTextSyncBar:
         assert listed.get("Apply Text to Tree") == "Ctrl+Shift+A"
 
     def test_top_bar_no_longer_carries_them(self, main_window):
-        top_bar_texts = {
-            b.text()
-            for b in main_window.centralWidget().findChildren(QPushButton)
-            if not main_window.bottom_tabs.isAncestorOf(b)
-        }
-        assert "Apply Text to Tree" not in top_bar_texts
-        assert "Reload from Tree" not in top_bar_texts
+        """The old QPushButton-based top bar carried neither command, and its
+        QToolBar replacement (see ui/main_window.py's _build_top_bar) still
+        doesn't -- asserted against the toolbar's own actions rather than
+        against centralWidget(), since a QToolBar added via addToolBar() sits
+        outside the central widget and the original assertion would now pass
+        vacuously (the QPushButton set it searched is unconditionally empty).
+        """
+        toolbar = main_window.findChild(QToolBar, "action_toolbar")
+        assert toolbar is not None
+        toolbar_texts = {a.text() for a in toolbar.actions()}
+        assert "Apply Text to Tree" not in toolbar_texts
+        assert "Reload from Tree" not in toolbar_texts

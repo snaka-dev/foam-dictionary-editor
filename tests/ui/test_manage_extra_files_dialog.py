@@ -5,21 +5,10 @@ Tests for ui/manage_extra_files_dialog.py.
 """
 from __future__ import annotations
 
-import sys
-
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
 
 from ui.dialogs.manage_extra_files_dialog import ManageExtraFilesDialog
-
-
-@pytest.fixture(scope="module")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv[:1])
-    yield app
 
 
 @pytest.fixture

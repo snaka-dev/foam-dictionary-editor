@@ -7,8 +7,6 @@ however large the desktop font was set — see ui/fonts.py.
 """
 from __future__ import annotations
 
-import sys
-
 import pytest
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication, QLabel
@@ -20,14 +18,6 @@ from ui.panels.block_mesh_panel import BlockMeshPanel
 pytestmark = pytest.mark.skipif(
     not block_mesh_panel._PYVISTA_OK, reason="pyvista/pyvistaqt not installed"
 )
-
-
-@pytest.fixture(scope="module")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv[:1])
-    return app
 
 
 def _label(panel: BlockMeshPanel, needle: str) -> QLabel:

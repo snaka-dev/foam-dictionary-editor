@@ -5,17 +5,14 @@ Tests for ui/file_list_panel.py.
 
 Covers load_files display, header markers, signal emission, and the
 backup_file_requested signal from the file-item context menu.
-A module-scoped QApplication is required to instantiate QWidget subclasses.
 """
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QApplication
 
 from model.file_list_model import (
     INCLUDED_GROUP,
@@ -42,15 +39,6 @@ from ui.panels.file_list_panel import (
     group_display_name,
 )
 from ui.theme import colors
-
-# ── QApplication fixture ──────────────────────────────────────────────────────
-
-@pytest.fixture(scope="module")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv[:1])
-    yield app
 
 
 @pytest.fixture
@@ -982,3 +970,54 @@ class TestDiffFilter:
         assert item.isHidden()
         panel.mark_diff(p1, 5)
         assert not item.isHidden()
+
+
+# ── long paths elide instead of scrolling sideways ──────────────────────────
+#
+# `constant/transportProperties` used to render as `constant/transportPropertie`
+# behind a horizontal scrollbar: QListWidget had no elide mode and nothing
+# turned the scrollbar off. Turning the horizontal bar off makes QListView
+# clamp item width to the viewport and elide instead -- per this repo's
+# recorded lesson on measuring Qt pane overflow, checked via the scrollbar's
+# range, not sizeHint(), which reports the same number whether or not
+# anything on screen actually got truncated.
+
+# Narrow enough that "constant/transportProperties" cannot fit unelided.
+_NARROW_WIDTH = 160
+
+
+class TestLongPathsDoNotScrollSideways:
+    def test_no_horizontal_scrollbar_at_narrow_width(self, panel, tmp_path, qapp):
+        (tmp_path / "constant").mkdir()
+        path = tmp_path / "constant" / "transportProperties"
+        path.write_text("", encoding="utf-8")
+        panel.resize(_NARROW_WIDTH, 300)
+        panel.show()
+        panel.load_files([str(path)], case_dir=str(tmp_path))
+        # QListView only recomputes its scrollbar range once it processes the
+        # LayoutRequest queued by load_files -- read too early and maximum()
+        # reports a stale 0 regardless of whether the row actually overflows.
+        qapp.processEvents()
+        assert panel._list.horizontalScrollBar().maximum() == 0
+
+    def test_item_tooltip_still_carries_the_untruncated_text(self, panel, tmp_path):
+        (tmp_path / "constant").mkdir()
+        path = tmp_path / "constant" / "transportProperties"
+        path.write_text("", encoding="utf-8")
+        panel.resize(_NARROW_WIDTH, 300)
+        panel.show()
+        panel.load_files([str(path)], case_dir=str(tmp_path))
+        item = panel._find_item_by_path(str(path))
+        assert item.toolTip() == str(path)
+
+    def test_group_header_also_carries_a_tooltip(self, panel, tmp_path):
+        """Every other row kind already had a full-text tooltip; only the
+        group header didn't -- and with the horizontal scrollbar off, a
+        narrow panel can now elide even a header's own (normally short) text."""
+        (tmp_path / "constant").mkdir()
+        path = tmp_path / "constant" / "transportProperties"
+        path.write_text("", encoding="utf-8")
+        panel.load_files([str(path)], case_dir=str(tmp_path))
+        header = panel._list.item(0)
+        assert header.data(_HEADER_GROUP_ROLE) == "constant"
+        assert header.toolTip() == header.text()

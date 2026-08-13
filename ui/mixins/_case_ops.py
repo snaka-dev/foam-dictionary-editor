@@ -22,9 +22,7 @@ from ui.dialogs.case_library_dialog import CaseLibraryDialog
 from ui.dialogs.duplicate_case_dialog import DuplicateCaseDialog
 from ui.dialogs.reset_settings_dialog import ResetSettingsDialog
 from ui.dialogs.save_as_new_case_dialog import SaveAsNewCaseDialog
-from ui.layout_constants import (
-    STATUS_NORMAL as _STATUS_NORMAL,
-)
+from ui.layout_constants import STATUS_NORMAL
 
 if TYPE_CHECKING:
     from ui.mixins._protocol import MainWindowProtocol as _Base
@@ -77,7 +75,7 @@ class _CaseOpsMixin(_Base):
 
         self._load_case_dir(self.state.current_case_dir)
         self.statusBar().showMessage(
-            tr("Case reloaded: {path}").format(path=self.state.current_case_dir), _STATUS_NORMAL
+            tr("Case reloaded: {path}").format(path=self.state.current_case_dir), STATUS_NORMAL
         )
 
     def open_from_library(self) -> None:
@@ -230,7 +228,7 @@ class _CaseOpsMixin(_Base):
             self._load_case_dir(str(dest))
         else:
             self.statusBar().showMessage(
-                tr("Duplicated to: {dest}").format(dest=dest), _STATUS_NORMAL
+                tr("Duplicated to: {dest}").format(dest=dest), STATUS_NORMAL
             )
 
     # ── save as new case ──────────────────────────────────────────────────────
@@ -297,7 +295,7 @@ class _CaseOpsMixin(_Base):
         cfg.save()
         self._load_case_dir(str(dest))
         self.statusBar().showMessage(
-            tr("Saved as new case: {dest}").format(dest=dest), _STATUS_NORMAL
+            tr("Saved as new case: {dest}").format(dest=dest), STATUS_NORMAL
         )
 
     # ── helpers ───────────────────────────────────────────────────────────────

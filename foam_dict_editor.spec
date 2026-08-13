@@ -11,7 +11,6 @@
 # is needed.  On Windows, WebEngine is not imported, so ONEFILE = True works.
 
 import sys
-from pathlib import Path
 
 ONEFILE = sys.platform == "win32"   # change to False on Linux/macOS
 
@@ -21,13 +20,21 @@ block_cipher = None
 datas = [
     # HTML template for the xterm.js terminal
     ("ui/xterm_terminal.html", "ui"),
+    # Hand-authored toolbar/menu icon SVGs (ui/icons.py).
+    ("ui/assets/icons", "ui/assets/icons"),
 ]
 
-# Bundle the pre-downloaded xterm.js cache if it exists.
-# Run the download script (step 2 in the README) before building.
-xterm_dir = Path("ui/xterm")
-if xterm_dir.exists():
-    datas.append(("ui/xterm", "ui/xterm"))
+# xterm.js itself is deliberately never bundled here. It is MIT-licensed and
+# fetched at runtime into a gitignored ui/xterm/ cache (see
+# ui/widgets/_xterm_widget.py); whether that cache happened to exist on the
+# machine doing the build used to decide whether a release redistributed
+# xterm.js — and therefore whether the MIT copyright-notice obligation
+# attached to it — which made that obligation depend on build-machine state
+# rather than on anything in this spec. Never bundling it means the
+# obligation never attaches, and keeps the About dialog's "loaded
+# automatically on first launch" description true for every build. An
+# offline bundle, if one is ever wanted, is a deliberate separate variant
+# that must also ship xterm.js's own LICENSE file alongside it.
 
 # ── Hidden imports ────────────────────────────────────────────────────────────
 # schemas/registry.py loads these via importlib.import_module() at runtime.

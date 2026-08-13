@@ -7,7 +7,13 @@ methods assigned to it during the refactor.  No Qt event loop is required.
 """
 from __future__ import annotations
 
+import ast
+from pathlib import Path
+
 import pytest
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+MIXINS_DIR = REPO_ROOT / "ui" / "mixins"
 
 # ── import guards ─────────────────────────────────────────────────────────────
 
@@ -71,7 +77,9 @@ CASE_OPS_METHODS = [
     "duplicate_case",
     "open_from_library",
     "duplicate_from_library",
+    "_duplicate_case_from",
     "_pick_case_from_library",
+    "_confirm_and_remove_existing_dir",
     "_run_duplicate",
     "_confirm_open_dir",
     "_copy_visible_files",
@@ -87,10 +95,12 @@ FOAM_MONITOR_OPS_METHODS = [
     "_stop_foam_monitor",
     "_on_foam_monitor_poll",
     "_update_foam_monitor_btn",
-    "_patched_foam_monitor",
 ]
 
 TOOLS_OPS_METHODS = [
+    "_run_in_terminal",
+    "_rerun_over_results_warning",
+    "_run_tool_with_options",
     "_on_restore_0dir_clicked",
     "_on_run_blockmesh_clicked",
     "_on_run_snappyhexmesh_clicked",
@@ -100,32 +110,45 @@ TOOLS_OPS_METHODS = [
     "_on_run_allrun_clicked",
     "_on_run_allclean_clicked",
     "_on_clean_case_clicked",
-    "_on_open_paraview_clicked",
+    "_show_cached_dialog",
+    "_on_view_log_summary_clicked",
     "_on_find_examples_clicked",
     "_on_example_compare_requested",
+    "_on_example_duplicate_requested",
+    "_on_open_paraview_clicked",
     "_update_tools_actions",
 ]
 
 FILE_OPS_METHODS = [
     "_load_case_dir",
+    "_case_file_paths",
     "_reload_file_list",
     "_on_case_dir_changed_on_disk",
+    "_open_included_target",
     "_parse_and_update",
+    "_include_notes_for",
     "load_selected_file",
     "save_file",
     "save_all_files",
     "reset_file_list",
+    "_on_add_time_dir",
+    "_on_remove_extra_dir",
+    "_purge_file_caches",
+    "_is_auto_scan_group",
 ]
 
 FILE_MGMT_OPS_METHODS = [
     "_on_create_file_requested",
     "_on_add_file_requested",
+    "_read_only_refused",
     "_create_backup",
     "_on_backup_file_requested",
     "_on_manage_extra_files",
     "_on_remove_extra_file",
     "_on_delete_file_requested",
     "_on_duplicate_file_requested",
+    "_on_copy_into_case_requested",
+    "_resolved_include_for",
     "_on_duplicate_dir_requested",
     "_on_delete_dir_requested",
     "_on_clean_backups",
@@ -133,6 +156,8 @@ FILE_MGMT_OPS_METHODS = [
 
 TREE_CRUD_OPS_METHODS = [
     "_setup_tree_copy_paste",
+    "_resolve_tree_include",
+    "_on_tree_double_clicked",
     "_on_tree_context_menu",
     "_tree_copy_value",
     "_tree_paste_value",
@@ -387,7 +412,9 @@ def test_main_window_mixins_before_qmainwindow(qapp):
 CORE_METHODS = [
     "__init__",
     "_build_ui",
+    "_build_shared_actions",
     "_build_top_bar",
+    "createPopupMenu",
     "_build_tree_area",
     "_build_feature_panels",
     "_build_splitters",
@@ -401,10 +428,12 @@ MODEL_OPS_METHODS = [
     "_save_current_buffer",
     "_after_model_edit",
     "_update_viewer_panels",
+    "_on_tree_data_changed",
     "_load_tree",
     "_clear_current_file",
     "_write_root_to_buffer",
     "_cache_parsed_root",
+    "_is_read_only",
     "_mark_dirty",
     "_mark_path_dirty",
     "_confirm_discard_if_needed",
@@ -412,9 +441,18 @@ MODEL_OPS_METHODS = [
 
 UI_OPS_METHODS = [
     "_confirm",
+    "_build_radio_menu",
     "_build_language_menu",
     "_on_language_changed",
+    "_build_appearance_menu",
+    "_on_theme_changed",
+    "_build_ui_scale_menu",
+    "_on_ui_scale_changed",
+    "_on_restore_session_toggled",
+    "_refresh_forget_session_action",
+    "_forget_saved_session",
     "open_schema_manager",
+    "generate_foam_keywords",
     "show_about",
     "show_keyboard_shortcuts",
     "show_openfoam_resources",
@@ -448,3 +486,139 @@ def test_model_ops_owns_method(method):
 def test_ui_ops_owns_method(method):
     from ui.mixins._ui_ops import _UiOpsMixin
     assert method in _UiOpsMixin.__dict__, f"_UiOpsMixin missing {method}"
+
+
+# ── AST-level structural guards ─────────────────────────────────────────────
+#
+# The two checks below parse source with `ast` rather than importing modules,
+# so they need no Qt event loop (see the module docstring) and no PySide6
+# import at all -- they inspect the *text* of ui/mixins/_*.py directly.
+
+
+def _non_dunder_methods(class_node: ast.ClassDef) -> dict[str, int]:
+    """Map a class body's method names to their positional parameter count.
+
+    "Positional parameter count" includes ``self`` (and any ``/``-marked
+    positional-only parameters), so a stub and its real method agree on
+    arity iff this count matches between them. Dunder methods (``__init__``
+    etc.) are skipped -- neither the protocol nor the hand-maintained
+    ownership lists below track those.
+    """
+    methods: dict[str, int] = {}
+    for item in class_node.body:
+        if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if item.name.startswith("__") and item.name.endswith("__"):
+            continue
+        methods[item.name] = len(item.args.posonlyargs) + len(item.args.args)
+    return methods
+
+
+def _mixin_classes_by_file() -> dict[str, tuple[str, dict[str, int]]]:
+    """Map each mixin file's repo-relative path to its (``*Mixin`` class name, methods).
+
+    Excludes ``_protocol.py`` (the mypy-only stand-in, not a mixin itself)
+    and ``__init__.py`` (not a mixin module at all).
+    """
+    result: dict[str, tuple[str, dict[str, int]]] = {}
+    for path in sorted(MIXINS_DIR.glob("_*.py")):
+        if path.name in ("_protocol.py", "__init__.py"):
+            continue
+        tree = ast.parse(path.read_text(), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef) and node.name.endswith("Mixin"):
+                result[str(path.relative_to(REPO_ROOT))] = (node.name, _non_dunder_methods(node))
+    return result
+
+
+def _protocol_methods() -> dict[str, int]:
+    """Method name -> arity for ``MainWindowProtocol`` in ui/mixins/_protocol.py."""
+    path = MIXINS_DIR / "_protocol.py"
+    tree = ast.parse(path.read_text(), filename=str(path))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == "MainWindowProtocol":
+            return _non_dunder_methods(node)
+    raise AssertionError("MainWindowProtocol class not found in ui/mixins/_protocol.py")
+
+
+def test_every_mixin_method_is_declared_in_protocol():
+    """Every method a mixin defines must have a matching stub in ``MainWindowProtocol``.
+
+    ``ui/mixins/_protocol.py`` is mypy's stand-in for the combined
+    ``MainWindow`` (see its module docstring and DEVELOPER.md's "Typing the
+    ui/mixins/ split"): a mixin method missing there silently loses
+    type-checking for every *other* mixin that calls it via ``self``. This
+    check is static AST parsing, not import + reflection, because the
+    protocol's stub bodies are never executed -- reflection would only prove
+    the stub exists, not that mypy accepts its signature (that half is
+    `test_mypy_clean` in tests/test_lint.py).
+    """
+    protocol_methods = _protocol_methods()
+    for rel_path, (class_name, methods) in _mixin_classes_by_file().items():
+        for name, arity in methods.items():
+            assert name in protocol_methods, (
+                f"{class_name} in {rel_path} defines {name!r}, which has no stub in "
+                "MainWindowProtocol (ui/mixins/_protocol.py). Add one there, matching "
+                "the real method's signature."
+            )
+            assert protocol_methods[name] == arity, (
+                f"{class_name}.{name} in {rel_path} takes {arity} positional "
+                f"parameter(s), but its MainWindowProtocol stub (ui/mixins/_protocol.py) "
+                f"takes {protocol_methods[name]}. Fix the stub there to match the real "
+                "method's signature."
+            )
+
+
+def test_all_mixin_methods_are_assigned_to_a_list():
+    """The 13 hand-maintained ``*_METHODS`` lists must, together, name every
+    method actually defined across the 13 mixin classes -- exactly.
+
+    This deliberately stays a two-way equality check against the hand lists
+    rather than regenerating them from the AST: the lists document which
+    mixin owns which slice of ``MainWindow``'s surface, and an AST-derived
+    list would make that documentation tautological. A mixin method missing
+    from every list is undocumented ownership; a listed method that no
+    longer exists is stale documentation -- this test catches both.
+
+    ``CORE_METHODS`` is deliberately excluded: it is ``MainWindow``'s own
+    method list, not a mixin's.
+    """
+    all_lists = {
+        "CASE_OPS_METHODS": CASE_OPS_METHODS,
+        "FOAM_MONITOR_OPS_METHODS": FOAM_MONITOR_OPS_METHODS,
+        "TOOLS_OPS_METHODS": TOOLS_OPS_METHODS,
+        "FILE_OPS_METHODS": FILE_OPS_METHODS,
+        "FILE_MGMT_OPS_METHODS": FILE_MGMT_OPS_METHODS,
+        "TREE_CRUD_OPS_METHODS": TREE_CRUD_OPS_METHODS,
+        "TREE_SYNC_OPS_METHODS": TREE_SYNC_OPS_METHODS,
+        "BOUNDARY_OPS_METHODS": BOUNDARY_OPS_METHODS,
+        "DIFF_OPS_METHODS": DIFF_OPS_METHODS,
+        "PANEL_OPS_METHODS": PANEL_OPS_METHODS,
+        "UNDO_OPS_METHODS": UNDO_OPS_METHODS,
+        "MODEL_OPS_METHODS": MODEL_OPS_METHODS,
+        "UI_OPS_METHODS": UI_OPS_METHODS,
+    }
+    listed: dict[str, list[str]] = {}
+    for list_name, methods in all_lists.items():
+        for name in methods:
+            listed.setdefault(name, []).append(list_name)
+
+    actual: dict[str, str] = {}
+    for rel_path, (class_name, methods) in _mixin_classes_by_file().items():
+        for name in methods:
+            actual[name] = f"{class_name} ({rel_path})"
+
+    missing = sorted(set(actual) - set(listed))
+    stale = sorted(set(listed) - set(actual))
+
+    assert not missing, (
+        "Methods defined on a mixin but not present in any *_METHODS list in "
+        "tests/ui/test_main_window_split.py -- add each to the list for the "
+        "mixin that defines it:\n"
+        + "\n".join(f"  {name} -- defined on {actual[name]}" for name in missing)
+    )
+    assert not stale, (
+        "Methods present in a *_METHODS list in tests/ui/test_main_window_split.py "
+        "but no longer defined on any mixin -- remove the stale entry:\n"
+        + "\n".join(f"  {name} -- listed in {', '.join(listed[name])}" for name in stale)
+    )

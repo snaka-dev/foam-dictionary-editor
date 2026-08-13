@@ -3,25 +3,10 @@
 """Tests for drag-and-drop case opening in MainWindow."""
 from __future__ import annotations
 
-import sys
 from unittest.mock import MagicMock, patch
 
-import pytest
 from PySide6.QtCore import QEvent, QUrl
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
-from PySide6.QtWidgets import QApplication
-
-# ---------------------------------------------------------------------------
-# QApplication fixture
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(scope="module")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv[:1])
-    yield app
-
 
 # ---------------------------------------------------------------------------
 # Helpers

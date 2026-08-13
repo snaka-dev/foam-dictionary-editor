@@ -10,6 +10,7 @@ from foam.nodes import FoamNode
 from foam.shapes import SourceShape
 from foam.tree_utils import (
     find_child,
+    find_child_by_type,
     resolve_box_geometry,
     resolve_cone_geometry,
     resolve_cylinder_geometry,
@@ -66,13 +67,6 @@ class TopoSetData:
     # Recognised sources that carry no renderable geometry (set/field/surface
     # references, e.g. cellToFace, zoneToCell). Listed in the UI but not drawn.
     non_geometric: list[TopoShape] = dataclasses.field(default_factory=list)
-
-
-def _find_action_list(root: FoamNode) -> FoamNode | None:
-    for child in root.children:
-        if child.node_type == "action_list":
-            return child
-    return None
 
 
 def resolve_source_geometry(
@@ -163,7 +157,7 @@ def extract_topo_set_data(root: FoamNode) -> TopoSetData:
     """Walk action_list → action_entry nodes and collect renderable shapes."""
     var_map = build_var_map(root, skip_keys=_TOPO_STRUCTURAL)
 
-    action_list = _find_action_list(root)
+    action_list = find_child_by_type(root, "action_list")
     if action_list is None:
         return TopoSetData(shapes=[])
 

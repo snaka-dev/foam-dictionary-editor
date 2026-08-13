@@ -2,7 +2,6 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QModelIndex, Qt
@@ -11,18 +10,10 @@ from PySide6.QtWidgets import QMessageBox
 from foam.block_mesh_extractor import parse_vertices
 from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser, ParseError
-from foam.utils import block_number, format_scalar, is_log_filename, is_script_text
+from foam.utils import block_number, format_scalar, is_script_text, is_text_only
 from foam.writer import write_root
 from i18n import tr
-from ui.layout_constants import (
-    STATUS_NORMAL as _STATUS_NORMAL,
-)
-from ui.layout_constants import (
-    STATUS_SHORT as _STATUS_SHORT,
-)
-from ui.layout_constants import (
-    STATUS_WARNING as _STATUS_WARNING,
-)
+from ui.layout_constants import STATUS_NORMAL, STATUS_SHORT, STATUS_WARNING
 
 if TYPE_CHECKING:
     from ui.mixins._protocol import MainWindowProtocol as _Base
@@ -38,7 +29,7 @@ class _TreeSyncOpsMixin(_Base):
     def _sync_tree_to_editor_line(self) -> None:
         if not self.state.source_lines_valid:
             self.statusBar().showMessage(
-                tr("Apply Text to Tree to enable editor-to-tree sync"), _STATUS_SHORT
+                tr("Apply Text to Tree to enable editor-to-tree sync"), STATUS_SHORT
             )
             return
 
@@ -47,7 +38,7 @@ class _TreeSyncOpsMixin(_Base):
 
         if node is None:
             self.statusBar().showMessage(
-                tr("No tree entry found for line {line}").format(line=line), _STATUS_SHORT
+                tr("No tree entry found for line {line}").format(line=line), STATUS_SHORT
             )
             return
 
@@ -62,7 +53,7 @@ class _TreeSyncOpsMixin(_Base):
             current = current.parent
 
         if not proxy_index.isValid():
-            self.statusBar().showMessage(tr("Entry is hidden by the current filter"), _STATUS_SHORT)
+            self.statusBar().showMessage(tr("Entry is hidden by the current filter"), STATUS_SHORT)
             return
 
         self.state.syncing = True
@@ -112,11 +103,11 @@ class _TreeSyncOpsMixin(_Base):
             )
         elif not self.state.source_lines_valid:
             self.statusBar().showMessage(
-                tr("Apply Text to Tree to re-enable jump-to-line"), _STATUS_SHORT
+                tr("Apply Text to Tree to re-enable jump-to-line"), STATUS_SHORT
             )
         elif node.source_line == 0:
             self.statusBar().showMessage(
-                tr("No source location — entry was added or modified in the tree"), _STATUS_SHORT
+                tr("No source location — entry was added or modified in the tree"), STATUS_SHORT
             )
 
     def _highlight_selected_block(self, node: FoamNode, row: int) -> None:
@@ -167,7 +158,7 @@ class _TreeSyncOpsMixin(_Base):
         value_index = self.state.current_model.index(index.row(), 2, index.parent())
         ok = self.state.current_model.setData(value_index, raw_value, Qt.ItemDataRole.EditRole)
         if not ok:
-            QMessageBox.warning(self, "Edit Error", "Could not apply the field value.")
+            QMessageBox.warning(self, tr("Edit Error"), tr("Could not apply the field value."))
             return
 
         type_index = self.state.current_model.index(index.row(), 1, index.parent())
@@ -181,19 +172,16 @@ class _TreeSyncOpsMixin(_Base):
     def apply_text_to_tree(self) -> None:
         if self._is_read_only(self.state.current_file):
             self.statusBar().showMessage(
-                tr("Read-only file — tree editing unavailable"), _STATUS_SHORT
+                tr("Read-only file — tree editing unavailable"), STATUS_SHORT
             )
             return
         text = self.editor_panel.get_text()
-        is_log = self.state.current_file is not None and is_log_filename(
-            Path(self.state.current_file).name
-        )
-        if is_script_text(text) or is_log:
+        if is_text_only(text, self.state.current_file):
             self.statusBar().showMessage(
                 tr("Script file — tree editing unavailable")
                 if is_script_text(text)
                 else tr("Text file — tree editing unavailable"),
-                _STATUS_SHORT,
+                STATUS_SHORT,
             )
             return
         try:
@@ -207,20 +195,27 @@ class _TreeSyncOpsMixin(_Base):
             self._mark_dirty()
             if _parser.errors:
                 n = len(_parser.errors)
+                # Separate singular/plural keys -- see the note in
+                # _file_ops.py: an interpolated noun never reaches tr(), so it
+                # would stay English inside an otherwise translated sentence.
                 self.statusBar().showMessage(
-                    f"Parsed and tree updated — {n} unrecognized entr{'y' if n == 1 else 'ies'}",
-                    _STATUS_WARNING,
+                    tr("Parsed and tree updated — 1 unrecognized entry")
+                    if n == 1
+                    else tr("Parsed and tree updated — {n} unrecognized entries").format(n=n),
+                    STATUS_WARNING,
                 )
             else:
-                self.statusBar().showMessage(tr("Parsed successfully and tree updated"), _STATUS_NORMAL)
+                self.statusBar().showMessage(tr("Parsed successfully and tree updated"), STATUS_NORMAL)
         except ParseError as e:
-            self.statusBar().showMessage(tr("Parse failed: {e}").format(e=e), _STATUS_WARNING)
+            self.statusBar().showMessage(tr("Parse failed: {e}").format(e=e), STATUS_WARNING)
             QMessageBox.warning(
                 self,
-                "Parse Error",
-                f"Tree update failed.\n\n{e}\n\n"
-                "Text editor contents are kept as-is. "
-                "You can continue editing and try again.",
+                tr("Parse Error"),
+                tr(
+                    "Tree update failed.\n\n{e}\n\n"
+                    "Text editor contents are kept as-is. "
+                    "You can continue editing and try again."
+                ).format(e=e),
             )
 
     def reload_text_from_tree(self) -> None:
@@ -229,7 +224,7 @@ class _TreeSyncOpsMixin(_Base):
         self._update_file_label()
         if self.state.current_file:
             self.file_list_panel.mark_dirty(self.state.current_file, self.state.text_dirty)
-        self.statusBar().showMessage(tr("Reloaded text from current tree"), _STATUS_SHORT)
+        self.statusBar().showMessage(tr("Reloaded text from current tree"), STATUS_SHORT)
 
     def _on_blockmesh_vertices_changed(self, idx: int, xyz: list) -> None:
         if self.state.current_root is None:
@@ -255,7 +250,7 @@ class _TreeSyncOpsMixin(_Base):
         self._mark_dirty()
         self._resize_tree_columns()
         self.on_tree_selection()
-        self.statusBar().showMessage(tr("Vertex coordinates updated"), _STATUS_SHORT)
+        self.statusBar().showMessage(tr("Vertex coordinates updated"), STATUS_SHORT)
 
     def _on_user_text_changed(self) -> None:
         if not self.state.current_file:

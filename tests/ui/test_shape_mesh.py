@@ -1,11 +1,17 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
-"""Tests for topoSet cone/frustum mesh construction in block_mesh_renderer.
+"""Tests for topoSet cone/frustum mesh construction in shape_mesh.py.
 
 Regression guard: a cone must actually taper along its axis. The previous
 implementation used ``pv.CylinderStructured`` with an array of radii, which
 produces concentric shells of constant height (i.e. a cylinder), so cones and
 frustums rendered as cylinders.
+
+shape_mesh.py is Qt-free geometry construction split out of
+block_mesh_renderer.py (see DEVELOPER.md's "Update candidates" era notes);
+this file exercises only that module. Colour handling (_ACTION_COLORS and
+friends) stays with the renderer and is covered by
+tests/ui/test_block_mesh_renderer_colors.py instead.
 """
 from __future__ import annotations
 
@@ -20,10 +26,8 @@ pytest.importorskip("pyvista")
 
 import pyvista as pv
 
-from ui.panels.block_mesh_renderer import (
-    _ACTION_COLORS,
+from ui.panels.shape_mesh import (
     _CLIP_MARK_SUFFIX,
-    BlockMeshRenderer,
     _bounds_within,
     _clip_capped,
     _clip_to_bounds,
@@ -32,11 +36,12 @@ from ui.panels.block_mesh_renderer import (
     _make_frustum_mesh,
     _make_rotated_box_mesh,
     _mark_label,
+    make_shape_mesh,
     read_surface_mesh,
 )
 
-_RENDERER_PATH = (
-    pathlib.Path(__file__).resolve().parents[2] / "ui" / "panels" / "block_mesh_renderer.py"
+_SHAPE_MESH_PATH = (
+    pathlib.Path(__file__).resolve().parents[2] / "ui" / "panels" / "shape_mesh.py"
 )
 
 
@@ -75,9 +80,9 @@ def test_frustum_tapers_between_radii():
 
 
 def test_make_shape_mesh_cone_is_tapered():
-    """The cone branch of _make_shape_mesh must produce a real taper, not a cylinder."""
+    """The cone branch of make_shape_mesh must produce a real taper, not a cylinder."""
     geo = {"p1": [0.0, 0.0, 0.0], "p2": [0.0, 0.0, 2.0], "radius1": 1.0, "radius2": 0.0}
-    mesh = BlockMeshRenderer._make_shape_mesh("coneToCell", geo)
+    mesh = make_shape_mesh("coneToCell", geo)
     assert mesh is not None
     r_base, r_tip = _radius_profile(mesh, geo["p1"], geo["p2"])
     assert r_base == pytest.approx(1.0, abs=1e-6)
@@ -120,7 +125,7 @@ def test_make_shape_mesh_cylinder_annulus_is_hollow():
         "p1": [0.0, 0.0, 0.0], "p2": [0.0, 0.0, 1.0],
         "radius": 0.5, "innerRadius": 0.25,
     }
-    mesh = BlockMeshRenderer._make_shape_mesh("cylinderAnnulusToCell", geo)
+    mesh = make_shape_mesh("cylinderAnnulusToCell", geo)
     assert mesh is not None
     d = np.array([0.0, 0.0, 1.0])
     rel = mesh.points - np.asarray(geo["p1"])
@@ -134,7 +139,7 @@ def test_make_shape_mesh_cone_annulus_is_hollow():
         "radius1": 0.5, "radius2": 0.2,
         "innerRadius1": 0.25, "innerRadius2": 0.1,
     }
-    mesh = BlockMeshRenderer._make_shape_mesh("coneAnnulusToCell", geo)
+    mesh = make_shape_mesh("coneAnnulusToCell", geo)
     assert mesh is not None
     r_base, r_tip = _radius_profile(mesh, geo["p1"], geo["p2"])
     # Outer radii bound the mesh; the hole means points also exist at inner radii.
@@ -156,14 +161,14 @@ def test_make_shape_mesh_rotated_box():
         "origin": [0.0, 0.0, 0.0], "i": [1.0, 0.0, 0.0],
         "j": [0.0, 1.0, 0.0], "k": [0.0, 0.0, 1.0],
     }
-    mesh = BlockMeshRenderer._make_shape_mesh("rotatedBoxToCell", geo)
+    mesh = make_shape_mesh("rotatedBoxToCell", geo)
     assert mesh is not None
     assert mesh.n_points == 8
 
 
 def test_make_shape_mesh_sphere_scalar_radius():
     geo = {"centre": [1.0, 2.0, 3.0], "radius": 0.5}
-    mesh = BlockMeshRenderer._make_shape_mesh("sphere", geo)
+    mesh = make_shape_mesh("sphere", geo)
     assert mesh is not None
     # pv.Sphere's default tessellation only approximates the true bounds.
     assert mesh.bounds == pytest.approx(
@@ -174,7 +179,7 @@ def test_make_shape_mesh_sphere_scalar_radius():
 def test_make_shape_mesh_sphere_vector_radius_is_ellipsoid():
     """snappyHexMesh's `sphere` type allows a per-axis radius (e.g. igloo domes)."""
     geo = {"centre": [3.0, 3.0, 0.0], "radius": [3.5, 3.5, 4.0]}
-    mesh = BlockMeshRenderer._make_shape_mesh("sphere", geo)
+    mesh = make_shape_mesh("sphere", geo)
     assert mesh is not None
     xmin, xmax, ymin, ymax, zmin, zmax = mesh.bounds
     # Coarse default tessellation: check the ellipsoid's approximate extent
@@ -195,13 +200,13 @@ def test_make_shape_mesh_stl_path_reads_file(tmp_path):
         " endloop\nendfacet\n"
         "endsolid box\n"
     )
-    mesh = BlockMeshRenderer._make_shape_mesh("triSurfaceMesh", {"stl_path": str(stl)})
+    mesh = make_shape_mesh("triSurfaceMesh", {"stl_path": str(stl)})
     assert mesh is not None
     assert mesh.n_points == 3
 
 
 def test_make_shape_mesh_stl_path_missing_file_returns_none():
-    assert BlockMeshRenderer._make_shape_mesh(
+    assert make_shape_mesh(
         "triSurfaceMesh", {"stl_path": "/nonexistent/does-not-exist.stl"}
     ) is None
 
@@ -218,7 +223,7 @@ _ASCII_STL = (
 def test_make_shape_mesh_reads_gzipped_stl(tmp_path):
     gz = tmp_path / "box.stl.gz"
     gz.write_bytes(gzip.compress(_ASCII_STL.encode("ascii")))
-    mesh = BlockMeshRenderer._make_shape_mesh("triSurfaceMesh", {"stl_path": str(gz)})
+    mesh = make_shape_mesh("triSurfaceMesh", {"stl_path": str(gz)})
     assert mesh is not None
     assert mesh.n_points == 3
 
@@ -230,24 +235,12 @@ def test_read_surface_mesh_plain_passthrough(tmp_path):
     assert mesh.n_points == 3
 
 
-def test_element_removal_actions_are_coloured():
-    """`subtract` is the canonical element-removal action; `delete` is its alias.
-
-    OpenFOAM's `remove` deletes the whole set (no source geometry), so it must
-    not be the key used to colour removed regions.
-    """
-    assert "subtract" in _ACTION_COLORS
-    assert _ACTION_COLORS["delete"] == _ACTION_COLORS["subtract"]
-    assert "subset" in _ACTION_COLORS
-    assert "remove" not in _ACTION_COLORS
-
-
 def test_make_shape_mesh_multi_box_merges_all():
     geo = {"boxes": [
         [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]],
         [[2.0, 0.0, 0.0], [3.0, 1.0, 1.0]],
     ]}
-    mesh = BlockMeshRenderer._make_shape_mesh("boxToCell", geo)
+    mesh = make_shape_mesh("boxToCell", geo)
     assert mesh is not None
     # The merged mesh spans both boxes, including the gap between them.
     assert mesh.bounds[0] == pytest.approx(0.0)
@@ -257,10 +250,10 @@ def test_make_shape_mesh_multi_box_merges_all():
 
 
 def test_make_shape_mesh_hollow_sphere_has_two_shells():
-    solid = BlockMeshRenderer._make_shape_mesh(
+    solid = make_shape_mesh(
         "sphereToCell", {"centre": [0.0, 0.0, 0.0], "radius": 1.0}
     )
-    hollow = BlockMeshRenderer._make_shape_mesh(
+    hollow = make_shape_mesh(
         "sphereToCell", {"centre": [0.0, 0.0, 0.0], "radius": 1.0, "innerRadius": 0.4}
     )
     assert hollow.n_points > solid.n_points
@@ -271,7 +264,7 @@ def test_make_shape_mesh_hollow_sphere_has_two_shells():
 
 def test_make_shape_mesh_plane_disc_respects_plane_size():
     geo = {"planePoint": [1.0, 2.0, 3.0], "planeNormal": [0.0, 0.0, 1.0]}
-    mesh = BlockMeshRenderer._make_shape_mesh("planeToFaceZone", geo, plane_size=2.5)
+    mesh = make_shape_mesh("planeToFaceZone", geo, plane_size=2.5)
     assert mesh is not None
     radial = np.linalg.norm(mesh.points - np.array([1.0, 2.0, 3.0]), axis=1)
     assert radial.max() == pytest.approx(2.5, abs=1e-6)
@@ -281,7 +274,7 @@ def test_make_shape_mesh_plane_disc_respects_plane_size():
 
 def test_make_shape_mesh_points_returns_none():
     """Loose points carry no surface; they are rendered as markers instead."""
-    assert BlockMeshRenderer._make_shape_mesh(
+    assert make_shape_mesh(
         "nearestToCell", {"points": [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]}
     ) is None
 
@@ -452,22 +445,19 @@ def _string_literals(path):
 def test_every_string_this_module_can_draw_is_ascii():
     """Regression: ✂, ⚠ and → all reached the 3-D scene as nothing at all.
 
-    Text in this module is drawn by VTK, not Qt. VTK's built-in label font has
-    no glyph for those characters and draws *nothing* for them — not even a
-    .notdef box — so the mark or separator was invisible while the surrounding
-    text still reserved its width. Both shipped that way: the clip badge read
-    "midPlane   clipped", and the bounds readout "X  0   3  (3 m)" where it
-    meant "0 → 3".
-
-    The whole module is checked rather than just _CLIP_MARK_SUFFIX, because the
-    bounds readout was an inline f-string and a per-constant test would have
-    walked straight past it. Docstrings are exempt: prose arrows are fine in
-    text that is never drawn. Note this catches a character that *cannot* be
-    drawn, not one that merely looks wrong — new scene text still wants a look
-    on screen, since a missing glyph is invisible to assert.
+    Text ultimately drawn by VTK (via block_mesh_renderer.py's _mark_label
+    calls, fed by this module's _CLIP_MARK_SUFFIX) is not Qt text. VTK's
+    built-in label font has no glyph for those characters and draws
+    *nothing* for them — not even a .notdef box — so the mark or separator
+    was invisible while the surrounding text still reserved its width.
+    _CLIP_MARK_SUFFIX shipped that way until 2026-07-30 (✂/⚠); see
+    block_mesh_renderer.py's own ASCII test (in
+    tests/ui/test_block_mesh_renderer_colors.py) for the → bounds-readout
+    half of the same regression. Docstrings are exempt: prose arrows are
+    fine in text that is never drawn.
     """
     offenders = [
-        (line, value) for line, value in _string_literals(_RENDERER_PATH)
+        (line, value) for line, value in _string_literals(_SHAPE_MESH_PATH)
         if not value.isascii()
     ]
     assert not offenders, "non-ASCII string literals in VTK-drawn module: " + "; ".join(

@@ -3,21 +3,10 @@
 """Tests for RunToolDialog (Tools-menu "Run *" options dialog)."""
 from __future__ import annotations
 
-import sys
-
-import pytest
-from PySide6.QtWidgets import QApplication, QFileDialog
+from PySide6.QtWidgets import QFileDialog
 
 from services.tool_options import TOOL_SPECS
 from ui.dialogs.run_tool_dialog import RunToolDialog
-
-
-@pytest.fixture(scope="module")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv[:1])
-    return app
 
 
 def test_preview_shows_default_command(qapp, tmp_path):

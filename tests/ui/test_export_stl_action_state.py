@@ -3,11 +3,9 @@
 """Tests for the STL ▾ menu's 'Export Shapes as STL…' action enabled-state."""
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
-from PySide6.QtWidgets import QApplication
 
 from foam.parser import OpenFoamParser
 from ui.panels import block_mesh_panel
@@ -30,14 +28,6 @@ _SNAPPY_DEMO_DICT = (
 _HEADER_ONLY_TOPO = (
     "FoamFile { version 2.0; format ascii; class dictionary; object topoSetDict; }\n"
 )
-
-
-@pytest.fixture(scope="module")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv[:1])
-    return app
 
 
 def test_export_action_disabled_by_default(qapp):

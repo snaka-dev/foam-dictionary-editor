@@ -3,12 +3,11 @@
 """Tests for ExportStlDialog (Export Shapes as STL)."""
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QMessageBox
 
 from foam.parser import OpenFoamParser
 from foam.set_fields_extractor import extract_set_fields_data
@@ -28,6 +27,7 @@ def _no_blocking_message_box(monkeypatch):
     monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
 
 from ui.dialogs.export_stl_dialog import ExportStlDialog, _safe_filename  # noqa: E402
+from ui.widgets._checkable_list import checked_indices  # noqa: E402
 
 _TOPO_SET_DICT = (
     Path(__file__).resolve().parents[2]
@@ -63,14 +63,6 @@ regions
     }
 );
 """
-
-
-@pytest.fixture(scope="module")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv[:1])
-    return app
 
 
 def _topo_shapes():
@@ -134,10 +126,10 @@ def test_select_all_and_deselect_all(qapp):
     dlg = ExportStlDialog(topo, set(), snappy, set(), None)
 
     dlg._select_all()
-    assert dlg._checked_indices() == list(range(dlg._list.count()))
+    assert checked_indices(dlg._list) == list(range(dlg._list.count()))
 
     dlg._deselect_all()
-    assert dlg._checked_indices() == []
+    assert checked_indices(dlg._list) == []
 
 
 def test_export_writes_one_stl_per_checked_shape(qapp, tmp_path):

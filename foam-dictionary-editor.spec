@@ -16,6 +16,21 @@ for name in ("README.md", "README_ja.md"):
     if p.exists():
         datas.append((str(p), "."))
 
+# The xterm.js terminal's HTML template. Without it, a machine with internet
+# access downloads xterm.js successfully and then _xterm_widget.py's
+# _load_terminal() raises FileNotFoundError reading this file from
+# __init__ — unguarded, so the app never gets as far as opening a window. A
+# machine with no internet never reaches that line (it falls back to the
+# "Terminal unavailable" message first), which is why this went unnoticed.
+xterm_html = project_root / "ui" / "xterm_terminal.html"
+if xterm_html.exists():
+    datas.append((str(xterm_html), "ui"))
+
+# Hand-authored toolbar/menu icon SVGs (ui/icons.py).
+icons_dir = project_root / "ui" / "assets" / "icons"
+if icons_dir.exists():
+    datas.append((str(icons_dir), "ui/assets/icons"))
+
 pyside_dir = Path(PySide6.__file__).resolve().parent
 plugin_dir = pyside_dir / "plugins"
 translations_dir = pyside_dir / "translations"

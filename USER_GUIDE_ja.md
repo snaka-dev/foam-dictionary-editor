@@ -45,7 +45,7 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 | ツリーキーを絞り込む | [ツリーキーフィルター](#ツリーキーフィルターとエディタ同期) |
 | エディタのカーソル行からツリーエントリへ移動する | [Find in Tree](#ツリーキーフィルターとエディタ同期) |
 | エディタでテキストを検索する | [Editor ツールバー](#現在のui構成) |
-| キーボードショートカットを確認する | Help > Keyboard Shortcuts… |
+| キーボードショートカットを確認する | Help > Keyboard Shortcuts |
 | FoDE から OpenFOAM コマンドを実行する | [ターミナルタブ](#ターミナルタブ) |
 | メッシュが最新かどうかを確認する | [メッシュ有無・古さのインジケーター](#メッシュ有無古さのインジケーター) |
 | FoDE を離れずに blockMesh を実行・0/ を復元する | [Run blockMesh](#run-blockmesh) / [Restore 0/ from 0.orig](#restore-0-from-0orig) |
@@ -184,14 +184,14 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 - ケースルート直下の `All*` スクリプト（`Allrun`、`Allrun.pre`、`Allclean` など）を **case root** グループへ自動的に一覧表示し、Tools メニューから実行するスクリプトを確認・編集できます。スクリプトはシェル用シンタックスハイライト付きのテキストとして開かれ（ツリービューなし）、保存しても実行権限は保持され、ケースの複製にも含まれます。それ以外のケースルート直下のファイル（`log.*`、計算結果、`*.foam`）は表示されません。
 - シンボリックリンクをファイル一覧に `⇢` マーカー付き・斜体で表示します。ホバーするとリンク先パスをツールチップで確認できます。
 - ファイル一覧のディレクトリヘッダーを右クリックすることで、デフォルトリストにないファイルを実行時に追加できます。
-- 任意のディレクトリをファイル一覧に追加し、`0/` や `0.orig/` と同様にディレクトリ内のファイルを自動スキャンできます。フラット（直下ファイルのみ、デフォルト）または再帰スキャン（サブディレクトリを含む）を選択できます。カスタムフィールドディレクトリ（`initial/`）、再起動タイムステップ（`0.5/`）、深い階層のサブディレクトリ（`lagrangian/chemkin/`）、`validation/` などのディレクトリツリーに対応します。追加ディレクトリのヘッダーは**紫色**で表示されます。**Results** インジケーターを右クリックして数値タイムディレクトリを直接追加するか、**Settings > Manage Extra Files & Directories…** またはインジケーターボタンから任意のディレクトリを追加できます。
+- 任意のディレクトリをファイル一覧に追加し、`0/` や `0.orig/` と同様にディレクトリ内のファイルを自動スキャンできます。フラット（直下ファイルのみ、デフォルト）または再帰スキャン（サブディレクトリを含む）を選択できます。カスタムフィールドディレクトリ（`initial/`）、再起動タイムステップ（`0.5/`）、深い階層のサブディレクトリ（`lagrangian/chemkin/`）、`validation/` などのディレクトリツリーに対応します。追加ディレクトリのヘッダーは**紫色**で表示されます。**Results** インジケーターを右クリックして数値タイムディレクトリを直接追加するか、**Case > Manage Extra Files & Directories…** またはインジケーターボタンから任意のディレクトリを追加できます。
 - ディレクトリヘッダーを右クリックして、FoamFile テンプレートから新規ファイルを作成できます。
 - ケースごとの追加ファイルおよびディレクトリの設定を `.foam-editor-files.json` としてケースディレクトリ内に保存できます。
 - 追加ファイルまたはディレクトリが登録されている場合は、ファイル一覧の上部にインジケーターを表示します。インジケーターをクリックすると管理ダイアログを開けます。
 - 追加ファイルを右クリックで個別に削除するか、管理ダイアログのファイル・ディレクトリ両方のタブからまとめて管理できます。
 - ファイル一覧のファイルを右クリックしてタイムスタンプ付きバックアップを作成できます。
 - ファイル一覧のファイルを右クリックしてディスクから削除できます。確認ダイアログで「バックアップを作成してから削除」「そのまま削除」「キャンセル」の 3 択を選べます。削除は元に戻せません。
-- **Case > Clean Backup Files...** から、現在のケースに蓄積した `.bak_*` ファイルをまとめて削除できます。ケースディレクトリ全体を再帰スキャンして一覧表示し、チェックボックス（デフォルト全選択）と **Select All** / **Deselect All** ボタンで素早く選択できます。
+- **Case > Clean Backup Files…** から、現在のケースに蓄積した `.bak_*` ファイルをまとめて削除できます。ケースディレクトリ全体を再帰スキャンして一覧表示し、チェックボックス（デフォルト全選択）と **Select All** / **Deselect All** ボタンで素早く選択できます。
 - ファイル一覧のファイルを右クリックして複製できます。新しいファイル名を入力するダイアログが表示され、FoamFile ヘッダーの `object` フィールドも新しい名前へ自動更新されます。複製元に未保存の変更がある場合は、保存してから複製・未保存のまま複製・キャンセルの 3 択が表示されます。
 - `0/` または `0.orig/` ディレクトリのいずれか一方しか存在しない場合、グループヘッダーを右クリックしてもう一方のディレクトリを複製作成できます。
 - `0` グループヘッダーを右クリックして `0/` ディレクトリをディスクから削除できます。`0.orig` が存在する場合にのみ表示されます。確認ダイアログで削除対象の完全パスが表示されます。`0/` 内で開いていたファイルは閉じられ、削除は元に戻せません。
@@ -210,12 +210,12 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 - **Apply Text to Tree** により、編集済みテキストを再パースしてツリーへ反映できます。
 - **Save File** により、現在のファイルを生テキストエディタの内容で保存できます。
 - **Save Case** により、変更されたすべてのファイルを一括保存できます。
-- トップバーの **Reload Case** ボタンまたは **Case > Reload Case** でケースをディスクから再読み込みし、すべてのメモリ上の編集内容を破棄できます。未保存のファイルがある場合は、対象ファイル数を示す確認ダイアログが表示されます。
-- **Case > Duplicate Case** により、現在のケースを別の名前のディレクトリへ複製できます。全ファイルコピーまたは app が表示しているファイルのみのコピーを選択できます。
-- **Case > Save as New Case...** により、ディスクからファイルをコピー（全ファイルまたはアプリ表示ファイルのみ、選択可能）した上で未保存の編集内容を書き込み、新しいケースへ切り替えられます。元のケースは変更されません。
+- ツールバーの **Reload Case** ボタンまたは **Case > Reload Case** でケースをディスクから再読み込みし、すべてのメモリ上の編集内容を破棄できます。未保存のファイルがある場合は、対象ファイル数を示す確認ダイアログが表示されます。
+- **Case > Duplicate Case…** により、現在のケースを別の名前のディレクトリへ複製できます。全ファイルコピーまたは app が表示しているファイルのみのコピーを選択できます。
+- **Case > Save as New Case…** により、ディスクからファイルをコピー（全ファイルまたはアプリ表示ファイルのみ、選択可能）した上で未保存の編集内容を書き込み、新しいケースへ切り替えられます。元のケースは変更されません。
 - **ケースライブラリ**に参照ケースのディレクトリを登録しておくことで、素早くアクセスできます。環境変数が設定されていれば `$FOAM_TUTORIALS` ディレクトリが自動的に追加されます。
-- **Case > Open from Case Library...** で、ケースライブラリ内の任意のディレクトリから直接ケースを開けます。
-- **Case > Duplicate from Case Library...** で、ケースライブラリ内のケースを作業ディレクトリへ複製できます。コピー先の親ディレクトリにはデフォルトケースディレクトリが自動入力されます。
+- **Case > Open from Case Library…** で、ケースライブラリ内の任意のディレクトリから直接ケースを開けます。
+- **Case > Duplicate from Case Library…** で、ケースライブラリ内のケースを作業ディレクトリへ複製できます。コピー先の親ディレクトリにはデフォルトケースディレクトリが自動入力されます。
 - `system/` と `constant/` の両方が存在しないディレクトリを開こうとした場合、有効な OpenFOAM ケースでない可能性を示す警告ダイアログを表示します。それでも開くことは可能です。
 - ファイルマネージャからケースディレクトリをウィンドウ上の任意の場所にドロップしてケースを開けます。未保存の変更がある場合は確認ダイアログが表示されます。
 - ツリービューの右クリックメニューから、エントリの追加・複製・コメントアウト・復元・削除を行えます。
@@ -224,7 +224,7 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 - 編集ツールバーから Undo、Redo、Cut、Copy、Paste、Select All、Find、Find Next を利用できます。
 - パースに失敗してもテキストエディタはそのまま利用できます。
 - **Settings** メニューからスキーマモジュールやアプリ設定を実行時に変更できます。
-- **Help > Resources...** から OpenFOAM 公式ドキュメントへのリンクと、個人用参照リンクを管理できます。**My Links** タブでリンクの追加・編集・並び替え・削除が可能です。エントリをダブルクリックするとブラウザで開きます。リンクは `app_config.json` に保存されます。
+- **Help > Resources** から OpenFOAM 公式ドキュメントへのリンクと、個人用参照リンクを管理できます。**My Links** タブでリンクの追加・編集・並び替え・削除が可能です。エントリをダブルクリックするとブラウザで開きます。リンクは `app_config.json` に保存されます。
 
 ## 現在のUI構成
 
@@ -244,13 +244,16 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 
     下段のタブバー右上には **▲ Apply Text to Tree** と **▼ Reload from Tree** が配置されています（後述）。
 
-上部のアクションバーには、頻繁に使う操作と現在のケース・ファイル表示があります。
+上部アクションバーはタブ列の上に固定された実体としてのツールバーで、頻繁に使う操作と現在のケース・ファイル表示があります。各ボタンにはアイコンが付き、ホバーするまでは枠のないフラットな表示です。以前は各ボタンが縁取りのある矩形として描画されていたため、この行がすぐ下の **Tree** / **Boundary** / **BlockMesh** のタブバーと二重に見えていましたが、これで解消しています。ツールバー上での右クリックは何も起こりません — ここには他に表示するものがないため、Qt 標準の「このツールバーを隠す」コンテキストメニューは無効化されています(隠したあとに元へ戻す手段がなくなってしまうため)。
 
+- Open Case — **Case > Open Case…** `Ctrl+O` と同じ操作です。
 - Save File
-- Save All Files
+- Save Case
 - Reload Case
 - Case: 現在ケース名表示
 - File: 現在ファイル名表示
+
+**Save File**、**Save Case**、**Reload Case**、**Open Case** はいずれも対応する **Case** メニュー項目とまったく同じアクションを共有しているため、ラベルや有効・無効の状態が両者でずれることはありません。このボタンは以前 **Save All Files** という表示でしたが、メニュー側は同じ操作を **Save Case** と呼んでおり、名前が二重になっていました。今回どちらも **Save Case** に統一しています。
 
 ツリーとエディタテキストの間で内容を受け渡す 2 つの操作は、ディスク操作と一緒に上部アクションバーへ置くのではなく、両ペインの*境目* — 下段タブバーの右上隅 — に配置しています。矢印は垂直スプリッタの向きを表します（ツリーが上段、エディタが下段）。
 
@@ -259,7 +262,7 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 
 タブページの内部ではなくタブバー上に置かれているため、どちらの段でどのタブを選んでいても常に利用できます。**BlockMesh** タブを前面にしたままでも **Apply Text to Tree** は 3D オーバーレイを更新します。
 
-**Editor** タブには、テキスト検索操作用のツールバー行があります。
+**Editor** タブには、テキスト検索操作用のツールバー行があります — 上部アクションバーと同じく、実体としてのツールバーでアイコン付きラベル、ホバーするまでフラットな表示です。
 
 - Find — 検索ダイアログを開きます（Ctrl+F）。
 - Find Prev — 前の一致箇所に移動します（Shift+F3）。
@@ -272,42 +275,44 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 
 **Case メニュー:**
 
-- Case > Open Case `Ctrl+O`
-- Case > Open from Case Library...
+- Case > Open Case… `Ctrl+O` — 上部ツールバーにも同じボタンがあります。
+- Case > Open from Case Library…
 - *ドラッグ＆ドロップ:* ファイルマネージャからケースディレクトリをウィンドウ上の任意の場所にドロップするとケースを開きます。未保存の変更がある場合は確認ダイアログが表示されます。
 - Case > Reload Case
-- Case > Duplicate Case...
-- Case > Duplicate from Case Library...
-- Case > Find OpenFOAM Examples… — Tools > Find OpenFOAM Examples… と同じアクションです。チュートリアルケースを複製して新しいケースの出発点にできるため、ここにも表示されます。[Find OpenFOAM Examples](#find-openfoam-examples) を参照。
-- Case > Save as New Case...
-- Case > Clean Backup Files...
-- Case > Compare with Case...
 - Case > Save File `Ctrl+S`
 - Case > Save Case `Ctrl+Shift+S`
+- Case > Save as New Case…
 - Case > Apply Text to Tree `Ctrl+Shift+A` — 下段タブバーの **▲ Apply Text to Tree** ボタンと同じ動作です。
 - Case > Reload from Tree — **▼ Reload from Tree** ボタンと同じ動作です。エディタのテキストを上書きし、ツリーへ未適用の編集を破棄するため、意図的にショートカットを割り当てていません。
+- Case > Duplicate Case…
+- Case > Duplicate from Case Library…
+- Case > Find OpenFOAM Examples… — Tools > Find OpenFOAM Examples… と同じアクションです。チュートリアルケースを複製して新しいケースの出発点にできるため、ここにも表示されます。[Find OpenFOAM Examples](#find-openfoam-examples) を参照。
+- Case > Clean Backup Files…
+- Case > Manage Extra Files & Directories… — Settings メニューからここへ移動しました。開いているケース 1 つに対する操作であり、アプリ全体の設定ではないためです。[追加ディレクトリの登録](#追加ディレクトリの登録) を参照。
+- Case > Reset File List — Manage Extra Files & Directories の隣に移動しました。この項目が取り消すのは Manage Extra Files & Directories が追加したものだけだからです。[追加ファイル・ディレクトリの削除](#追加ファイルディレクトリの削除) を参照。
+- Case > Compare with Case…
 - Case > Exit `Ctrl+Q`
 
 **View メニュー:**
 
 - View > Show Type Column（チェック式、デフォルトで非表示）
 - View > File List `Ctrl+1`、View > Detail Pane `Ctrl+2`、View > Editor / Terminal Pane `Ctrl+3` — チェック式。チェックを外すとそのペインが最小化されます。「[ペインの最小化](#ペインの最小化)」を参照。
+- View > Reset Window Size — Settings メニューからここへ移動しました。すぐ上のペイン切り替え項目と同じく、ウィンドウの見た目のサイズに関する項目だからです。[ウィンドウサイズ](#ウィンドウサイズ) を参照。
 - View > BlockMesh 3-D Panel（チェック式。BlockMesh タブの表示・非表示を切り替えます。xterm ターミナルモードが有効な場合は GPU 競合のためグレーアウトし、ラベルが **"BlockMesh 3-D Panel  (unavailable: xterm active)"** に変わります）
 - View > View Log Summary… — Tools > View Log Summary… と同じアクションで、見つけやすさのためここにも表示されます。[View Log Summary](#view-log-summary) を参照。
 
 **Settings メニュー:**
 
-- Settings > Set Default Case Directory
+- Settings > Set Default Case Directory…
 - Settings > Manage Case Library…
-- Settings > Manage Extra Files & Directories…
-- Settings > Reset File List
-- Settings > Manage Schema Modules
-- Settings > Reset Window Size
+- Settings > Manage Schema Modules…
+- Settings > Generate OpenFOAM Keywords… — 選択した OpenFOAM インストールからシンタックスハイライト用のキーワード一覧を再生成します。[Generate OpenFOAM Keywords](#generate-openfoam-keywords) を参照。
 - Settings > Reset All Settings…
 - Settings > Appearance — 配色テーマを選択します: **Follow System**（既定）、**Light**、**Dark**。アプリケーションを再起動すると反映されます。[外観と配色](#外観と配色)を参照してください。
 - Settings > UI Scale — UI 全体の拡大率を 100 %（既定）、125 %、150 %、175 %、200 % から選択します。アプリケーションを再起動すると反映されます。[文字サイズと表示スケーリング](#文字サイズと表示スケーリング)を参照してください。
 - Settings > Language — UI の言語を選択します（English / 日本語）。アプリケーションを再起動すると反映されます。
-- Settings > Generate OpenFOAM Keywords… — 選択した OpenFOAM インストールからシンタックスハイライト用のキーワード一覧を再生成します。[Generate OpenFOAM Keywords](#generate-openfoam-keywords) を参照。
+
+**Manage Extra Files & Directories…**、**Reset File List**、**Reset Window Size** は以前ここにありましたが、それぞれ開いているケース 1 つ、またはウィンドウ 1 つに対する操作であり、アプリ全体の設定ではないため、上記の **Case** メニューと **View** メニューへ移動しました。
 
 **Tools メニュー:**
 
@@ -318,6 +323,8 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 - Tools > Run topoSet… — オプションを選択してケースディレクトリで `topoSet` を実行します。[Run topoSet](#run-toposet) を参照。
 - Tools > Run setFields… — オプションを選択してケースディレクトリで `setFields` を実行します。先に `0/` を `0.orig/` から復元するかを選べます。[Run setFields](#run-setfields) を参照。
 - Tools > Run checkMesh… — オプションを選択してケースディレクトリで `checkMesh` を実行します。[Run checkMesh](#run-checkmesh) を参照。
+
+  上のメッシュ・フィールド系ユーティリティ群の後ろと、続く 2 項目それぞれの後ろに区切り線が入ります。**Run Allrun Script** は個々のユーティリティ実行とは違う「ワークフロー全体」なので、**Open Mesh in ParaView…** は「実行」ではなく「ビューア起動」なので、それぞれ独立したグループになっています。
 - Tools > Run Allrun Script — ケースの `./Allrun` スクリプト（ソルバーを含む）を実行します。[Run Allrun Script](#run-allrun-script) を参照。
 - Tools > Open Mesh in ParaView… — 現在のケースを ParaView で開きます。[Open Mesh in ParaView](#open-mesh-in-paraview) を参照。
 - Tools > Run Allclean Script — ケースの `./Allclean` スクリプトを実行します。[Run Allclean Script](#run-allclean-script) を参照。
@@ -327,13 +334,15 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 
 **Help メニュー:**
 
-- Help > About Foam Dictionary Editor (FoDE)... — アプリケーションのバージョン（git チェックアウトから実行した場合は開発ビルドの短い接尾辞付き）、ライセンス、謝辞を表示します。
-- Help > Keyboard Shortcuts...
-- Help > Resources...
+- Help > About Foam Dictionary Editor (FoDE) — アプリケーションのバージョン（git チェックアウトから実行した場合は開発ビルドの短い接尾辞付き）、ライセンス、謝辞を表示します。
+- Help > Keyboard Shortcuts
+- Help > Resources
+
+この 3 つはいずれも省略記号(…)を付けません。情報を表示するだけで、何かを尋ねてくることがないためです。
 
 ## 現在のケースとファイル表示
 
-上部バーには現在のケース名（ディレクトリ名）と、現在ファイルを `親ディレクトリ/ファイル名` の形式で表示します。たとえば `system/controlDict` や `constant/transportProperties` のように表示されます。
+ツールバーには現在のケース名（ディレクトリ名）と、現在ファイルを `親ディレクトリ/ファイル名` の形式で表示します。たとえば `system/controlDict` や `constant/transportProperties` のように表示されます。
 
 ケースまたはファイルが未読み込みの場合は `-` を表示します。
 
@@ -449,7 +458,7 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 - **Duplicate '\<dir\>' → '\<counterpart\>'...** — `0/` または `0.orig/` ディレクトリを複製してもう一方を作成します（「[フィールドディレクトリの複製](#フィールドディレクトリの複製)」を参照）。`0` および `0.orig` のヘッダーでのみ表示され、2 つのうちどちらか一方しか存在しない場合に限り表示されます。
 - **Delete '0' directory...** — `0/` ディレクトリをディスクごと削除します（「[フィールドディレクトリの削除](#フィールドディレクトリの削除)」を参照）。`0` ヘッダーでのみ表示され、`0.orig` が存在する場合にのみ有効です。
 
-追加したファイルはケースディレクトリ内の `.foam-editor-files.json` に保存され、次回ケースを開いたときに自動的に復元されます。**Duplicate Case** でアプリ表示ファイルのみコピーモードを使用した場合も、この設定ファイルがコピーされます。
+追加したファイルはケースディレクトリ内の `.foam-editor-files.json` に保存され、次回ケースを開いたときに自動的に復元されます。**Duplicate Case…** でアプリ表示ファイルのみコピーモードを使用した場合も、この設定ファイルがコピーされます。
 
 追加ファイルはデフォルトのターゲットファイルと区別できるよう、ファイル一覧内で異なる色（青）で表示されます。
 
@@ -470,7 +479,7 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 ファイル一覧下部の **Results: …** 行を右クリックします。各タイムディレクトリがサブメニューに表示されます。クリックするとそのディレクトリが追加されます。すでに追加済みのディレクトリはグレーアウトされます。
 
 **管理ダイアログから任意のディレクトリを追加する:**  
-**Settings > Manage Extra Files & Directories…**（またはファイル一覧上部のインジケーターボタン）を開きます。**Extra Directories** タブで **Add Directory…** をクリックするとケースディレクトリ配下のフォルダピッカーが開きます。追加したいサブディレクトリを選択して **OK** をクリックします。デフォルトはフラットスキャン（直下ファイルのみ）で追加されます。
+**Case > Manage Extra Files & Directories…**（またはファイル一覧上部のインジケーターボタン）を開きます。**Extra Directories** タブで **Add Directory…** をクリックするとケースディレクトリ配下のフォルダピッカーが開きます。追加したいサブディレクトリを選択して **OK** をクリックします。デフォルトはフラットスキャン（直下ファイルのみ）で追加されます。
 
 **再帰スキャンを有効にする:**  
 デフォルトのフラットスキャンではディレクトリ直下のファイルのみ一覧表示されます。サブディレクトリ内のファイルも含めるには、**Extra Directories** タブで対象エントリにチェックを付けて **Toggle Recursive** をクリックします。エントリのラベルが `<dir>  [recursive]` に変わり再帰モードであることを示します。同じエントリに再度 **Toggle Recursive** をクリックするとフラットスキャンに戻ります。
@@ -532,7 +541,7 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 
 ### バックアップファイルの一括削除
 
-**Case > Clean Backup Files...** を選ぶと、現在のケースに蓄積した `.bak_*` ファイルをまとめて削除できます。ケースディレクトリ全体を再帰スキャンして `.bak_YYYYMMDD_HHMMSS` パターンに一致するファイルを一覧表示します。各ファイルは相対パスとサイズで表示されます。
+**Case > Clean Backup Files…** を選ぶと、現在のケースに蓄積した `.bak_*` ファイルをまとめて削除できます。ケースディレクトリ全体を再帰スキャンして `.bak_YYYYMMDD_HHMMSS` パターンに一致するファイルを一覧表示します。各ファイルは相対パスとサイズで表示されます。
 
 全ファイルがデフォルトで選択された状態で開きます。チェックボックスで個別に選択を変更するか、**Select All** / **Deselect All** でまとめて切り替えられます。**Delete Selected (N)** ボタンは現在のチェック数を表示し、選択がない場合はグレーアウトされます。
 
@@ -578,7 +587,7 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 
 ### ファイル一覧のリセット
 
-**Settings > Reset File List** を選択すると、現在のケースに対して追加したファイルおよびディレクトリをすべて削除できます。ケースディレクトリの `.foam-editor-files.json` が削除され、ファイル一覧がデフォルトに戻ります。
+**Case > Reset File List** を選択すると、現在のケースに対して追加したファイルおよびディレクトリをすべて削除できます。ケースディレクトリの `.foam-editor-files.json` が削除され、ファイル一覧がデフォルトに戻ります。
 
 ## 境界条件ビュー
 
@@ -878,7 +887,7 @@ BlockMesh パネル下部のヒントバーに主要な操作が常時表示さ�
 | カメラリセット | `R` |
 | ポイントへフライ | `F` |
 
-完全なリファレンスは **Help > Keyboard Shortcuts…** の「BlockMesh 3-D viewer (mouse)」セクションでも確認できます。
+完全なリファレンスは **Help > Keyboard Shortcuts** の「BlockMesh 3-D viewer (mouse)」セクションでも確認できます。
 
 ## スキーマモジュール設定
 
@@ -958,11 +967,11 @@ SCHEMAS = {
 
 マッチの優先順位は「親修飾あり → 祖父母修飾あり → プレーンキー」の順です。既存のプレーンキーはそのまま動作します。
 
-レジストリは各モジュールをインポートしてこの 2 つの変数を読み取ります。この規約に従っていれば、追加の設定なしに **Settings > Manage Schema Modules** から登録できます。
+レジストリは各モジュールをインポートしてこの 2 つの変数を読み取ります。この規約に従っていれば、追加の設定なしに **Settings > Manage Schema Modules…** から登録できます。
 
 ### schema_config.json
 
-`schema_config.json` は、ユーザーが **Settings > Manage Schema Modules** でスキーマ設定を変更したとき、または設定リセットを実行したときに初めて作成されます。ファイルが存在しない場合は、組み込みのデフォルトモジュールをメモリ上で使用し、ディスクへの書き込みは行いません。このファイルには、読み込むスキーマモジュールの一覧が記録されます。
+`schema_config.json` は、ユーザーが **Settings > Manage Schema Modules…** でスキーマ設定を変更したとき、または設定リセットを実行したときに初めて作成されます。ファイルが存在しない場合は、組み込みのデフォルトモジュールをメモリ上で使用し、ディスクへの書き込みは行いません。このファイルには、読み込むスキーマモジュールの一覧が記録されます。
 
 ```json
 {
@@ -976,7 +985,7 @@ SCHEMAS = {
 }
 ```
 
-カスタムスキーマモジュールを追加するには、アプリケーションで **Settings > Manage Schema Modules** を選び、**Add Module from File** ボタンから Python ファイルを指定します。変更内容は `schema_config.json` に保存され、その場で反映されます。
+カスタムスキーマモジュールを追加するには、アプリケーションで **Settings > Manage Schema Modules…** を選び、**Add Module from File** ボタンから Python ファイルを指定します。変更内容は `schema_config.json` に保存され、その場で反映されます。
 
 ## Generate OpenFOAM Keywords
 
@@ -1045,9 +1054,9 @@ presets/no-terminal-blockmesh.json
 | キー | 説明 |
 |---|---|
 | `window_size` | 起動時のメインウィンドウサイズです。終了時に自動保存されます。 |
-| `default_case_dir` | **Case > Open Case** 使用時に最初に開くディレクトリです。最後に開いたケースの親ディレクトリに自動更新されます。**Case > Duplicate from Case Library...** および **Case > Save as New Case...** のコピー先親ディレクトリのデフォルト値にもなります。 |
+| `default_case_dir` | **Case > Open Case…** 使用時に最初に開くディレクトリです。最後に開いたケースの親ディレクトリに自動更新されます。**Case > Duplicate from Case Library…** および **Case > Save as New Case…** のコピー先親ディレクトリのデフォルト値にもなります。 |
 | `case_library_dirs` | ユーザーが手動で追加したケースライブラリのディレクトリ一覧です。`$FOAM_TUTORIALS` は環境変数から動的に追加されるため、ここには保存されません。 |
-| `user_links` | **Help > Resources... > My Links** に表示するユーザー定義のリンク一覧です。各エントリは `{"label": "…", "url": "…"}` の形式です。 |
+| `user_links` | **Help > Resources > My Links** に表示するユーザー定義のリンク一覧です。各エントリは `{"label": "…", "url": "…"}` の形式です。 |
 | `features` | `--variant` で設定されるフィーチャーフラグ（「[バリアント](#バリアント)」参照）。このキーがない場合は `{"terminal": true, "blockmesh": true}` と同等です。 |
 | `openfoam_dir` | [Find OpenFOAM Examples](#find-openfoam-examples) の **参照…** で選択した OpenFOAM インストールです。参照で指定した場合のみ書き込まれ、自動検出されたインストールは保存されません。 |
 | `restore_session` | **Settings > Restore Last Session on Startup** の状態です。オフにしたときのみ書き込まれ、キーがなければオンです。「[セッションの復元](#セッションの復元)」参照。 |
@@ -1055,11 +1064,11 @@ presets/no-terminal-blockmesh.json
 
 ### デフォルトのケースディレクトリ設定
 
-**Settings > Set Default Case Directory** から、**Case > Open Case** 使用時に最初に開くディレクトリを設定できます。また、最後に開いたケースの親ディレクトリに自動更新されるため、次回起動時も同じ場所から始められます。
+**Settings > Set Default Case Directory…** から、**Case > Open Case…** 使用時に最初に開くディレクトリを設定できます。また、最後に開いたケースの親ディレクトリに自動更新されるため、次回起動時も同じ場所から始められます。
 
 ### ウィンドウサイズ
 
-メインウィンドウは `app_config.json` に記録されたサイズで起動します。設定ファイルが存在しない場合は、デフォルトの 1200×800 が使用されます。ウィンドウサイズは終了時に自動保存され、**Settings > Reset Window Size** でデフォルトサイズへ戻せます。
+メインウィンドウは `app_config.json` に記録されたサイズで起動します。設定ファイルが存在しない場合は、デフォルトの 1200×800 が使用されます。ウィンドウサイズは終了時に自動保存され、**View > Reset Window Size** でデフォルトサイズへ戻せます。
 
 ## セッションの復元
 
@@ -1354,7 +1363,7 @@ Ctrl+C / Ctrl+V ショートカットはツリーウィジェット限定のス�
 | `tutorials/topoSetShapes/` | `icoFoam` | [topoSetDict オーバーレイ](#toposetdict-オーバーレイ)が描画できるすべてのジオメトリソースを、1 つの 3×3×3 ブロック内に配置したケース |
 | `tutorials/samplingShapes/` | `icoFoam` | 同じことを[サンプリングオーバーレイ](#サンプリングオーバーレイ)について行ったケース: プローブ点・サンプル線・点群・平面の 2 通りの記法を、サンプリングを書ける 3 種類のファイルすべてにまたがって収録 |
 
-**Case > Open Case** でケースのサブディレクトリを直接開くか、`tutorials/` をケースライブラリに追加したうえで **Case > Duplicate from Case Library** を使って作業ディレクトリへ複製できます。
+**Case > Open Case…** でケースのサブディレクトリを直接開くか、`tutorials/` をケースライブラリに追加したうえで **Case > Duplicate from Case Library…** を使って作業ディレクトリへ複製できます。
 
 これらのケースファイルは **GPL-3.0** でライセンスされています（FoDE ソースコードの AGPL-3.0 とは別）。詳細は `tutorials/README.md` を参照してください。
 
@@ -1368,18 +1377,18 @@ Ctrl+C / Ctrl+V ショートカットはツリーウィジェット限定のス�
 
 ### ユーザー追加ディレクトリの管理
 
-**Settings > Manage Case Library...** でライブラリ管理ダイアログを開きます。ダイアログは 2 つのセクションに分かれています。
+**Settings > Manage Case Library…** でライブラリ管理ダイアログを開きます。ダイアログは 2 つのセクションに分かれています。
 
 - **Auto-detected（読み取り専用）** — 環境変数が有効な場合に `$FOAM_TUTORIALS` のパスを表示します。このエントリはここから削除できず、環境変数が無効になると自動的に消えます。
 - **User-added directories** — 手動で追加したディレクトリです。**Add Directory...** で追加し、チェックを付けて **Remove Selected (N)** で削除できます。変更内容は `app_config.json` に保存されます。
 
 ### ライブラリからケースを開く
 
-**Case > Open from Case Library...** を選択すると、ライブラリ内のディレクトリを参照してケースを開けます。複数のライブラリディレクトリが登録されている場合は、まずどのライブラリを参照するかをドロップダウンで選択してからディレクトリピッカーが開きます。
+**Case > Open from Case Library…** を選択すると、ライブラリ内のディレクトリを参照してケースを開けます。複数のライブラリディレクトリが登録されている場合は、まずどのライブラリを参照するかをドロップダウンで選択してからディレクトリピッカーが開きます。
 
 ### ライブラリからケースを複製する
 
-**Case > Duplicate from Case Library...** を選択すると、ライブラリ内のケースを作業ディレクトリへ複製できます。操作の流れは次の通りです。
+**Case > Duplicate from Case Library…** を選択すると、ライブラリ内のケースを作業ディレクトリへ複製できます。操作の流れは次の通りです。
 
 1. ライブラリディレクトリを選択します（複数登録されている場合）。
 2. そのライブラリ内でコピー元ケースのディレクトリを選択します。
@@ -1387,11 +1396,11 @@ Ctrl+C / Ctrl+V ショートカットはツリーウィジェット限定のス�
 4. 必要に応じてコピー先と名前を変更し、**OK** をクリックしてコピーを実行します。
 5. 複製完了後、その場で新しいケースを開くかどうかを選択できます。
 
-コピーモードの選択肢（全ファイルコピーまたはアプリ表示ファイルのみ）は **Case > Duplicate Case** と同じです。
+コピーモードの選択肢（全ファイルコピーまたはアプリ表示ファイルのみ）は **Case > Duplicate Case…** と同じです。
 
 ## Resources ダイアログ
 
-**Help > Resources...** を選択すると Resources ダイアログが開きます。2 つのタブがあります。
+**Help > Resources** を選択すると Resources ダイアログが開きます。2 つのタブがあります。
 
 ### OpenFOAM タブ
 
@@ -1411,7 +1420,7 @@ OpenCFD/ESI Group（openfoam.com）と OpenFOAM Foundation（openfoam.org）の 
 
 ## 新しいケースとして保存
 
-**Case > Save as New Case...** を選択すると、現在のエディタ上の状態を新しいケースディレクトリへ書き出し、そのケースへ切り替えます。**Duplicate Case**（ディスクからコピー）とは異なり、メモリ上のバッファの内容（未保存の編集を含む）を新しいケースへ反映します。元のケースは変更されません。
+**Case > Save as New Case…** を選択すると、現在のエディタ上の状態を新しいケースディレクトリへ書き出し、そのケースへ切り替えます。**Duplicate Case…**（ディスクからコピー）とは異なり、メモリ上のバッファの内容（未保存の編集を含む）を新しいケースへ反映します。元のケースは変更されません。
 
 ダイアログには以下の項目があります。
 
@@ -1428,7 +1437,7 @@ OpenCFD/ESI Group（openfoam.com）と OpenFOAM Foundation（openfoam.org）の 
 
 ## ケースの複製
 
-**Case > Duplicate Case** を選択すると、現在のケースを別の名前で複製できます。ダイアログには以下の項目があります。
+**Case > Duplicate Case…** を選択すると、現在のケースを別の名前で複製できます。ダイアログには以下の項目があります。
 
 - **Save in** — 新しいケースを作成する親ディレクトリ（デフォルトは現在のケースの親ディレクトリ）。
 - **New case name** — 新しいケースのディレクトリ名（デフォルトは現在の名前に `_copy` を付加した値）。
@@ -1439,13 +1448,13 @@ OpenCFD/ESI Group（openfoam.com）と OpenFOAM Foundation（openfoam.org）の 
 
 コピー先がすでに存在する場合は、上書き確認ダイアログが表示されます。複製完了後、その場で新しいケースを開くかどうかを選択できます。
 
-**Duplicate Case** を押した時点で未保存の変更がある場合は、コピー前にすべてのファイルを保存するかどうかを確認します。保存することで、複製先に最新の編集内容が反映されます。
+**Duplicate Case…** を押した時点で未保存の変更がある場合は、コピー前にすべてのファイルを保存するかどうかを確認します。保存することで、複製先に最新の編集内容が反映されます。
 
-現在開いているケースではなく参照ディレクトリからケースを複製したい場合は、**Case > Duplicate from Case Library...** を使用してください（「[ケースライブラリ](#ケースライブラリ)」を参照）。キーワード検索で見つけた OpenFOAM チュートリアルケースを複製するには、[Find OpenFOAM Examples](#find-openfoam-examples) の **このケースを複製…** ボタンを使用してください。
+現在開いているケースではなく参照ディレクトリからケースを複製したい場合は、**Case > Duplicate from Case Library…** を使用してください（「[ケースライブラリ](#ケースライブラリ)」を参照）。キーワード検索で見つけた OpenFOAM チュートリアルケースを複製するには、[Find OpenFOAM Examples](#find-openfoam-examples) の **このケースを複製…** ボタンを使用してください。
 
 ## ケース比較
 
-**Case > Compare with Case...** で参照ケースのディレクトリを選択し、現在のケースと比較します。
+**Case > Compare with Case…** で参照ケースのディレクトリを選択し、現在のケースと比較します。
 
 参照ディレクトリを選択すると、アクションバーの下に差分バーが表示されます。差分バーにはカラーレジェンド、参照ケースの名前とフルパス、**Side by side** トグル、比較モードを終了する **Clear** ボタンが含まれます。
 
@@ -1506,11 +1515,11 @@ OpenCFD/ESI Group（openfoam.com）と OpenFOAM Foundation（openfoam.org）の 
 
 ### 比較モードの終了
 
-差分バーの **Clear** ボタンをクリックして比較モードを終了します。ファイル一覧のすべての `≠` マーカー、両ツリーのすべての背景色ハイライト、参照ペイン、および **Changed files only** フィルタが削除されます。**Case > Compare with Case...** を再度選択すると、別の参照ディレクトリに切り替えられます。
+差分バーの **Clear** ボタンをクリックして比較モードを終了します。ファイル一覧のすべての `≠` マーカー、両ツリーのすべての背景色ハイライト、参照ペイン、および **Changed files only** フィルタが削除されます。**Case > Compare with Case…** を再度選択すると、別の参照ディレクトリに切り替えられます。
 
 ## ケースの再読み込み
 
-トップバーの **Reload Case** ボタンをクリックするか、**Case > Reload Case** を選択すると、すべてのメモリ上の編集内容を破棄し、現在のケースをディスクから再読み込みします。全ファイルのバッファとダーティ状態がクリアされ、ファイル一覧と境界条件パネルがケースを開いた直後と同じ状態に更新されます。
+ツールバーの **Reload Case** ボタンをクリックするか、**Case > Reload Case** を選択すると、すべてのメモリ上の編集内容を破棄し、現在のケースをディスクから再読み込みします。全ファイルのバッファとダーティ状態がクリアされ、ファイル一覧と境界条件パネルがケースを開いた直後と同じ状態に更新されます。
 
 未保存の変更がある場合は、対象ファイル数を示す確認ダイアログが表示されます。**Yes** をクリックするとすべての変更が破棄されます。**No** をクリックすると現在の状態がそのまま維持されます。
 
@@ -1550,7 +1559,7 @@ OpenFOAM は辞書のキーを折に触れて改名しており、2 つのフォ
 
 ### カバー範囲
 
-これらのヘルプ情報はスキーマモジュールから提供されます。組み込みスキーマは `controlDict`、`fvSchemes`、`fvSolution`、`blockMeshDict`、`snappyHexMeshDict`、`turbulenceProperties`／`momentumTransport` のエントリの大半をカバーしており、`div(phi,U)` や特定フィールドのソルバーブロックのように、ケース側の名前が付いたエントリも含みます。OpenFOAM は巨大なので、その他の辞書はまだ対象外です。スキーマのないキーでも詳細ペインにはキー名・型・値が表示されますが、ヘルプ欄は空白になります。不足している設定のスキーマは、独自のスキーマモジュール（Python ファイル）を作成し、**Settings > Manage Schema Modules** から実行時に読み込むことで補完できます。
+これらのヘルプ情報はスキーマモジュールから提供されます。組み込みスキーマは `controlDict`、`fvSchemes`、`fvSolution`、`blockMeshDict`、`snappyHexMeshDict`、`turbulenceProperties`／`momentumTransport` のエントリの大半をカバーしており、`div(phi,U)` や特定フィールドのソルバーブロックのように、ケース側の名前が付いたエントリも含みます。OpenFOAM は巨大なので、その他の辞書はまだ対象外です。スキーマのないキーでも詳細ペインにはキー名・型・値が表示されますが、ヘルプ欄は空白になります。不足している設定のスキーマは、独自のスキーマモジュール（Python ファイル）を作成し、**Settings > Manage Schema Modules…** から実行時に読み込むことで補完できます。
 
 新しいリリースに同梱されたモジュールは、一覧に自動的に追加されます。以前に削除したモジュールは削除されたままになります。
 

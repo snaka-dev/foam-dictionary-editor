@@ -25,10 +25,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from foam.boundary_patch import get_patch_type, patch_inner_text, value_complexity
 from foam.nodes import FoamNode
 from i18n import tr
 from model.boundary_model import BoundaryModel, extract_boundary
-from ui.dialogs.boundary_edit_dialog import _get_patch_type, _patch_inner_text, _value_complexity
 from ui.theme import colors
 
 _PATH_ROLE = Qt.ItemDataRole.UserRole
@@ -66,8 +66,8 @@ def _make_cell_item(
         item.setForeground(QColor(colors().disabled_fg))
         item.setBackground(QColor(colors().disabled_bg))
     else:
-        type_str = _get_patch_type(patch_node)
-        complexity = _value_complexity(patch_node)
+        type_str = get_patch_type(patch_node)
+        complexity = value_complexity(patch_node)
         if type_str:
             label = f"{type_str} †" if complexity else type_str
             if n_lines > 1:
@@ -88,13 +88,17 @@ def _make_cell_item(
             f.setItalic(True)
             item.setFont(f)
         if complexity:
-            data_desc = "binary data" if complexity == "binary" else "large data"
-            item.setToolTip(f"type {type_str};\nvalue: {data_desc} — edit in Text Editor")
+            data_desc = tr("binary data") if complexity == "binary" else tr("large data")
+            item.setToolTip(
+                tr("type {type};\nvalue: {desc} — edit in Text Editor").format(
+                    type=type_str, desc=data_desc
+                )
+            )
         else:
             if patch_node.raw_text and patch_node.raw_text.strip():
                 rt = patch_node.raw_text.strip()
             else:
-                inner = _patch_inner_text(patch_node)
+                inner = patch_inner_text(patch_node)
                 indented = "\n".join(f"    {ln}" for ln in inner.splitlines()) if inner else ""
                 rt = f"{patch_node.name}\n{{\n{indented}\n}}"
             item.setToolTip(rt)
@@ -140,8 +144,10 @@ class BoundaryViewPanel(QWidget):
         self._autoscroll_chk = QCheckBox(tr("Auto-scroll editor"))
         self._autoscroll_chk.setChecked(True)
         self._autoscroll_chk.setToolTip(
-            "When checked, clicking a cell opens its file in the editor\n"
-            "and scrolls to the patch entry."
+            tr(
+                "When checked, clicking a cell opens its file in the editor\n"
+                "and scrolls to the patch entry."
+            )
         )
 
         self._copy_btn = QPushButton(tr("Copy Table"))
@@ -407,7 +413,7 @@ class BoundaryViewPanel(QWidget):
         paste_action.setEnabled(self._clipboard is not None)
 
         menu.addSeparator()
-        rename_action = menu.addAction(tr("Rename Boundary..."))
+        rename_action = menu.addAction(tr("Rename Boundary…"))
 
         action = menu.exec(self._table.viewport().mapToGlobal(pos))
         if action == edit_action:
@@ -417,7 +423,7 @@ class BoundaryViewPanel(QWidget):
         elif action == delete_action:
             self.patch_delete_requested.emit(path, patch_name)
         elif action == copy_action:
-            self._clipboard = _patch_inner_text(patch_node)
+            self._clipboard = patch_inner_text(patch_node)
         elif action == paste_action and self._clipboard is not None:
             self.patch_paste_requested.emit(path, patch_name, self._clipboard)
         elif action == rename_action:
@@ -456,9 +462,9 @@ class BoundaryViewPanel(QWidget):
         )
         delete_action.setEnabled(patch_name is not None)
         rename_action = menu.addAction(
-            tr("Rename Boundary  '{patch}'...").format(patch=patch_name)
+            tr("Rename Boundary  '{patch}'…").format(patch=patch_name)
             if patch_name
-            else tr("Rename Boundary...")
+            else tr("Rename Boundary…")
         )
         rename_action.setEnabled(patch_name is not None)
         menu.addSeparator()

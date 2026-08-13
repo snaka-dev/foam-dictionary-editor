@@ -336,6 +336,20 @@ def active_mode() -> ThemeMode:
     return _active_mode
 
 
+def icon_tint() -> str:
+    """The colour a monochrome toolbar/menu icon should be tinted.
+
+    Deliberately *not* a :class:`ThemeColors` field. In ``system`` mode
+    :func:`apply_theme` leaves the desktop's own palette in place, so a
+    hardcoded ``_LIGHT``/``_DARK`` hex would be wrong the moment the desktop's
+    button text is not near-black or near-white — reading the live palette is
+    the only source that is correct in all three modes. It also keeps this
+    module the only one touching ``QPalette``: ``ui/icons.py`` reads the tint
+    through this function rather than importing ``QPalette`` itself.
+    """
+    return QApplication.palette().color(QPalette.ColorRole.ButtonText).name()
+
+
 # ── palettes ──────────────────────────────────────────────────────────────────
 
 def _fusion_light_palette() -> QPalette:

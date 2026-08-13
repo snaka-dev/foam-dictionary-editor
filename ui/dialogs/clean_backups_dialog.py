@@ -2,9 +2,6 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
-import re
-from pathlib import Path
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
@@ -20,23 +17,8 @@ from PySide6.QtWidgets import (
 from i18n import tr
 from ui.widgets._checkable_list import checked_items, set_all_check_states
 
-_BAK_RE = re.compile(r"\.bak_\d{8}_\d{6}$")
 _DIALOG_WIDTH = 560
 _DIALOG_HEIGHT = 400
-
-
-def find_backup_files(case_dir: str) -> list[tuple[str, str, int]]:
-    """Return [(abs_path, rel_path, size_bytes)] for .bak_YYYYMMDD_HHMMSS files."""
-    base = Path(case_dir)
-    result = []
-    for p in sorted(base.rglob("*"), key=lambda x: str(x.relative_to(base)).lower()):
-        if p.is_file() and _BAK_RE.search(p.name):
-            try:
-                size = p.stat().st_size
-            except OSError:
-                size = 0
-            result.append((str(p), str(p.relative_to(base)), size))
-    return result
 
 
 def _fmt_size(n: int) -> str:

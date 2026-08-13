@@ -73,8 +73,8 @@ already did the research), then the rest as time allows.
 The valid values live in a C++ class hierarchy resolved at runtime, the set
 differs between forks and grows between releases, and the useful content is
 coefficient names, defaults and the prose OpenFOAM ships beside them. This is
-exactly the shape foamlore's generator was built for — it produced 11,557 lines
-covering 29 turbulence models across 17 releases, which nobody was going to hand-write.
+exactly the shape foamlore's generator was built for — it produced 12,095 lines
+covering 29 turbulence models across 18 releases, which nobody was going to hand-write.
 
 | dictionary | OF12 | v2606 | why generated |
 |---|---:|---:|---|

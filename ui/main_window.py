@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QEvent, QFileSystemWatcher, QSortFilterProxyModel, Qt, QTimer
+from PySide6.QtCore import QEvent, QFileSystemWatcher, QSize, QSortFilterProxyModel, Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QSplitter,
     QStatusBar,
     QTabWidget,
+    QToolBar,
     QTreeView,
     QVBoxLayout,
     QWidget,
@@ -27,6 +28,8 @@ from app_config import get_app_config
 from i18n import tr
 from model.tree_model import FoamTreeModel
 from ui.app_state import AppState
+from ui.fonts import icon_pixel_size
+from ui.icons import icon
 from ui.layout_constants import (
     SPLITTER_DETAIL_WIDTH,
     SPLITTER_FILE_LIST_WIDTH,
@@ -138,15 +141,68 @@ class MainWindow(
         self.detail_panel = DetailPanel()
         self.editor_panel = EditorPanel()
         self.right_upper_splitter: QSplitter | None = None
-        top_bar = self._build_top_bar()
+        # Before _build_top_bar() and _build_menu_bar() (the latter already
+        # runs last): both add these same QAction objects to their own widget
+        # rather than building duplicate ones, so the actions have to exist first.
+        self._build_shared_actions()
+        self._build_top_bar()
         tree_container = self._build_tree_area()
         self._build_feature_panels()
         self._build_diff_bar()
-        self._build_splitters(tree_container, top_bar)
+        self._build_splitters(tree_container)
         self._connect_signals()
         self._build_menu_bar()
 
-    def _build_top_bar(self) -> QHBoxLayout:
+    def _build_shared_actions(self) -> None:
+        """QActions the top toolbar and the Case menu both add.
+
+        One QAction added to two widgets keeps its label, tooltip, shortcut
+        and enabled state in sync for free and installs the shortcut once --
+        Qt's ambiguous-shortcut warning is about two *different* actions
+        sharing a key, not this. `_find_examples_action` (Case + Tools menus)
+        and `_view_log_summary_action` (Tools + View menus) already use the
+        same trick for a menu/menu pair; this is a toolbar/menu pair.
+
+        `Save Case` is the label on both sides now. The top bar used to say
+        "Save All Files" while the Case menu said "Save Case" for the same
+        `save_all_files` command; sharing one QAction forces one label, and
+        Save Case wins since it is already what the keyboard-shortcuts
+        dialog, i18n/ja.py, and USER_GUIDE.md call it.
+        """
+        self._open_case_action = QAction(icon("open-case"), tr("Open Case…"), self)
+        self._open_case_action.setShortcut(QKeySequence("Ctrl+O"))
+        self._open_case_action.setToolTip(tr("Open Case…"))
+        self._open_case_action.triggered.connect(self.open_case)
+
+        self._save_file_action = QAction(icon("save-file"), tr("Save File"), self)
+        self._save_file_action.setShortcut(QKeySequence("Ctrl+S"))
+        self._save_file_action.setToolTip(tr("Save File"))
+        self._save_file_action.triggered.connect(self.save_file)
+
+        self._save_case_action = QAction(icon("save-case"), tr("Save Case"), self)
+        self._save_case_action.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        self._save_case_action.setToolTip(tr("Save Case"))
+        self._save_case_action.triggered.connect(self.save_all_files)
+
+        # No shortcut, matching the Case menu entry this replaces: Reload
+        # Case discards unsaved tree edits, and a key near Save's would
+        # invite that mistake (the same reasoning Reload from Tree already
+        # documents below, in _build_case_menu).
+        self._reload_case_action = QAction(icon("reload-case"), tr("Reload Case"), self)
+        self._reload_case_action.setToolTip(tr("Reload Case"))
+        self._reload_case_action.triggered.connect(self.reload_case)
+
+    def _build_top_bar(self) -> None:
+        """Build the main action toolbar and dock it above the central widget.
+
+        A real QToolBar via QMainWindow.addToolBar, not a QHBoxLayout stacked
+        into the central widget's own layout: the "the buttons look like
+        tabs" complaint traces to QPushButton always painting a raised,
+        bordered rectangle, while an autoRaise QToolButton -- what a QToolBar
+        builds its actions into -- paints flat until hovered. That flatness,
+        not the toolbar's background, is what stops the row reading as a
+        second tab bar sitting right above upper_tabs.
+        """
         self.current_case_label = QLabel("-")
         self.current_case_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.current_case_label.setToolTip(tr("Current case name"))
@@ -154,13 +210,6 @@ class MainWindow(
         self.current_file_label = QLabel("-")
         self.current_file_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.current_file_label.setToolTip(tr("Current file name"))
-
-        save_btn = QPushButton(tr("Save File"))
-        save_all_btn = QPushButton(tr("Save All Files"))
-        reload_case_btn = QPushButton(tr("Reload Case"))
-        save_btn.clicked.connect(self.save_file)
-        save_all_btn.clicked.connect(self.save_all_files)
-        reload_case_btn.clicked.connect(self.reload_case)
 
         self._foam_monitor_timer = QTimer(self)
         self._foam_monitor_timer.setInterval(2000)
@@ -173,23 +222,76 @@ class MainWindow(
         self._file_list_refresh_timer.setInterval(400)
         self._file_list_refresh_timer.timeout.connect(self._reload_file_list)
 
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.VLine)
-        sep.setFrameShadow(QFrame.Shadow.Sunken)
+        self._action_toolbar = QToolBar(self)
+        # Harmless today -- there is nothing to save/restore a toolbar layout
+        # for yet -- but QMainWindow.saveState() warns about an unnamed
+        # toolbar, so this keeps that door open.
+        self._action_toolbar.setObjectName("action_toolbar")
+        self._action_toolbar.setMovable(False)
+        self._action_toolbar.setFloatable(False)
+        self._action_toolbar.setAllowedAreas(Qt.ToolBarArea.TopToolBarArea)
+        self._action_toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        icon_side = icon_pixel_size()
+        self._action_toolbar.setIconSize(QSize(icon_side, icon_side))
+        # Fusion's PM_ToolBarIconSize default (24 px) ignores the font
+        # entirely, so -- unlike ui/icons.py's own icon() calls, which read
+        # icon_pixel_size() themselves -- the toolbar's icon size has to be
+        # set explicitly here too, or the two would drift apart.
+        #
+        # A stylesheet naming only colour/border/spacing, mirroring what
+        # _build_diff_bar already does with the same theme field: under
+        # Fusion a bare QToolBar paints with the window brush and no border,
+        # which on its own may not read as separate from upper_tabs sitting
+        # right below it. Any stylesheet on a widget routes its children
+        # through QStyleSheetStyle, which risks the autoRaise flatness this
+        # whole toolbar is built to get -- confirmed unaffected here (see the
+        # implementation report for how). If a future style/icon change ever
+        # does un-flatten the buttons, drop this setStyleSheet call and add a
+        # plain 1-px QFrame HLine instead (QFrame.Shape.HLine, styled the way
+        # _build_diff_bar's border-bottom is, min/max-height 1px so it cannot
+        # stretch) as the first widget of the central layout in
+        # _build_splitters; nothing else in this method depends on which of
+        # the two supplies the separation line.
+        self._action_toolbar.setStyleSheet(
+            f"QToolBar {{ border: none; border-bottom: 1px solid {colors().separator};"
+            f" spacing: 4px; }}"
+        )
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._action_toolbar)
 
-        layout = QHBoxLayout()
-        layout.setContentsMargins(4, 4, 4, 2)
-        layout.addWidget(save_btn)
-        layout.addWidget(save_all_btn)
-        layout.addWidget(reload_case_btn)
-        layout.addWidget(sep)
-        layout.addWidget(QLabel(tr("Case:")))
-        layout.addWidget(self.current_case_label)
-        layout.addSpacing(16)
-        layout.addWidget(QLabel(tr("File:")))
-        layout.addWidget(self.current_file_label)
-        layout.addStretch(1)
-        return layout
+        self._action_toolbar.addAction(self._open_case_action)
+        self._action_toolbar.addSeparator()
+        self._action_toolbar.addAction(self._save_file_action)
+        self._action_toolbar.addAction(self._save_case_action)
+        self._action_toolbar.addAction(self._reload_case_action)
+        self._action_toolbar.addSeparator()
+        self._action_toolbar.addWidget(QLabel(tr("Case:")))
+        self._action_toolbar.addWidget(self.current_case_label)
+        # QToolBar has no addSpacing; a fixed-width empty widget is the
+        # native equivalent of the old layout's addSpacing(16) between the
+        # two labels.
+        label_gap = QWidget()
+        label_gap.setFixedWidth(16)
+        self._action_toolbar.addWidget(label_gap)
+        self._action_toolbar.addWidget(QLabel(tr("File:")))
+        self._action_toolbar.addWidget(self.current_file_label)
+
+    def createPopupMenu(self) -> None:  # type: ignore[override]
+        """Disable QMainWindow's built-in toolbar/dock-widget context menu.
+
+        Right-clicking the toolbar, or the empty menu-bar strip beside it,
+        otherwise opens a menu whose one entry hides action_toolbar -- and
+        with no dock widgets to also list there, that is the *only* entry.
+        Once hidden it stays hidden: this same menu is the only route back,
+        and it no longer has anything to show once the toolbar is gone. There
+        being nothing else worth keeping in that menu, it is disabled
+        outright rather than filtered down to nothing.
+
+        The ignore is for PySide6's stub, not Qt: the real virtual returns a
+        nullable ``QMenu*`` (Qt's own docs say returning null is how a
+        subclass disables the menu), but the bundled ``.pyi`` types it as a
+        plain, non-Optional ``QMenu``.
+        """
+        return None
 
     def _build_tree_area(self) -> QWidget:
         self.proxy_model = QSortFilterProxyModel(self)
@@ -295,7 +397,7 @@ class MainWindow(
                 self._on_blockmesh_vertices_changed
             )
 
-    def _build_splitters(self, tree_container: QWidget, top_bar: QHBoxLayout) -> None:
+    def _build_splitters(self, tree_container: QWidget) -> None:
         self.right_upper_splitter = QSplitter(Qt.Orientation.Horizontal)
         right_upper_splitter = self.right_upper_splitter
         right_upper_splitter.addWidget(tree_container)
@@ -369,7 +471,6 @@ class MainWindow(
         layout = QVBoxLayout(central)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        layout.addLayout(top_bar)
         layout.addWidget(self._diff_bar)
         layout.addWidget(self.main_splitter, 1)
         self.setCentralWidget(central)
@@ -471,13 +572,16 @@ class MainWindow(
 
     def _build_case_menu(self, menubar) -> None:
         case_menu = menubar.addMenu(tr("Case"))
-        _act(case_menu, tr("Open Case"),              "Ctrl+O",       self.open_case)
-        case_menu.addAction(tr("Open from Case Library...")).triggered.connect(self.open_from_library)
-        case_menu.addAction(tr("Reload Case")).triggered.connect(self.reload_case)
+        # Open Case / Reload Case / Save File / Save Case: the same QAction
+        # objects the top toolbar uses (see _build_shared_actions), so label,
+        # tooltip, shortcut and enabled state stay in sync automatically.
+        case_menu.addAction(self._open_case_action)
+        case_menu.addAction(tr("Open from Case Library…")).triggered.connect(self.open_from_library)
+        case_menu.addAction(self._reload_case_action)
         case_menu.addSeparator()
-        _act(case_menu, tr("Save File"),              "Ctrl+S",       self.save_file)
-        _act(case_menu, tr("Save Case"),              "Ctrl+Shift+S", self.save_all_files)
-        case_menu.addAction(tr("Save as New Case...")).triggered.connect(self.save_as_new_case)
+        case_menu.addAction(self._save_file_action)
+        case_menu.addAction(self._save_case_action)
+        case_menu.addAction(tr("Save as New Case…")).triggered.connect(self.save_as_new_case)
         case_menu.addSeparator()
         # Also on the bottom tab bar (see _build_tree_text_sync_bar).  Reload
         # from Tree deliberately has no shortcut: it overwrites the editor text,
@@ -486,34 +590,42 @@ class MainWindow(
         _act(case_menu, tr("Apply Text to Tree"),     "Ctrl+Shift+A", self.apply_text_to_tree)
         case_menu.addAction(tr("Reload from Tree")).triggered.connect(self.reload_text_from_tree)
         case_menu.addSeparator()
-        case_menu.addAction(tr("Duplicate Case...")).triggered.connect(self.duplicate_case)
-        case_menu.addAction(tr("Duplicate from Case Library...")).triggered.connect(
+        case_menu.addAction(tr("Duplicate Case…")).triggered.connect(self.duplicate_case)
+        case_menu.addAction(tr("Duplicate from Case Library…")).triggered.connect(
             self.duplicate_from_library
         )
         case_menu.addAction(self._find_examples_action)
         case_menu.addSeparator()
-        case_menu.addAction(tr("Clean Backup Files...")).triggered.connect(self._on_clean_backups)
+        # File-list housekeeping, grouped: Clean Backup Files and Manage Extra
+        # Files & Directories both moved here from Settings (they act on a
+        # single open case, not on application-wide settings), and Reset File
+        # List -- which only ever undoes what Manage Extra Files added -- joins
+        # them rather than sitting alone.
+        case_menu.addAction(tr("Clean Backup Files…")).triggered.connect(self._on_clean_backups)
+        case_menu.addAction(tr("Manage Extra Files & Directories…")).triggered.connect(
+            self._on_manage_extra_files
+        )
+        case_menu.addAction(tr("Reset File List")).triggered.connect(self.reset_file_list)
         case_menu.addSeparator()
-        case_menu.addAction(tr("Compare with Case...")).triggered.connect(self._compare_with_case)
+        case_menu.addAction(tr("Compare with Case…")).triggered.connect(self._compare_with_case)
         case_menu.addSeparator()
         _act(case_menu, tr("Exit"),                   "Ctrl+Q",       self.close)
 
     def _build_settings_menu(self, menubar) -> None:
         settings_menu = menubar.addMenu(tr("Settings"))
-        settings_menu.addAction(tr("Set Default Case Directory")).triggered.connect(
+        settings_menu.addAction(tr("Set Default Case Directory…")).triggered.connect(
             self.set_default_case_directory
         )
         settings_menu.addAction(tr("Manage Case Library…")).triggered.connect(self.manage_case_library)
-        settings_menu.addAction(tr("Manage Extra Files & Directories…")).triggered.connect(
-            self._on_manage_extra_files
-        )
-        settings_menu.addAction(tr("Reset File List")).triggered.connect(self.reset_file_list)
         settings_menu.addSeparator()
-        settings_menu.addAction(tr("Manage Schema Modules")).triggered.connect(self.open_schema_manager)
+        # Manage Extra Files & Directories, Reset File List, and Reset Window
+        # Size moved out of here: they each act on one open case or one window,
+        # not on application settings -- see _build_case_menu and
+        # _build_view_menu.
+        settings_menu.addAction(tr("Manage Schema Modules…")).triggered.connect(self.open_schema_manager)
         settings_menu.addAction(tr("Generate OpenFOAM Keywords…")).triggered.connect(
             self.generate_foam_keywords
         )
-        settings_menu.addAction(tr("Reset Window Size")).triggered.connect(self.reset_window_size)
         settings_menu.addSeparator()
         self._restore_session_action = QAction(tr("Restore Last Session on Startup"), self)
         self._restore_session_action.setCheckable(True)
@@ -552,6 +664,10 @@ class MainWindow(
 
         view_menu.addSeparator()
         self._build_pane_menu_actions(view_menu)
+        # Joins the pane-toggle group rather than starting a new one: it too
+        # is about the window's on-screen geometry, and it moved here from
+        # Settings for the same reason the toggles above it live here.
+        view_menu.addAction(tr("Reset Window Size")).triggered.connect(self.reset_window_size)
 
         self._blockmesh_action: QAction | None = None
         if self.block_mesh_panel is not None:
@@ -625,6 +741,8 @@ class MainWindow(
             ),
             self._on_run_checkmesh_clicked,
         )
+        tools_menu.addSeparator()
+        # A whole workflow, not one more per-utility action -- its own group.
         self._run_allrun_action = _tool_act(
             tr("Run Allrun Script"),
             tr(
@@ -633,6 +751,8 @@ class MainWindow(
             ),
             self._on_run_allrun_clicked,
         )
+        tools_menu.addSeparator()
+        # A viewer, not a run -- its own group too.
         self._open_paraview_action = _tool_act(
             tr("Open Mesh in ParaView…"),
             tr("Open the case's generated mesh in ParaView (paraFoam)"),
@@ -671,10 +791,12 @@ class MainWindow(
 
     def _build_help_menu(self, menubar) -> None:
         help_menu = menubar.addMenu(tr("Help"))
-        help_menu.addAction(tr("About Foam Dictionary Editor (FoDE)...")).triggered.connect(self.show_about)
+        # No ellipsis on any of these three: each only displays information,
+        # it never asks for anything first.
+        help_menu.addAction(tr("About Foam Dictionary Editor (FoDE)")).triggered.connect(self.show_about)
         help_menu.addSeparator()
-        help_menu.addAction(tr("Keyboard Shortcuts...")).triggered.connect(self.show_keyboard_shortcuts)
-        help_menu.addAction(tr("Resources...")).triggered.connect(self.show_openfoam_resources)
+        help_menu.addAction(tr("Keyboard Shortcuts")).triggered.connect(self.show_keyboard_shortcuts)
+        help_menu.addAction(tr("Resources")).triggered.connect(self.show_openfoam_resources)
 
     # ── drag-and-drop ─────────────────────────────────────────────────────────
 

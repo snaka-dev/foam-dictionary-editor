@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QVBoxLayout, QWidget
 
+from i18n import tr
 from ui.widgets._simple_terminal_widget import SimpleTerminalWidget
 from ui.widgets._xterm_widget import _XTERM_AVAILABLE
 
@@ -36,10 +37,10 @@ class TerminalPanel(QWidget):
         super().__init__(parent)
         self._cwd: str | None = None
 
-        self._xterm_chk = QCheckBox("xterm terminal  (hides BlockMesh 3-D panel)")
+        self._xterm_chk = QCheckBox(tr("xterm terminal  (hides BlockMesh 3-D panel)"))
         self._xterm_chk.setEnabled(_XTERM_AVAILABLE)
         if not _XTERM_AVAILABLE:
-            self._xterm_chk.setToolTip("Not available: QtWebEngine / PTY not installed")
+            self._xterm_chk.setToolTip(tr("Not available: QtWebEngine / PTY not installed"))
 
         self._body = QVBoxLayout()
         self._body.setContentsMargins(0, 0, 0, 0)
@@ -76,7 +77,7 @@ class TerminalPanel(QWidget):
 
     @property
     def tab_label(self) -> str:
-        return "Terminal"
+        return tr("Terminal")
 
     def set_use_xterm(self, use_xterm: bool) -> None:
         """Switch backend as if the user had clicked the checkbox.

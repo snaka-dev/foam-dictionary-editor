@@ -251,6 +251,131 @@ def _match_name(key: str, names: list[str]) -> str | None:
     return None
 
 
+def _collect_geometry_shapes(
+    geometry_node: FoamNode,
+    var_map: dict[str, str],
+    case_dir: str | None,
+    shapes: dict[str, SnappyShape],
+    non_geometric: list[SnappyShape],
+) -> list[FoamNode]:
+    """Build shapes/non_geometric from geometry {}'s primitive entries.
+
+    Mutates ``shapes``/``non_geometric`` in place. ``collection`` entries
+    reference other geometry entries, so they can only be resolved once
+    every primitive above has been collected -- they are returned deferred
+    for `_resolve_collections` to process afterwards.
+    """
+    collection_entries: list[FoamNode] = []
+    for entry in geometry_node.children:
+        if entry.node_type != "dictionary" or not entry.name:
+            continue
+        type_node = find_child(entry, "type")
+        if type_node is not None and str(type_node.value) == "collection":
+            collection_entries.append(entry)
+            continue
+        geo_type, geometry = _extract_geometry_entry(entry, var_map, case_dir)
+        if not geo_type:
+            continue
+        name = _resolve_name(entry)
+        shape = SnappyShape(label=name, kind=geo_type, category="geometry", geometry=geometry)
+        if geometry:
+            shapes[name] = shape
+        else:
+            non_geometric.append(shape)
+    return collection_entries
+
+
+def _resolve_collections(
+    collection_entries: list[FoamNode],
+    shapes: dict[str, SnappyShape],
+    non_geometric: list[SnappyShape],
+    var_map: dict[str, str],
+) -> None:
+    """Resolve geometry {}'s deferred ``collection`` entries into member shapes.
+
+    Mutates ``shapes``/``non_geometric`` in place: each collection's members
+    (resolved against the primitives `_collect_geometry_shapes` already put
+    in ``shapes``) are added as their own shapes, or the collection itself
+    is recorded as non-geometric if it has none.
+    """
+    for entry in collection_entries:
+        members = _extract_collection_members(entry, shapes, var_map)
+        if members:
+            for member in members:
+                shapes[member.label] = member
+        else:
+            non_geometric.append(
+                SnappyShape(
+                    label=_resolve_name(entry), kind="collection",
+                    category="geometry", geometry={},
+                )
+            )
+
+
+def _apply_castellated_mesh_controls(
+    cmc_node: FoamNode,
+    shapes: dict[str, SnappyShape],
+    known_names: list[str],
+    var_map: dict[str, str],
+) -> list[tuple[list[float], str]]:
+    """Cross-reference castellatedMeshControls against the collected shapes.
+
+    Classifies each shape named in refinementSurfaces/refinementRegions as
+    "surface"/"region" (mutating ``shapes`` in place) and collects
+    locationInMesh/locationsInMesh keep-points to return.
+    """
+    location_points: list[tuple[list[float], str]] = []
+
+    rs_node = find_child(cmc_node, "refinementSurfaces")
+    if rs_node is not None:
+        for entry in rs_node.children:
+            if entry.node_type != "dictionary" or not entry.name:
+                continue
+            matched = _match_name(entry.name, known_names)
+            if matched is None:
+                continue
+            level_node = find_child(entry, "level")
+            if (
+                level_node is not None
+                and isinstance(level_node.value, list)
+                and len(level_node.value) == 2
+            ):
+                shapes[matched].level = (float(level_node.value[0]), float(level_node.value[1]))
+            shapes[matched].category = "surface"
+
+    rr_node = find_child(cmc_node, "refinementRegions")
+    if rr_node is not None:
+        for entry in rr_node.children:
+            if entry.node_type != "dictionary" or not entry.name:
+                continue
+            matched = _match_name(entry.name, known_names)
+            if matched is None:
+                continue
+            mode_node = find_child(entry, "mode")
+            if mode_node is not None:
+                shapes[matched].mode = str(mode_node.value)
+            if shapes[matched].category != "surface":
+                shapes[matched].category = "region"
+
+    loc_node = find_child(cmc_node, "locationInMesh")
+    if loc_node is not None:
+        point = resolve_vector(loc_node, var_map)
+        if point is not None:
+            location_points.append((point, "locationInMesh"))
+
+    locs_node = find_child(cmc_node, "locationsInMesh")
+    if locs_node is not None:
+        text = expand_evals(substitute_vars(str(locs_node.value), var_map))
+        for m in _LOCATION_PAIR_RE.finditer(text):
+            try:
+                pt = [float(m.group(1)), float(m.group(2)), float(m.group(3))]
+            except ValueError:
+                continue
+            location_points.append((pt, m.group(4)))
+
+    return location_points
+
+
 def extract_snappy_hex_mesh_data(
     root: FoamNode, case_dir: str | None = None
 ) -> SnappyHexMeshData:
@@ -266,91 +391,18 @@ def extract_snappy_hex_mesh_data(
     non_geometric: list[SnappyShape] = []
 
     geometry_node = find_child(root, "geometry")
-    collection_entries: list[FoamNode] = []
     if geometry_node is not None:
-        for entry in geometry_node.children:
-            if entry.node_type != "dictionary" or not entry.name:
-                continue
-            type_node = find_child(entry, "type")
-            if type_node is not None and str(type_node.value) == "collection":
-                # Deferred: members reference other geometry entries, so they can
-                # only be resolved once every primitive above has been collected.
-                collection_entries.append(entry)
-                continue
-            geo_type, geometry = _extract_geometry_entry(entry, var_map, case_dir)
-            if not geo_type:
-                continue
-            name = _resolve_name(entry)
-            shape = SnappyShape(label=name, kind=geo_type, category="geometry", geometry=geometry)
-            if geometry:
-                shapes[name] = shape
-            else:
-                non_geometric.append(shape)
+        collection_entries = _collect_geometry_shapes(
+            geometry_node, var_map, case_dir, shapes, non_geometric
+        )
+        _resolve_collections(collection_entries, shapes, non_geometric, var_map)
 
-        for entry in collection_entries:
-            members = _extract_collection_members(entry, shapes, var_map)
-            if members:
-                for member in members:
-                    shapes[member.label] = member
-            else:
-                non_geometric.append(
-                    SnappyShape(
-                        label=_resolve_name(entry), kind="collection",
-                        category="geometry", geometry={},
-                    )
-                )
-
-    known_names = list(shapes.keys())
     location_points: list[tuple[list[float], str]] = []
-
     cmc_node = find_child(root, "castellatedMeshControls")
     if cmc_node is not None:
-        rs_node = find_child(cmc_node, "refinementSurfaces")
-        if rs_node is not None:
-            for entry in rs_node.children:
-                if entry.node_type != "dictionary" or not entry.name:
-                    continue
-                matched = _match_name(entry.name, known_names)
-                if matched is None:
-                    continue
-                level_node = find_child(entry, "level")
-                if (
-                    level_node is not None
-                    and isinstance(level_node.value, list)
-                    and len(level_node.value) == 2
-                ):
-                    shapes[matched].level = (float(level_node.value[0]), float(level_node.value[1]))
-                shapes[matched].category = "surface"
-
-        rr_node = find_child(cmc_node, "refinementRegions")
-        if rr_node is not None:
-            for entry in rr_node.children:
-                if entry.node_type != "dictionary" or not entry.name:
-                    continue
-                matched = _match_name(entry.name, known_names)
-                if matched is None:
-                    continue
-                mode_node = find_child(entry, "mode")
-                if mode_node is not None:
-                    shapes[matched].mode = str(mode_node.value)
-                if shapes[matched].category != "surface":
-                    shapes[matched].category = "region"
-
-        loc_node = find_child(cmc_node, "locationInMesh")
-        if loc_node is not None:
-            point = resolve_vector(loc_node, var_map)
-            if point is not None:
-                location_points.append((point, "locationInMesh"))
-
-        locs_node = find_child(cmc_node, "locationsInMesh")
-        if locs_node is not None:
-            text = expand_evals(substitute_vars(str(locs_node.value), var_map))
-            for m in _LOCATION_PAIR_RE.finditer(text):
-                try:
-                    pt = [float(m.group(1)), float(m.group(2)), float(m.group(3))]
-                except ValueError:
-                    continue
-                location_points.append((pt, m.group(4)))
+        location_points = _apply_castellated_mesh_controls(
+            cmc_node, shapes, list(shapes.keys()), var_map
+        )
 
     return SnappyHexMeshData(
         shapes=list(shapes.values()),

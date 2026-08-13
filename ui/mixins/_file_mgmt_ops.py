@@ -18,21 +18,14 @@ from PySide6.QtWidgets import (
 from foam.include_resolver import ResolvedInclude
 from foam.utils import read_foam_file
 from i18n import tr
+from services.backup_files import find_backup_files
 from services.case_files_config import CaseFilesConfig
 from services.case_loader import TARGET_FILES, list_case_files
 from services.include_scan import copy_destination_for, resolve_directive_text
 from ui.dialogs.add_files_dialog import AddFilesDialog
-from ui.dialogs.clean_backups_dialog import CleanBackupsDialog, find_backup_files
+from ui.dialogs.clean_backups_dialog import CleanBackupsDialog
 from ui.dialogs.manage_extra_files_dialog import ManageExtraFilesDialog
-from ui.layout_constants import (
-    STATUS_NORMAL as _STATUS_NORMAL,
-)
-from ui.layout_constants import (
-    STATUS_SHORT as _STATUS_SHORT,
-)
-from ui.layout_constants import (
-    STATUS_WARNING as _STATUS_WARNING,
-)
+from ui.layout_constants import STATUS_NORMAL, STATUS_SHORT, STATUS_WARNING
 from ui.panels.file_list_panel import display_file_name, group_display_name
 
 if TYPE_CHECKING:
@@ -56,16 +49,16 @@ class _FileManagementOpsMixin(_Base):
             return
         filename = filename.strip()
         if not filename:
-            self.statusBar().showMessage(tr("File name must not be empty."), _STATUS_WARNING)
+            self.statusBar().showMessage(tr("File name must not be empty."), STATUS_WARNING)
             return
         if "/" in filename or "\\" in filename:
-            self.statusBar().showMessage(tr("File name must not contain path separators."), _STATUS_WARNING)
+            self.statusBar().showMessage(tr("File name must not contain path separators."), STATUS_WARNING)
             return
 
         target = Path(case_dir) / group / filename
         if target.exists():
             self.statusBar().showMessage(
-                tr("File already exists: {name}").format(name=target.name), _STATUS_WARNING
+                tr("File already exists: {name}").format(name=target.name), STATUS_WARNING
             )
             return
 
@@ -82,7 +75,7 @@ class _FileManagementOpsMixin(_Base):
 
         self._reload_file_list()
         created_rel = str(Path(group) / filename)  # normalizes './x' to 'x' for case root
-        self.statusBar().showMessage(tr("Created: {name}").format(name=created_rel), _STATUS_SHORT)
+        self.statusBar().showMessage(tr("Created: {name}").format(name=created_rel), STATUS_SHORT)
         self.file_list_panel.select_file(str(target))
 
     def _on_add_file_requested(self, case_dir: str, group: str) -> None:
@@ -111,7 +104,7 @@ class _FileManagementOpsMixin(_Base):
         config.save()
         self._load_case_dir(case_dir)
         self.statusBar().showMessage(
-            tr("Added {n} file(s) to the file list.").format(n=len(selected)), _STATUS_SHORT
+            tr("Added {n} file(s) to the file list.").format(n=len(selected)), STATUS_SHORT
         )
 
     def _read_only_refused(self, path: str) -> bool:
@@ -126,7 +119,7 @@ class _FileManagementOpsMixin(_Base):
             tr("Read-only file — outside the case directory: {name}").format(
                 name=Path(path).name
             ),
-            _STATUS_WARNING,
+            STATUS_WARNING,
         )
         return True
 
@@ -158,7 +151,7 @@ class _FileManagementOpsMixin(_Base):
         rel = display_file_name(str(backup_path))
         suffix = tr(" (includes unsaved edits)") if has_unsaved else ""
         self.statusBar().showMessage(
-            tr("Backup created: {rel}{suffix}").format(rel=rel, suffix=suffix), _STATUS_NORMAL
+            tr("Backup created: {rel}{suffix}").format(rel=rel, suffix=suffix), STATUS_NORMAL
         )
         return True
 
@@ -213,7 +206,7 @@ class _FileManagementOpsMixin(_Base):
                 parts.append(f"{added_n} directory(s) added")
             if toggled_n:
                 parts.append(f"{toggled_n} directory(s) updated")
-            self.statusBar().showMessage(", ".join(parts) + ".", _STATUS_SHORT)
+            self.statusBar().showMessage(", ".join(parts) + ".", STATUS_SHORT)
 
     def _on_remove_extra_file(self, abs_path: str) -> None:
         if not self.state.case_files_config or not self.state.current_case_dir:
@@ -227,7 +220,7 @@ class _FileManagementOpsMixin(_Base):
         self._reload_file_list()
         self.statusBar().showMessage(
             tr("Removed from extra files: {name}").format(name=display_file_name(abs_path)),
-            _STATUS_SHORT,
+            STATUS_SHORT,
         )
 
     def _on_delete_file_requested(self, path: str) -> None:
@@ -240,7 +233,7 @@ class _FileManagementOpsMixin(_Base):
         msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Icon.Warning)
         msg.setWindowTitle(tr("Delete File"))
-        msg.setText(f"Delete <b>{display_file_name(path)}</b> from disk?")
+        msg.setText(tr("Delete <b>{name}</b> from disk?").format(name=display_file_name(path)))
         info = tr("This action cannot be undone.")
         if is_dirty:
             info = tr("This file has unsaved changes.\nThis action cannot be undone.")
@@ -282,7 +275,7 @@ class _FileManagementOpsMixin(_Base):
         self._reload_file_list()
         self._reload_boundary_panel()
         self.statusBar().showMessage(
-            tr("Deleted: {name}").format(name=display_file_name(path)), _STATUS_SHORT
+            tr("Deleted: {name}").format(name=display_file_name(path)), STATUS_SHORT
         )
 
     def _on_duplicate_file_requested(self, path: str) -> None:
@@ -299,18 +292,18 @@ class _FileManagementOpsMixin(_Base):
             return
         new_name = new_name.strip()
         if not new_name:
-            self.statusBar().showMessage(tr("File name must not be empty."), _STATUS_WARNING)
+            self.statusBar().showMessage(tr("File name must not be empty."), STATUS_WARNING)
             return
         if "/" in new_name or "\\" in new_name:
             self.statusBar().showMessage(
-                tr("File name must not contain path separators."), _STATUS_WARNING
+                tr("File name must not contain path separators."), STATUS_WARNING
             )
             return
 
         dest = p.parent / new_name
         if dest.exists():
             self.statusBar().showMessage(
-                tr("File already exists: {name}").format(name=new_name), _STATUS_WARNING
+                tr("File already exists: {name}").format(name=new_name), STATUS_WARNING
             )
             return
 
@@ -357,7 +350,7 @@ class _FileManagementOpsMixin(_Base):
 
         self._reload_file_list()
         self.statusBar().showMessage(
-            tr("Duplicated: {src} → {dst}").format(src=p.name, dst=new_name), _STATUS_SHORT
+            tr("Duplicated: {src} → {dst}").format(src=p.name, dst=new_name), STATUS_SHORT
         )
         self.file_list_panel.select_file(str(dest))
 
@@ -389,7 +382,7 @@ class _FileManagementOpsMixin(_Base):
             return
         new_rel = new_rel.strip()
         if not new_rel:
-            self.statusBar().showMessage(tr("File name must not be empty."), _STATUS_WARNING)
+            self.statusBar().showMessage(tr("File name must not be empty."), STATUS_WARNING)
             return
 
         # Normalise before the containment check: Path.relative_to is purely
@@ -399,12 +392,12 @@ class _FileManagementOpsMixin(_Base):
             dest.relative_to(Path(case_dir))
         except ValueError:
             self.statusBar().showMessage(
-                tr("Destination must be inside the case directory."), _STATUS_WARNING
+                tr("Destination must be inside the case directory."), STATUS_WARNING
             )
             return
         if dest.exists():
             self.statusBar().showMessage(
-                tr("File already exists: {name}").format(name=new_rel), _STATUS_WARNING
+                tr("File already exists: {name}").format(name=new_rel), STATUS_WARNING
             )
             return
 
@@ -429,7 +422,7 @@ class _FileManagementOpsMixin(_Base):
         self._reload_file_list()
         self.statusBar().showMessage(
             tr("Copied into case: {name}").format(name=str(dest.relative_to(Path(case_dir)))),
-            _STATUS_NORMAL,
+            STATUS_NORMAL,
         )
         self.file_list_panel.select_file(str(dest))
 
@@ -475,7 +468,7 @@ class _FileManagementOpsMixin(_Base):
             return
         self._reload_file_list()
         self.statusBar().showMessage(
-            tr("Duplicated: {src} → {dst}").format(src=src + "/", dst=dst + "/"), _STATUS_SHORT
+            tr("Duplicated: {src} → {dst}").format(src=src + "/", dst=dst + "/"), STATUS_SHORT
         )
 
     def _on_delete_dir_requested(self, case_dir: str, group: str) -> None:
@@ -516,7 +509,7 @@ class _FileManagementOpsMixin(_Base):
 
         self._reload_file_list()
         self._reload_boundary_panel()
-        self.statusBar().showMessage(tr("Deleted: {name}").format(name=group+"/"), _STATUS_SHORT)
+        self.statusBar().showMessage(tr("Deleted: {name}").format(name=group+"/"), STATUS_SHORT)
 
     def _on_clean_backups(self) -> None:
         if not self.state.current_case_dir:
@@ -564,7 +557,7 @@ class _FileManagementOpsMixin(_Base):
                 tr("Some files could not be deleted:\n{errors}").format(errors="\n".join(errors)),
             )
 
-        self.statusBar().showMessage(tr("Deleted {n} backup file(s).").format(n=deleted_count), _STATUS_SHORT)
+        self.statusBar().showMessage(tr("Deleted {n} backup file(s).").format(n=deleted_count), STATUS_SHORT)
 
 
 def _foamfile_template(group: str, filename: str) -> str:

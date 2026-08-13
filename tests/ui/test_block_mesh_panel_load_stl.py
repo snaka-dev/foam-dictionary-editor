@@ -7,10 +7,7 @@ feeds: individual show/hide, individual unload, and re-loading a path in place.
 """
 from __future__ import annotations
 
-import sys
-
 import pytest
-from PySide6.QtWidgets import QApplication
 
 from ui.panels import block_mesh_panel
 from ui.panels.block_mesh_panel import BlockMeshPanel
@@ -26,14 +23,6 @@ _ASCII_STL = (
     " endloop\nendfacet\n"
     "endsolid box\n"
 )
-
-
-@pytest.fixture(scope="module")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv[:1])
-    return app
 
 
 def _write_stl(tmp_path, name: str, text: str = _ASCII_STL) -> str:

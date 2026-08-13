@@ -1,11 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
-"""Export loaded topoSetDict / snappyHexMeshDict / setFieldsDict shapes as STL files.
-
-Kept in plain English (no i18n `tr()`), matching the BlockMesh panel and
-renderer it's launched from — neither of those participate in the app's
-i18n coverage.
-"""
+"""Export loaded topoSetDict / snappyHexMeshDict / setFieldsDict shapes as STL files."""
 from __future__ import annotations
 
 import dataclasses
@@ -30,7 +25,9 @@ from PySide6.QtWidgets import (
 from foam.set_fields_extractor import SetFieldsShape
 from foam.snappy_hex_mesh_extractor import SnappyShape
 from foam.topo_set_extractor import TopoShape
-from ui.panels.block_mesh_renderer import BlockMeshRenderer
+from i18n import tr
+from ui.panels.shape_mesh import make_shape_mesh
+from ui.widgets._checkable_list import checked_indices, set_all_check_states
 
 _DIALOG_WIDTH = 520
 _DIALOG_HEIGHT = 460
@@ -66,7 +63,7 @@ class ExportStlDialog(QDialog):
         set_fields_visible: set[int] | None = None,
     ):
         super().__init__(parent)
-        self.setWindowTitle("Export Shapes as STL")
+        self.setWindowTitle(tr("Export Shapes as STL"))
         self.resize(_DIALOG_WIDTH, _DIALOG_HEIGHT)
 
         set_fields_visible = set_fields_visible or set()
@@ -82,11 +79,11 @@ class ExportStlDialog(QDialog):
         ]
 
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Choose which shapes to save as STL files:"))
+        layout.addWidget(QLabel(tr("Choose which shapes to save as STL files:")))
 
         sel_row = QHBoxLayout()
-        select_all_btn = QPushButton("Select All")
-        deselect_all_btn = QPushButton("Deselect All")
+        select_all_btn = QPushButton(tr("Select All"))
+        deselect_all_btn = QPushButton(tr("Deselect All"))
         sel_row.addWidget(select_all_btn)
         sel_row.addWidget(deselect_all_btn)
         sel_row.addStretch()
@@ -94,7 +91,7 @@ class ExportStlDialog(QDialog):
 
         self._list = QListWidget()
         for entry in self._entries:
-            label = entry.name or "(unnamed)"
+            label = entry.name or tr("(unnamed)")
             item = QListWidgetItem(f"[{entry.group_label}] {label}  ·  {entry.kind}")
             item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(Qt.CheckState.Checked if entry.default_checked else Qt.CheckState.Unchecked)
@@ -102,18 +99,18 @@ class ExportStlDialog(QDialog):
         layout.addWidget(self._list)
 
         folder_row = QHBoxLayout()
-        folder_row.addWidget(QLabel("Output folder:"))
+        folder_row.addWidget(QLabel(tr("Output folder:")))
         self._folder_edit = QLineEdit()
         self._folder_edit.setReadOnly(True)
         folder_row.addWidget(self._folder_edit, 1)
-        browse_btn = QPushButton("Browse…")
+        browse_btn = QPushButton(tr("Browse…"))
         folder_row.addWidget(browse_btn)
         layout.addLayout(folder_row)
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        cancel_btn = QPushButton("Cancel")
-        self._export_btn = QPushButton("Export")
+        cancel_btn = QPushButton(tr("Cancel"))
+        self._export_btn = QPushButton(tr("Export"))
         btn_row.addWidget(cancel_btn)
         btn_row.addWidget(self._export_btn)
         layout.addLayout(btn_row)
@@ -129,34 +126,25 @@ class ExportStlDialog(QDialog):
 
     # ── selection helpers ────────────────────────────────────────────────────
 
-    def _checked_indices(self) -> list[int]:
-        return [
-            i for i in range(self._list.count())
-            if self._list.item(i).checkState() == Qt.CheckState.Checked
-        ]
-
-    def _set_all_check_states(self, state: Qt.CheckState) -> None:
-        self._list.blockSignals(True)
-        for i in range(self._list.count()):
-            self._list.item(i).setCheckState(state)
-        self._list.blockSignals(False)
+    def _select_all(self) -> None:
+        set_all_check_states(self._list, Qt.CheckState.Checked)
         self._update_export_btn()
 
-    def _select_all(self) -> None:
-        self._set_all_check_states(Qt.CheckState.Checked)
-
     def _deselect_all(self) -> None:
-        self._set_all_check_states(Qt.CheckState.Unchecked)
+        set_all_check_states(self._list, Qt.CheckState.Unchecked)
+        self._update_export_btn()
 
     def _choose_folder(self) -> None:
-        chosen = QFileDialog.getExistingDirectory(self, "Select Output Folder", self._folder_edit.text())
+        chosen = QFileDialog.getExistingDirectory(
+            self, tr("Select Output Folder"), self._folder_edit.text()
+        )
         if chosen:
             self._folder_edit.setText(chosen)
         self._update_export_btn()
 
     def _update_export_btn(self) -> None:
         self._export_btn.setEnabled(
-            bool(self._checked_indices()) and bool(self._folder_edit.text())
+            bool(checked_indices(self._list)) and bool(self._folder_edit.text())
         )
 
     # ── export ───────────────────────────────────────────────────────────────
@@ -168,11 +156,11 @@ class ExportStlDialog(QDialog):
         failed: list[str] = []
         used_names: set[str] = set()
 
-        for i in self._checked_indices():
+        for i in checked_indices(self._list):
             entry = self._entries[i]
-            label = entry.name or "(unnamed)"
+            label = entry.name or tr("(unnamed)")
             try:
-                mesh = BlockMeshRenderer._make_shape_mesh(entry.kind, entry.geometry)
+                mesh = make_shape_mesh(entry.kind, entry.geometry)
                 if mesh is None:
                     skipped.append(label)
                     continue
@@ -192,10 +180,12 @@ class ExportStlDialog(QDialog):
             except Exception as e:
                 failed.append(f"{label}: {e}")
 
-        lines = [f"{len(written)} file(s) written to {out_dir}."]
+        lines = [tr("{n} file(s) written to {dir}.").format(n=len(written), dir=out_dir)]
         if skipped:
-            lines.append(f"Skipped (no drawable geometry): {', '.join(skipped)}")
+            lines.append(
+                tr("Skipped (no drawable geometry): {names}").format(names=", ".join(skipped))
+            )
         if failed:
-            lines.append(f"Failed: {', '.join(failed)}")
-        QMessageBox.information(self, "Export Shapes as STL", "\n".join(lines))
+            lines.append(tr("Failed: {names}").format(names=", ".join(failed)))
+        QMessageBox.information(self, tr("Export Shapes as STL"), "\n".join(lines))
         self.accept()

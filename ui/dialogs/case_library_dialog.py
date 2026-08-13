@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from app_config.app_config_manager import AppConfigManager
 from i18n import tr
+from ui.widgets._checkable_list import checked_items, set_all_check_states
 
 _DIALOG_WIDTH = 580
 _DIALOG_HEIGHT = 420
@@ -44,7 +45,8 @@ class CaseLibraryDialog(QDialog):
         auto_box = QGroupBox(tr("Auto-detected (read-only)"))
         auto_layout = QVBoxLayout(auto_box)
         if foam:
-            auto_label = QLabel(f"{foam}   <i>[$FOAM_TUTORIALS]</i>")
+            # "[$FOAM_TUTORIALS]" names the environment variable, not prose.
+            auto_label = QLabel(f"{foam}   <i>[$FOAM_TUTORIALS]</i>")  # i18n: skip
             auto_label.setTextFormat(Qt.TextFormat.RichText)
         else:
             auto_label = QLabel(f"<i>{tr('$FOAM_TUTORIALS is not set or does not exist.')}</i>")
@@ -106,30 +108,17 @@ class CaseLibraryDialog(QDialog):
             self._list.addItem(item)
         self._list.blockSignals(False)
 
-    def _checked_items(self) -> list[QListWidgetItem]:
-        return [
-            self._list.item(i)
-            for i in range(self._list.count())
-            if self._list.item(i).checkState() == Qt.CheckState.Checked
-        ]
-
     def _update_remove_btn(self) -> None:
-        n = len(self._checked_items())
+        n = len(checked_items(self._list))
         self._remove_btn.setText(tr("Remove Selected ({n})").format(n=n))
         self._remove_btn.setEnabled(n > 0)
 
     def _select_all(self) -> None:
-        self._list.blockSignals(True)
-        for i in range(self._list.count()):
-            self._list.item(i).setCheckState(Qt.CheckState.Checked)
-        self._list.blockSignals(False)
+        set_all_check_states(self._list, Qt.CheckState.Checked)
         self._update_remove_btn()
 
     def _deselect_all(self) -> None:
-        self._list.blockSignals(True)
-        for i in range(self._list.count()):
-            self._list.item(i).setCheckState(Qt.CheckState.Unchecked)
-        self._list.blockSignals(False)
+        set_all_check_states(self._list, Qt.CheckState.Unchecked)
         self._update_remove_btn()
 
     def _add_directory(self) -> None:
@@ -142,7 +131,7 @@ class CaseLibraryDialog(QDialog):
         self._update_remove_btn()
 
     def _remove_checked(self) -> None:
-        for item in self._checked_items():
+        for item in checked_items(self._list):
             self._dirs.remove(item.text())
         self._rebuild_list()
         self._update_remove_btn()

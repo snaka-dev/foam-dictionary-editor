@@ -27,19 +27,19 @@ from schemas.snappy_hex_mesh_dict import TARGET_FILE as SNAPPY_TARGET_FILE
 # ── fixtures ──────────────────────────────────────────────────────────────────
 
 @pytest.fixture
-def config_path(monkeypatch, tmp_path):
+def schema_config_path(monkeypatch, tmp_path):
     path = tmp_path / "schema_config.json"
     monkeypatch.setattr("schemas.config_store.CONFIG_FILE", path)
     return path
 
 
 @pytest.fixture
-def registry(config_path):
+def registry(schema_config_path):
     return SchemaRegistry()
 
 
 @pytest.fixture
-def closed_ns_registry(config_path, monkeypatch):
+def closed_ns_registry(schema_config_path, monkeypatch):
     """A registry over a synthetic module shaped like the coefficient schemas.
 
     Two `<model>Coeffs` namespaces, one key qualified under each, a flat twin of
@@ -156,52 +156,52 @@ class TestDefaultConfig:
 # ── config_store.py ───────────────────────────────────────────────────────────
 
 class TestLoadSchemaConfig:
-    def test_returns_defaults_when_no_file(self, config_path):
+    def test_returns_defaults_when_no_file(self, schema_config_path):
         assert load_schema_config() == get_default_schema_config()
 
-    def test_loads_existing_file(self, config_path):
+    def test_loads_existing_file(self, schema_config_path):
         data = {"schema_modules": ["custom.module"]}
-        config_path.write_text(json.dumps(data), encoding="utf-8")
+        schema_config_path.write_text(json.dumps(data), encoding="utf-8")
         assert load_schema_config()["schema_modules"] == ["custom.module"]
 
-    def test_returns_dict(self, config_path):
+    def test_returns_dict(self, schema_config_path):
         assert isinstance(load_schema_config(), dict)
 
 
 class TestSaveSchemaConfig:
-    def test_creates_file(self, config_path):
+    def test_creates_file(self, schema_config_path):
         save_schema_config({"schema_modules": []})
-        assert config_path.exists()
+        assert schema_config_path.exists()
 
-    def test_content_round_trips(self, config_path):
+    def test_content_round_trips(self, schema_config_path):
         save_schema_config({"schema_modules": ["a.b", "c.d"]})
-        content = json.loads(config_path.read_text(encoding="utf-8"))
+        content = json.loads(schema_config_path.read_text(encoding="utf-8"))
         assert content["schema_modules"] == ["a.b", "c.d"]
 
 
 class TestResetSchemaConfig:
-    def test_returns_defaults(self, config_path):
+    def test_returns_defaults(self, schema_config_path):
         assert reset_schema_config() == get_default_schema_config()
 
-    def test_overwrites_existing_file(self, config_path):
-        config_path.write_text(json.dumps({"schema_modules": ["custom"]}), encoding="utf-8")
+    def test_overwrites_existing_file(self, schema_config_path):
+        schema_config_path.write_text(json.dumps({"schema_modules": ["custom"]}), encoding="utf-8")
         reset_schema_config()
-        assert json.loads(config_path.read_text(encoding="utf-8")) == get_default_schema_config()
+        assert json.loads(schema_config_path.read_text(encoding="utf-8")) == get_default_schema_config()
 
 
 class TestDeleteSchemaConfig:
-    def test_returns_defaults(self, config_path):
-        config_path.write_text(json.dumps({"schema_modules": ["custom"]}), encoding="utf-8")
+    def test_returns_defaults(self, schema_config_path):
+        schema_config_path.write_text(json.dumps({"schema_modules": ["custom"]}), encoding="utf-8")
         assert delete_schema_config() == get_default_schema_config()
 
-    def test_no_error_when_file_missing(self, config_path):
-        assert not config_path.exists()
+    def test_no_error_when_file_missing(self, schema_config_path):
+        assert not schema_config_path.exists()
         delete_schema_config()  # should not raise
 
-    def test_file_recreated_with_defaults(self, config_path):
-        config_path.write_text(json.dumps({"schema_modules": ["x"]}), encoding="utf-8")
+    def test_file_recreated_with_defaults(self, schema_config_path):
+        schema_config_path.write_text(json.dumps({"schema_modules": ["x"]}), encoding="utf-8")
         delete_schema_config()
-        assert json.loads(config_path.read_text(encoding="utf-8")) == get_default_schema_config()
+        assert json.loads(schema_config_path.read_text(encoding="utf-8")) == get_default_schema_config()
 
 
 # ── registry.py ───────────────────────────────────────────────────────────────
@@ -726,8 +726,8 @@ class TestSchemaRegistryModules:
         registry.apply_and_reload()
         assert registry.schema_for_file_key("/case/system/controlDict", "startFrom") is None
 
-    def test_save_writes_config_file(self, registry, config_path):
+    def test_save_writes_config_file(self, registry, schema_config_path):
         registry.save()
-        assert config_path.exists()
-        content = json.loads(config_path.read_text(encoding="utf-8"))
+        assert schema_config_path.exists()
+        content = json.loads(schema_config_path.read_text(encoding="utf-8"))
         assert "schema_modules" in content

@@ -2,27 +2,27 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QKeySequence, QShortcut, QTextCursor, QTextDocument
+from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtGui import QAction, QKeySequence, QShortcut, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (
-    QFrame,
-    QHBoxLayout,
     QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
-    QToolButton,
+    QSizePolicy,
+    QToolBar,
     QVBoxLayout,
     QWidget,
 )
 
 from foam.utils import is_script_text
 from i18n import tr
+from ui.fonts import icon_pixel_size
+from ui.icons import icon
 from ui.theme import colors
 from ui.widgets.code_editor import CodeEditor
 
 _SPACING_LARGE = 16
-_SPACING_SMALL = 6
 
 
 class EditorPanel(QWidget):
@@ -39,7 +39,7 @@ class EditorPanel(QWidget):
         self._editor.textChanged.connect(self._on_text_changed)
         self._editor.cursorPositionChanged.connect(self._update_cursor_status)
 
-        self._cursor_label = QLabel("Line: 1")
+        self._cursor_label = QLabel(tr("Line: {n}").format(n=1))
 
         # Shown only for an `#include` target outside the case directory.
         self._read_only_label = QLabel(tr("read-only"))
@@ -59,9 +59,7 @@ class EditorPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        layout.addWidget(self._build_separator())
-        layout.addSpacing(_SPACING_SMALL)
-        layout.addLayout(self._build_toolbar())
+        layout.addWidget(self._build_toolbar())
         layout.addWidget(self._editor)
 
     @property
@@ -124,49 +122,61 @@ class EditorPanel(QWidget):
 
     # ── private ───────────────────────────────────────────────────────────────
 
-    def _build_separator(self) -> QFrame:
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setFrameShadow(QFrame.Shadow.Sunken)
-        sep.setLineWidth(1)
-        sep.setStyleSheet(f"""
-            QFrame {{
-                color: {colors().separator};
-                background-color: {colors().separator};
-                min-height: 1px;
-                max-height: 1px;
-            }}
-        """)
-        return sep
+    def _build_toolbar(self) -> QToolBar:
+        """Build the Find row as a real QToolBar.
 
-    def _build_toolbar(self) -> QHBoxLayout:
+        A QToolBar over the plain QHBoxLayout of QToolButtons this used to
+        be: its buttons default to autoRaise, so they paint flat until
+        hovered instead of each drawing as its own raised, bordered
+        rectangle -- see ui/main_window.py's _build_top_bar for the same fix
+        applied to the main action row, and why it has to be a real toolbar
+        rather than a layout for the flatness to take effect. That also
+        means this panel needs no separator line of its own any more: the
+        toolbar's own top edge is the separation.
+        """
         from app_config import get_app_config
 
-        def btn(label: str, slot, tip: str = "") -> QToolButton:
-            b = QToolButton()
-            b.setText(label)
-            b.clicked.connect(slot)
-            if tip:
-                b.setToolTip(tip)
-            return b
+        toolbar = QToolBar()
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        icon_side = icon_pixel_size()
+        toolbar.setIconSize(QSize(icon_side, icon_side))
 
-        toolbar = QHBoxLayout()
-        toolbar.addWidget(btn("Find",      self._find,      "Find text (Ctrl+F)"))
-        toolbar.addWidget(btn("Find Prev", self._find_prev, "Find previous occurrence (Shift+F3)"))
-        toolbar.addWidget(btn("Find Next", self._find_next, "Find next occurrence (F3)"))
-        toolbar.addSpacing(_SPACING_LARGE)
-        toolbar.addWidget(btn(
-            "Find in Tree", self.find_in_tree_requested.emit,
-            "Select the tree entry for the current cursor line (Ctrl+Shift+T)",
-        ))
-        toolbar.addSpacing(_SPACING_LARGE)
+        def spacer(width: int) -> QWidget:
+            gap = QWidget()
+            gap.setFixedWidth(width)
+            return gap
+
+        self._find_action = QAction(icon("find"), tr("Find"), self)
+        self._find_action.setToolTip(tr("Find text (Ctrl+F)"))
+        self._find_action.triggered.connect(self._find)
+        toolbar.addAction(self._find_action)
+
+        self._find_prev_action = QAction(icon("find-previous"), tr("Find Prev"), self)
+        self._find_prev_action.setToolTip(tr("Find previous occurrence (Shift+F3)"))
+        self._find_prev_action.triggered.connect(self._find_prev)
+        toolbar.addAction(self._find_prev_action)
+
+        self._find_next_action = QAction(icon("find-next"), tr("Find Next"), self)
+        self._find_next_action.setToolTip(tr("Find next occurrence (F3)"))
+        self._find_next_action.triggered.connect(self._find_next)
+        toolbar.addAction(self._find_next_action)
+
+        toolbar.addWidget(spacer(_SPACING_LARGE))
+
+        self._find_in_tree_action = QAction(icon("find-in-tree"), tr("Find in Tree"), self)
+        self._find_in_tree_action.setToolTip(
+            tr("Select the tree entry for the current cursor line (Ctrl+Shift+T)")
+        )
+        self._find_in_tree_action.triggered.connect(self.find_in_tree_requested.emit)
+        toolbar.addAction(self._find_in_tree_action)
+
+        toolbar.addWidget(spacer(_SPACING_LARGE))
 
         cfg = get_app_config()
-        hl_btn = QToolButton()
-        hl_btn.setText("Highlight")
-        hl_btn.setToolTip("Toggle syntax highlighting")
-        hl_btn.setCheckable(True)
-        hl_btn.setChecked(cfg.get_feature("syntax_highlighting", True))
+        self._highlight_action = QAction(icon("highlight"), tr("Highlight"), self)
+        self._highlight_action.setToolTip(tr("Toggle syntax highlighting"))
+        self._highlight_action.setCheckable(True)
+        self._highlight_action.setChecked(cfg.get_feature("syntax_highlighting", True))
 
         def _toggle_highlight(checked: bool) -> None:
             self._updating_programmatically = True
@@ -175,13 +185,18 @@ class EditorPanel(QWidget):
             cfg.set_feature("syntax_highlighting", checked)
             cfg.save()
 
-        toolbar.addWidget(hl_btn)
-        self._editor.set_highlighting_enabled(hl_btn.isChecked())
-        hl_btn.toggled.connect(_toggle_highlight)
+        toolbar.addAction(self._highlight_action)
+        self._editor.set_highlighting_enabled(self._highlight_action.isChecked())
+        self._highlight_action.toggled.connect(_toggle_highlight)
 
-        toolbar.addStretch(1)
+        # Expanding spacer widget: a QToolBar has no addStretch, unlike the
+        # QHBoxLayout this replaces.
+        stretch = QWidget()
+        stretch.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        toolbar.addWidget(stretch)
+
         toolbar.addWidget(self._read_only_label)
-        toolbar.addSpacing(_SPACING_LARGE)
+        toolbar.addWidget(spacer(_SPACING_LARGE))
         toolbar.addWidget(self._cursor_label)
         return toolbar
 
@@ -190,12 +205,12 @@ class EditorPanel(QWidget):
             self.user_text_changed.emit()
 
     def _update_cursor_status(self) -> None:
-        self._cursor_label.setText(f"Line: {self._editor.current_line_number()}")
+        self._cursor_label.setText(tr("Line: {n}").format(n=self._editor.current_line_number()))
 
     def _find(self) -> None:
         initial = self._editor.textCursor().selectedText() or self._last_search_text
         text, ok = QInputDialog.getText(
-            self, "Find", "Text to find:", QLineEdit.EchoMode.Normal, initial
+            self, tr("Find"), tr("Text to find:"), QLineEdit.EchoMode.Normal, initial
         )
         if not ok or not text:
             return
@@ -225,4 +240,7 @@ class EditorPanel(QWidget):
             self._editor.setTextCursor(cursor)
             found = self._editor.find(self._last_search_text, flag)
         if not found:
-            QMessageBox.information(self, "Find", f"Text not found: {self._last_search_text}")
+            QMessageBox.information(
+                self, tr("Find"),
+                tr("Text not found: {text}").format(text=self._last_search_text),
+            )

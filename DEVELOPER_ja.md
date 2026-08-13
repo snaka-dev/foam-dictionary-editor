@@ -57,6 +57,7 @@ foam-dictionary-editor/
 │   ├── include_resolver.py      # Qt 非依存・標準ライブラリのみ: parse_include_directive() が directive_entry の生テキストを IncludeRef（#include/#sinclude/#includeIfPresent/#includeEtc/#includeFunc）に変換し、#codeStream 本体が取り込む C++ ヘッダーを除外する。resolve_include() が ResolvedInclude へ解決し、$VAR と先頭の <case>/<system>/<constant>/<etc> トークンを展開する。etc_dirs は引数として受け取るため foam/ の無依存ルールが保たれる
 │   ├── tree_utils.py            # topo_set / snappy_hex_mesh / set_fields の各エクストラクタが共有する汎用 FoamNode ヘルパー: find_child、find_child_any、resolve_scalar、resolve_vector、resolve_point_list、expand_evals、および box/sphere/cylinder/cone の共有ジオメトリリゾルバ（resolve_box_geometry は min/max、`box (min) (max)` ペア、複数ボックス `boxes` の各形式をオプトインフラグで扱う）
 │   ├── diff.py                  # diff_trees(a, b) と diff_trees_reverse(b, a) — キー名で 2 つの FoamNode ツリーを比較し dict[FoamNode, DiffEntry] を返す
+│   ├── boundary_patch.py        # 境界パッチに対する Qt 非依存の FoamNode 操作: value_complexity/get_patch_type/patch_inner_text/parse_patch_content（境界編集ダイアログ用のパッチ内容の読み取り/パース）と find_rename_targets（パース済みルート群から名前が一致する boundary_entry / boundaryField 辞書ノードを走査）。ui/dialogs/boundary_edit_dialog.py と ui/dialogs/rename_boundary_dialog.py から分離 — QDialog モジュールに置かれていた Qt 非依存ロジックが、パッケージ間でアンダースコア付きプライベートとしてインポートされていたため。ui/panels/boundary_view_panel.py と ui/mixins/_boundary_ops.py でも共有される
 │   ├── lexer.py                 # OpenFoamLexer。_read_directive は '{' で読み取りを停止するため、#eval{...} の波括弧が LBRACE/RBRACE トークンになり深さ追跡が正しく機能する
 │   ├── nodes.py
 │   ├── parser.py
@@ -92,6 +93,8 @@ foam-dictionary-editor/
 │   └── registry.py
 ├── services/
 │   ├── case_copier.py
+│   ├── foam_monitor.py      # patched_foam_monitor(): インストール済み foamMonitor スクリプトを chmod-755 の一時ファイルへコピーし、gnuplot の reread 非推奨化に対応する修正を適用する（リポジトリルートの foamMonitor_gnuplot_reread_fix.patch と同内容）。ui/mixins/_foam_monitor_ops.py はこの一時ファイルを起動する
+│   ├── backup_files.py      # find_backup_files(case_dir): ケース配下の <name>.bak_YYYYMMDD_HHMMSS ファイルすべてについて [(abs_path, rel_path, size_bytes)] を返す。ui/dialogs/clean_backups_dialog.py の削除チェックリストに使われ、ui/mixins/_file_mgmt_ops.py から呼び出される
 │   ├── case_files_config.py
 │   ├── case_loader.py       # detect_poly_mesh() も含む -- constant/polyMesh/owner の FoamFile note フィールドから PolyMeshInfo(n_points, n_cells, n_faces, stale) を生成
 │   ├── include_scan.py      # インクルード対応のディスク側: foam_etc_dirs() が OpenFOAM の etc 検索パスを構築し、scan_includes()/included_files() が list_case_files の返したファイルに foam/include_resolver を適用する（パースではなく安価な正規表現の行スキャン。mtime+size でメモ化、1 段階のみで再帰しない）。copy_destination_for() は「ケースにコピー」の配置先を決める
@@ -139,7 +142,7 @@ foam-dictionary-editor/
 │   │   ├── case_library_dialog.py
 │   │   ├── clean_backups_dialog.py
 │   │   ├── duplicate_case_dialog.py  # DuplicateCaseDialog（_CaseDestDialogBase）: 名前サフィックスは "_copy"、デフォルトで「Copy all files」が選択済み
-│   │   ├── export_stl_dialog.py  # ExportStlDialog: 読み込み済みの topoSetDict/snappyHexMeshDict シェイプをチェックリスト表示するモーダルダイアログ。チェックした各シェイプを BlockMeshRenderer._make_shape_mesh 経由でそれぞれ個別の .stl として書き出す
+│   │   ├── export_stl_dialog.py  # ExportStlDialog: 読み込み済みの topoSetDict/snappyHexMeshDict シェイプをチェックリスト表示するモーダルダイアログ。チェックした各シェイプを shape_mesh.make_shape_mesh 経由でそれぞれ個別の .stl として書き出す
 │   │   ├── find_examples_dialog.py  # FindExamplesDialog: 非モーダルのキーワード検索。インストールの tutorials/ + etc/caseDicts/ を対象（services/example_search.py をバックグラウンド QThread、_SearchThread(_worker_thread._CancellableWorkerThread) で実行)、シンタックスハイライト付きプレビュー、コピー、「このケースと比較」（compare_requested を発行）、「このケースを複製…」（duplicate_requested を発行）。インストール選択は共有ウィジェット widgets/installation_selector.InstallationSelector
 │   │   ├── foam_monitor_dialog.py  # FoamMonitorDialog: ファイル選択 + foamMonitor オプション（対数スケール、グリッド、リフレッシュ間隔、アイドルタイムアウト、追加フラグ）
 │   │   ├── generate_keywords_dialog.py  # GenerateKeywordsDialog: app_config/keyword_generator.py をバックグラウンド QThread（_GeneratorThread(_worker_thread._CancellableWorkerThread)）で実行し進捗ログを表示。インストール選択は共有ウィジェット widgets/installation_selector.InstallationSelector（FindExamplesDialog と同じ検出 + 永続化 openfoam_dir キー）
@@ -155,12 +158,13 @@ foam-dictionary-editor/
 │   │   └── _worker_thread.py  # _CancellableWorkerThread（QThread）: find_examples_dialog の _SearchThread と generate_keywords_dialog の _GeneratorThread が共有する progress/finished_err シグナルと cancel() フラグ。各サブクラスは自身の finished_ok シグナルと run() を追加する
 │   ├── panels/
 │   │   ├── block_mesh_panel.py     # blockMeshDict 用 3D ビューア（pyVista/VTK、遅延初期化）。topoSetDict（topoSet ▾ メニュー）、snappyHexMeshDict（snappyHexMesh ▾ メニュー）、setFieldsDict の領域（setFields ▾ メニュー）、サンプリング定義（sample ▾ メニュー。controlDict の functions {} とスタンドアロンの system/sample 系辞書の合算を _sampling_by_file に元ファイル名ごとに保持）のジオメトリもそれぞれシェイプ単位の表示切替・Show all/Hide all アクション・描画不能エントリ用の「Non-geometric sources (N)」サブメニュー付きで重ねて表示する。アクター構築は block_mesh_renderer.BlockMeshRenderer に委譲。STL ▾ メニューには読み込み済み STL/OBJ サーフェス用の同じファイル別の行（block_mesh_renderer.LoadedSurface。1 ファイル 1 色、Unload サブメニュー付き）があり、「Export Shapes as STL…」は dialogs/export_stl_dialog.ExportStlDialog を開く
-│   │   ├── block_mesh_renderer.py  # BlockMeshRenderer: RenderSettings データクラス経由の blockMeshDict/topoSetDict/snappyHexMeshDict/setFieldsDict ジオメトリ用 VTK レンダリングパイプライン。_make_shape_mesh はジオメトリ辞書のキー（box、boxes、centre+radius〈リスト radius によるだ円体と innerRadius による中空球を含む〉、p1+p2+radius、origin+i+j+k、stl_path、planePoint+planeNormal〈plane_size で寸法指定される円板〉。points は None を返しマーカーとして別途描画）で分岐し全オーバーレイソースで共有される。オーバーレイシェイプは _clip_to_bounds により、ブロックメッシュの AABB を各軸 10% 拡大した範囲へ（表示上のみ）クリップされる — ラベルには「(clipped)」/「(outside block mesh)」マークが付き（ASCII のみ: VTK のラベルフォントは絵文字記号のグリフをまったく描画しない）、シーンを包み込むシェイプは AABB の重なりボックスにフォールバックし、STL エクスポートはクリップされない。_render_boundary_faces は BlockMeshData.default_faces も薄い "empty" グレーで描画する。pyvista のガードを通過した後にのみインポートされる
+│   │   ├── block_mesh_renderer.py  # BlockMeshRenderer: RenderSettings データクラス経由の blockMeshDict/topoSetDict/snappyHexMeshDict/setFieldsDict ジオメトリ用 VTK レンダリングパイプライン。色テーブル（_PATCH_COLORS、_ACTION_COLORS、_SNAPPY_CATEGORY_COLORS、_SET_FIELDS_REGION_COLOR、_SURFACE_COLORS）と _opacity()（テーマ依存の alpha 倍率）は ui.theme に依存するためこちらに残る。シェイプごとの描画メソッドは Qt に依存しないジオメトリ生成/クリッピング/ラベル付けを shape_mesh.make_shape_mesh()/_clip_to_bounds()/_mark_label() 経由で呼び出す。_render_boundary_faces は BlockMeshData.default_faces も薄い "empty" グレーで描画する。pyvista のガードを通過した後にのみインポートされる
 │   │   ├── boundary_view_panel.py
 │   │   ├── comparison_tree_panel.py  # 読み取り専用の参照ケースツリー。use_value_requested(FoamNode) シグナルを発行
 │   │   ├── detail_panel.py
 │   │   ├── editor_panel.py
 │   │   ├── file_list_panel.py
+│   │   ├── shape_mesh.py           # block_mesh_renderer.py から切り出した Qt に依存しないジオメトリ生成（Qt import なし、self なし）。make_shape_mesh() はジオメトリ辞書のキー（box、boxes、centre+radius〈リスト radius によるだ円体と innerRadius による中空球を含む〉、p1+p2+radius、origin+i+j+k、stl_path、planePoint+planeNormal〈plane_size で寸法指定される円板〉。points は None を返しマーカーとして別途描画）で分岐し、全オーバーレイソースおよび dialogs/export_stl_dialog.py で共有される。オーバーレイシェイプは _clip_to_bounds により、ブロックメッシュの AABB を各軸 10% 拡大した範囲へ（表示上のみ）クリップされる — ラベルには _mark_label 経由で「(clipped)」/「(outside block mesh)」マークが付き（ASCII のみ: VTK のラベルフォントは絵文字記号のグリフをまったく描画しない）、シーンを包み込むシェイプは AABB の重なりボックスにフォールバックする。read_surface_mesh() は gzip 圧縮された .stl/.obj を透過的に展開する。block_mesh_renderer.py と同様 pyvista は無条件にインポートされ、ガードされるのは pyvistaqt のみ
 │   │   └── terminal_panel.py       # TerminalPanel ラッパー: mode_changed シグナル、xterm/simple 切替ロジック
 │   └── widgets/
 │       ├── code_editor.py
@@ -172,11 +176,12 @@ foam-dictionary-editor/
 │       └── _xterm_widget.py            # PtyBackend、TerminalBridge、XtermTerminalWidget（Unix + QtWebEngine 専用）。_XTERM_AVAILABLE をエクスポート
 └── tests/
     ├── conftest.py
-    ├── test_lint.py             # pytest スイートの一部として ruff + mypy（どちらもリポジトリ全体）を実行
+    ├── test_lint.py             # pytest スイートの一部として ruff（リポジトリ全体）+ mypy（ソースパッケージのみ、「Linting and type-checking」参照）を実行
     ├── test_version.py          # _version.get_version(): git describe の整形（タグ一致、タグより先行、dirty、ハッシュのみ、git 無しフォールバック）
-    ├── test_i18n.py             # i18n/ja.py の TRANSLATIONS に重複キーがないこと（dict リテラルは最後のものだけを黙って残すため、AST で走査して検査）
+    ├── test_i18n.py             # i18n/ja.py の TRANSLATIONS に重複キーがないこと、および ui/ 配下の tr() 呼び出しがすべて ja.py のエントリを持つか、測定済みの _UNTRANSLATED 許可リストに含まれること（いずれも AST 走査）
     ├── foam/
     │   ├── test_block_mesh_extractor.py
+    │   ├── test_boundary_patch.py
     │   ├── test_diff.py
     │   ├── test_lexer.py
     │   ├── test_parser_block_mesh_dict.py
@@ -207,20 +212,26 @@ foam-dictionary-editor/
     │   ├── test_file_list_model.py
     │   └── test_tree_model.py
     ├── ui/
+    │   ├── test_action_toolbar.py
     │   ├── test_app_state.py
     │   ├── test_apply_comparison_value.py
+    │   ├── test_block_mesh_panel_fonts.py
     │   ├── test_block_mesh_panel_load_stl.py
     │   ├── test_block_mesh_panel_sampling_select.py
     │   ├── test_block_mesh_panel_set_fields_select.py
     │   ├── test_block_mesh_panel_snappy_select.py
     │   ├── test_block_mesh_panel_topo_select.py
-    │   ├── test_block_mesh_renderer_topo.py
+    │   ├── test_block_mesh_renderer_colors.py
     │   ├── test_block_mesh_selected_block.py
     │   ├── test_bm_side_by_side_multi_dict.py
     │   ├── test_boundary_view_copy.py
     │   ├── test_case_switch_clears_block_mesh_panel.py
     │   ├── test_code_editor.py
+    │   ├── test_code_editor_zoom.py
     │   ├── test_comparison_tree_panel.py
+    │   ├── test_detail_panel_fit.py
+    │   ├── test_dialog_fonts.py
+    │   ├── test_dialog_label_fit.py
     │   ├── test_diff_state_reset_on_case_change.py
     │   ├── test_drag_drop_open_case.py
     │   ├── test_duplicate_case.py
@@ -231,19 +242,23 @@ foam-dictionary-editor/
     │   ├── test_find_examples_dialog.py
     │   ├── test_flow_layout.py
     │   ├── test_foam_highlighter.py
+    │   ├── test_fonts.py
+    │   ├── test_icons.py
     │   ├── test_included_files.py
+    │   ├── test_keyboard_shortcuts_dialog.py
     │   ├── test_log_summary_dialog.py
     │   ├── test_main_window_save_refresh.py
     │   ├── test_main_window_split.py
     │   ├── test_manage_extra_files_dialog.py
     │   ├── test_pane_minimize.py
-    │   ├── test_rename_boundary.py
     │   ├── test_reset_all_settings.py
     │   ├── test_run_tool_dialog.py
+    │   ├── test_shape_mesh.py
     │   ├── test_stays_open_menu.py
     │   ├── test_terminal_panel.py
     │   ├── test_theme.py
     │   ├── test_tools_ops_mesh_actions.py
+    │   ├── test_translatable_strings.py
     │   ├── test_tree_block_crud.py
     │   ├── test_tree_color_lexer_dispatch.py
     │   ├── test_tree_copy_paste.py
@@ -298,6 +313,7 @@ foam-dictionary-editor/
 
 **`tests/foam/`**
 - `test_block_mesh_extractor.py` — `extract_block_mesh_data` の出力: 境界面の抽出（パッチの間に置かれた `#include` によって `outlet` が名前と面を失っていたリグレッションを含む）、`#include` を含む `blocks` リストおよび先読みが `raw_list` に落としたリストからの hex 抽出、`default_faces`（境界が全面を占有 → 空、未割り当ての外部面の収集、任意の頂点回転での占有判定、ブロック間で共有される内部面の除外）、`parse_vertices` の公開 API（正常系と三つ組でない要素の許容）、インラインコメントおよびパッチコメントを伴う頂点/ブロック抽出、変数解決（`$varName`、`${varName}`、マクロ、`-$xMax` のような否定マクロ word ノード、`#eval{ expr }`、多段チェーン）、コンパクト `(blockIndex, faceIndex)` 境界面記法（否定マクロ頂点変数との組み合わせを含む）。
+- `test_boundary_patch.py` — `find_rename_targets()`: `blockMeshDict` 内の `boundary_entry` ノードおよび `boundaryField` ブロック内のパッチ `dictionary` ノードの検出、無関係な辞書への誤検出なし、空入力のエッジケース。
 - `test_diff.py` — `diff_trees`/`diff_trees_reverse`: 同一ツリー、値の変更、片方のみに存在するキー、ネストした辞書、匿名ノードのスキップ、`field_value_block` エントリ、両関数の対称性。
 - `test_lexer.py` — `foam.lexer.OpenFoamLexer` の `//` 挙動: 引用符付き文字列内の二重スラッシュはコメントにならないこと、空白の後の二重スラッシュは直前の word を飲み込まずに `LINE_COMMENT` を開始すること、単独行の `//` は先頭トークンからコメントとして扱われること。加えて `${…}` 形式の波括弧付きマクロ参照: 参照全体が 1 つの WORD になること（スコープパス付き、および入れ子の波括弧が釣り合うこと）、その後続トークンが影響を受けないこと、素の `$macro` と単独の `{` が従来どおりであること、閉じられていない `${` がループせずテキスト末尾まで進むこと、`#eval{…}` が従来どおり DIRECTIVE + LBRACE + 本体 + RBRACE に分割されること（`#eval` のパースがこれに依存している）。
 - `test_parser_block_mesh_dict.py` — `boundary_block`/`boundary_entry` の構造的パース（パッチ数・名前・型・面）、ライタの round-trip。パッチ名と波括弧の間、および `vertices` 内のインライン `//`・`/* */` コメントがノード型を壊さないこと。パッチの間に置かれた `#include` がブロック全体を失敗させずに `directive_entry` の子ノードになること（パースエラーなし、パッチ名が保持される、round-trip がバイト単位で一致）。埋め込み括弧値内のインラインコメントを読み飛ばす `_read_parenthesized_text`。
@@ -332,19 +348,26 @@ foam-dictionary-editor/
 **`tests/ui/`**
 - `test_app_state.py` — `ui/app_state.py` の `AppState` の既定値: `diff` が `DiffState` であること、スカラーのフィールドが空で始まること、可変フィールドが書き換え可能であること、そして 2 つのインスタンスが `parsed_roots` を共有しないこと — クラス属性にしてしまうと起きる誤りです。
 - `test_apply_comparison_value.py` — `_apply_comparison_value`（「Use this value」）: ネストしたエントリの取り込み時に不足している親辞書を作成すること（例: `functions {}` を持たないケースへの `functions/forces1/rhoInf` の適用）、名前のない `#includeFunc` ディレクティブを既存ブロックを上書きせず内容で照合して末尾に追加すること、同一のディレクティブは複製せずスキップすること、名前付きの値の通常の上書きパス、囲むキーが存在するものの辞書ではない場合に適用を拒否すること。
+- `test_block_mesh_panel_fonts.py` — パネルの補助ラベル 2 つ（ヒント行と `⚙ Variable-based` バッジ）が 9・11・16 pt でデスクトップのフォントサイズに追従すること。どちらも以前はスタイルシートに `font-size: 11px` を直接書いていたため、デスクトップのフォントをどれだけ大きくしても 11 px のままだった — 下記「フォントサイズと表示スケーリング」を参照。
 - `test_block_mesh_panel_load_stl.py` — `STL ▾` メニューの読み込み済みサーフェス: 1 回の `getOpenFileNames` での複数ファイル選択、読み込めないファイルがあっても読める分は読み込まれること（失敗分をまとめた警告 1 回）、ダイアログのキャンセルが何もしないこと。さらにファイル別の行について: ファイルごとに 1 行・パレットから 1 色（最初は `lightgray`）、個別の非表示とアンロードの違い、アンロード後や同一パスの再読み込み後（重複行ではなく既存行の再読み込み）も各行のチェック状態が保たれること、`blockMeshDict` が無い状態で読み込んだサーフェスがレンダラーに届くこと（スタブレンダラー経由。最後の 1 つをアンロードしたときのクリア用レンダリングを含む）。
 - `test_block_mesh_panel_sampling_select.py` — `sample ▾` の形状別表示メニュー: controlDict の `functions {}` ブロックからのメニュー生成（行には元ファイル名のタグ付き）、個別/マスタートグル、ジオメトリを持たないエントリのグレーアウト表示、複数ファイルの合算（controlDict + system/sample）とファイル単位の再読み込み置換、ベース名が同じ 2 つの辞書が別ディレクトリにあっても分離されること（`_sampling_by_file` はフルパスをキーとし、表示はベース名）、`clear()` による `_sampling_by_file` のリセット。
 - `test_block_mesh_panel_set_fields_select.py` — `setFields ▾` の形状別表示メニュー: 同梱の damBreak チュートリアルの `setFieldsDict` からのメニュー生成（行は `fieldValues` の要約でラベル付け）、個別/マスタートグル、ジオメトリを持たないソースのグレーアウト表示、STL エクスポートへの包含、再読み込み時のクリア。
 - `test_block_mesh_panel_snappy_select.py` — `snappyHexMesh ▾` の形状別表示メニュー: メニューの生成、個別/マスタートグル、surface/region/geometry カテゴリカラーの凡例、ジオメトリを持たないソースのグレーアウト表示、`locationInMesh`/`locationsInMesh` キープポイントのトグル。
 - `test_block_mesh_panel_topo_select.py` — `topoSet ▾` の形状別表示メニュー: メニューの生成、個別/マスタートグル、Show all/Hide all、アクションカラーの凡例、ジオメトリを持たないソースをまとめた「Non-geometric sources (N)」サブメニュー、点/平面シェイプの STL エクスポートからの除外。
-- `test_block_mesh_renderer_topo.py` — `_make_shape_mesh` によるジオメトリ生成: 真のコーンとフラスタム（円錐台）、中空の円環、`rotatedBoxToCell`、球（スカラー radius およびベクトル radius によるだ円体）、`stl_path` によるメッシュ読み込み（ファイルあり／なし、および `read_surface_mesh` 経由の gzip 圧縮された `.stl.gz` ファイル）。`read_surface_mesh` のプレーンファイルのパススルー。オーバーレイクリップヘルパー（`_expanded_bounds` の軸ごとのパディング〈退化した 2D 軸を含む〉、`_clip_to_bounds` の範囲内／クリップ／完全に外側／包含時のスタンドインの各ケース、およびクリップが切断面をふさぐこと — 両端を切られたボックスと円柱がどちらも開いた辺を持たずに返り、ボックスの側面が三角形の対ではなく四角形のまま保たれ、平面はふた付きの経路を辞退してフォールバックすること）。VTK が描画するシーンテキスト（`_mark_label` の接尾辞付与、および `block_mesh_renderer.py` の docstring 以外のすべての文字列リテラルが ASCII であることを AST 走査で検査 — このフォントは以前のクリップマーク `✂`/`⚠` と範囲表示の `→` を何も描画しなかったため）。
+- `test_shape_mesh.py` — `ui/panels/shape_mesh.py` の Qt に依存しないジオメトリ: `make_shape_mesh` によるジオメトリ生成: 真のコーンとフラスタム（円錐台）、中空の円環、`rotatedBoxToCell`、球（スカラー radius およびベクトル radius によるだ円体）、`stl_path` によるメッシュ読み込み（ファイルあり／なし、および `read_surface_mesh` 経由の gzip 圧縮された `.stl.gz` ファイル）。`read_surface_mesh` のプレーンファイルのパススルー。オーバーレイクリップヘルパー（`_expanded_bounds` の軸ごとのパディング〈退化した 2D 軸を含む〉、`_clip_to_bounds` の範囲内／クリップ／完全に外側／包含時のスタンドインの各ケース、およびクリップが切断面をふさぐこと — 両端を切られたボックスと円柱がどちらも開いた辺を持たずに返り、ボックスの側面が三角形の対ではなく四角形のまま保たれ、平面はふた付きの経路を辞退してフォールバックすること）。VTK が描画するシーンテキスト（`_mark_label` の接尾辞付与、および `shape_mesh.py` の docstring 以外のすべての文字列リテラルが ASCII であることを AST 走査で検査 — このフォントは以前のクリップマーク `✂`/`⚠` を何も描画しなかったため）。
+- `test_block_mesh_renderer_colors.py` — Qt に依存しないジオメトリが `shape_mesh.py` へ分離された後に `block_mesh_renderer.py` に残った部分: `_ACTION_COLORS` の `subtract`/`delete` の別名扱いと `remove` を意図的に含めないこと、および同じ AST 走査による ASCII チェックを `block_mesh_renderer.py` 自体に適用したもの — このフォントは Dimensions の範囲表示の `→` を何も描画しなかったため。
+- `test_translatable_strings.py` — `ui/**/*.py`（`block_mesh_renderer.py`/`shape_mesh.py` を除く。理由は下の「国際化（i18n）」参照）を AST で走査し、決められた Qt 表示シンク（`QLabel`/`QPushButton`/…/`setText`/`setToolTip`/…/`QMessageBox.warning`/`QInputDialog.getText` など）へ到達する文字列リテラルがすべて `tr()` を経由していることを検査します。f-string も対象で、HTML タグ構文を除いた後に補間されない固定テキストが残る場合は違反です。`_LOCAL_SINKS` はこのコードベース独自のヘルパー（`_menu_button`、`_ShapeOverlayMenu` の `master_label`/`legend_title`）にも同じ検査を拡張し、`_ALLOWED` は個々の文字列（カメラビューの軸記号、ディクショナリファイル自体が使う topoSet/snappyHexMesh のキーワード）を一行の理由付きで除外します。`_ALLOWED` を増やすほどでもない一回限りのケースには行末の `# i18n: skip` コメントを使います。`_LOCAL_SINKS` と `_ALLOWED` はどちらも、`ui/` 内の実際のコードと両方向で一致することをアサートしているため、ヘルパーの改名や呼び出し箇所の削除によって、検証されない古い除外がそのまま残ることはありません。
 - `test_block_mesh_selected_block.py` — ツリー → 3D のブロックハイライト: 初期状態ではどのブロックもハイライトされないこと、`set_selected_block` が `RenderSettings.selected_block` に届くこと、解除、別メッシュ読み込みでの破棄。`_highlight_selected_block` が `block_entry` 行の番号を転送し、それ以外の行では解除すること。`_render_selected_block` が `None` や範囲外の番号では何も描画しないこと（`None` のプロッタを渡して検証。`add_mesh` が呼ばれれば例外になる）。
 - `test_bm_side_by_side_multi_dict.py` — `⊞` サイドバイサイドコーナーボタン（`_update_bm_side_by_side_btn`）: `blockMeshDict`・`topoSetDict`・`snappyHexMeshDict`・`controlDict`（サンプリングオーバーレイ）では有効化され、無関係な辞書（例: `fvSchemes`）では無効化されることを検証。ツリー/BlockMesh スプリッターの両ペインが折りたたみ不可であることと、パネルが 150 px の最小幅を保つことも検証。
 - `test_flow_layout.py` — `FlowLayout`（ui/widgets/flow_layout.py）: 最小幅が最も幅の広い 1 項目分に等しいこと、狭めたときの `heightForWidth` による折り返し、折り返し後の項目の順序と位置、`takeAt` の管理を検証。
 - `test_boundary_view_copy.py` — `BoundaryViewPanel._table_data()` と Copy Table: 両方の向きでの Markdown・CSV 出力。
 - `test_case_switch_clears_block_mesh_panel.py` — 別のケースに切り替えたとき、`_load_case_dir()` が `BlockMeshPanel` の状態を（`_topo_shapes`/`_snappy_shapes` の一覧だけでなく）`clear()` 経由で完全にリセットすること: シェイプ別メニューアクション、`non_geometric` 一覧、`locationInMesh`/`locationsInMesh` マーカー、`Export Shapes as STL…` アクションの有効/無効状態がすべてクリアされること。
 - `test_code_editor.py` — `CodeEditor` の折りたたみマップ計算、折りたたみ/展開のトグル、`FoamFile { … }` ヘッダーとファイル先頭のコメントバナーの自動折りたたみ。
+- `test_code_editor_zoom.py` — `ui/widgets/code_editor.py` のズーム部分: `Ctrl` `+`/`-`/`0` と `Ctrl+wheel`、ズーム量をアプリケーションフォントからのポイント差分として保持するモデル（保存したズームが別マシンの異なるフォント設定でも同じ意味を保つため）、および `ZOOM_MAX_POINT_SIZE` による上限。
 - `test_comparison_tree_panel.py` — `ComparisonTreePanel`: `load` でヘッダーラベルを設定しプロキシを更新して FoamFile ノードを折りたたみ Type 列の表示を再適用すること、`clear` でモデルとヘッダーをリセットすること、`set_type_column_visible` で Type 列の表示を切り替え `load` をまたいで状態が維持されること、`use_value_requested` シグナルが接続可能なこと。
+- `test_detail_panel_fit.py` — Detail ペイン自身の折り返しラベル切れ修正（下記「フォントサイズと表示スケーリング」の「繰り返しフィットする: Detail ペイン」を参照）: `_choice_hint_label` が 3 通りのフォントサイズでスクロールエリアの到達可能範囲の下端に届くこと、通常ページのすべての折り返しラベルが必要な高さを得ていること、populate 後に幅を狭めても追従すること（populate 時のフィットだけでなく `resizeEvent` 自身の再フィットを検証）。
+- `test_dialog_fonts.py` — About ダイアログと Resources ダイアログのラベルが 9・11・16 pt でデスクトップのフォントサイズに追従すること。うち 6 つは以前 `font-size` をピクセル値（16, 12, 12, 12, 13, 13）で固定しており、デスクトップのフォント設定を完全に無視していた — 上記 `test_block_mesh_panel_fonts.py` と同じ不具合。
+- `test_dialog_label_fit.py` — `ui/label_fit.py` の検証: 両ダイアログを 9・11・16 pt で構築し、折り返しラベルがどれも必要な高さより小さく割り当てられないことを検証する。どちらも幅固定で折り返しラベルが詰まっており、折り返し `QLabel` の `sizeHint` は実際に与えられる幅ではなく Qt が推測した幅で測られる。その推測が楽観的すぎて、11 pt という平凡なデスクトップフォントでも About ダイアログの謝辞は最後の数行が、免責ボックスは 2 段落目が切れていた。同じヘルパーを「一度きり」ではなく「繰り返し」適用する側は上記 `test_detail_panel_fit.py` を参照。
 - `test_diff_state_reset_on_case_change.py` — `_reset_diff_for_case_dir` の回帰テスト: 別のケースを開くとアクティブな比較（差分状態・バー・パネル・解析キャッシュ）がクリアされること、同じケースの再読み込みでは維持されること、比較が無いときは何もしないこと。
 - `test_drag_drop_open_case.py` — `MainWindow` のドラッグ＆ドロップによるケースオープン: `dragEnterEvent`、`dropEvent`、すべての子ウィジェットを有効なドロップ先にする `eventFilter`。
 - `test_duplicate_case.py` — ケース複製: 「全ファイル」モードと「アプリ表示ファイルのみ」モードでコピーされる内容、コピー先の作成、ケースに登録された追加ファイルもコピーされること。
@@ -355,16 +378,18 @@ foam-dictionary-editor/
 - `test_find_examples_dialog.py` — `FindExamplesDialog`: 非モーダルなウィンドウモダリティ、インストールコンボの初期化（`discover_installations` を偽インストールにモンキーパッチ）、スレッド検索後の Tutorials/caseDicts グループ化結果、チュートリアル一致と caseDicts 一致でのプレビュー表示と比較/複製ボタンの有効/無効、クリップボードへのコピー、チュートリアルケースルートを渡す `compare_requested`/`duplicate_requested` の発行、一致なし・空クエリ・検索対象なしのステータスメッセージ、ファイル名フィルタ。
 - `test_included_files.py` — `MainWindow` における `#include` 対応のエンドツーエンド。`tmp_path` 上に偽の OpenFOAM `etc` ツリーを作るため実インストールに依存しない: ケース外のインクルードが `<included>` グループに入り、ケース内のものは本来のグループに入ること、既に一覧にある対象にマークが付かないこと、読み取り専用の契約（エディタ、`flags()`、`_mark_dirty`、`save_file`、`save_all_files`、バックアップ、`apply_text_to_tree`、次のファイルでのフラグ解除）、ケース内外双方に対する **Open Included File** と missing/optional/非インクルードの各ケース、ツールチップの注記、既存名と `../` による脱出の拒否を含む **Copy into case…**。
 - `test_foam_highlighter.py` — `FoamHighlighter`: コメント、文字列、`#directives`、`$macro` 参照、予約キーワード、数値（`wall0`/`inlet-1` のような識別子内の数字を色付けしない lookaround ガードを含む）、同じガードを共有するキーワードルール（`y0.1` や `off.1`、シェルの `config.fi` のようなドット付き識別子が分割されない）、スキーマレジストリとキーワード JSON（ユーザーの `foam_keywords.json` 優先、同梱の `foam_keywords.default.json` にフォールバック、両方無ければ空集合）から得られる辞書キーの色付け、1,000 キーワード単位の `QRegularExpression` チャンク分割、有効/無効の切り替え。
+- `test_keyboard_shortcuts_dialog.py` — **Help > Keyboard Shortcuts** が実態と一致し、かつ画面に収まり続けることの検証。この一覧は手書きの表なので、ウィンドウが実際に登録しているショートカットとずれても何も止めるものがなかった — `Ctrl+S` はメニュー項目もこの一覧の記載も無いまま数リリース登録され続けていた。`TestCoverage` は構築済みの `MainWindow` 配下の生きた `QShortcut` と `QAction` のショートカットをすべて走査し、この一覧に無いキーシーケンスを名指しで失敗させる。新しいショートカットを追加したら `_SECTIONS_DATA` にも行を追加しないとテストが落ちるのはこのため。残りはレイアウトの保証（表が小さいディスプレイに収まらない高さまで伸びており、スクロールエリアの無い `QDialog` は内容より小さくリサイズできない）と、セクション名・行ラベルに未翻訳が無いことの検証。
 - `test_log_summary_dialog.py` — `LogSummaryDialog`: 非モーダルなウィンドウモダリティ、ケースディレクトリ内で最も新しく更新された `log.*` ファイルをデフォルト選択してその要約を表示すること、ファイルフィールド変更時の再パース、空のケースディレクトリでのフォールバックメッセージ。
 - `test_main_window_save_refresh.py` — `test_main_window_split.py` の構造チェックのみとは異なる、初めての振る舞いレベルの `MainWindow` テスト: 保存せずに編集しても `constant/polyMesh` メッシュインジケーターが変化しないこと、`save_file()`/`save_all_files()` のどちらも即座にファイル一覧を更新して、フル「Reload Case」なしで staleness インジケーターが更新されること。
 - `test_main_window_split.py` — Mixin 構造: 各 Mixin が正しいメソッドを保有すること（`_BoundaryOpsMixin` の `_on_patch_selected`、`_TreeCrudOpsMixin` の `_apply_comparison_value`、`_FoamMonitorOpsMixin` の foamMonitor 関連メソッドを含む）、Mixin 間の重複がないこと、`MainWindow` がすべての Mixin を継承していること。
 - `test_manage_extra_files_dialog.py` — `ManageExtraFilesDialog`: 登録済みの追加ファイル・ディレクトリの表示と削除操作。
-- `test_rename_boundary.py` — `find_rename_targets()`: `blockMeshDict` 内の `boundary_entry` ノードおよび `boundaryField` ブロック内のパッチ `dictionary` ノードの検出、無関係な辞書への誤検出なし、空入力のエッジケース。
 - `test_reset_all_settings.py` — **Reset All Settings** の後に `app_config.json` がどうなるかを検証します。ファイルを削除するだけでは処理の半分でしかありません。アプリケーションは動き続けており、`closeEvent` が終了時にセッションレイアウトとウィンドウサイズを保存していたため、ファイルが再生成され、ユーザーが消したばかりの設定がそのまま戻ってきていました。設定ファイルが削除された後の終了では何も書き込まないこと、削除されていない場合は従来どおり書き込むことを固定します。
 - `test_run_tool_dialog.py` — `RunToolDialog`: 初期状態のライブプレビューが `get_command()` と一致すること、チェックボックス/値編集によるコマンド更新、`last_values` の復元と `get_values()` の新しいダイアログへのラウンドトリップ、解析不能な追加オプションでの実行ボタン無効化、プレフィックスチェックボックスによるシェルプレフィックスの付加、Browse によるケース相対パスの挿入（ケース外は絶対パス）。
 - `test_stays_open_menu.py` — ツールバーのドロップダウンメニュー（`Vertices ▾`、`Blocks ▾`、`Scale ▾`、`topoSet ▾`、`snappyHexMesh ▾`）がチェック可能項目のクリックでは開いたままになり、チェック不可のアクションでは通常どおり閉じること。
 - `test_terminal_panel.py` — `SimpleTerminalWidget` と `TerminalPanel`: 初期状態、作業ディレクトリの切替、クリーンアップ、コマンド履歴、タブラベル、`run_command()`（シェル準備前のキューイングを含む）。
 - `test_theme.py` — `ui/theme.py` の配色テーブルをデータとして検証します: コントラスト計算、選択行の前景・背景ペアに関する慣習ルール（Windows のアクセントカラー `#0078d4` を明示的に指定したリグレッションテストを含む。黒と白のうちコントラストが高い方を選ぶ実装だと、この不具合を再現してしまうため）、どのアクセントカラーでも判読不能なペアが生じないことを網羅的に確認するテスト、両テーブルのすべての前景色がそのテーマの `Base` に対して 3:1 を下回らないこと、差分スウォッチと凡例の塗りが分離していること、そしてビューポートの文字色が `viewport_bg` に対して 3:1 を下回らないこと。いずれもテーブル単位の検査で、成立しない配色は検出しますが、単に見栄えが悪いだけの配色は検出しません。「テーマと配色」を参照。
+- `test_fonts.py` — `ui/fonts.py` の検証: エディタと 2 つのターミナルがアプリケーションフォントから導出する等幅フォントサイズ。`ui_point_size` が `QFontInfo` にフォールバックするのはプラットフォームフォントがピクセル指定の場合だけであること（`QFontInfo` は整数ピクセルに量子化するため、96 dpi の 13 pt は 12.75 として返ってくる）、および xterm ページ用に `css_pixel_size` が 96/72 固定で変換することを含む。
+- `test_icons.py` — `ui/icons.py`: `ICON_NAMES` とアセットディレクトリの対応を両方向で検証すること、宣言されたすべての名前が非 null かつ空でないピクセルのアイコンを返すこと、未知の名前は例外ではなく null のアイコンに落ちること、すべての SVG アセットがパース可能で SPDX ヘッダーを持つこと、`icon_pixel_size()` がアプリケーションフォントに追従して大きくなること、そしてダークモードのガード — アイコンの alpha マスクされた不透明ピクセルの平均輝度が `apply_theme(app, "dark")` の下では高く `"light"` の下では低いこと（文字列置換によるティントへの回帰を実際に捕捉する唯一の検査です）。下記「アイコンの色付け」を参照。
 - `test_tools_ops_mesh_actions.py` — Tools メニューの「Run *」アクションと Run Allrun/Run Allclean/Clean Case: blockMesh/snappyHexMesh/topoSet/setFields/checkMesh の（実物の、exec をパッチした）`RunToolDialog` を受理した後に偽のターミナルパネルへ送信される正確なコマンド文字列、キャンセル時に何も送信されないこと、時間ディレクトリが存在する場合にダイアログへ渡される再実行警告テキスト、`state.run_tool_options` からの前回オプションの復元、setFields の 0/ 復元プレフィックスチェックボックス（`0.orig/` があれば存在しデフォルトでチェック、なければ非表示、チェックを外せば「そのまま実行」）。Allrun/Allclean のスクリプト欠如警告、`log.*` が存在する場合の Allrun 三択プレフライト — クリーンしてから実行・そのまま実行・キャンセル —、Allclean への委譲または `-auto` による 0/ 削除に言及する Clean Case ダイアログ、`_update_tools_actions()` によるこれらのアクションおよび View Log Summary（ターミナルは不要でケースのみ必要）の有効化。
 - `test_tree_block_crud.py` — `block_entry` 行に対する追加/複製/削除: `_new_sibling_for` が生成する `block_entry` のデフォルト値が実際のブロックとして再解析されること（辞書が親の場合は `word` エントリ）、`_delete_label` がブロックを位置で呼ぶこと、ブロックの削除・追加後に書き出されるファイル（兄弟はそのまま、リストは自分の行で閉じる、残りのブロックは位置で振り直される）、および MainWindow を通した削除 → エディタテキスト → Ctrl+Z の一連の往復。
 - `test_tree_color_lexer_dispatch.py` — `unknown_raw_entry` の琥珀色表示、パーサの `_PAREN_DISPATCH` テーブル。
@@ -376,6 +401,7 @@ foam-dictionary-editor/
 - `test_window_state.py` — `ui/window_state.py` とそこへ渡すスクリーンショット spec: 全フィールドの JSON ラウンドトリップ、未知キーと不正なカメラ値の拒否、デフォルトのマージ（`side_by_side` が必要とする、`False` が `True` のデフォルトを上書きする挙動を含む）、名前によるキーパス指定と匿名エントリの行番号指定、実際の `MainWindow` からのキャプチャ、それらすべての寛容版（未知キーの破棄、不正なカメラ・サイズ・スプリッタサイズの破棄、使用不能な blob が `None` になること。存在しないケースディレクトリ・ファイル、辞書ではない大きなファイル、未知のタブ・スプリッタ、消えたツリー行は、例外ではなく戻り値のノートに記録してスキップされること）、`tools/screenshot_specs.json` の構造検査（state の妥当性、同一ファイルへ書き込むショットがないこと、パスのプレースホルダが既知であること、比較ショットが 2 つのケースをどちらも `$HOME` の外に指定していること — 差分バーが参照ケースのフルパスを画像に出力するため）。撮影ツール自体は実 X ディスプレイを要するため対象外。
 - `test_pane_minimize.py` — `ui/pane_minimize.py` と、それが接続された 3 つのペイン: 畳む/戻すの往復、2 回続けて畳んでも復帰サイズを忘れないこと、`strip` 方式がウィジェットの最大サイズを固定し*かつ解除*すること、空いた領域が他ペインへ比例配分されること、View メニュー項目とペインが互いに無限ループせずに同期すること、下段がタブバーの高さで止まり（タブとコーナーウィジェットが残る）こと、ハンドルのダブルクリック（最小化できるペインが隣にないハンドルでは何も起きないことを含む）、サイドバイサイドが Detail ペインを退避させる一方、ユーザーが先に退避させていたものは戻さないこと、そして `minimized_panes` の capture/apply 往復（復帰サイズは最小化の*後*に書かないと、畳んだ後のサイズで上書きされる）。1 つのテストはピクセル値ではなくドリフトしない性質を固定します: Qt 自身の配分は最初の 1 周で行から 1 px を失い、これは変えられませんが、2 周目も 10 周目も 1 周目と同じ位置に着地しなければなりません。
 - `test_tree_text_sync_bar.py` — **Apply Text to Tree** / **Reload from Tree** の配置: タブページの内部ではなく下段タブバーのコーナーにあること（内部だとタブ切り替えで消え、3D オーバーレイを更新するのは `apply_text_to_tree` である）、上部アクションバーからは消えていること、実際のメソッドに接続されていること（ウィンドウ構築*前*にクラス側でパッチするため、テストが張り直した接続ではなく本物の配線を検証する）、そして Case メニューにも並び、Apply には `Ctrl+Shift+A` があり Reload には意図的にないこと（エディタのテキストを上書きするため）。
+- `test_action_toolbar.py` — 上部アクションツールバー: `addToolBar` で配置される実体としての `QToolBar` であり `centralWidget()` の子ではないこと、アイコンサイズが `icon_pixel_size()` に追従すること、`createPopupMenu()` が `None` を返すこと（Qt 標準の「このツールバーを隠す」メニューには元に戻す手段がないため）、ツールバーへ移動した後も現在ケース/現在ファイルのラベルが更新され続けること、`"Save All Files"` という文字列がどこにも残っていないこと（`QAction` のテキスト、`QAbstractButton` のテキスト、`QLabel` のテキスト、ツールチップのいずれにも）、そして — ラベルと有効・無効状態の同期を無償で得ている根拠となる同一性検査 — ツールバーの `Open Case…`/`Save File`/`Save Case`/`Reload Case` の各アクションが、Case メニューのものと単に等しいのではなく*同一のオブジェクト*であること。
 - `test_session_restore.py` — `ui/session_restore.py`: 終了時に正しいキーでレイアウトが保存されること、設定オフでは何も保存しないこと、適用対象がないときに restore が正直に報告すること、壊れた blob（改名されたフィールド、形の変わったフィールド、切り詰められたカメラ、移動したケース、別言語のタブラベル）で例外を出さないこと、そして実際の `MainWindow` から別の `MainWindow` へケース・開いているファイル・選択ツリー行が往復すること。
 
 **`tests/services/`**
@@ -608,7 +634,7 @@ class KeySchema:
 
 ### 生成モジュール（foamlore からのベンダリング）
 
-`schemas/_turbulence_coeffs.py`・`schemas/turbulence_properties.py`・`schemas/momentum_transport.py` は**生成ファイル**で、姉妹リポジトリ foamlore の `facts/tools/generate_fode_schemas.py` から取り込んでいます。**29 モデル**（RAS 16、LES/DES 13 — 両フォークが出荷する全モデル）の乱流モデル係数を、17 リリース全部（Foundation 7–13、OpenCFD v2106–v2606）の OpenFOAM `.C` コンストラクタから機械的に抽出し、それらのリリースにわたって実測した `supported_in` タグとソース既定値の `ChoiceItem` 付きで収録します。係数キーは親修飾（`kOmegaSSTCoeffs.beta1`）で出力され、OpenFOAM の `optionalSubDict` 読み取りイディオムに合わせて素のフォールバックキーも付きます。同じ名前を複数のモデルが読む場合、素のエントリは所有する全モデルを列挙し、各モデルの既定値を提示します。ここでは編集せず、foamlore で再生成して再コピーしてください（テストが `GENERATED` バナーの存在を検証します）。
+`schemas/_turbulence_coeffs.py`・`schemas/turbulence_properties.py`・`schemas/momentum_transport.py` は**生成ファイル**で、姉妹リポジトリ foamlore の `facts/tools/generate_fode_schemas.py` から取り込んでいます。**29 モデル**（RAS 16、LES/DES 13 — 両フォークが出荷する全モデル）の乱流モデル係数を、v2112 を含む 18 リリース全部（Foundation 7–13、OpenCFD v2106–v2606）の OpenFOAM `.C` コンストラクタから機械的に抽出し、それらのリリースにわたって実測した `supported_in` タグとソース既定値の `ChoiceItem` 付きで収録します。係数キーは親修飾（`kOmegaSSTCoeffs.beta1`）で出力され、OpenFOAM の `optionalSubDict` 読み取りイディオムに合わせて素のフォールバックキーも付きます。同じ名前を複数のモデルが読む場合、素のエントリは所有する全モデルを列挙し、各モデルの既定値を提示します。ここでは編集せず、foamlore で再生成して再コピーしてください（テストが `GENERATED` バナーの存在を検証します）。
 
 ファイルが 2 つではなく 3 つなのは、foundation が OpenFOAM 8 で `constant/turbulenceProperties` を `constant/momentumTransport` に改名したためです。`_turbulence_coeffs.py` が係数のファクトを 1 度だけ保持して `build_schemas(target_file)` を提供し、残り 2 つはそれぞれ約 25 行で自身の `TARGET_FILE` を宣言してこれを呼びます。`_turbulence_coeffs` は import されるだけで登録しません — `TARGET_FILE` を持たないので、どのみち `SchemaRegistry` は読み飛ばします。
 
@@ -636,9 +662,9 @@ class KeySchema:
 
 ### 設定: デフォルトは置換ではなくマージ
 
-`load_schema_config()` は保存されたファイルをそのまま返し、`SchemaRegistry._effective_config` が `union(組み込みデフォルト, 保存値) - disabled_modules` を計算します。以前は保存済みリストが唯一の正でした。そのため後のリリースで `schemas/builtin.py` にモジュールを追加しても、**Manage Schema Modules** を一度でも開いたことのあるユーザーには永久に届きませんでした。設定はその日のリストに固定されてしまうからです。現在は、ユーザーが明示的に削除したモジュール（`set_schema_modules` が `disabled_modules` に記録）だけが除外されます。`disabled_modules` が存在する前に書かれた設定には意図の記録がないため、当時削除したモジュールは一度だけ再表示されます。これは安全側の選択です。余分なスキーマは目に見えてクリック 1 回で削除できますが、欠けたスキーマは目に見えません。
+`load_schema_config()` は保存されたファイルをそのまま返し、`SchemaRegistry._effective_config` が `union(組み込みデフォルト, 保存値) - disabled_modules` を計算します。以前は保存済みリストが唯一の正でした。そのため後のリリースで `schemas/builtin.py` にモジュールを追加しても、**Manage Schema Modules…** を一度でも開いたことのあるユーザーには永久に届きませんでした。設定はその日のリストに固定されてしまうからです。現在は、ユーザーが明示的に削除したモジュール（`set_schema_modules` が `disabled_modules` に記録）だけが除外されます。`disabled_modules` が存在する前に書かれた設定には意図の記録がないため、当時削除したモジュールは一度だけ再表示されます。これは安全側の選択です。余分なスキーマは目に見えてクリック 1 回で削除できますが、欠けたスキーマは目に見えません。
 
-`reload()` は `schema_config.json` をディスクから再読み込みしてテーブルを再構築します。`apply_and_reload()` はディスクに触れずに現在のインメモリ設定からテーブルを再構築します（同一セッション内で **Settings > Manage Schema Modules** が変更を適用した後に使用）。
+`reload()` は `schema_config.json` をディスクから再読み込みしてテーブルを再構築します。`apply_and_reload()` はディスクに触れずに現在のインメモリ設定からテーブルを再構築します（同一セッション内で **Settings > Manage Schema Modules…** が変更を適用した後に使用）。
 
 ## 差分アルゴリズム
 
@@ -685,12 +711,26 @@ _RECURSE_TYPES = frozenset({
 
 ## 国際化（i18n）
 
-`ui/` 内のユーザー向け文字列はすべて `i18n/__init__.py` の `tr()` でラップされています。英語の文字列がそのままキーとして機能し、翻訳が存在しない場合は英語にフォールバックします。
+`ui/` 内のユーザー向け文字列は、以下の2つの意図的な例外を除いてすべて `i18n/__init__.py` の `tr()` でラップされています。英語の文字列がそのままキーとして機能し、翻訳が存在しない場合は英語にフォールバックします。この状態を維持する回帰防止テストが `tests/ui/test_translatable_strings.py` です — `ui/**/*.py` を AST で走査し、文字列リテラル（または補間されない固定テキストを持つ f-string）が `tr()` を経由せず Qt の表示シンクへ到達した場合に失敗します。シンクの一覧、`_LOCAL_SINKS`/`_ALLOWED` の除外テーブル、一回限りのケース向けの `# i18n: skip` コメントについては、そのテストのモジュール docstring を参照してください。
 
 **実行時の流れ**
 1. `main.py` がウィンドウ作成前に `set_language(get_app_config().get_language())` を呼び出します。
 2. 各ウィジェットのコンストラクタが `tr("some string")` をインスタンス化時に呼び出すため、選択言語が起動時に UI 全体へ適用されます。
 3. 言語変更はアプリ再起動後に反映されます（ライブ再翻訳なし）。
+
+手順1は `ui.main_window`（およびそれが import するすべて）が既に読み込まれた**後**に実行されます — `main.py` では `from ui.main_window import MainWindow` が `set_language(...)` より上にあります。そのため、モジュールレベルの文字列定数を*定義時*に `tr()` でラップすると、ユーザーがどの言語を選んでも永遠に英語のまま固定されてしまいます。`ui/panels/block_mesh_panel.py` の `_MOUSE_HINT`/`_MOUSE_HINT_TOOLTIP` がまさにこの理由でプレーンな英語定数のままになっている例です — `tr()` は定義箇所ではなく、実際に*使用される*箇所（ウィンドウが実際に構築されるときにのみ実行される `__init__` の中）で適用します。
+
+**2つの例外: VTK が描画するテキスト**
+
+`ui/panels/block_mesh_renderer.py` と `ui/panels/shape_mesh.py` は `tr()` 対応の対象から恒久的に除外されています。これらの文字列は最終的に VTK 自身の組み込みラベルフォントで描画されます（上の「テキストを描画するのは Qt ではなく VTK」参照）。このフォントはグリフを持たない文字に対して**何も描画しません** — 日本語ラベルは誤訳として表示されるのではなく、まったく表示されなくなります。`tests/ui/test_shape_mesh.py` と `tests/ui/test_block_mesh_renderer_colors.py` は既に両モジュールが ASCII のみであることを AST でアサートしているため、これらを翻訳することは単に無意味であるだけでなく、既存のテストによって積極的に禁止されています。`test_translatable_strings.py` 自体の走査対象からも、同じ理由でこの2ファイルを除外しています。
+
+**補間には `.format()` を使用し、f-string は使わない**
+
+`tr()` は `TRANSLATIONS` の中を文字列の完全一致で検索するため、`tr()` に渡すテキストはどの呼び出しでも同一でなければなりません。f-string は*描画後の*値をそのままルックアップキーへ焼き込んでしまうため、`tr(f"Line: {n}")` は `i18n/ja.py` のどのエントリとも一致し得ません。代わりに翻訳した*後で*補間してください: `tr("Line: {n}").format(n=n)` とし、`"Line: {n}"` を `tr()` 呼び出し側と `i18n/ja.py` の両方でリテラルキーとして使います。`ui/panels/file_list_panel.py` の `tr("included from {origin}").format(origin=origin)` がこの方式の元祖です。
+
+**`▾` のドロップダウンマーカーはキーの外に置く**
+
+`ui/panels/block_mesh_panel.py` のドロップダウンボタン（`topoSet ▾`、`STL ▾` など）は、翻訳キーの中にこの記号を織り込む（`tr("topoSet ▾")`）のではなく、`_menu_button()` 自身の中で、翻訳済みのラベルへ `" ▾"` を後から付加しています。このマーカーは装飾であって文章ではありません — `"topoSet ▾"` と `"snappyHexMesh ▾"` を無関係な2つの文字列として翻訳すると、末尾の記号だけが違う（しかもどの言語でも変わらない）ほぼ重複のキーが7つできてしまいます。呼び出し側は `tr("topoSet")` を渡すだけで、記号は `_menu_button` が後から付加します。
 
 **新しい言語を追加する方法**
 
@@ -908,7 +948,7 @@ python3 main.py --ui-scale 150                    # この実行のみ。QT_SCAL
 
 `--variant` フラグは `presets/<name>.json` を読み込み、設定シングルトンの `features` 辞書を上書きして、終了時に `app_config.json` へ保存します。次回以降は `--variant` なしでも保存した設定が使われます。`features` キーがない場合はすべて `true` として扱われるため、開発者個人の `app_config.json`（git 管理外で通常 `features` キーを持たない）は常に標準モードで動作します。
 
-起動後は **Case > Open Case** から OpenFOAM ケースディレクトリを選択するか、ファイルマネージャからウィンドウ上の任意の場所にディレクトリをドロップしてください。その後、ファイル一覧から対象ファイルを選んでください。`app_config.json` は初めてケースを開いたときに自動作成されます。`schema_config.json` は Settings メニューからスキーマ設定を変更したときにのみ作成されます。
+起動後は **Case > Open Case…** から OpenFOAM ケースディレクトリを選択するか、ファイルマネージャからウィンドウ上の任意の場所にディレクトリをドロップしてください。その後、ファイル一覧から対象ファイルを選んでください。`app_config.json` は初めてケースを開いたときに自動作成されます。`schema_config.json` は Settings メニューからスキーマ設定を変更したときにのみ作成されます。
 
 選択したディレクトリに `system/` も `constant/` も存在しない場合は、有効な OpenFOAM ケースでない可能性を示す警告ダイアログが表示されます。それでも開くことは可能です。
 
@@ -968,6 +1008,14 @@ apply_theme(app, get_app_config().get_theme())   # "system" | "light" | "dark"
 
 VTK パネルを目視確認のためにレンダリングするには実際の X ディスプレイが必要です — `QT_QPA_PLATFORM=offscreen` では `QtInteractor` が `BadWindow` で異常終了し、またネイティブ子ウィンドウであるため `QWidget.grab()` は黒画像を返します。シーン自体のキャプチャには `plotter.screenshot(path)` を使ってください。
 
+**アイコンの色付け。** `ui/icons.py` の `icon(name) -> QIcon` は `ui/assets/icons/` 以下の手描き SVG を読み込み、有効なテーマに合わせて色を付けます。すべての SVG は黒（`fill="#000"`/`stroke="#000"`）で作成されており、`currentColor` はどこにも使っていません — Qt の SVG Tiny 1.2 レンダラには CSS カスケードがないため、ブラウザとは違って `currentColor` はそもそも解決されないからです。したがって色付けは SVG のソース自体には一切触れません: グリフを透明な `QImage` に描画し、`QPainter.CompositionMode_SourceIn` で画像全体をティントカラーで塗りつぶしたうえで、グリフ自身の alpha の外側をすべて消し去ります。これは文字列置換ではなくアルファマスクです — アイコン内部に「間違えうる16進文字列」が存在しないため、「黒いアイコンがダークモードで見えなくなる」という事態は、10 個目のアイコンを追加する誰かが覚えておくべきルールではなく、構造的に起こり得ないことになります。
+
+ティントカラー自体は `theme.icon_tint()` が返します — `QApplication.palette().color(QPalette.ColorRole.ButtonText)` を呼び出しのたびにライブで読むだけです。これは意図的に `ThemeColors` のフィールドには**していません**: `system` モードでは `apply_theme` がデスクトップ自身のパレットをそのまま残すため、ボタンテキストがほぼ黒でもほぼ白でもないデスクトップテーマに対しては、`_LIGHT`/`_DARK` に固定した16進値はたまたま正しいだけということになってしまいます。パレットをそのまま読むことだけが、3 つのモードすべてで正しい唯一の情報源であり、これによって `ui/theme.py` が `QPalette` に触れる唯一のモジュールという位置づけも保たれます — `ui/icons.py` は `QPalette` を一切 import しません。
+
+`icon()` の `size`/`tint` 引数は既定で `fonts.icon_pixel_size()`/`theme.icon_tint()` を使い、どちらも呼び出し時に解決されます。import 時には解決しません — これは `ui/theme.py` と `ui/fonts.py` がすでに従っているのと同じルールです。デスクトップフォントも有効なテーマも、このモジュールが最初に import された後に確定するからです。背後にあるモジュールレベルの `(name, size, tint)` キャッシュは、そのルールが警告している「import 時キャッシュ」には当たりません: フォントとテーマはキャッシュキーへの**入力**であるため、テーマの切り替えやフォントの変更が起きればキャッシュは単に外れて再描画されるだけです — 古いエントリが残り続けることはなく、そもそも到達不能になります。失敗するパターン — SVG ファイルが存在しない、`PySide6.QtSvg` の import に失敗する、`QSvgRenderer.isValid()` が false を返す — はすべて例外を送出せず null の `QIcon` を返します。壊れたアイコンアセットがアプリの起動を止めることは決してあってはならないからで、null のアイコンはただ何も描画しないだけです。
+
+`tests/ui/test_icons.py` は `ICON_NAMES` とアセットディレクトリの対応を両方向で検証し（ファイルのない名前とファイルはあるが名前のないもの、どちらも失敗させます）、すべてのアイコンが null でなく空でないピクセルとしてレンダリングされることを確認し、そして — 文字列置換版のバグへの回帰を実際に捕捉する検査として — アイコンの**不透明**ピクセル（透明な背景が平均を薄めないよう alpha でマスクします）の平均輝度が、`apply_theme(app, "dark")` の下では高く、`apply_theme(app, "light")` の下では低いことを確認します。
+
 ## フォントサイズと表示スケーリング
 
 仕組みは 2 つあり、どちらも「文字が小さすぎる」という形で現れるため混同されがちです。
@@ -979,6 +1027,7 @@ VTK パネルを目視確認のためにレンダリングするには実際の 
 - `ui_point_size()` はアプリケーションフォントに*設定された*サイズを読み、ピクセル指定のフォント（そう指定するプラットフォームテーマがあり、その場合ポイントサイズは `-1` を返します）のときにだけ `QFontInfo` にフォールバックします。この順序には意味があります。`QFontInfo` は fontconfig が実際に*マッチさせた*フォントのサイズを、ピクセル単位に量子化して返すため（96 dpi の 13 pt は 12.75 pt として返ります）、ユーザーが選んだサイズを問い合わせのたびに丸めるのは、この層の仕事ではありません。
 - `monospace_font()` はファミリ一覧とそのサイズを組み合わせたもの、`css_pixel_size()` は xterm.js ページ用に CSS ピクセル（固定の 96/72）へ変換したものです。後者は `ui/xterm_terminal.html` の `<!--XTERM_FONT_SIZE-->` プレースホルダ（既存の CSS/JS 用と同じ方式）経由で渡されます。Qt 6 では論理 DPI が 96 に固定され、スケーリングはデバイスピクセル比が担います。WebEngine は CSS ピクセルにも同じ比率を適用するため、両者の比は一定に保たれます。
 
+- `icon_pixel_size()` も同じ考え方で `ui/icons.py` のツールバー/メニューアイコンのサイズを決めます: `css_pixel_size()` の `ICON_TO_TEXT_RATIO`（1.30）倍を、`ICON_MIN_PIXEL_SIZE`（12）を下限として使います。9 pt の既定値ではこれが 16 px になります — 慣習的な小アイコンのサイズですが、16 を直接指定しているわけではないため、デスクトップフォントを上げれば隣のテキストと同じようにアイコンも大きくなります。`ui_point_size()` を直接使わず `css_pixel_size()` を経由しているのも意図的です: アイコンは xterm.js のフォントと同様、ポイントではなくピクセルで測るものだからです。
 - `small_point_size()` / `small_font()` は補助的なテキスト — BlockMesh パネルのマウス操作ヒント行と「⚙ Variable-based」バッジ、About ダイアログのバージョン・ライセンス・謝辞の各行 — を、アプリケーションフォントに対する比率（`SMALL_TEXT_RATIO`。下限として `SMALL_TEXT_MIN_POINT_SIZE` を設け、もともと小さいデスクトップフォントに引きずられて読めなくならないようにしています）で扱います。
 - `heading_point_size()` / `heading_font()` は 1 段大きいサイズ（`HEADING_TEXT_RATIO`）で、About ダイアログのアプリ名の行が使います。併用する太字はスタイルシートに残しています。ウェイトはサイズではなくスタイルだからです。
 
@@ -1003,6 +1052,14 @@ VTK パネルを目視確認のためにレンダリングするには実際の 
 修正手段として*効かない*ものにも触れておきます。`QSizePolicy.setHeightForWidth` を有効にすることです。これらのラベルでは `hasHeightForWidth()` はすでに true であり、レイアウトは height-for-width を無視しているのではなく、それと矛盾する `sizeHint` を渡されているだけです。
 
 `tests/ui/test_dialog_label_fit.py` が 9 / 11 / 16 pt の 3 通りで両ダイアログを構築し、どの折り返しラベルにも必要な高さ未満が割り当てられていないことを検証します。
+
+**繰り返しフィットする: Detail ペイン。** `ui/panels/detail_panel.py` でも同じ「最終行が切れる」バグが起きていました（スキーマに選択肢があるキーを選んだときの `_choice_hint_label`）。ただしこちらは `showEvent` で一度だけ処理すれば済むダイアログではありません。ツリーの選択が変わるたびに再描画され、`right_upper` スプリッタをドラッグするたびに幅も変わります。それも再描画とは無関係にです。一度だけフィットする方式では、直前に処理したときの幅から得た最小値がそのまま残ってしまいます。
+
+`ui/label_fit.py` 自体には手を入れていません。これは意図的です。`fit_wrapped_labels` は最小値を*引き上げる*だけで、それは一度だけフィットするダイアログには正しい振る舞いです — すでに十分な余白を与えられたラベルはそのまま余白を保ちます。About / Resources ダイアログは一度表示されたら縮む必要がないため、最小値を下げ直す機能は不要どころか害になります。Detail ペインが必要としているのは逆の振る舞いです。広いスプリッタ幅のときに引き上げた最小値は、後で幅が狭くなったときまで残ってはいけません。残ってしまうと、もう広い余白を必要としないラベルの下に隙間が空いたままになります。そのためこの振る舞いは共通ヘルパー側ではなく、ペイン自身の `_refit_labels()` に置かれています。`fit_wrapped_labels` を呼ぶ前に、折り返し表示のすべてのラベルの最小高さを一旦ゼロへ戻すので、呼び出しのたびに直前の幅を引きずらず、まっさらな状態から計算し直せます。
+
+`_refit_labels()` は 3 箇所から呼ばれます。`_populate_normal`/`_populate_field_value` の末尾（`_stack.setCurrentIndex` の**後**であって前ではありません — `QStackedWidget` はページがカレントになって初めて実際のジオメトリを割り当てるため、先にフィットしてしまうと直前のページの古い幅を測ることになり、最初の選択では 0 になってしまいます）、そしてスプリッタドラッグのケースを `showEvent` だけではカバーできないために追加した `resizeEvent` オーバーライドです。`fit_wrapped_labels` の呼び出しを 2 回の `layout().activate()` で挟んでいるのは、ダイアログ側の 2 段階（`activate()` してから測る）と同じ理由からですが、こちらは 2 倍に増えています。測定**前**の 1 回目の activate が必要なのは、この populate で初めて表示されたラベル（それまで隠れていたスキーマの注記など）がまだ古い幅 — 一度も表示されたことがなければ 0 — を持ったままで、`fit_wrapped_labels` は `width()` が `<= 0` のラベルを黙ってスキップしてしまうためです。2 回目の activate は、`fit_wrapped_labels` が設定したばかりの最小値を反映させるためのもので、ダイアログ側のフィット後 1 回の activate と同じ役割です。最後の `self._stack.resize(...)`（スタック自身の `sizeHint().height()` へ）は、ダイアログには不要なひと手間です。`activate()` はページの*現在の*矩形の中でしか空間を再配分しないため、ページがより多くの高さを必要とするようになっても、それだけではスクロールエリアが把握している範囲の外側に余分な高さが取り残されたままになります。ここで明示的にリサイズを起こすことで、その分がすぐにスクロール可能になります。
+
+`tests/ui/test_detail_panel_fit.py` は、通常ページの折り返しラベルが複数行を必要とするほど狭い幅で、3 通りのフォントサイズでペインを構築し、スクロールエリアのスクロールバー範囲が `_choice_hint_label` の下端に届くことを確認します（`sizeHint()` では不可 — 本リポジトリの「Qt ペインのはみ出しを測る」の教訓のとおり、実際に画面で切れたかどうかに関わらず同じ（誤った）値を返してしまいます）。別のテストケースでは、広い幅で populate してから狭めることで、populate 時のフィットではなく `resizeEvent` 自身の再フィットを検証します。
 
 ### Qt のスケール係数と、設定に再起動が必要な理由
 
@@ -1030,7 +1087,7 @@ Linux 上では、次の 2 つのサブシステムが GPU に同時アクセス
 
 **Axes ウィジェット** — `add_axes()` は `vtkOrientationMarkerWidget` を生成します。このウィジェットはアクター（`plotter.clear()` で消去される）ではないため、`clear()` をまたいで持続します。そのため `_init_plotter()` で一度だけ呼び出します。`_render()` では毎フレーム再追加するのではなく `show_axes()` / `hide_axes()` でトグルします。
 
-**テキストを描画するのは Qt ではなく VTK** — 3D シーン自身のテキスト（形状名バッジ、頂点番号とブロック番号、範囲表示、方位軸の文字、グリッドの目盛りラベル）は VTK の組み込みラベルフォントで描画され、Qt が使うデスクトップのフォントスタックとは別物です。このフォントはグリフを持たない文字に対して**何も描画しません** — 代替の四角い枠さえ描きません — そのため Qt のメニューでは正しく見える記号が、3D ラベルの中では幅だけを占めて消えることがあります。2026-07-30 まで 2 か所が実際にそうなっていました: `_CLIP_MARK_SUFFIX` の `✂`/`⚠` と、**Dimensions** の範囲表示で各軸の 2 つの数値を区切っていた `→` で、後者は画面上では `X  0   3  (3 m)` になっていました。角括弧も同様に不可で、丸括弧として描画されます。`block_mesh_renderer.py` 内のすべての文字列は ASCII に限定してください。`tests/ui/test_block_mesh_renderer_topo.py` がモジュールの AST を走査して（docstring を除き）まさにこれを検査します。範囲表示はインラインの f-string だったため、定数ごとの検査では見逃されていたからです。ただしこのテストが捕捉できるのは「描画できない文字」であって「見た目が不適切な文字」ではないため、新しく追加したシーン表示は画面で確認してください — グリフの欠落は `assert` では検出できません。なお `block_mesh_panel.py` の `▾`・`·`・`📍`・`…` は対象外です。これらは Qt のウィジェットテキストです。
+**テキストを描画するのは Qt ではなく VTK** — 3D シーン自身のテキスト（形状名バッジ、頂点番号とブロック番号、範囲表示、方位軸の文字、グリッドの目盛りラベル）は VTK の組み込みラベルフォントで描画され、Qt が使うデスクトップのフォントスタックとは別物です。このフォントはグリフを持たない文字に対して**何も描画しません** — 代替の四角い枠さえ描きません — そのため Qt のメニューでは正しく見える記号が、3D ラベルの中では幅だけを占めて消えることがあります。2026-07-30 まで 2 か所が実際にそうなっていました: `_CLIP_MARK_SUFFIX`（現在は `ui/panels/shape_mesh.py`）の `✂`/`⚠` と、**Dimensions** の範囲表示（`block_mesh_renderer.py`）で各軸の 2 つの数値を区切っていた `→` で、後者は画面上では `X  0   3  (3 m)` になっていました。角括弧も同様に不可で、丸括弧として描画されます。`shape_mesh.py` と `block_mesh_renderer.py` 内のすべての文字列は ASCII に限定してください。`tests/ui/test_shape_mesh.py` と `tests/ui/test_block_mesh_renderer_colors.py` がそれぞれ自分のモジュールの AST を走査して（docstring を除き）まさにこれを検査します。範囲表示はインラインの f-string だったため、定数ごとの検査では見逃されていたからです。ただしこのテストが捕捉できるのは「描画できない文字」であって「見た目が不適切な文字」ではないため、新しく追加したシーン表示は画面で確認してください — グリフの欠落は `assert` では検出できません。なお `block_mesh_panel.py` の `▾`・`·`・`📍`・`…` は対象外です。これらは Qt のウィジェットテキストです。
 
 **サイドバイサイドモード** — `⊞` トグルボタン（`_bm_side_by_side_btn`）が `QTabWidget` のコーナーウィジェットとして追加されます。有効化すると `_on_toggle_bm_side_by_side` が `block_mesh_panel` を `upper_tabs`（`QTabWidget`）から `_tree_bm_splitter`（`right_upper_splitter` をラップし Tree タブのコンテンツとなる `QSplitter(Qt.Horizontal)`）へ再ペアレント化します。リペアレント前にまず Tree タブへ切り替えてスプリッターを可視状態にし、`setSizes([1,1])` と `_init_plotter()` は `QTimer.singleShot(0, ...)` で次のイベントループティックまで遅延させます。サイドバイサイドモードを切ると `block_mesh_panel` は通常タブとして `upper_tabs` に戻されます。`_update_bm_side_by_side_btn`（`ui/mixins/_panel_ops.py`）は、現在のファイル名が `blockMeshDict`・`topoSetDict`・`snappyHexMeshDict`・`setFieldsDict`、またはサンプリング名（`SAMPLING_DICT_NAMES`: `controlDict`・`sample`・`probes`・`surfaces`・`singleGraph`）のいずれか（いずれも同じ 3D ビューに描画される — `block_mesh_extractor.py`、`topo_set_extractor.py`、`snappy_hex_mesh_extractor.py`、`set_fields_extractor.py`、`sampling_extractor.py` を参照）で、BlockMesh タブ自体が有効、かつ xterm が非アクティブなときにボタンを有効化します。それ以外はボタンを無効化し、サイドバイサイドモードが有効であれば強制的に解除します。
 
@@ -1189,13 +1246,13 @@ ruff check
 
 `i18n/ja.py` の翻訳文字列リテラル（英語の `tr()` キーとその日本語訳文）は、`pyproject.toml` の `[tool.ruff.lint.per-file-ignores]` により `E501`（行長超過）の対象から除外されています。どちらを折り返しても、キーの参照が壊れるか、翻訳文が変わってしまうおそれがあるためです。
 
-`mypy` もリポジトリ全体を対象とします。`pyproject.toml` の `[tool.mypy] files` には `foam/`、`model/`、`app_config/`、`schemas/`、`services/`、`ui/`(すべて)が列挙されています。`ui/` 内の PySide6 属性アクセスはすべて、スタブが要求する完全修飾形の enum(`Qt.Horizontal` のようなフラット形ではなく `Qt.Orientation.Horizontal`)を使用しています — この2つのスタイルを混在させることが、PySide6 コードベースにおける `mypy` ノイズの最大の原因になります。
+`pyproject.toml` の `[tool.mypy] files` には `foam/`、`model/`、`app_config/`、`schemas/`、`services/`、`ui/`(すべて)に加えて `main.py` と `i18n/` が列挙されています — `tools/` を除く、トップレベルのソースパッケージすべてです。`ui/` 内の PySide6 属性アクセスはすべて、スタブが要求する完全修飾形の enum(`Qt.Horizontal` のようなフラット形ではなく `Qt.Orientation.Horizontal`)を使用しています — この2つのスタイルを混在させることが、PySide6 コードベースにおける `mypy` ノイズの最大の原因になります。
 
 ```bash
 mypy
 ```
 
-`[[tool.mypy.overrides]]` の設定で `numpy.*`/`numpy` を `follow_imports = "skip"`(および `follow_imports_for_stubs = true`)に緩和しています。numpy に同梱されたスタブは `python_version >= 3.12` でしかパースできない PEP 695 の `type` 文を使用しており、本プロジェクトの `python_version = "3.10"`(サポートする最小ランタイム)ターゲットと衝突するためです。`ui/panels/block_mesh_*.py` の `vtk`/`pyvista`/`pyvistaqt` はスタブが一切存在しないため `ignore_missing_imports = true` にフォールバックし、それらのオブジェクトは `Any` として扱われます。
+`[[tool.mypy.overrides]]` の設定で `numpy.*`/`numpy` を `follow_imports = "skip"`(および `follow_imports_for_stubs = true`)に緩和しています。numpy に同梱されたスタブは `python_version >= 3.12` でしかパースできない PEP 695 の `type` 文を使用しており、本プロジェクトの `python_version = "3.10"`(サポートする最小ランタイム)ターゲットと衝突するためです。`ui/panels/block_mesh_*.py` および `ui/panels/shape_mesh.py` の `vtk`/`pyvista`/`pyvistaqt` はスタブが一切存在しないため `ignore_missing_imports = true` にフォールバックし、それらのオブジェクトは `Any` として扱われます。
 
 ### `ui/mixins/` 分割の型付け
 
@@ -1258,7 +1315,7 @@ class _FileOpsMixin(_Base):
 
   なお、これらはラウンドトリップの忠実性には影響しない。4435 件すべてが 3 つの修正の前後を通じてバイト単位で同一に書き戻される。パースに失敗したエントリは `unknown_raw_entry` としてそのまま保持されるためである。損なわれるのはディスク上のファイルではなく、該当エントリのツリー表示とスキーマヘルプ（誤りまたは非表示）である。
 
-- **`block_mesh_renderer._make_shape_mesh` のジオメトリ振り分けの型付け** — 現状は呼び出し側で dict のキー（`box`、`boxes`、`centre`+`radius`、`p1`+`p2`+`radius`、`origin`+`i`+`j`+`k`、`stl_path`、`planePoint`+`planeNormal` など）に対して duck-typing で振り分けており、今回のリファクタでは意図的にそのままにした。型付きのジオメトリ共用体（例: 種類ごとの dataclass）があれば、実行時のキーの有無に頼らず mypy で振り分けをチェックできる。
+- **`shape_mesh.make_shape_mesh` のジオメトリ振り分けの型付け**(Qt に依存しないジオメトリが `ui/panels/shape_mesh.py` へ分離された際に `block_mesh_renderer._make_shape_mesh` から移動)— 現状は呼び出し側で dict のキー（`box`、`boxes`、`centre`+`radius`、`p1`+`p2`+`radius`、`origin`+`i`+`j`+`k`、`stl_path`、`planePoint`+`planeNormal` など）に対して duck-typing で振り分けており、両方のリファクタで意図的にそのままにした。型付きのジオメトリ共用体（例: 種類ごとの dataclass）があれば、実行時のキーの有無に頼らず mypy で振り分けをチェックできる。
 
 
 ### 保留中のレビュー指摘（Undo/Redo・サンプリング）

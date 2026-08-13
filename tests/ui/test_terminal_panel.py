@@ -5,40 +5,41 @@ Tests for ui/terminal_panel.py.
 
 These tests cover the synchronous logic of SimpleTerminalWidget and TerminalPanel
 without exercising event-driven I/O or the running shell process.
-A module-scoped QApplication is created so that QProcess and QWidget can be
-instantiated in the test environment.
 """
 from __future__ import annotations
 
-import sys
-
 import pytest
-from PySide6.QtWidgets import QApplication
 
 from ui.panels.terminal_panel import _XTERM_AVAILABLE, SimpleTerminalWidget, TerminalPanel
-
-# ── QApplication fixture ──────────────────────────────────────────────────────
-
-@pytest.fixture(scope="module")
-def qapp():
-    """Module-scoped QApplication required by QProcess and QWidget."""
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv[:1])
-    yield app
-
 
 # ── per-test widget fixtures with cleanup ─────────────────────────────────────
 
 @pytest.fixture
-def simple_widget(qapp):
+def shell_cwd(tmp_path, monkeypatch):
+    """Run the widgets' shell in a throwaway directory.
+
+    Both widgets start a real shell in their constructor, and every command a
+    test sends is really executed by it -- so a command with a side effect
+    writes into whatever directory the test process was launched from, i.e. the
+    repository root. ``log.blockMesh`` used to appear there after a run.
+
+    The shell inherits the cwd it is forked with, and the fork happens inside
+    the constructor, so the chdir has to come first. Deliberately not
+    ``set_working_directory``, which the tests below assert on.
+    """
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
+@pytest.fixture
+def simple_widget(qapp, shell_cwd):
     widget = SimpleTerminalWidget()
     yield widget
     widget._cleanup()
 
 
 @pytest.fixture
-def terminal_panel(qapp):
+def terminal_panel(qapp, shell_cwd):
     panel = TerminalPanel()
     yield panel
     if not _XTERM_AVAILABLE:
@@ -83,14 +84,14 @@ class TestSimpleTerminalWidgetWorkingDirectory:
 # ── SimpleTerminalWidget: cleanup ─────────────────────────────────────────────
 
 class TestSimpleTerminalWidgetCleanup:
-    def test_cleanup_sets_closing_flag(self, qapp):
+    def test_cleanup_sets_closing_flag(self, qapp, shell_cwd):
         """_cleanup sets _closing to True"""
         widget = SimpleTerminalWidget()
         assert widget._closing is False
         widget._cleanup()
         assert widget._closing is True
 
-    def test_on_finished_does_not_restart_when_closing(self, qapp):
+    def test_on_finished_does_not_restart_when_closing(self, qapp, shell_cwd):
         """_on_finished returns early without appending a restart message when _closing is True"""
         widget = SimpleTerminalWidget()
         widget._closing = True
@@ -98,7 +99,7 @@ class TestSimpleTerminalWidgetCleanup:
         assert "Restarting" not in widget._output.toPlainText()
         widget._cleanup()
 
-    def test_on_finished_appends_restart_message_when_not_closing(self, qapp):
+    def test_on_finished_appends_restart_message_when_not_closing(self, qapp, shell_cwd):
         """_on_finished appends a restart message when _closing is False"""
         widget = SimpleTerminalWidget()
         widget._on_finished(1)

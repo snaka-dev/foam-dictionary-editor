@@ -14,28 +14,14 @@ from foam.writer import write_root
 from i18n import tr
 from model.tree_model import FoamTreeModel
 from ui.layout_constants import (
-    BLOCKMESH_DICT_NAME as _BLOCKMESH_DICT_NAME,
-)
-from ui.layout_constants import (
-    SAMPLING_DICT_NAMES as _SAMPLING_DICT_NAMES,
-)
-from ui.layout_constants import (
-    SETFIELDS_DICT_NAME as _SETFIELDS_DICT_NAME,
-)
-from ui.layout_constants import (
-    SNAPPY_HEX_MESH_DICT_NAME as _SNAPPY_HEX_MESH_DICT_NAME,
-)
-from ui.layout_constants import (
-    STATUS_SHORT as _STATUS_SHORT,
-)
-from ui.layout_constants import (
-    STATUS_WARNING as _STATUS_WARNING,
-)
-from ui.layout_constants import (
-    TOPOSET_DICT_NAME as _TOPOSET_DICT_NAME,
-)
-from ui.layout_constants import (
-    TREE_EXPAND_DEPTH as _TREE_EXPAND_DEPTH,
+    BLOCKMESH_DICT_NAME,
+    SAMPLING_DICT_NAMES,
+    SETFIELDS_DICT_NAME,
+    SNAPPY_HEX_MESH_DICT_NAME,
+    STATUS_SHORT,
+    STATUS_WARNING,
+    TOPOSET_DICT_NAME,
+    TREE_EXPAND_DEPTH,
 )
 
 if TYPE_CHECKING:
@@ -63,7 +49,7 @@ class _ModelOpsMixin(_Base):
             self._update_viewer_panels(self.state.current_file, self.state.current_root)
         self._resize_tree_columns()
         self.on_tree_selection()
-        self.statusBar().showMessage(tr("Tree changes applied to text editor"), _STATUS_SHORT)
+        self.statusBar().showMessage(tr("Tree changes applied to text editor"), STATUS_SHORT)
 
     def _update_viewer_panels(self, path: str, root: FoamNode) -> None:
         """Refresh the boundary table and the 3-D viewer for one file's tree."""
@@ -72,12 +58,12 @@ class _ModelOpsMixin(_Base):
             return
         name = Path(path).name
         update = {
-            _BLOCKMESH_DICT_NAME: self.block_mesh_panel.update_block_mesh,
-            _TOPOSET_DICT_NAME: self.block_mesh_panel.update_topo_set,
-            _SNAPPY_HEX_MESH_DICT_NAME: self.block_mesh_panel.update_snappy_hex_mesh,
-            _SETFIELDS_DICT_NAME: self.block_mesh_panel.update_set_fields,
+            BLOCKMESH_DICT_NAME: self.block_mesh_panel.update_block_mesh,
+            TOPOSET_DICT_NAME: self.block_mesh_panel.update_topo_set,
+            SNAPPY_HEX_MESH_DICT_NAME: self.block_mesh_panel.update_snappy_hex_mesh,
+            SETFIELDS_DICT_NAME: self.block_mesh_panel.update_set_fields,
         }.get(name)
-        if update is None and name in _SAMPLING_DICT_NAMES:
+        if update is None and name in SAMPLING_DICT_NAMES:
             update = self.block_mesh_panel.update_sampling
         if update is not None:
             update(path, root)
@@ -98,13 +84,13 @@ class _ModelOpsMixin(_Base):
             root, read_only=self._is_read_only(self.state.current_file)
         )
         self.state.current_model.edit_rejected.connect(
-            lambda msg: self.statusBar().showMessage(msg, _STATUS_WARNING)
+            lambda msg: self.statusBar().showMessage(msg, STATUS_WARNING)
         )
         self.state.current_model.about_to_change.connect(self._on_model_about_to_change)
         self.state.current_model.dataChanged.connect(self._on_tree_data_changed)
         self.proxy_model.setSourceModel(self.state.current_model)
         self.tree_filter_input.clear()
-        self.tree.expandToDepth(_TREE_EXPAND_DEPTH)
+        self.tree.expandToDepth(TREE_EXPAND_DEPTH)
         self._collapse_foam_file()
         self._connect_tree_selection()
         self._resize_tree_columns()

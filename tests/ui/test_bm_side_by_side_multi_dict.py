@@ -16,24 +16,13 @@ lighter, VTK-independent instantiation.
 """
 from __future__ import annotations
 
-import sys
-
 import pytest
-from PySide6.QtWidgets import QApplication
 
 from ui.panels import block_mesh_panel
 
 pytestmark = pytest.mark.skipif(
     not block_mesh_panel._PYVISTA_OK, reason="pyvista/pyvistaqt not installed"
 )
-
-
-@pytest.fixture(scope="module")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv[:1])
-    return app
 
 
 @pytest.fixture

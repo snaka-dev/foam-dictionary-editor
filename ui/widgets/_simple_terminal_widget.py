@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from i18n import tr
 from ui.fonts import monospace_font
 
 _ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
@@ -45,12 +46,12 @@ class SimpleTerminalWidget(QWidget):
 
         self._input = QLineEdit()
         self._input.setFont(font)
-        self._input.setPlaceholderText("Enter command and press Enter")
+        self._input.setPlaceholderText(tr("Enter command and press Enter"))
         self._input.returnPressed.connect(self._on_enter)
         self._input.installEventFilter(self)
 
         clear_btn = QToolButton()
-        clear_btn.setText("Clear")
+        clear_btn.setText(tr("Clear"))
         clear_btn.clicked.connect(self._output.clear)
 
         input_row = QHBoxLayout()

@@ -8,20 +8,9 @@ BlockMesh 3-D panel can be resized well below its one-line toolbar width.
 """
 from __future__ import annotations
 
-import sys
-
-import pytest
-from PySide6.QtWidgets import QApplication, QPushButton, QWidget
+from PySide6.QtWidgets import QPushButton, QWidget
 
 from ui.widgets.flow_layout import FlowLayout
-
-
-@pytest.fixture(scope="module")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv[:1])
-    return app
 
 
 def _make_container(qapp, widths=(80, 120, 60)) -> tuple[QWidget, FlowLayout, list]:

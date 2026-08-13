@@ -2,7 +2,7 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
-from schemas._base import FOUNDATION_SERIES, OPENCFD_SERIES, KeySchema
+from schemas._base import BOTH, KeySchema
 
 SCHEMAS: dict[str, KeySchema] = {
     # ── meshQualityControls ───────────────────────────────────────────────────
@@ -13,19 +13,19 @@ SCHEMAS: dict[str, KeySchema] = {
             "Maximum allowable non-orthogonality angle (degrees) for internal faces. "
             "Cells with higher non-orthogonality are removed or not generated."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "meshQualityControls.maxBoundarySkewness": KeySchema(
         key="maxBoundarySkewness",
         label="Max Boundary Skewness",
         description="Maximum skewness allowed for boundary faces.",
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "meshQualityControls.maxInternalSkewness": KeySchema(
         key="maxInternalSkewness",
         label="Max Internal Skewness",
         description="Maximum skewness allowed for internal faces.",
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "meshQualityControls.maxConcave": KeySchema(
         key="maxConcave",
@@ -34,7 +34,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Maximum concavity angle (degrees) for cell vertices. "
             "High values indicate strongly concave cells."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "meshQualityControls.minFaceFlatness": KeySchema(
         key="minFaceFlatness",
@@ -44,7 +44,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "(1 = flat, 0 = fully warped). Set to -1, the default, to disable "
             "the check."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "meshQualityControls.minFlatness": KeySchema(
         key="minFlatness",
@@ -53,7 +53,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Intended as the face-flatness limit, but no OpenFOAM reader looks "
             "this key up, so writing it changes nothing."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
         status="ineffective",
         use_instead="minFaceFlatness",
         note=(
@@ -71,7 +71,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Minimum allowable cell volume. Cells smaller than this are considered invalid. "
             "A value of 1e-13 is a common default."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "meshQualityControls.minTetQuality": KeySchema(
         key="minTetQuality",
@@ -80,7 +80,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Minimum quality of the tet decomposition used internally for cell checks. "
             "Very negative values (e.g. -1e30) disable the check."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "meshQualityControls.minArea": KeySchema(
         key="minArea",
@@ -89,7 +89,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Minimum allowable face area. Faces smaller than this are treated as degenerate. "
             "Set to -1 to disable."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "meshQualityControls.minTwist": KeySchema(
         key="minTwist",
@@ -98,7 +98,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Minimum face twist (cosine of the angle between adjacent face-normal vectors). "
             "A value of 0.02 is a common threshold."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "meshQualityControls.minDeterminant": KeySchema(
         key="minDeterminant",
@@ -107,7 +107,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Minimum value of the cell determinant (0 to 1). "
             "Values close to 0 indicate severely distorted cells."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "meshQualityControls.minFaceWeight": KeySchema(
         key="minFaceWeight",
@@ -116,7 +116,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Minimum face interpolation weight (0 to 0.5). "
             "Low values indicate faces where owner and neighbour cell centres are far from the face."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "meshQualityControls.minVolRatio": KeySchema(
         key="minVolRatio",
@@ -125,7 +125,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Minimum ratio of volumes between adjacent cells. "
             "A value of 0.01 is a common lower bound."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "meshQualityControls.minTriangleTwist": KeySchema(
         key="minTriangleTwist",
@@ -134,7 +134,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Minimum twist for triangular faces. "
             "A value of -1 disables the check."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "meshQualityControls.nSmoothScale": KeySchema(
         key="nSmoothScale",
@@ -143,7 +143,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Number of error-scaling smoothing iterations applied to improve mesh quality "
             "after each refinement step."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "meshQualityControls.errorReduction": KeySchema(
         key="errorReduction",
@@ -152,7 +152,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Fraction by which the displacement of low-quality cells is reduced "
             "during each smoothing iteration (0–1)."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
 
     # ── meshQualityControls.relaxed ───────────────────────────────────────────
@@ -166,7 +166,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "iterations (see addLayersControls.nRelaxedIter). Typically set higher than the "
             "standard meshQualityControls value to allow the solver to escape local minima."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "relaxed.maxBoundarySkewness": KeySchema(
         key="maxBoundarySkewness",
@@ -175,7 +175,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Relaxed boundary-face skewness limit used during the final layer-addition "
             "iterations. Typically set higher than the standard limit."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "relaxed.maxInternalSkewness": KeySchema(
         key="maxInternalSkewness",
@@ -184,7 +184,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Relaxed internal-face skewness limit used during the final layer-addition "
             "iterations. Typically set higher than the standard limit."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "relaxed.minTwist": KeySchema(
         key="minTwist",
@@ -193,7 +193,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Relaxed minimum face-twist threshold used during the final layer-addition "
             "iterations. Typically set lower (more permissive) than the standard value."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
 
 }

@@ -17,12 +17,8 @@ from ui.layout_constants import (
     SPLITTER_COMPARISON_WIDTH,
     SPLITTER_DETAIL_WIDTH,
     SPLITTER_TREE_WIDTH,
-)
-from ui.layout_constants import (
-    STATUS_SHORT as _STATUS_SHORT,
-)
-from ui.layout_constants import (
-    STATUS_WARNING as _STATUS_WARNING,
+    STATUS_SHORT,
+    STATUS_WARNING,
 )
 
 if TYPE_CHECKING:
@@ -98,7 +94,7 @@ class _DiffOpsMixin(_Base):
                 [SPLITTER_TREE_WIDTH, 0, SPLITTER_DETAIL_WIDTH]
             )
         self.comparison_panel.hide()
-        self.statusBar().showMessage(tr("Diff cleared."), _STATUS_SHORT)
+        self.statusBar().showMessage(tr("Diff cleared."), STATUS_SHORT)
 
     def _recompute_diff(self) -> None:
         if not self.state.diff.case_dir or not self.state.current_file or not self.state.current_case_dir:
@@ -119,7 +115,7 @@ class _DiffOpsMixin(_Base):
                 self.state.current_model.clear_diff()
                 self.comparison_panel.clear()
                 self.statusBar().showMessage(
-                    tr("Diff: {rel} not found in reference case.").format(rel=rel), _STATUS_SHORT
+                    tr("Diff: {rel} not found in reference case.").format(rel=rel), STATUS_SHORT
                 )
                 return
             try:
@@ -131,7 +127,7 @@ class _DiffOpsMixin(_Base):
                 self.comparison_panel.clear()
                 self.statusBar().showMessage(
                     tr("Diff: could not parse {rel} in the reference case.").format(rel=rel),
-                    _STATUS_WARNING,
+                    STATUS_WARNING,
                 )
                 return
         other_root = self.state.diff.parsed_roots[other_key]
@@ -144,7 +140,7 @@ class _DiffOpsMixin(_Base):
         self.file_list_panel.mark_diff(self.state.current_file, n)
         self.statusBar().showMessage(
             tr("Diff: {n} difference{s} in {rel}.").format(n=n, s="s" if n != 1 else "", rel=rel),
-            _STATUS_SHORT,
+            STATUS_SHORT,
         )
 
     def _precompute_all_diff_counts(self) -> None:
@@ -166,7 +162,7 @@ class _DiffOpsMixin(_Base):
                 self.statusBar().showMessage(
                     tr("Diff: {n} reference file(s) could not be parsed and were skipped.")
                     .format(n=failures),
-                    _STATUS_WARNING,
+                    STATUS_WARNING,
                 )
             return
         path = paths[idx]

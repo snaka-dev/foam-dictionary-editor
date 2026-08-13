@@ -86,7 +86,7 @@ class _LinkEditDialog(QDialog):
 
         layout.addWidget(QLabel(tr("URL:")))
         self._url_edit = QLineEdit(url)
-        self._url_edit.setPlaceholderText("https://")
+        self._url_edit.setPlaceholderText("https://")  # i18n: skip -- URL scheme, not prose
         layout.addWidget(self._url_edit)
 
         buttons = QDialogButtonBox(

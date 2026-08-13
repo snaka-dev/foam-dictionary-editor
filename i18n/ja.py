@@ -20,22 +20,26 @@ TRANSLATIONS: dict[str, str] = {
 
     # ── menus ─────────────────────────────────────────────────────────────────
     "Case": "ケース",
+    # "Open Case" (no ellipsis) stays too: keyboard_shortcuts_dialog.py's
+    # _SECTIONS_DATA reaches tr() with the bare action name, without the
+    # ellipsis the menu/toolbar label carries.
     "Open Case": "ケースを開く",
-    "Open from Case Library...": "ケースライブラリから開く...",
+    "Open Case…": "ケースを開く…",
+    "Open from Case Library…": "ケースライブラリから開く…",
     "Reload Case": "ケースを再読み込み",
     "Save Case": "ケースを保存",
-    "Save as New Case...": "新しいケースとして保存...",
-    "Duplicate Case...": "ケースを複製...",
-    "Duplicate from Case Library...": "ケースライブラリから複製...",
-    "Clean Backup Files...": "バックアップファイルを削除...",
-    "Compare with Case...": "ケースと比較...",
+    "Save as New Case…": "新しいケースとして保存…",
+    "Duplicate Case…": "ケースを複製…",
+    "Duplicate from Case Library…": "ケースライブラリから複製…",
+    "Clean Backup Files…": "バックアップファイルを削除…",
+    "Compare with Case…": "ケースと比較…",
     "Exit": "終了",
     "Settings": "設定",
-    "Set Default Case Directory": "デフォルトケースディレクトリの設定",
+    "Set Default Case Directory…": "デフォルトケースディレクトリの設定…",
     "Manage Case Library…": "ケースライブラリの管理…",
     "Manage Extra Files & Directories…": "追加ファイル＆ディレクトリの管理…",
     "Reset File List": "ファイルリストをリセット",
-    "Manage Schema Modules": "スキーマモジュールの管理",
+    "Manage Schema Modules…": "スキーマモジュールの管理…",
     "Reset Window Size": "ウィンドウサイズをリセット",
     "Restore Last Session on Startup": "起動時に前回のセッションを復元",
     "Reopen the window layout, case and files from the last time the "
@@ -87,19 +91,38 @@ TRANSLATIONS: dict[str, str] = {
     "Show a condensed summary of a log.* file (blockMesh, snappyHexMesh, topoSet, setFields, checkMesh, ...)":
         "log.* ファイル (blockMesh, snappyHexMesh, topoSet, setFields, checkMesh, ...) の要約を表示します",
     "Help": "ヘルプ",
-    "About Foam Dictionary Editor (FoDE)...": "Foam Dictionary Editor (FoDE) について...",
-    "Keyboard Shortcuts...": "キーボードショートカット...",
-    "Resources...": "リソース...",
+    # About/Keyboard Shortcuts/Resources dropped their ellipsis (Phase 4: they
+    # only display information, never ask for anything) and now read exactly
+    # like the matching dialogs' setWindowTitle() calls further down this
+    # file, so no new entry is needed here -- a second one would duplicate
+    # the key and fail test_ja_translations_has_no_duplicate_keys.
 
     # ── top bar buttons / labels ──────────────────────────────────────────────
     "Save File": "ファイルを保存",
-    "Save All Files": "すべてのファイルを保存",
     "Case:": "ケース:",
     "File:": "ファイル:",
     "Current case name": "現在のケース名",
     "Current file name": "現在のファイル名",
     "No case opened": "ケースが開かれていません",
     "No file loaded": "ファイルが読み込まれていません",
+
+    # ── editor panel: find toolbar ────────────────────────────────────────────
+    # "Find", "Find Next" and "Find in Tree" are already covered above (Help >
+    # Keyboard Shortcuts uses the same English strings for its row labels).
+    # "Find Prev" is deliberately a separate key from "Find Previous": the
+    # toolbar button is width-sensitive and shortens the word, while the
+    # shortcuts dialog spells it out in full.
+    "Find Prev": "前を検索",
+    "Find text (Ctrl+F)": "テキストを検索します (Ctrl+F)",
+    "Find previous occurrence (Shift+F3)": "前の一致を検索します (Shift+F3)",
+    "Find next occurrence (F3)": "次の一致を検索します (F3)",
+    "Select the tree entry for the current cursor line (Ctrl+Shift+T)":
+        "現在のカーソル行に対応するツリー項目を選択します (Ctrl+Shift+T)",
+    "Highlight": "ハイライト",
+    "Toggle syntax highlighting": "構文ハイライトの表示を切り替えます",
+    "Line: {n}": "行: {n}",
+    "Text to find:": "検索するテキスト:",
+    "Text not found: {text}": "見つかりませんでした: {text}",
 
     # ── editor↔tree sync bar (bottom tab bar corner) ──────────────────────────
     "Apply Text to Tree": "テキストをツリーに適用",
@@ -157,6 +180,113 @@ TRANSLATIONS: dict[str, str] = {
     "Diff: {n} reference file(s) could not be parsed and were skipped.":
         "差分: 参照ケースの {n} 個のファイルを解析できずスキップしました。",
 
+    # ── comparison tree panel (diff reference tree) ───────────────────────────
+    "Reference case": "参照ケース",
+    "Reference: {case}": "参照: {case}",
+    "Use this value": "この値を使用",
+
+    # ── terminal panel ────────────────────────────────────────────────────────
+    "Terminal": "ターミナル",
+    "xterm terminal  (hides BlockMesh 3-D panel)": "xterm ターミナル （BlockMesh 3Dパネルを隠します）",
+    "Not available: QtWebEngine / PTY not installed": "利用不可: QtWebEngine / PTY がインストールされていません",
+
+    # ── BlockMesh 3-D panel ────────────────────────────────────────────────────
+    # Dictionary/tool proper nouns (topoSet, snappyHexMesh, setFields, sample,
+    # STL) keep their spelling in Japanese, same convention as "BlockMesh"
+    # above and "blockMesh" embedded in the Tools-menu strings.
+    "pyvista / pyvistaqt is not installed.\nRun:  pip install pyvista pyvistaqt":
+        "pyvista / pyvistaqt がインストールされていません。\n次を実行してください:  pip install pyvista pyvistaqt",
+    "Mouse:  drag = rotate  |  Shift+drag = pan  |  scroll / right-drag = zoom  |  R = reset camera  |  F = fly to point":
+        "マウス:  ドラッグ = 回転  |  Shift+ドラッグ = パン  |  "
+        "スクロール / 右ドラッグ = ズーム  |  R = カメラをリセット  |  F = ポイントへ移動",
+    "Rotate:        Left drag\nPan:           Shift + left drag\nZoom:          Scroll wheel  or  right drag\nReset camera:  R\nFly to point:  F":
+        "回転:              左ドラッグ\nパン:              Shift + 左ドラッグ\n"
+        "ズーム:            スクロールホイール  または  右ドラッグ\n"
+        "カメラをリセット:    R\nポイントへ移動:      F",
+    "Preview mode — changes shown in 3-D view only. Tree and file are not modified. Click Refresh to reset.":
+        "プレビューモード — 変更は3Dビューにのみ反映されます。"
+        "ツリーとファイルは変更されません。リセットするには更新をクリックしてください。",
+    "Refresh": "更新",
+    "View:": "表示:",
+    "Vertices": "頂点",
+    "Vertex labels": "頂点ラベル",
+    "Vertices table": "頂点テーブル",
+    "Blocks": "ブロック",
+    "Block edges": "ブロックの辺",
+    "Block labels": "ブロックラベル",
+    "Color blocks": "ブロックに色付け",
+    "Solid blocks": "ブロックを塗りつぶし",
+    "Boundary faces": "境界面",
+    "topoSet": "topoSet",
+    "Show topoSet geometry": "topoSet の形状を表示",
+    "Action colours": "アクションの色",
+    "Show geometry sources from topoSetDict, or toggle individual shapes\n(load topoSetDict to populate)":
+        "topoSetDict の形状ソースを表示、または個々の形状の表示を切り替えます\n"
+        "（topoSetDict を読み込むと表示されます）",
+    "snappyHexMesh": "snappyHexMesh",
+    "Show snappyHexMesh geometry": "snappyHexMesh の形状を表示",
+    "Category colours": "カテゴリの色",
+    "Show geometry/refinementSurfaces/refinementRegions from\nsnappyHexMeshDict, or toggle individual shapes\n(load snappyHexMeshDict to populate)":
+        "snappyHexMeshDict の geometry/refinementSurfaces/refinementRegions を"
+        "表示、\nまたは個々の形状の表示を切り替えます\n"
+        "（snappyHexMeshDict を読み込むと表示されます）",
+    "setFields": "setFields",
+    "Show setFields regions": "setFields の領域を表示",
+    "Region colour": "領域の色",
+    "Show region sources from setFieldsDict, or toggle individual shapes\n(load setFieldsDict to populate). Regions larger than the block mesh\nare clipped in the view and marked '(clipped)'.":
+        "setFieldsDict の領域ソースを表示、または個々の形状の表示を切り替えます\n"
+        "（setFieldsDict を読み込むと表示されます）。ブロックメッシュより大きい\n"
+        "領域はビュー内でクリップされ '(clipped)' と表示されます。",
+    "sample": "sample",
+    "Show sampling geometry": "サンプリング形状を表示",
+    "Sampling colour": "サンプリングの色",
+    "probes / lines / planes": "プローブ / ライン / 平面",
+    "Show sampling geometry — probes, sample lines, sample planes — from\ncontrolDict's functions {} block or a standalone sampling dict\n(sample / probes / surfaces / singleGraph), or toggle individual\nshapes (load one of those files to populate)":
+        "サンプリング形状 — プローブ、サンプルライン、サンプル平面 — を\n"
+        "controlDict の functions {} ブロックまたは単独のサンプリング"
+        "ディクショナリ\n（sample / probes / surfaces / singleGraph）から表示、"
+        "または個々の\n形状の表示を切り替えます"
+        "（いずれかのファイルを読み込むと表示されます）",
+    "STL": "STL",
+    "Load STL / OBJ…": "STL / OBJ を読み込み…",
+    "Load STL / OBJ": "STL / OBJ を読み込み",
+    "STL / OBJ files": "STL / OBJ ファイル",
+    "Unload": "解除",
+    "Clear STL": "STL をクリア",
+    "Export Shapes as STL…": "形状を STL としてエクスポート…",
+    "Save topoSetDict / snappyHexMeshDict / setFieldsDict shapes as\nindividual STL files (load one of those dicts to populate)":
+        "topoSetDict / snappyHexMeshDict / setFieldsDict の形状を個別の\n"
+        "STL ファイルとして保存します（いずれかのディクショナリを読み込むと"
+        "表示されます）",
+    "Show loaded surfaces": "読み込んだサーフェスを表示",
+    "Load STL/OBJ surfaces as a reference overlay, toggle or unload\nindividual ones, or export dictionary shapes as STL files":
+        "STL/OBJ サーフェスを参照オーバーレイとして読み込み、個々の表示切替や\n"
+        "解除を行うか、ディクショナリの形状を STL ファイルとしてエクスポートします",
+    "STL Load Error": "STL 読み込みエラー",
+    "Could not load:\n{files}": "読み込めませんでした:\n{files}",
+    "Show all {noun}": "すべての{noun}を表示",
+    "Hide all {noun}": "すべての{noun}を非表示",
+    "shapes": "図形",
+    "surfaces": "サーフェス",
+    "Non-geometric sources ({n})": "非形状ソース ({n})",
+    "(unnamed)": "（無名）",
+    "(no geometry)": "（形状なし）",
+    "(no fieldValues)": "（fieldValues なし）",
+    "Axes": "軸",
+    "Grid": "グリッド",
+    "Dimensions": "寸法",
+    "Scale": "スケール",
+    "Label size:": "ラベルサイズ:",
+    "Font size for vertex and block labels": "頂点ラベルとブロックラベルのフォントサイズ",
+    "Preview": "プレビュー",
+    "Enable Preview mode: edit vertex coordinates in the table.\nChanges are shown in the 3-D view only — tree and file are not modified.\nClick Refresh to reset to the tree values.":
+        "プレビューモードを有効にし、テーブルで頂点座標を編集します。\n"
+        "変更は3Dビューにのみ反映されます — ツリーとファイルは変更されません。\n"
+        "ツリーの値に戻すには更新をクリックしてください。",
+    "⚙ Variable-based": "⚙ 変数ベース",
+    "… {n} vertices total (table limited to {shown})":
+        "… 全 {n} 頂点（テーブルは {shown} 件まで表示）",
+
     # ── status bar ────────────────────────────────────────────────────────────
     "Tree changes applied to text editor": "ツリーの変更をテキストエディタに適用しました",
     "No unsaved files.": "未保存のファイルはありません。",
@@ -178,7 +308,12 @@ TRANSLATIONS: dict[str, str] = {
     "Duplicated to: {dest}": "複製しました: {dest}",
     "Saved as new case: {dest}": "新しいケースとして保存しました: {dest}",
     "Loaded: {path}": "読み込みました: {path}",
-    "Parsed: {path} — {n} unrecognized {entries}": "解析しました: {path} — {n} 件の未認識{entries}",
+    # Singular and plural are separate keys on purpose: an interpolated noun
+    # never passes through tr(), so a shared "{entries}" key would splice the
+    # English word into the Japanese sentence. Japanese has no plural, so both
+    # keys map to the same wording here.
+    "Parsed: {path} — 1 unrecognized entry": "解析しました: {path} — 1 件の未認識エントリ",
+    "Parsed: {path} — {n} unrecognized entries": "解析しました: {path} — {n} 件の未認識エントリ",
     "Parsed successfully: {path}": "正常に解析しました: {path}",
     "Parse warning: {e}": "解析時の警告: {e}",
     "Script file — text editing only: {path}": "スクリプトファイル — テキスト編集のみ: {path}",
@@ -208,7 +343,8 @@ TRANSLATIONS: dict[str, str] = {
     "Could not copy file:\n{e}": "ファイルをコピーできませんでした:\n{e}",
 
     "Saved: {path}": "保存しました: {path}",
-    "Saved: {path} — {n} unrecognized {entries}": "保存しました: {path} — {n} 件の未認識{entries}",
+    "Saved: {path} — 1 unrecognized entry": "保存しました: {path} — 1 件の未認識エントリ",
+    "Saved: {path} — {n} unrecognized entries": "保存しました: {path} — {n} 件の未認識エントリ",
     "Saved and parsed: {path}": "保存して解析しました: {path}",
     "Saved, but parse failed: {e}": "保存しましたが、解析に失敗しました: {e}",
     "Saved {n} file(s).": "{n} 件のファイルを保存しました。",
@@ -423,7 +559,7 @@ TRANSLATIONS: dict[str, str] = {
     "Create Entry": "エントリを作成",
     "Copy": "コピー",
     "Paste": "貼り付け",
-    "Rename Boundary...": "境界名を変更...",
+    "Rename Boundary…": "境界名を変更…",
     "Copy as Markdown": "Markdownとしてコピー",
     "Copy as CSV": "CSVとしてコピー",
     "Save File\tCtrl+S": "ファイルを保存\tCtrl+S",
@@ -455,13 +591,19 @@ TRANSLATIONS: dict[str, str] = {
     "Swap rows (fields) and columns (patches)": "行（フィールド）と列（パッチ）を入れ替え",
     "When checked, clicking a cell opens its file in the editor\nand scrolls to that boundary entry.":
         "チェックすると、セルのクリックでエディタにファイルを開き、その境界エントリへスクロールします。",
+    "When checked, clicking a cell opens its file in the editor\nand scrolls to the patch entry.":
+        "チェックすると、セルのクリックでエディタにファイルを開き、そのパッチエントリへスクロールします。",
     "Copy Table": "テーブルをコピー",
     "Directory:": "ディレクトリ:",
     "Lines per cell:": "セルあたりの行数:",
     "Number of lines to display per cell": "セルあたりの表示行数",
     "Delete BoundaryField  '{patch}'": "BoundaryField '{patch}' を削除",
-    "Rename Boundary  '{patch}'...": "境界名 '{patch}' を変更...",
+    "Rename Boundary  '{patch}'…": "境界名 '{patch}' を変更…",
     "Add BoundaryField...": "BoundaryField を追加...",
+    "binary data": "バイナリデータ",
+    "large data": "大きいデータ",
+    "type {type};\nvalue: {desc} — edit in Text Editor":
+        "型 {type};\n値: {desc} — テキストエディタで編集してください",
 
     # ── file list panel ───────────────────────────────────────────────────────
     "Changed files only": "変更済みファイルのみ",
@@ -575,6 +717,15 @@ TRANSLATIONS: dict[str, str] = {
     "Remove Selected": "選択済みを削除",
     "Save & Close": "保存して閉じる",
     "Select Schema Module File": "スキーマモジュールファイルを選択",
+    "Please select a file within the 'schemas' directory.":
+        "'schemas' ディレクトリ内のファイルを選択してください。",
+    "Module '{name}' is already in the list.": "モジュール '{name}' は既にリストに含まれています。",
+    "Please select a module to remove.": "削除するモジュールを選択してください。",
+    "Confirm Removal": "削除の確認",
+    "Remove module '{name}' from the list?": "モジュール '{name}' をリストから削除しますか？",
+    "Saved": "保存しました",
+    "Configuration saved and schemas reloaded successfully!":
+        "設定を保存し、スキーマを再読み込みしました！",
     "Resources": "リソース",
     "OpenFOAM has two main distributions maintained by separate organizations. "
     "This application is not affiliated with either.":
@@ -767,4 +918,29 @@ TRANSLATIONS: dict[str, str] = {
         "0.orig/ が存在するため 0/ も削除されます"
         "（'Restore 0/ from 0.orig' で再作成できます）。",
     "Continue?": "続行しますか?",
+
+    # ── export STL dialog ─────────────────────────────────────────────────────
+    "Export Shapes as STL": "形状を STL としてエクスポート",
+    "Choose which shapes to save as STL files:": "STL ファイルとして保存する形状を選択してください:",
+    "Output folder:": "出力フォルダ:",
+    "Select Output Folder": "出力フォルダを選択",
+    "Export": "エクスポート",
+    "{n} file(s) written to {dir}.": "{dir} に {n} 件のファイルを書き出しました。",
+    "Skipped (no drawable geometry): {names}": "スキップ（描画可能な形状なし）: {names}",
+    "Failed: {names}": "失敗: {names}",
+
+    # ── file deletion / tree apply-text-to-tree (mixins) ──────────────────────
+    "Delete <b>{name}</b> from disk?": "<b>{name}</b> をディスクから削除しますか？",
+    "Could not apply the field value.": "フィールド値を適用できませんでした。",
+    "Parsed and tree updated — 1 unrecognized entry":
+        "解析してツリーを更新しました — 1 件の未認識エントリ",
+    "Parsed and tree updated — {n} unrecognized entries":
+        "解析してツリーを更新しました — {n} 件の未認識エントリ",
+    "Tree update failed.\n\n{e}\n\nText editor contents are kept as-is. "
+    "You can continue editing and try again.":
+        "ツリーの更新に失敗しました。\n\n{e}\n\nテキストエディタの内容はそのまま保持されます。"
+        "編集を続けて再試行できます。",
+
+    # ── simple terminal widget ────────────────────────────────────────────────
+    "Enter command and press Enter": "コマンドを入力して Enter キーを押してください",
 }

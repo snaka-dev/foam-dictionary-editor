@@ -19,37 +19,10 @@ from PySide6.QtWidgets import (
 
 from foam.nodes import FoamNode
 from i18n import tr
+from ui.widgets._checkable_list import checked_items, set_all_check_states
 
 _DIALOG_WIDTH = 520
 _DIALOG_HEIGHT = 360
-
-
-def find_rename_targets(name: str, roots: dict[str, FoamNode]) -> dict[str, list[FoamNode]]:
-    """Return {path: [nodes]} for boundary nodes whose name matches across all roots."""
-    result: dict[str, list[FoamNode]] = {}
-    for path, root in roots.items():
-        hits = _collect(root, name)
-        if hits:
-            result[path] = hits
-    return result
-
-
-def _collect(node: FoamNode, name: str) -> list[FoamNode]:
-    hits = []
-    if node.name == name and _is_boundary_node(node):
-        hits.append(node)
-    for child in node.children:
-        hits.extend(_collect(child, name))
-    return hits
-
-
-def _is_boundary_node(node: FoamNode) -> bool:
-    if node.node_type == "boundary_entry":
-        return True
-    # Patch key inside a boundaryField dictionary (field files like 0/U)
-    if node.node_type == "dictionary" and node.parent is not None:
-        return node.parent.name == "boundaryField"
-    return False
 
 
 class RenameBoundaryDialog(QDialog):
@@ -136,35 +109,22 @@ class RenameBoundaryDialog(QDialog):
     def selected_paths(self) -> list[str]:
         return list(self._selected_paths)
 
-    def _checked_items(self) -> list[QListWidgetItem]:
-        return [
-            self._list.item(i)
-            for i in range(self._list.count())
-            if self._list.item(i).checkState() == Qt.CheckState.Checked
-        ]
-
     def _update_rename_btn(self) -> None:
         new = self._name_edit.text().strip()
-        n = len(self._checked_items())
+        n = len(checked_items(self._list))
         valid = bool(new) and new != self._old_name and n > 0
         self._rename_btn.setText(tr("Rename ({n} file{s})").format(n=n, s="s" if n != 1 else ""))
         self._rename_btn.setEnabled(valid)
 
     def _select_all(self) -> None:
-        self._list.blockSignals(True)
-        for i in range(self._list.count()):
-            self._list.item(i).setCheckState(Qt.CheckState.Checked)
-        self._list.blockSignals(False)
+        set_all_check_states(self._list, Qt.CheckState.Checked)
         self._update_rename_btn()
 
     def _deselect_all(self) -> None:
-        self._list.blockSignals(True)
-        for i in range(self._list.count()):
-            self._list.item(i).setCheckState(Qt.CheckState.Unchecked)
-        self._list.blockSignals(False)
+        set_all_check_states(self._list, Qt.CheckState.Unchecked)
         self._update_rename_btn()
 
     def _on_rename(self) -> None:
         self._new_name = self._name_edit.text().strip()
-        self._selected_paths = [item.data(Qt.ItemDataRole.UserRole) for item in self._checked_items()]
+        self._selected_paths = [item.data(Qt.ItemDataRole.UserRole) for item in checked_items(self._list)]
         self.accept()

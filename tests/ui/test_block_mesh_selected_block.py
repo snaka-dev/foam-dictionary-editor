@@ -10,10 +10,7 @@ is verified by hand, as with everything else in this panel.
 """
 from __future__ import annotations
 
-import sys
-
 import pytest
-from PySide6.QtWidgets import QApplication
 
 from foam.parser import OpenFoamParser
 from ui.panels import block_mesh_panel
@@ -48,14 +45,6 @@ boundary
 (
 );
 """
-
-
-@pytest.fixture(scope="module")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv[:1])
-    return app
 
 
 @pytest.fixture

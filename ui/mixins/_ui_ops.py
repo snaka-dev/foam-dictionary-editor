@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from PySide6.QtCore import QModelIndex
 from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import QMessageBox
 
@@ -185,7 +186,7 @@ class _UiOpsMixin(_Base):
         if self.tree.selectionModel() is not None:
             self.tree.selectionModel().selectionChanged.connect(self.on_tree_selection)
 
-    def _current_primary_index(self):
+    def _current_primary_index(self) -> QModelIndex:
         indexes = self.tree.selectedIndexes()
         proxy_idx = (
             self.proxy_model.index(indexes[0].row(), 0, indexes[0].parent())
@@ -194,10 +195,10 @@ class _UiOpsMixin(_Base):
         )
         return self.proxy_model.mapToSource(proxy_idx)
 
-    def _to_source(self, proxy_index):
+    def _to_source(self, proxy_index: QModelIndex) -> QModelIndex:
         return self.proxy_model.mapToSource(proxy_index)
 
-    def _to_proxy(self, source_index):
+    def _to_proxy(self, source_index: QModelIndex) -> QModelIndex:
         return self.proxy_model.mapFromSource(source_index)
 
     def _on_toggle_type_column(self, checked: bool) -> None:

@@ -6,9 +6,7 @@ import re
 from dataclasses import dataclass, field
 
 from foam.nodes import FoamNode
-from foam.var_resolver import build_var_map, eval_foam_expr, substitute_vars
-
-_EVAL_VALUE_RE = re.compile(r'^#eval\s*\{\s*([^}]+)\}')  # still used by parse_vertices
+from foam.var_resolver import build_var_map, substitute_vars
 
 
 @dataclass
@@ -29,10 +27,6 @@ _BLOCKMESH_STRUCTURAL = frozenset({
     "scale", "convertToMeters", "vertices", "blocks",
     "edges", "boundary", "mergePatchPairs", "defaultPatch",
 })
-
-
-def _eval_foam_expr(expr: str) -> str | None:
-    return eval_foam_expr(expr)
 
 
 def _build_var_map(root: FoamNode) -> dict[str, str]:

@@ -3,11 +3,9 @@
 """Tests for per-shape topoSet visibility toggles in BlockMeshPanel."""
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
-from PySide6.QtWidgets import QApplication
 
 from foam.parser import OpenFoamParser
 from ui.panels import block_mesh_panel
@@ -25,14 +23,6 @@ _TOPO_SET_DICT = (
 _HEADER_ONLY = (
     "FoamFile { version 2.0; format ascii; class dictionary; object topoSetDict; }\n"
 )
-
-
-@pytest.fixture(scope="module")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv[:1])
-    return app
 
 
 def _panel_with_demo(qapp) -> BlockMeshPanel:

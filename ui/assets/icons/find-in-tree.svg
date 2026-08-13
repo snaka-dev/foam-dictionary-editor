@@ -1,0 +1,11 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- Copyright (C) 2025-2026 Shinji NAKAGAWA -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="2" stroke-linejoin="round">
+  <!-- A caret pointing at the middle row of a list. A magnifier plus a tree
+       at this size reads as letterforms, and an arrow with a shaft merges
+       into a plus sign once the head meets it. -->
+  <path d="M1 5l3 3-3 3" stroke-linecap="round"/>
+  <path d="M7 3h8"/>
+  <path d="M7 8h8"/>
+  <path d="M7 13h8"/>
+</svg>

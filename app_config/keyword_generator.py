@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import date
 from pathlib import Path
 
@@ -64,6 +64,40 @@ def _collect_node_words(node, out: set[str]) -> None:
         _collect_node_words(child, out)
 
 
+def _scan_tree(
+    directory: Path,
+    file_selector: Callable[[Path], Iterable[Path]],
+    extract: Callable[[Path], Iterable[str]],
+    progress_stride: int,
+    label: str,
+    progress: Callable[[str], None] | None = None,
+    cancelled: Callable[[], bool] | None = None,
+) -> set[str]:
+    """Shared skeleton behind the scan_* functions below.
+
+    Checks that `directory` exists, lists files via `file_selector`, extracts
+    keyword tokens from each via `extract` (a bad file is skipped, not
+    fatal), and reports progress every `progress_stride` files.
+    """
+    if not directory.is_dir():
+        if progress:
+            progress(f"  [skip] {directory} not found")
+        return set()
+
+    words: set[str] = set()
+    files = sorted(file_selector(directory))
+    for i, path in enumerate(files):
+        if cancelled and cancelled():
+            break
+        try:
+            words.update(tok for tok in extract(path) if _is_keyword(tok))
+        except Exception:
+            pass
+        if progress and (i % progress_stride == 0 or i == len(files) - 1):
+            progress(f"  {label}: {i + 1}/{len(files)} files, {len(words)} tokens so far")
+    return words
+
+
 def scan_casedicts(
     etc_dir: Path,
     progress: Callable[[str], None] | None = None,
@@ -72,25 +106,21 @@ def scan_casedicts(
     """Parse $FOAM_ETC/caseDicts/ and collect word/compound token values."""
     from foam.parser import OpenFoamParser  # local import — foam pkg may not be on path early
 
-    casedicts = etc_dir / "caseDicts"
-    if not casedicts.is_dir():
-        if progress:
-            progress(f"  [skip] {casedicts} not found")
-        return set()
+    def extract(path: Path) -> set[str]:
+        root = OpenFoamParser(path.read_text(errors="replace")).parse()
+        tokens: set[str] = set()
+        _collect_node_words(root, tokens)
+        return tokens
 
-    words: set[str] = set()
-    files = sorted(f for f in casedicts.rglob("*") if f.is_file())
-    for i, path in enumerate(files):
-        if cancelled and cancelled():
-            break
-        try:
-            root = OpenFoamParser(path.read_text(errors="replace")).parse()
-            _collect_node_words(root, words)
-        except Exception:
-            pass
-        if progress and (i % 20 == 0 or i == len(files) - 1):
-            progress(f"  caseDicts: {i + 1}/{len(files)} files, {len(words)} tokens so far")
-    return words
+    return _scan_tree(
+        etc_dir / "caseDicts",
+        file_selector=lambda d: (f for f in d.rglob("*") if f.is_file()),
+        extract=extract,
+        progress_stride=20,
+        label="caseDicts",
+        progress=progress,
+        cancelled=cancelled,
+    )
 
 
 def scan_src_typenames(
@@ -99,28 +129,22 @@ def scan_src_typenames(
     cancelled: Callable[[], bool] | None = None,
 ) -> set[str]:
     """Grep $FOAM_SRC/**/*.H for TypeName / ClassName macro registrations."""
-    if not src_dir.is_dir():
-        if progress:
-            progress(f"  [skip] {src_dir} not found")
-        return set()
 
-    words: set[str] = set()
-    headers = sorted(src_dir.rglob("*.H"))
-    for i, path in enumerate(headers):
-        if cancelled and cancelled():
-            break
-        try:
-            text = path.read_text(errors="replace")
-            for pattern in (_TYPENAME_RE, _CLASSNAME_RE):
-                for m in pattern.finditer(text):
-                    tok = m.group(1)
-                    if _is_keyword(tok):
-                        words.add(tok)
-        except Exception:
-            pass
-        if progress and (i % 500 == 0 or i == len(headers) - 1):
-            progress(f"  src headers: {i + 1}/{len(headers)} files, {len(words)} tokens so far")
-    return words
+    def extract(path: Path) -> Iterable[str]:
+        text = path.read_text(errors="replace")
+        for pattern in (_TYPENAME_RE, _CLASSNAME_RE):
+            for m in pattern.finditer(text):
+                yield m.group(1)
+
+    return _scan_tree(
+        src_dir,
+        file_selector=lambda d: d.rglob("*.H"),
+        extract=extract,
+        progress_stride=500,
+        label="src headers",
+        progress=progress,
+        cancelled=cancelled,
+    )
 
 
 def scan_src_named_registrations(
@@ -129,28 +153,22 @@ def scan_src_named_registrations(
     cancelled: Callable[[], bool] | None = None,
 ) -> set[str]:
     """Grep $FOAM_SRC/**/*.C for addNamedTo*() custom lookup-name identifiers."""
-    if not src_dir.is_dir():
-        if progress:
-            progress(f"  [skip] {src_dir} not found")
-        return set()
 
-    words: set[str] = set()
-    impls = sorted(src_dir.rglob("*.C"))
-    for i, path in enumerate(impls):
-        if cancelled and cancelled():
-            break
-        try:
-            text = path.read_text(errors="replace")
-            for pattern in (_NAMED_RTST_RE, _NAMED_MFST_RE):
-                for m in pattern.finditer(text):
-                    tok = m.group(1)
-                    if _is_keyword(tok):
-                        words.add(tok)
-        except Exception:
-            pass
-        if progress and (i % 500 == 0 or i == len(impls) - 1):
-            progress(f"  src impls: {i + 1}/{len(impls)} files, {len(words)} tokens so far")
-    return words
+    def extract(path: Path) -> Iterable[str]:
+        text = path.read_text(errors="replace")
+        for pattern in (_NAMED_RTST_RE, _NAMED_MFST_RE):
+            for m in pattern.finditer(text):
+                yield m.group(1)
+
+    return _scan_tree(
+        src_dir,
+        file_selector=lambda d: d.rglob("*.C"),
+        extract=extract,
+        progress_stride=500,
+        label="src impls",
+        progress=progress,
+        cancelled=cancelled,
+    )
 
 
 def scan_src_lookup_keywords(
@@ -159,30 +177,21 @@ def scan_src_lookup_keywords(
     cancelled: Callable[[], bool] | None = None,
 ) -> set[str]:
     """Grep root_dir/**/*.{C,H} for dictionary-read calls (see _LOOKUP_RE)."""
-    if not root_dir.is_dir():
-        if progress:
-            progress(f"  [skip] {root_dir} not found")
-        return set()
 
-    words: set[str] = set()
-    files = sorted(f for f in root_dir.rglob("*") if f.suffix in (".C", ".H"))
-    for i, path in enumerate(files):
-        if cancelled and cancelled():
-            break
-        try:
-            text = path.read_text(errors="replace")
-            for m in _LOOKUP_RE.finditer(text):
-                tok = m.group("kw")
-                if _is_keyword(tok):
-                    words.add(tok)
-        except Exception:
-            pass
-        if progress and (i % 500 == 0 or i == len(files) - 1):
-            progress(
-                f"  {root_dir.name} lookups: {i + 1}/{len(files)} files, "
-                f"{len(words)} tokens so far"
-            )
-    return words
+    def extract(path: Path) -> Iterable[str]:
+        text = path.read_text(errors="replace")
+        for m in _LOOKUP_RE.finditer(text):
+            yield m.group("kw")
+
+    return _scan_tree(
+        root_dir,
+        file_selector=lambda d: (f for f in d.rglob("*") if f.suffix in (".C", ".H")),
+        extract=extract,
+        progress_stride=500,
+        label=f"{root_dir.name} lookups",
+        progress=progress,
+        cancelled=cancelled,
+    )
 
 
 def generate(

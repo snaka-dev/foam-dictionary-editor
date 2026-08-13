@@ -35,7 +35,7 @@ The year range is the envelope across every file and release quoted from, not a 
 
 ## Where the quotes come from
 
-57 distinct source files, across 17 OpenFOAM checkouts. The exact commit for each checkout is recorded in `facts/VERIFICATION.md` and in the banner of every generated schema module.
+57 distinct source files, across 18 OpenFOAM checkouts. The exact commit for each checkout is recorded in `facts/VERIFICATION.md` and in the banner of every generated schema module.
 
 <details><summary>The full list of quoted files</summary>
 

@@ -17,12 +17,7 @@ from foam.writer import write_node
 from i18n import tr
 from model.tree_model import FoamTreeModel
 from services.include_scan import resolve_directive_text
-from ui.layout_constants import (
-    STATUS_SHORT as _STATUS_SHORT,
-)
-from ui.layout_constants import (
-    STATUS_WARNING as _STATUS_WARNING,
-)
+from ui.layout_constants import STATUS_SHORT, STATUS_WARNING
 
 if TYPE_CHECKING:
     from ui.mixins._protocol import MainWindowProtocol as _Base
@@ -163,7 +158,7 @@ class _TreeCrudOpsMixin(_Base):
         rename_boundary_action = None
         if is_renameable_boundary:
             menu.addSeparator()
-            rename_boundary_action = menu.addAction(tr("Rename Boundary..."))
+            rename_boundary_action = menu.addAction(tr("Rename Boundary…"))
 
         menu.addSeparator()
         comment_action = menu.addAction(tr("Comment Out"))
@@ -212,7 +207,7 @@ class _TreeCrudOpsMixin(_Base):
         text = self.state.current_model.data(value_index, Qt.ItemDataRole.DisplayRole) or ""
         if text:
             QApplication.clipboard().setText(text)
-            self.statusBar().showMessage(tr("Copied: {text}").format(text=text), _STATUS_SHORT)
+            self.statusBar().showMessage(tr("Copied: {text}").format(text=text), STATUS_SHORT)
 
     def _tree_paste_value(self) -> None:
         index = self._current_primary_index()
@@ -230,7 +225,7 @@ class _TreeCrudOpsMixin(_Base):
         if ok:
             self._after_model_edit()
         else:
-            self.statusBar().showMessage(tr("Paste failed: value format not accepted"), _STATUS_WARNING)
+            self.statusBar().showMessage(tr("Paste failed: value format not accepted"), STATUS_WARNING)
 
     # ── tree mutations ────────────────────────────────────────────────────────
 
@@ -408,7 +403,7 @@ class _TreeCrudOpsMixin(_Base):
                     tr(
                         "Cannot apply: '{path}' is not a dictionary in the current case"
                     ).format(path='/'.join(parent_path)),
-                    _STATUS_WARNING,
+                    STATUS_WARNING,
                 )
                 return
             parent_node = found
@@ -437,7 +432,7 @@ class _TreeCrudOpsMixin(_Base):
                     tr("'{key}' is already present in the current case").format(
                         key=leaf_key
                     ),
-                    _STATUS_SHORT,
+                    STATUS_SHORT,
                 )
                 return
             existing = None
@@ -473,7 +468,7 @@ class _TreeCrudOpsMixin(_Base):
 
         self._after_model_edit()
         self._recompute_diff()
-        self.statusBar().showMessage(msg, _STATUS_SHORT)
+        self.statusBar().showMessage(msg, STATUS_SHORT)
 
     # ── helpers ───────────────────────────────────────────────────────────────
 

@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 """Shared helpers for the checkable-QListWidget pattern used by
-CleanBackupsDialog and ManageExtraFilesDialog: collecting the checked items
-and bulk-setting every item's check state for Select All / Deselect All
-buttons. See DEVELOPER.md's ui/widgets bullet list.
+CleanBackupsDialog, ManageExtraFilesDialog, RenameBoundaryDialog,
+AddFilesDialog, CaseLibraryDialog, and ExportStlDialog: collecting the
+checked items (or their indices) and bulk-setting every item's check state
+for Select All / Deselect All buttons. See DEVELOPER.md's ui/widgets bullet
+list.
 """
 from __future__ import annotations
 
@@ -16,6 +18,14 @@ def checked_items(widget: QListWidget) -> list[QListWidgetItem]:
     return [
         widget.item(i)
         for i in range(widget.count())
+        if widget.item(i).checkState() == Qt.CheckState.Checked
+    ]
+
+
+def checked_indices(widget: QListWidget) -> list[int]:
+    """Return the row indices in *widget* whose check state is Qt.Checked."""
+    return [
+        i for i in range(widget.count())
         if widget.item(i).checkState() == Qt.CheckState.Checked
     ]
 

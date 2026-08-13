@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QSignalBlocker, Qt, Signal
+from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
@@ -21,14 +22,11 @@ from i18n import tr
 from model.tree_model import FoamTreeModel
 from schemas import (
     KeySchema,
-    choice_description_for_value,
-    choice_note_for_value,
-    choice_supported_in_for_value,
-    choices_for_file_key,
+    choice_for_value,
     schema_for_file_key,
-    schema_note_text,
-    schema_supported_in_text,
+    supported_in_text,
 )
+from ui.label_fit import fit_wrapped_labels
 from ui.theme import colors
 
 _PAGE_EMPTY = 0
@@ -52,14 +50,27 @@ class DetailPanel(QWidget):
         self._stack.addWidget(self._build_normal_page())
         self._stack.addWidget(self._build_field_value_page())
 
-        scroll = QScrollArea()
-        scroll.setWidget(self._stack)
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll = QScrollArea()
+        self._scroll.setWidget(self._stack)
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(scroll)
+        layout.addWidget(self._scroll)
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """Re-fit wrapped labels whenever the panel's width changes.
+
+        Unlike the two dialogs `ui/label_fit.py` was written for -- laid out
+        once and fitted once from `showEvent` -- this panel lives in the
+        `right_upper` splitter and gets a new width every time that splitter
+        moves, independent of any repopulation. Without this override, a label
+        fitted at a wide splitter position stays under-sized after the splitter
+        narrows, clipping its last line again.
+        """
+        super().resizeEvent(event)
+        self._refit_labels()
 
     def show_empty(self) -> None:
         self._stack.setCurrentIndex(_PAGE_EMPTY)
@@ -73,12 +84,20 @@ class DetailPanel(QWidget):
             if node.parent and node.parent.parent
             else None
         )
-        self._populate_normal(node, model, file_path)
+        # The page must already be current before _populate_normal runs: its
+        # trailing _refit_labels() call measures each wrapped label's width to
+        # compute the height it needs, and a QStackedWidget only assigns a
+        # non-current page's children their real geometry once it becomes
+        # current. Fitting first and switching after would measure whatever
+        # stale width the page last had (0 for the very first selection),
+        # under-sizing every label exactly like the bug this fixes.
         self._stack.setCurrentIndex(_PAGE_NORMAL)
+        self._populate_normal(node, model, file_path)
 
     def show_field_value_for_node(self, node: FoamNode, model: FoamTreeModel) -> None:
-        self._populate_field_value(node, model)
+        # See show_for_node: the page has to be current before populating it.
         self._stack.setCurrentIndex(_PAGE_FIELD_VALUE)
+        self._populate_field_value(node, model)
 
     # ── page builders ─────────────────────────────────────────────────────────
 
@@ -189,8 +208,8 @@ class DetailPanel(QWidget):
         editable = model._is_value_editable(node) and not model.read_only
         parent_key = self._current_parent_key
         grandparent_key = self._current_grandparent_key
-        choices = choices_for_file_key(file_path, node.name, parent_key, grandparent_key)
         schema = schema_for_file_key(file_path, node.name, parent_key, grandparent_key)
+        choices = [item.value for item in schema.choices] if schema is not None else []
 
         if schema is not None and schema.description:
             self._key_description_label.setText(schema.description)
@@ -201,15 +220,13 @@ class DetailPanel(QWidget):
 
         self._apply_provenance(schema)
 
-        key_supported_in = schema_supported_in_text(file_path, node.name, parent_key, grandparent_key)
+        key_supported_in = supported_in_text(schema)
         self._key_supported_in_label.setText(key_supported_in)
         self._key_supported_in_label.setVisible(bool(key_supported_in))
 
         # A directive row has no schema, so the note line is free to carry where
         # its `#include` resolved to (or why it did not).
-        key_note = model.include_note(node) or schema_note_text(
-            file_path, node.name, parent_key, grandparent_key
-        )
+        key_note = model.include_note(node) or (schema.note if schema is not None else "")
         self._key_note_label.setText(key_note)
         self._key_note_label.setVisible(bool(key_note))
 
@@ -219,6 +236,8 @@ class DetailPanel(QWidget):
             self._show_choice_editor(node.name, current_value, choices, editable)
         else:
             self._show_text_editor(current_value, editable)
+
+        self._refit_labels()
 
     def _apply_provenance(self, schema: KeySchema | None) -> None:
         """Show whether a key is current, a historical name, or a dead entry.
@@ -270,6 +289,57 @@ class DetailPanel(QWidget):
                 )
             )
 
+        self._refit_labels()
+
+    def _refit_labels(self) -> None:
+        """Re-run `fit_wrapped_labels` from scratch for the panel's current width.
+
+        `fit_wrapped_labels` only ever *raises* a label's minimum height, which
+        is correct for a dialog fitted once at a fixed width. This panel is
+        fitted repeatedly -- on every tree selection and every splitter drag --
+        so a minimum raised for a wide width would survive a later narrow one
+        and leave a gap below a label that no longer needs the room. Clearing
+        the minimums first makes each call start from the label's true
+        unwrapped height, same as a first call would.
+        """
+        for label in self.findChildren(QLabel):
+            if label.wordWrap():
+                label.setMinimumHeight(0)
+
+        page = self._stack.currentWidget()
+        page_layout = page.layout() if page is not None else None
+
+        # First activate(): a label this call just made visible (a schema
+        # note/description that was previously hidden) is still carrying
+        # whatever width it had the last time the layout touched it -- 0 for
+        # one that has never been shown. fit_wrapped_labels reads
+        # label.width() to size against, so measuring before this pass would
+        # silently skip that label (the width <= 0 guard) and leave its
+        # minimum at 0, no matter how long its text is.
+        if page_layout is not None:
+            page_layout.activate()
+
+        fit_wrapped_labels(self)
+
+        # Second activate(): apply the minimums fit_wrapped_labels just set.
+        # Both calls are needed because raising a widget's minimum height only
+        # invalidates the layout that manages it -- recomputing the actual
+        # geometry (what label.height() reports) needs an explicit activate(),
+        # same as the two dialogs ui/label_fit.py was written for, which do it
+        # once from showEvent. This panel repopulates continuously, so it does
+        # the same on every call instead.
+        if page_layout is not None:
+            page_layout.activate()
+
+        # activate() only redistributes space *within* the page's current
+        # rect; it does not grow the page itself, so a page that now needs
+        # more room than it currently has would otherwise leave the extra
+        # height invisible below the scroll area's tracked range. The scroll
+        # area only picks up a widget's new sizeHint on its own once it
+        # processes a resize -- driving that resize here (rather than waiting
+        # for one) is what makes the extra scroll range available immediately.
+        self._stack.resize(self._stack.width(), self._stack.sizeHint().height())
+
     # ── value editor helpers ──────────────────────────────────────────────────
 
     def _show_choice_editor(
@@ -310,13 +380,10 @@ class DetailPanel(QWidget):
     def _update_choice_help(self, node_name: str, value: str) -> None:
         parent_key = self._current_parent_key
         grandparent_key = self._current_grandparent_key
-        description = choice_description_for_value(
-            self._current_file, node_name, value, parent_key, grandparent_key
-        )
-        supported_in = choice_supported_in_for_value(
-            self._current_file, node_name, value, parent_key, grandparent_key
-        )
-        note = choice_note_for_value(self._current_file, node_name, value, parent_key, grandparent_key)
+        item = choice_for_value(self._current_file, node_name, value, parent_key, grandparent_key)
+        description = item.description if item else ""
+        supported_in = supported_in_text(item)
+        note = item.note if item else ""
 
         self._choice_description_label.setText(description)
         self._choice_description_label.setVisible(bool(description))

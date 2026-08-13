@@ -6,6 +6,7 @@ from PySide6.QtCore import QSortFilterProxyModel, Qt, Signal
 from PySide6.QtWidgets import QLabel, QMenu, QTreeView, QVBoxLayout, QWidget
 
 from foam.nodes import FoamNode
+from i18n import tr
 from model.tree_model import FoamTreeModel
 from ui.theme import colors
 
@@ -32,7 +33,7 @@ class ComparisonTreePanel(QWidget):
         self._proxy.setRecursiveFilteringEnabled(True)
         self._proxy.setFilterKeyColumn(FoamTreeModel.COL_KEY)
 
-        self._header_label = QLabel("Reference case")
+        self._header_label = QLabel(tr("Reference case"))
         self._header_label.setStyleSheet(
             f"QLabel {{ background-color: {colors().compare_header_bg}; padding: 2px 6px;"
             f" border-bottom: 1px solid {colors().compare_header_border}; font-weight: bold; }}"
@@ -65,7 +66,7 @@ class ComparisonTreePanel(QWidget):
         self._proxy.setSourceModel(self._model)
         # setSourceModel triggers modelReset which may reset column visibility.
         self._tree.setColumnHidden(FoamTreeModel.COL_TYPE, not self._type_col_visible)
-        self._header_label.setText(f"Reference: {case_name}")
+        self._header_label.setText(tr("Reference: {case}").format(case=case_name))
         self._tree.expandToDepth(_EXPAND_DEPTH)
         self._collapse_foam_file()
         self._resize_columns()
@@ -76,7 +77,7 @@ class ComparisonTreePanel(QWidget):
         # e.g. QTreeView.setModel, which does allow it) — stub gap, not a real error.
         self._proxy.setSourceModel(None)  # type: ignore[arg-type]
         self._model = None
-        self._header_label.setText("Reference case")
+        self._header_label.setText(tr("Reference case"))
 
     def set_type_column_visible(self, visible: bool) -> None:
         self._type_col_visible = visible
@@ -108,7 +109,7 @@ class ComparisonTreePanel(QWidget):
         can_use = self._model._is_value_editable(node)
 
         menu = QMenu(self)
-        use_action = menu.addAction("Use this value")
+        use_action = menu.addAction(tr("Use this value"))
         use_action.setEnabled(can_use)
 
         action = menu.exec(self._tree.viewport().mapToGlobal(pos))

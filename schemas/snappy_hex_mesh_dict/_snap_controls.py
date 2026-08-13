@@ -2,7 +2,7 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
-from schemas._base import FOUNDATION_SERIES, OPENCFD_SERIES, KeySchema
+from schemas._base import BOTH, OPENCFD_SERIES, KeySchema
 
 from ._common import SWITCH_CHOICES
 
@@ -15,7 +15,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "Number of patch-normal smoothing iterations applied to boundary points "
             "before the main snapping step."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "snapControls.nSmoothInternal": KeySchema(
         key="nSmoothInternal",
@@ -34,13 +34,13 @@ SCHEMAS: dict[str, KeySchema] = {
             "Distance tolerance used during snapping, expressed as a fraction of the local "
             "cell size. A higher value allows points to snap from further away."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "snapControls.nSolveIter": KeySchema(
         key="nSolveIter",
         label="Solve Iterations",
         description="Number of relaxation (mesh-displacement solver) iterations per snapping step.",
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "snapControls.nRelaxIter": KeySchema(
         key="nRelaxIter",
@@ -50,13 +50,13 @@ SCHEMAS: dict[str, KeySchema] = {
             "during the snapping phase. Each iteration reduces the displacement to avoid "
             "inverted cells."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "snapControls.nFeatureSnapIter": KeySchema(
         key="nFeatureSnapIter",
         label="Feature Snap Iterations",
         description="Number of iterations used to snap points onto explicit feature edges/points.",
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
     ),
     "snapControls.implicitFeatureSnap": KeySchema(
         key="implicitFeatureSnap",
@@ -65,7 +65,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "When enabled, snappyHexMesh automatically detects and snaps to surface features "
             "without requiring an explicit eMesh file."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
         choices=SWITCH_CHOICES,
     ),
     "snapControls.explicitFeatureSnap": KeySchema(
@@ -75,7 +75,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "When enabled, snappyHexMesh snaps to features defined in the eMesh files "
             "listed under geometry."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
         choices=SWITCH_CHOICES,
     ),
     "snapControls.multiRegionFeatureSnap": KeySchema(
@@ -85,7 +85,7 @@ SCHEMAS: dict[str, KeySchema] = {
             "When enabled, features at boundaries between multiple geometry regions "
             "are also snapped. Useful for multi-material or coupled-region cases."
         ),
-        supported_in=(FOUNDATION_SERIES, OPENCFD_SERIES),
+        supported_in=BOTH,
         choices=SWITCH_CHOICES,
     ),
     "snapControls.detectNearSurfacesSnap": KeySchema(

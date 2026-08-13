@@ -3,22 +3,10 @@
 """Tests for _StaysOpenMenu: checkable items toggle without closing the popup."""
 from __future__ import annotations
 
-import sys
-
-import pytest
 from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import QAction, QMouseEvent
-from PySide6.QtWidgets import QApplication
 
 from ui.panels.block_mesh_panel import _StaysOpenMenu
-
-
-@pytest.fixture(scope="module")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv[:1])
-    return app
 
 
 def _release_event() -> QMouseEvent:
