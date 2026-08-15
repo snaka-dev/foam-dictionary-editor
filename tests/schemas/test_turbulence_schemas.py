@@ -14,7 +14,7 @@ from foam.parser import OpenFoamParser
 from schemas import _turbulence_coeffs, momentum_transport, turbulence_properties
 from schemas._base import (
     FOUNDATION_V7,
-    FOUNDATION_V8_V13,
+    FOUNDATION_V8_V14,
     OPENCFD_SERIES,
     OPENCFD_V2212_V2606,
     ChoiceItem,
@@ -135,7 +135,7 @@ class TestRegistryLookup:
         )
         assert schema is not None
         # Every release that reads constant/momentumTransport, i.e. v8 onward.
-        assert schema.supported_in == (FOUNDATION_V8_V13,)
+        assert schema.supported_in == (FOUNDATION_V8_V14,)
 
     def test_fork_specific_coefficient(self, registry):
         # Absent from Foundation's constructors entirely, so only the OpenCFD

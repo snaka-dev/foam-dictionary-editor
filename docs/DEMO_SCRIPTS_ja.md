@@ -6,14 +6,14 @@
 
 | 動画 | シーン | ケース | 長さ | 公開先 |
 |---|---|---|---|---|
-| 1 — 編集し、見て、実行する | `damBreak-end-to-end` | 同梱 `tutorials/damBreak` | 約 74 秒 | https://youtu.be/kGxfNhAe6xo |
-| 2 — 辞書が絵になる | `topoSet-overlay-tour` | 同梱 `tutorials/topoSetShapes` | 約 68 秒 | https://youtu.be/q5jITY-HIp4 |
-| 3 — ケースをまたいで作業する | `cavity-boundary-and-compare` | 同梱 `tutorials/cavity` | 約 43 秒 | https://youtu.be/FlltvZQrE1k |
-| 4 — 表面のまわりにメッシュを切る | `motorBike-snappy-overlay` | `{cases}/motorBike`（**同梱ではない**） | 約 57 秒 | https://youtu.be/J06LACn9Njc |
-| 5 — 3 つのファイル、1 つのビュー | `sampling-three-files-one-view` | 同梱 `tutorials/samplingShapes` | 約 50 秒 | https://youtu.be/ygXHtzqUZ_A |
-| 6 — 5 つのメッシュ、1 つのケース | `multiRegion-five-meshes-one-case` | 同梱 `tutorials/snappyMultiRegionHeater` | 約 31 秒 | https://youtu.be/exLu67fW-WU |
-| 7 — ワークフロー全体 | `cavity-full-workflow` | 同梱 `tutorials/cavity` | 約 3 分 38 秒 | https://youtu.be/0FZPb92luw8 |
-| 8 — そのモデルが何であるか | `pitzDaily-turbulence-notes` | 同梱 `tutorials/pitzDaily` | 約 64 秒 | https://youtu.be/GUsqQgy9TyQ |
+| 1 — 編集し、見て、実行する | `damBreak-end-to-end` | 同梱 `tutorials/damBreak` | 約 74 秒 | https://vimeo.com/1218332419?texttrack=ja |
+| 2 — 辞書が絵になる | `topoSet-overlay-tour` | 同梱 `tutorials/topoSetShapes` | 約 68 秒 | https://vimeo.com/1218336381?texttrack=ja |
+| 3 — ケースをまたいで作業する | `cavity-boundary-and-compare` | 同梱 `tutorials/cavity` | 約 43 秒 | https://vimeo.com/1218342697?texttrack=ja |
+| 4 — 表面のまわりにメッシュを切る | `motorBike-snappy-overlay` | `{cases}/motorBike`（**同梱ではない**） | 約 57 秒 | https://vimeo.com/1218350862?texttrack=ja |
+| 5 — 3 つのファイル、1 つのビュー | `sampling-three-files-one-view` | 同梱 `tutorials/samplingShapes` | 約 50 秒 | https://vimeo.com/1218352171?texttrack=ja |
+| 6 — 5 つのメッシュ、1 つのケース | `multiRegion-five-meshes-one-case` | 同梱 `tutorials/snappyMultiRegionHeater` | 約 31 秒 | https://vimeo.com/1218352881?texttrack=ja |
+| 7 — ワークフロー全体 | `cavity-full-workflow` | 同梱 `tutorials/cavity` | 約 3 分 38 秒 | https://vimeo.com/1217899060?texttrack=ja |
+| 8 — そのモデルが何であるか | `pitzDaily-turbulence-notes` | 同梱 `tutorials/pitzDaily` | 約 64 秒 | https://vimeo.com/1218354126?texttrack=ja |
 
 ## 何を見せるかの選定
 
@@ -153,7 +153,7 @@
 | 0:14 | Duplicate Case ダイアログ | コピー元、コピー先、リアルタイムのプレビュー、2 つのコピーモード | ダイアログが訊くのは、どこへ置くか、何という名前にするか、どこまでコピーするか — ディレクトリ全体か、FoDE が認識する辞書だけか。 |
 | 0:19 | 名前を付ける | `cavity_copy` → `cavity`、1 打ごとに追随するプレビュー | 既定では元の名前に copy が付きます。その接尾辞を外して、作業用ケースはただの cavity にします。 |
 | 0:34 | ケースを構成する辞書 | `system`、`constant`、`0` にグループ分けされたファイル一覧 | ケース全体が 1 つのペインに出ています。system の controlDict、blockMeshDict、fvSchemes、fvSolution、constant の transportProperties、0 の速度・圧力場。 |
-| 0:41 | `[+]` マーカー | `system` ヘッダを右クリック → **Add files from 'system'…** → `PDRblockMeshDict` | プラス付きのディレクトリには、既定では表示していないファイルがあります。出すよう指示すれば、このケースの分が出てきます。 |
+| 0:41 | `[+]` マーカー | `system` ヘッダを右クリック → **Add files from 'system'…** → `blockMeshDict.m4` | プラス付きのディレクトリには、既定では表示していないファイルがあります。出すよう指示すれば、このケースの分が出てきます。 |
 | 0:55 | ツリーの controlDict | ツリーの行を選択、下のエディタが 29 行目までスクロールして強調 | controlDict をツリーに解析したところ。エディタは同じファイルをテキストとして持ち、ツリーに追随します。 |
 | 1:00 | スキーマ駆動の詳細パネル | `writeControl` 選択時の Key Help、Key Supported In、Key Note、Choices、Choice Help | writeControl を選ぶと、詳細パネルがそれを説明します。何をするキーで、どのディストリビューションが対応し、どんな値を取るのか。 |
 | 1:09 | 文書化された選択肢 | 開いたドロップダウン: `timeStep`、`runTime`、`adjustableRunTime`、`cpuTime`、`clockTime` | 選択肢は覚えておくものではなくドロップダウンで、それぞれに注記が付きます。 |

@@ -2,9 +2,12 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 """Schema for `system/blockMeshDict`.
 
-Keys and values follow `src/mesh/blockMesh/blockMesh/` — in particular the
-`mergeStrategy` Enum at `blockMesh.C:46-47` and the `scale` /
-`convertToMeters` compatibility entry at `blockMesh.C:196-206`.
+Keys and values follow `src/mesh/blockMesh/blockMesh/`. Two of the citations are
+OpenCFD's file rather than a shared one, which is the point: the `mergeStrategy`
+Enum and its `mergeType` entry, and the `scale` / `convertToMeters` compatibility
+entry, exist only in OpenCFD's `blockMesh.C`. Foundation has the same two merge
+implementations but selects between them with no dictionary key, and has never
+read `convertToMeters`.
 """
 from __future__ import annotations
 
@@ -129,10 +132,16 @@ SCHEMAS: dict[str, KeySchema] = {
         "mergeType", "Merge Type",
         "How coincident block faces are connected.",
         (
-            ChoiceItem("topology", "Connect using the block topology. The default.", BOTH),
+            ChoiceItem("topology", "Connect using the block topology. The default.",
+                       (OPENCFD_SERIES,)),
             ChoiceItem("points", "Connect by matching point geometry, for blocks "
-                                 "whose topology does not line up.", BOTH),
+                                 "whose topology does not line up.",
+                       (OPENCFD_SERIES,)),
         ),
+        # OpenCFD only. No Foundation release from v7 to v14 reads a mergeType
+        # entry: its blockMesh has the two merge implementations but selects
+        # between them without a dictionary key.
+        supported_in=(OPENCFD_SERIES,),
     ),
 
     # ── remaining ─────────────────────────────────────────────────────────────

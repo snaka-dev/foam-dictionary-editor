@@ -4,7 +4,7 @@ FoDE — Foam Dictionary Editor (pronounced "foh-dee")
 
 A GUI editor for OpenFOAM dictionary files, built with Python and PySide6.
 
-🎬 **Demo movies on YouTube** — eight short walkthroughs, listed with shot-by-shot scripts in [docs/DEMO_SCRIPTS.md](docs/DEMO_SCRIPTS.md). Start with [Edit, see, run](https://youtu.be/kGxfNhAe6xo) (~74 s), or watch [the whole workflow](https://youtu.be/0FZPb92luw8) end to end (~3 min 38 s).
+🎬 **Demo movies on Vimeo** — eight short walkthroughs, listed with shot-by-shot scripts in [docs/DEMO_SCRIPTS.md](docs/DEMO_SCRIPTS.md). Start with [Edit, see, run](https://vimeo.com/1218332419?texttrack=en) (~74 s), or watch [the whole workflow](https://vimeo.com/1217899060?texttrack=en) end to end (~3 min 38 s).
 
 > 📄 **Now published in [*SoftwareX*](https://doi.org/10.1016/j.softx.2026.102852)** (Elsevier) — see [Citation](#citation).
 

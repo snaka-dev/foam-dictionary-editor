@@ -14,7 +14,17 @@ The two are therefore separate entries here, the second qualified under
 """
 from __future__ import annotations
 
-from schemas._base import BOTH, SWITCH_CHOICES, ChoiceItem, KeySchema, entry
+from schemas._base import (
+    BOTH,
+    FOUNDATION_V7,
+    FOUNDATION_V7_V11,
+    FOUNDATION_V7_V12,
+    OPENCFD_SERIES,
+    SWITCH_CHOICES,
+    ChoiceItem,
+    KeySchema,
+    entry,
+)
 
 TARGET_FILE = "controlDict"
 
@@ -208,6 +218,10 @@ SCHEMAS: dict[str, KeySchema] = {
     ),
     "functions.writeInterval": entry("writeInterval", "Write Interval (function object)",
         "Interval between this function object's writes."),
+    # Both forks read this. Foundation builds the name at runtime as
+    # `prefix_ + "Interval"` (timeControl.C), so it appears as a literal in no
+    # Foundation source and a literal scan reports it missing -- it is shipped
+    # in etc/caseDicts/functions/mesh/checkMesh all the same.
     "functions.executeInterval": entry("executeInterval", "Execute Interval (function object)",
         "Interval between this function object's executions."),
     "functions.type": entry("type", "Function Object Type",
@@ -223,10 +237,23 @@ SCHEMAS: dict[str, KeySchema] = {
         "Fields this function object acts on, as a list."),
     "functions.region": entry("region", "Region",
         "Mesh region this function object applies to, in a multi-region case."),
-    "functions.timeStart": entry("timeStart", "Time Start",
-        "Time before which this function object does nothing."),
-    "functions.timeEnd": entry("timeEnd", "Time End",
-        "Time after which this function object does nothing."),
+    # Foundation read both through v11 (timeControlFunctionObject.C) and stopped
+    # at v12 with no compatibility lookup; OpenCFD reads them as current. So a
+    # closed Foundation span plus `deprecated_since`, not an OpenCFD-only tag.
+    "functions.timeStart": KeySchema(
+        key="timeStart", label="Time Start",
+        description="Time before which this function object does nothing.",
+        supported_in=(FOUNDATION_V7_V11, OPENCFD_SERIES),
+        deprecated_since="Foundation v12",
+        note="Foundation stopped reading this at v12; OpenCFD still does.",
+    ),
+    "functions.timeEnd": KeySchema(
+        key="timeEnd", label="Time End",
+        description="Time after which this function object does nothing.",
+        supported_in=(FOUNDATION_V7_V11, OPENCFD_SERIES),
+        deprecated_since="Foundation v12",
+        note="Foundation stopped reading this at v12; OpenCFD still does.",
+    ),
 
     # Common settings across the sampling / field / forces function objects.
     "functions.name": entry("name", "Name",
@@ -235,19 +262,31 @@ SCHEMAS: dict[str, KeySchema] = {
         "Single field this function object acts on."),
     "functions.writeFields": entry("writeFields", "Write Fields",
         "Writes the derived fields as well as the summary values.", SWITCH_CHOICES),
+    # No Foundation release reads either -- measured across complete v7 and v12
+    # trees and the widened v13/v14 checkouts. They were tagged as shared, which
+    # told a Foundation user a key was available that their fork ignores.
     "functions.writeToFile": entry("writeToFile", "Write To File",
-        "Writes results to postProcessing/ as well as the log.", SWITCH_CHOICES),
+        "Writes results to postProcessing/ as well as the log.", SWITCH_CHOICES,
+        supported_in=(OPENCFD_SERIES,)),
     "functions.useUserTime": entry("useUserTime", "Use User Time",
-        "Reports time in the user time unit rather than seconds.", SWITCH_CHOICES),
-    "functions.regionType": entry("regionType", "Region Type",
-        "What the function object is evaluated over.",
-        (
+        "Reports time in the user time unit rather than seconds.", SWITCH_CHOICES,
+        supported_in=(OPENCFD_SERIES,)),
+    "functions.regionType": KeySchema(
+        key="regionType", label="Region Type",
+        description="What the function object is evaluated over.",
+        choices=(
             ChoiceItem("patch", "A boundary patch.", BOTH),
             ChoiceItem("cellZone", "A cell zone.", BOTH),
             ChoiceItem("faceZone", "A face zone.", BOTH),
             ChoiceItem("all", "The whole domain.", BOTH),
             ChoiceItem("surface", "A sampled surface.", BOTH),
-        )),
+        ),
+        supported_in=(FOUNDATION_V7_V12, OPENCFD_SERIES),
+        deprecated_since="Foundation v13",
+        note="Foundation read this only as a backwards-compatible spelling of "
+             "'select' (surfaceFieldValue.C) and reads neither since v13; "
+             "OpenCFD reads regionType as its current name.",
+    ),
     "functions.operation": entry("operation", "Operation",
         "Reduction applied over the region.",
         (
@@ -293,8 +332,14 @@ SCHEMAS: dict[str, KeySchema] = {
             ChoiceItem("foam", "OpenFOAM native format.", BOTH),
             ChoiceItem("starcd", "STAR-CD format.", BOTH),
         )),
-    "functions.formatOptions": entry("formatOptions", "Format Options",
-        "Per-format output options, such as binary/ascii for VTK."),
+    "functions.formatOptions": KeySchema(
+        key="formatOptions", label="Format Options",
+        description="Per-format output options, such as binary/ascii for VTK.",
+        supported_in=(FOUNDATION_V7, OPENCFD_SERIES),
+        deprecated_since="Foundation v8",
+        note="Foundation dropped this after v7 (sampledSurfaces.C); "
+             "OpenCFD reads it throughout.",
+    ),
     "functions.sets": entry("sets", "Sets",
         "Sample sets — lines or point clouds — evaluated by this function object."),
     "functions.surfaces": entry("surfaces", "Surfaces",
@@ -352,7 +397,14 @@ SCHEMAS: dict[str, KeySchema] = {
         "One named sample surface."),
 
     # ── other solver controls found in controlDict ────────────────────────────
-    "maxDi": entry("maxDi", "Maximum Diffusion Number",
-        "Diffusion-number ceiling used alongside maxCo by the conjugate-heat "
-        "solvers when adjusting the time step."),
+    "maxDi": KeySchema(
+        key="maxDi", label="Maximum Diffusion Number",
+        description="Diffusion-number ceiling used alongside maxCo by the "
+                    "conjugate-heat solvers when adjusting the time step.",
+        supported_in=(FOUNDATION_V7_V12, OPENCFD_SERIES),
+        deprecated_since="Foundation v13",
+        note="Foundation v13 replaced this with maxDeltaT in the solid solver "
+             "module and reads no compatibility spelling, so a v12-era case "
+             "silently loses its diffusion-number limit. OpenCFD reads maxDi.",
+    ),
 }

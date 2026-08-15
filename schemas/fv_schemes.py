@@ -15,14 +15,16 @@ how often each occurs in the shipped tutorials.
 """
 from __future__ import annotations
 
-from schemas._base import BOTH, ChoiceItem, KeySchema
+from schemas._base import BOTH, OPENCFD_SERIES, ChoiceItem, KeySchema
 
 TARGET_FILE = "fvSchemes"
 
 
-def _category(key: str, label: str, description: str) -> KeySchema:
+def _category(
+    key: str, label: str, description: str, supported_in: tuple[str, ...] = BOTH
+) -> KeySchema:
     """A top-level scheme category — the dictionary itself, not its entries."""
-    return KeySchema(key=key, label=label, description=description, supported_in=BOTH)
+    return KeySchema(key=key, label=label, description=description, supported_in=supported_in)
 
 
 # Ordered by tutorial frequency: linear 2325, upwind 634, limitedLinear 401, ...
@@ -262,14 +264,19 @@ SCHEMAS: dict[str, KeySchema] = {
             ChoiceItem("Tadmor", "Tadmor central flux.", BOTH),
         ),
     ),
+    # Overset is an OpenCFD feature: no Foundation release from v7 to v14 reads
+    # either category, measured over complete src+applications trees. The
+    # wildcard rows follow their parent -- left on BOTH they would keep telling
+    # a Foundation user the child entries are available.
     "oversetInterpolationSuppressed": _category(
         "oversetInterpolationSuppressed", "Overset Interpolation Suppressed",
         "Fields excluded from overset interpolation.",
+        (OPENCFD_SERIES,),
     ),
     "oversetInterpolationSuppressed.*": KeySchema(
         key="*", label="oversetInterpolationSuppressed/<field>",
         description="A field excluded from overset interpolation.",
-        supported_in=BOTH,
+        supported_in=(OPENCFD_SERIES,),
     ),
     "fluxRequired": _category(
         "fluxRequired", "Flux Required",
@@ -283,10 +290,11 @@ SCHEMAS: dict[str, KeySchema] = {
     "oversetInterpolation": _category(
         "oversetInterpolation", "Overset Interpolation",
         "Interpolation between overlapping meshes in overset (chimera) cases.",
+        (OPENCFD_SERIES,),
     ),
     "oversetInterpolation.*": KeySchema(
         key="*", label="oversetInterpolation/<entry>",
         description="Overset interpolation setting.",
-        supported_in=BOTH,
+        supported_in=(OPENCFD_SERIES,),
     ),
 }

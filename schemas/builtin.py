@@ -17,5 +17,12 @@ def get_default_schema_config() -> dict:
             "schemas.turbulence_structure",
             "schemas.turbulence_properties",
             "schemas.momentum_transport",
+            # The viscosity models. Foundation renamed the file
+            # constant/transportProperties -> constant/physicalProperties at
+            # v10 and moved the non-Newtonian models into the momentum
+            # transport tree at the same time, so physicalProperties reads
+            # `nu` and nothing else — the two are not the same table.
+            "schemas.transport_properties",
+            "schemas.physical_properties",
         ],
     }

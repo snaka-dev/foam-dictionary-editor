@@ -23,11 +23,55 @@ from model.tree_model import FoamTreeModel
 from schemas import (
     KeySchema,
     choice_for_value,
+    has_unmeasured_successor,
     schema_for_file_key,
     supported_in_text,
 )
 from ui.label_fit import fit_wrapped_labels
 from ui.theme import colors
+
+
+def _qualified_supported_in(schema_or_choice: object) -> str:
+    """`supported_in_text`, plus a caveat when a label stops at the newest
+    release that was actually measured.
+
+    Without it a Foundation 14 user reads "Foundation v7-v13" on a core key as
+    "not available in the release I am running". The span is a verification
+    record rather than a claim of absence (see `schemas/_base.py`), and saying
+    so costs one clause and needs no re-measurement when the fork ships again.
+    """
+    text = supported_in_text(schema_or_choice)  # type: ignore[arg-type]
+    if not text:
+        return text
+    # A `deprecated_since` means the span ends for a reason we established, not
+    # for want of looking — so the caveat would be actively wrong there.
+    if getattr(schema_or_choice, "deprecated_since", ""):
+        return text
+    tags = getattr(schema_or_choice, "supported_in", ())
+    if has_unmeasured_successor(tags):
+        return f"{text} {tr('(newer releases not yet measured)')}"
+    return text
+
+
+def _if_omitted_text(schema: KeySchema | None) -> str:
+    """One line answering "what happens if I leave this key out?".
+
+    `default` and `required` are two spellings of one question, so they share a
+    row rather than each getting one: a key either falls back to something or it
+    does not, never both (`schemas/_base.py` states the exclusivity and
+    `tests/schemas/test_default_and_required.py` enforces it). Returning "" for
+    a schema that records neither keeps the row hidden, which is the common case
+    -- most entries carry their default in `description` prose and say nothing
+    here.
+    """
+    if schema is None:
+        return ""
+    if schema.default:
+        return tr("Defaults to {0}.").format(schema.default)
+    if schema.required:
+        return tr("Required — OpenFOAM reads no default for this key.")
+    return ""
+
 
 _PAGE_EMPTY = 0
 _PAGE_NORMAL = 1
@@ -127,6 +171,10 @@ class DetailPanel(QWidget):
         self._key_supported_in_label.setWordWrap(True)
         self._key_supported_in_label.setVisible(False)
 
+        self._key_default_label = QLabel("")
+        self._key_default_label.setWordWrap(True)
+        self._key_default_label.setVisible(False)
+
         self._key_note_label = QLabel("")
         self._key_note_label.setWordWrap(True)
         self._key_note_label.setVisible(False)
@@ -164,6 +212,7 @@ class DetailPanel(QWidget):
         form.addRow(tr("Key Help"), self._key_description_label)
         form.addRow(tr("Key Status"), self._key_provenance_label)
         form.addRow(tr("Key Supported In"), self._key_supported_in_label)
+        form.addRow(tr("If Omitted"), self._key_default_label)
         form.addRow(tr("Key Note"), self._key_note_label)
         form.addRow(tr("Value"), self._value_edit)
         form.addRow(tr("Choices"), self._value_combo)
@@ -220,9 +269,13 @@ class DetailPanel(QWidget):
 
         self._apply_provenance(schema)
 
-        key_supported_in = supported_in_text(schema)
+        key_supported_in = _qualified_supported_in(schema)
         self._key_supported_in_label.setText(key_supported_in)
         self._key_supported_in_label.setVisible(bool(key_supported_in))
+
+        omitted = _if_omitted_text(schema)
+        self._key_default_label.setText(omitted)
+        self._key_default_label.setVisible(bool(omitted))
 
         # A directive row has no schema, so the note line is free to carry where
         # its `#include` resolved to (or why it did not).
@@ -382,7 +435,7 @@ class DetailPanel(QWidget):
         grandparent_key = self._current_grandparent_key
         item = choice_for_value(self._current_file, node_name, value, parent_key, grandparent_key)
         description = item.description if item else ""
-        supported_in = supported_in_text(item)
+        supported_in = _qualified_supported_in(item)
         note = item.note if item else ""
 
         self._choice_description_label.setText(description)

@@ -34,6 +34,11 @@ COVERAGE_FLOOR = {
     "blockMeshDict": 0.75,
     "snappyHexMeshDict": 0.75,
     "turbulenceProperties": 0.70,
+    # The viscosity models, generated like turbulenceProperties and opening at
+    # the same floor. Both fixtures currently resolve at 100%, so there is room
+    # to raise these — deliberately, not by accident.
+    "transportProperties": 0.70,
+    "physicalProperties": 0.70,
 }
 
 

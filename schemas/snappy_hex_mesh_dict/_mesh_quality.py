@@ -2,7 +2,7 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
-from schemas._base import BOTH, KeySchema
+from schemas._base import BOTH, FOUNDATION_V7_V9, OPENCFD_SERIES, KeySchema
 
 SCHEMAS: dict[str, KeySchema] = {
     # ── meshQualityControls ───────────────────────────────────────────────────
@@ -134,7 +134,11 @@ SCHEMAS: dict[str, KeySchema] = {
             "Minimum twist for triangular faces. "
             "A value of -1 disables the check."
         ),
-        supported_in=BOTH,
+        # Foundation read this through v9 (motionSmootherAlgoCheck.C) and
+        # dropped it at v10; OpenCFD reads it as current.
+        supported_in=(FOUNDATION_V7_V9, OPENCFD_SERIES),
+        deprecated_since="Foundation v10",
+        note="Foundation stopped reading this at v10; OpenCFD still does.",
     ),
     "meshQualityControls.nSmoothScale": KeySchema(
         key="nSmoothScale",

@@ -6,14 +6,14 @@ Every movie below is **scripted in full and runs**: `tools/demo_driver.py` drive
 
 | Movie | Scene | Case | Length | Published |
 |---|---|---|---|---|
-| 1 — Edit, see, run | `damBreak-end-to-end` | bundled `tutorials/damBreak` | ~74 s | https://youtu.be/kGxfNhAe6xo |
-| 2 — It draws your dictionaries | `topoSet-overlay-tour` | bundled `tutorials/topoSetShapes` | ~68 s | https://youtu.be/q5jITY-HIp4 |
-| 3 — Working across cases | `cavity-boundary-and-compare` | bundled `tutorials/cavity` | ~43 s | https://youtu.be/FlltvZQrE1k |
-| 4 — Meshing around a surface | `motorBike-snappy-overlay` | `{cases}/motorBike` — **not** bundled | ~57 s | https://youtu.be/J06LACn9Njc |
-| 5 — Three files, one view | `sampling-three-files-one-view` | bundled `tutorials/samplingShapes` | ~50 s | https://youtu.be/ygXHtzqUZ_A |
-| 6 — Five meshes, one case | `multiRegion-five-meshes-one-case` | bundled `tutorials/snappyMultiRegionHeater` | ~31 s | https://youtu.be/exLu67fW-WU |
-| 7 — The whole workflow | `cavity-full-workflow` | bundled `tutorials/cavity` | ~3 min 38 s | https://youtu.be/0FZPb92luw8 |
-| 8 — What the model is | `pitzDaily-turbulence-notes` | bundled `tutorials/pitzDaily` | ~64 s | https://youtu.be/GUsqQgy9TyQ |
+| 1 — Edit, see, run | `damBreak-end-to-end` | bundled `tutorials/damBreak` | ~74 s | https://vimeo.com/1218332419?texttrack=en |
+| 2 — It draws your dictionaries | `topoSet-overlay-tour` | bundled `tutorials/topoSetShapes` | ~68 s | https://vimeo.com/1218336381?texttrack=en |
+| 3 — Working across cases | `cavity-boundary-and-compare` | bundled `tutorials/cavity` | ~43 s | https://vimeo.com/1218342697?texttrack=en |
+| 4 — Meshing around a surface | `motorBike-snappy-overlay` | `{cases}/motorBike` — **not** bundled | ~57 s | https://vimeo.com/1218350862?texttrack=en |
+| 5 — Three files, one view | `sampling-three-files-one-view` | bundled `tutorials/samplingShapes` | ~50 s | https://vimeo.com/1218352171?texttrack=en |
+| 6 — Five meshes, one case | `multiRegion-five-meshes-one-case` | bundled `tutorials/snappyMultiRegionHeater` | ~31 s | https://vimeo.com/1218352881?texttrack=en |
+| 7 — The whole workflow | `cavity-full-workflow` | bundled `tutorials/cavity` | ~3 min 38 s | https://vimeo.com/1217899060?texttrack=en |
+| 8 — What the model is | `pitzDaily-turbulence-notes` | bundled `tutorials/pitzDaily` | ~64 s | https://vimeo.com/1218354126?texttrack=en |
 
 ## Choosing what to show
 
@@ -153,7 +153,7 @@ Layout: no 3-D view, and the detail panel given real width instead of being coll
 | 0:14 | The Duplicate Case dialog | Source, destination, live preview, the two copy modes | The dialog asks where the copy goes, what to call it, and how much to copy — the whole directory, or only the dictionaries FoDE recognises. |
 | 0:19 | Name it | `cavity_copy` → `cavity`, the preview following each keystroke | It proposes the source name with a copy suffix. Drop the suffix: this working case is just cavity. |
 | 0:34 | The dictionaries of a case | The file list grouped `system`, `constant`, `0` | Here is the whole case in one pane: controlDict, blockMeshDict, fvSchemes and fvSolution under system, transportProperties under constant, and the velocity and pressure fields under zero. |
-| 0:41 | The `[+]` marker | Right-click the `system` header → **Add files from 'system'…** → `PDRblockMeshDict` | A directory marked with a plus holds files the list does not show by default. Ask for them, and here is the one this case has. |
+| 0:41 | The `[+]` marker | Right-click the `system` header → **Add files from 'system'…** → `blockMeshDict.m4` | A directory marked with a plus holds files the list does not show by default. Ask for them, and here is the one this case has. |
 | 0:55 | controlDict in the tree | Tree row selected, the editor below scrolled to line 29 and marked | controlDict, parsed into a tree. The editor holds the same file as text, and follows the tree. |
 | 1:00 | The schema-driven detail panel | `writeControl` selected: Key Help, Key Supported In, Key Note, Choices, Choice Help | Select writeControl and the detail panel explains it — what the key does, which distributions support it, and the values it accepts. |
 | 1:09 | The documented choices | The drop-down open: `timeStep`, `runTime`, `adjustableRunTime`, `cpuTime`, `clockTime` | The choices are a drop-down rather than something to remember, each with its own note. |

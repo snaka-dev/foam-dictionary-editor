@@ -13,8 +13,6 @@ from __future__ import annotations
 
 from schemas._base import (
     BOTH,
-    FOUNDATION_V12,
-    FOUNDATION_V13,
     OPENCFD_SERIES,
     OPENCFD_V2306,
     OPENCFD_V2606,
@@ -224,14 +222,19 @@ SCHEMAS: dict[str, KeySchema] = {
         "First axis point of a cylinder or cone."),
     "geometry.point2": entry("point2", "Point 2",
         "Second axis point of a cylinder or cone."),
-    # searchableCone reached Foundation in v12; OpenCFD has had it throughout.
+    # searchableCone is OpenCFD's, and never was Foundation's. The old
+    # "reached Foundation in v12" tag came from a literal `"radius1"` that
+    # belongs to truncatedConeToCell, an unrelated topoSet/zone source:
+    # Foundation's searchableSurfaces directory has box, cylinder, disk,
+    # extrudedCircle, plane, plate, sphere and triSurface, and no cone, in
+    # every release from v7 to v14.
     "geometry.radius1": KeySchema(
         key="radius1", label="Radius 1", description="Radius at point1 of a cone.",
-        supported_in=(FOUNDATION_V12, FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(OPENCFD_SERIES,),
     ),
     "geometry.radius2": KeySchema(
         key="radius2", label="Radius 2", description="Radius at point2 of a cone.",
-        supported_in=(FOUNDATION_V12, FOUNDATION_V13, OPENCFD_SERIES),
+        supported_in=(OPENCFD_SERIES,),
     ),
     "geometry.planeType": entry("planeType", "Plane Type",
         "How a searchablePlane is specified.",

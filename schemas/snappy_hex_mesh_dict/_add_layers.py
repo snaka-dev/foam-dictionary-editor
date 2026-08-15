@@ -147,12 +147,16 @@ SCHEMAS: dict[str, KeySchema] = {
             "'medial'. Same meaning: the minimum angle used in the medial-axis "
             "analysis."
         ),
-        # Verified per tree: every Foundation release from v7 to dev still
+        # Verified per tree: every Foundation release from v7 to **v14** still
         # declares the compatibility entry, while OpenCFD carries it up to
-        # v2206 and drops it in v2212 (medialAxisMeshMover.C). v2112 sits
-        # between two releases that both declare it and is listed on that
-        # basis — it is the one release in the v2106-v2606 span with no local
-        # source tree to check.
+        # v2206 and drops it in v2212 (medialAxisMeshMover.C). The v14 end of
+        # that span is now read at the `version-14` tag —
+        # `lookupBackwardsCompatible<scalar>({"minMedialAxisAngle",
+        # "minMedianAxisAngle"})`, medialAxisMeshMover.C:364-371 — rather than
+        # at a `dev` tree that predated the tag, which is what the tag
+        # FOUNDATION_SERIES now claims. v2112 sits between two releases that
+        # both declare it and is listed on that basis — it is the one release
+        # in the v2106-v2606 span with no local source tree to check.
         supported_in=(FOUNDATION_SERIES, OPENCFD_V2106, OPENCFD_V2112, OPENCFD_V2206),
         status="renamed",
         use_instead="minMedialAxisAngle",

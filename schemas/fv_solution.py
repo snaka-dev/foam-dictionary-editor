@@ -15,7 +15,18 @@ frequency.
 """
 from __future__ import annotations
 
-from schemas._base import BOTH, SWITCH_CHOICES, ChoiceItem, KeySchema, entry
+from schemas._base import (
+    BOTH,
+    FOUNDATION_SERIES,
+    FOUNDATION_V7_V13,
+    FOUNDATION_V11_V14,
+    FOUNDATION_V14,
+    OPENCFD_SERIES,
+    SWITCH_CHOICES,
+    ChoiceItem,
+    KeySchema,
+    entry,
+)
 
 TARGET_FILE = "fvSolution"
 
@@ -145,14 +156,61 @@ SCHEMAS: dict[str, KeySchema] = {
             ChoiceItem("faceAreaPair", "Pairs cells by shared face area. The usual choice.", BOTH),
             ChoiceItem("assembledFaceAreaPair", "faceAreaPair for assembled (e.g. overset) matrices.", BOTH),
         )),
+    # Foundation 14 renamed this to minCellsPerProcessor, but reads both through
+    # lookupOrDefaultBackwardsCompatible<label>({"minCellsPerProcessor",
+    # "nCellsInCoarsestLevel"}, 10) (GAMGAgglomeration.C), and OpenCFD still
+    # reads this spelling as the current one (v2606). So it stays `valid`
+    # rather than `renamed`: marking it renamed globally would tell an OpenCFD
+    # user to write a key their fork does not read.
     "solvers.nCellsInCoarsestLevel": entry("nCellsInCoarsestLevel", "Cells in Coarsest Level",
-        "Target cell count for the coarsest GAMG level. Typically 10-100."),
+        "Target cell count for the coarsest GAMG level. Typically 10-100.",
+        note="Foundation v14 prefers minCellsPerProcessor, but still accepts "
+             "this spelling. OpenCFD reads this name."),
+    "solvers.minCellsPerProcessor": KeySchema(
+        key="minCellsPerProcessor",
+        label="Min Cells per Processor",
+        description=(
+            "Target cell count for the coarsest GAMG level, per processor. "
+            "Foundation v14's name for nCellsInCoarsestLevel."
+        ),
+        supported_in=(FOUNDATION_V14,),
+        note="Foundation v14 only. Earlier releases and OpenCFD read "
+             "nCellsInCoarsestLevel.",
+        renamed_from=("nCellsInCoarsestLevel",),
+    ),
     "solvers.mergeLevels": entry("mergeLevels", "Merge Levels",
         "GAMG levels merged per agglomeration step. 1 is safest."),
     "solvers.directSolveCoarsest": entry("directSolveCoarsest", "Direct Solve Coarsest",
         "Solves the coarsest GAMG level directly.", SWITCH_CHOICES),
-    "solvers.processorAgglomerator": entry("processorAgglomerator", "Processor Agglomerator",
-        "Agglomerates across processors in parallel GAMG runs."),
+    # Foundation 14 dropped this word entry for a sub-dictionary and provides no
+    # compatibility lookup, so writing it there is silently ignored. OpenCFD
+    # still reads it (v2606, GAMGAgglomeration.C), hence BOTH plus the note
+    # rather than an OpenCFD-only tag. `deprecated_since` records that the span
+    # ends for a known reason, which is what keeps the Detail pane from adding
+    # its "newer releases not yet measured" caveat: this one *was* measured.
+    "solvers.processorAgglomerator": KeySchema(
+        key="processorAgglomerator",
+        label="Processor Agglomerator",
+        description="Agglomerates across processors in parallel GAMG runs.",
+        # Measured absent from v14, so this is a closed Foundation range rather
+        # than a bare narrow span's "not yet looked at". `deprecated_since` keeps
+        # the Detail pane from adding its unmeasured caveat: we did look.
+        supported_in=(FOUNDATION_V7_V13, OPENCFD_SERIES),
+        note="Foundation v14 replaced this with the processorAgglomeration "
+             "sub-dictionary and does not read the old spelling. OpenCFD reads it.",
+        deprecated_since="Foundation v14",
+    ),
+    "solvers.processorAgglomeration": KeySchema(
+        key="processorAgglomeration",
+        label="Processor Agglomeration",
+        description=(
+            "Sub-dictionary configuring cross-processor GAMG agglomeration. "
+            "Foundation v14's replacement for the processorAgglomerator entry."
+        ),
+        supported_in=(FOUNDATION_V14,),
+        note="Foundation v14 only, and read as a dictionary rather than a word.",
+        renamed_from=("processorAgglomerator",),
+    ),
 
     # ── relaxation ────────────────────────────────────────────────────────────
     "relaxationFactors": entry(
@@ -205,10 +263,61 @@ SCHEMAS: dict[str, KeySchema] = {
     "PIMPLE.momentumPredictor": entry("momentumPredictor", "Momentum Predictor",
         "Solves the momentum equation before the pressure correction. Often off "
         "for low-Reynolds or multiphase cases.", SWITCH_CHOICES),
-    "PIMPLE.turbOnFinalIterOnly": entry("turbOnFinalIterOnly", "Turbulence On Final Iteration Only",
-        "Solves the turbulence equations only on the last outer corrector.", SWITCH_CHOICES),
+    # Fork-asymmetric, measured per release in pimpleNoLoopControl.C: Foundation
+    # renamed this to transportCorrectionFinal at v11 and has read both since
+    # (lookupOrDefaultBackwardsCompatible), while OpenCFD reads this spelling as
+    # the current one (v2606, pimpleControl.C) and has no transportCorrectionFinal
+    # at all. So it stays `valid` rather than `renamed`: marking it renamed
+    # globally would tell an OpenCFD user to write a key their fork cannot read.
+    "PIMPLE.turbOnFinalIterOnly": KeySchema(
+        key="turbOnFinalIterOnly",
+        label="Turbulence On Final Iteration Only",
+        description="Solves the turbulence equations only on the last outer corrector.",
+        supported_in=BOTH,
+        choices=SWITCH_CHOICES,
+        note="Foundation v11 renamed this to transportCorrectionFinal and still "
+             "accepts this spelling. OpenCFD reads this name.",
+        deprecated_since="Foundation v11",
+    ),
+    "PIMPLE.transportCorrectionFinal": KeySchema(
+        key="transportCorrectionFinal",
+        label="Transport Correction Final",
+        description=(
+            "Solves the transport (turbulence) equations only on the last outer "
+            "corrector. Foundation v11's name for turbOnFinalIterOnly."
+        ),
+        supported_in=(FOUNDATION_V11_V14,),
+        choices=SWITCH_CHOICES,
+        note="Foundation v11 onward. OpenCFD reads turbOnFinalIterOnly instead.",
+        renamed_from=("turbOnFinalIterOnly",),
+    ),
+    # Same shape, but the rename is older than the measured span: every
+    # Foundation release from v7 reads simpleRho and accepts SIMPLErho, and
+    # OpenCFD reads only SIMPLErho.
+    "PIMPLE.simpleRho": KeySchema(
+        key="simpleRho",
+        label="Simple Rho",
+        description="Updates density the SIMPLE way, before the pressure equation.",
+        supported_in=(FOUNDATION_SERIES,),
+        choices=SWITCH_CHOICES,
+        note="Foundation's name. OpenCFD reads SIMPLErho instead.",
+        renamed_from=("SIMPLErho",),
+    ),
+    "PIMPLE.SIMPLErho": KeySchema(
+        key="SIMPLErho",
+        label="SIMPLE Rho",
+        description="Updates density the SIMPLE way, before the pressure equation.",
+        supported_in=BOTH,
+        choices=SWITCH_CHOICES,
+        note="OpenCFD's current name; Foundation reads it as the historical "
+             "spelling of simpleRho.",
+    ),
+    # OpenCFD only: no Foundation release reads it. Foundation's equivalent
+    # switch is the `transportCorrectionFinal` / `turbOnFinalIterOnly` pair
+    # above, which is a different key with a different name in each fork.
     "PIMPLE.finalOnLastPimpleIterOnly": entry("finalOnLastPimpleIterOnly", "Final On Last Iteration Only",
-        "Applies the 'Final' solver settings only on the last outer corrector.", SWITCH_CHOICES),
+        "Applies the 'Final' solver settings only on the last outer corrector.", SWITCH_CHOICES,
+        supported_in=(OPENCFD_SERIES,)),
     "PISO.nCorrectors": entry("nCorrectors", "Correctors",
         "PISO pressure corrections per time step. Usually 2-3."),
     "PISO.nNonOrthogonalCorrectors": _SHARED_CONTROL["nNonOrthogonalCorrectors"],

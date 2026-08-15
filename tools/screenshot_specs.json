@@ -144,7 +144,7 @@
         "case_dir": "/tmp/OpenFOAM/run/cavity",
         "current_file": "system/fvSchemes",
         "tree_selection": ["laplacianSchemes", "default"],
-        "splitter_sizes": {"right_upper": [370, 345, 255]}
+        "splitter_sizes": {"right_upper": [320, 300, 370]}
       }
     },
     "blockMesh3Dview-snappyHex-motorBike": {
@@ -167,6 +167,7 @@
           "right_upper": [300, 0, 0],
           "tree_bm": [300, 690]
         },
+        "minimized_panes": {"detail": 530},
         "block_mesh": {
           "toggles": {"boundary_faces": false, "vertex_table": false},
           "label_font_size": 10,

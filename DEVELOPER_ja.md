@@ -78,7 +78,7 @@ foam-dictionary-editor/
 │   ├── fv_schemes.py
 │   ├── fv_solution.py
 │   ├── _turbulence_coeffs.py    # foamlore から取り込んだ生成ファイル: 全 29 モデルの係数ファクトと build_schemas(target_file)
-│   ├── momentum_transport.py    # foamlore から取り込んだ生成ファイル: 薄いモジュール、TARGET_FILE = constant/momentumTransport（Foundation v8-v13）
+│   ├── momentum_transport.py    # foamlore から取り込んだ生成ファイル: 薄いモジュール、TARGET_FILE = constant/momentumTransport（Foundation v8-v14）
 │   ├── snappy_hex_mesh_dict/    # パッケージ: サブドメイン別に分割（geometry, castellated mesh, snap, layers, mesh quality）
 │   │   ├── __init__.py          # 各サブモジュールの SCHEMAS を統合し、TARGET_FILE を再エクスポート
 │   │   ├── _common.py           # 共有 SWITCH_CHOICES
@@ -616,7 +616,7 @@ class KeySchema:
     deprecated_since: str = ""
 ```
 
-`_base.py` はバージョン文字列定数もエクスポートします。`FOUNDATION_V7` 〜 `FOUNDATION_V13`、`OPENCFD_V2106` 〜 `OPENCFD_V2606` に加え、総称ラベルの `FOUNDATION_SERIES`、`OPENCFD_SERIES`、`BOTH_FORKS` です。共有ライブラリである `finiteVolume`/`lduMatrix` に属するキーには総称ラベルを使ってください。個別リリースを 1 つだけ指定すると、詳細ペインでは「そのリリースでしか使えない」と読めてしまいます。実際、61 個のエントリが中核キーを Foundation 限定であるかのように OpenCFD ユーザーへ表示していました。
+`_base.py` はバージョン文字列定数もエクスポートします。`FOUNDATION_V7` 〜 `FOUNDATION_V14`、`OPENCFD_V2106` 〜 `OPENCFD_V2606` に加え、総称ラベルの `FOUNDATION_SERIES`、`OPENCFD_SERIES`、`BOTH` です。共有ライブラリである `finiteVolume`/`lduMatrix` に属するキーには総称ラベルを使ってください。個別リリースを 1 つだけ指定すると、詳細ペインでは「そのリリースでしか使えない」と読めてしまいます。実際、61 個のエントリが中核キーを Foundation 限定であるかのように OpenCFD ユーザーへ表示していました。ただし総称ラベルが免除しないものに注意してください。ラベル中の区間は検証の記録であり、Foundation 7-13 と OpenCFD v2106-v2606 にわたって対象エントリを監査して得たものです。新しいリリースが出たからといって自動的に伸びるものではありません。「総称」が免除するのは個別リリース名を挙げることであって、実測することではありません。`FOUNDATION_SERIES` が v14 に届いているのは `tools/scan_foundation14_keys.py` がそこまで実測したからです。この走査が到達できなかったおよそ 21 件のキーは代わりに `FOUNDATION_V7_V13` を持ち、詳細ペインが注記を添えるのはこの狭い方のラベル(`OPEN_ENDED_SERIES` が指すもの)です(生成側の仕様書の項目 9)。実測して**存在しなかった**キーはさらに別扱いで、閉じた区間と `deprecated_since` の組み合わせになります。これは「確認した」ことを意味します。
 
 ### キーが何であるかの記録: `status` フィールド
 
@@ -630,11 +630,21 @@ class KeySchema:
 
 `renamed`／`ineffective` のキーは削除せず**残します**。旧称を含むケースを開いたユーザーにこそ、それが何なのかを伝える必要があるからです。`renamed_from` は**現行**キー側に置き、その旧称を列挙します。
 
-リネーム情報の出所: OpenCFD は `getCompat("newName", {{"oldName", apiVersion}})`、Foundation は `lookupBackwardsCompatible<T>({"newName", "oldName"})` という形で、リネームを機械可読な形でソースに宣言しています。この 2 系統の呼び出しをソースツリー全体から抽出すると、フォーク別のバージョン範囲付きで約 100 組の旧称→新称が得られます。そのうち 4 組は互換エントリが後に削除されたため古いツリーにしか残っておらず、たとえば `minMedianAxisAngle` は OpenCFD では v2206 まで、Foundation では現在も受け付けられます。FoDE 側にはこのためのジェネレータを意図的に置いていません。抽出は一度きりの調査であり、結果は手作業で転記します。
+### キーを省略したときどうなるか: `default` と `required`
+
+もう 2 つのフィールドが 1 つの問いに答えます。そのため Detail パネルでは両者に**「省略した場合」**という単一の行を与えています(`_if_omitted_text`)。`default` は OpenFOAM が代わりに使う値で、ソースの書き方そのままを記します。`required` はフォールバックが一切ないこと、つまり省略はエラーであることを示します。両者は**排他**であり、いずれかのスキーマが両方を設定すると `tests/schemas/test_default_and_required.py` が失敗します。
+
+両者を健全に保つ規則: **ある事実は `default`／`required` か `description` のどちらかに置き、両方には置かない。** `description` はキーの**意味**を述べ、これらは省略したときに何が起きるかを述べます。したがって空の `default` は**沈黙**であって主張ではありません。生成された乱流モジュールは既定値を prose として `description` に持ち、フィールドは空のままなので、`""` を「既定値が存在しない」と読むとそれらすべてが必須扱いになってしまいます。不在を主張するのは `required=True` だけです。
+
+存在意義が明確なのは `required` の方で、理由は `CrossPowerLaw.C:71-78` です。`nu0`・`nuInf`・`m`・`n` をフォールバックなしで読んでおり、これまでそれを表現する手段は、コードが解釈できない一文しかありませんでした。機械可読であるため、`required` は将来の「ケースに OpenFOAM が必要とするキーが欠けている」検査の裏付けになり得ます。prose の既定値ではそれができません。`default` は 2 つのうち弱い方で、主な意義は、スキーマが既に持つ事実を生成 prose が重複して述べるのをやめられる点にあります。どちらのフィールドも `ChoiceItem` には付けません。既定値はキーに属するものであり、その値の 1 つに属するものではないからです。
+
+リネーム情報の出所: OpenCFD は `getCompat("newName", {{"oldName", apiVersion}})`、Foundation は `lookupBackwardsCompatible<T>({"newName", "oldName"})` という形で、リネームを機械可読な形でソースに宣言しています。抽出は**手作業の転記ではなく生成**です。foamlore の `facts/tools/scan_renames.py` がこの 2 系統の呼び出しを全 19 チェックアウトにわたって走査し `facts/derived/renames.json` にまとめ、`render_renames.py` がそれを [docs/OPENFOAM_VERSIONS.md](docs/OPENFOAM_VERSIONS_ja.md) の生成領域 `renames-table` にスプライスされる表へ変換します。現在の走査範囲での実測は**改名対 21 件、未解決 0 件**です。初期見積りの「約 100 組」は呼び出し箇所を数えたもので、異なる対の数ではありませんでした。互換エントリが後に削除されて古いツリーにしか残らないものもあり、たとえば `minMedianAxisAngle` は OpenCFD では v2206 まで、Foundation では現在も受け付けられます。
+
+この走査は `sources/*/`、つまり**チェックアウトされているものだけ**を読みます。そのため長らく乱流サブツリーしか見ておらず、`controlDict`・`fvSolution`・`snappyHexMeshDict` に初めて到達したのは 2026 年 8 月でした。到達した途端に `turbOnFinalIterOnly` の 3 リリース分の不具合が見つかっています(生成側の仕様書の項目 10)。一方で**生成されない**のはキー単位の帰結です。個々の `KeySchema` の `renamed_from`・`use_instead`・`deprecated_since`・`status` は、導出された表をもとに手で設定します。ある対が全体的な改名なのかフォーク間の不一致なのかは、表が下せない判断だからです。`turbOnFinalIterOnly` が典型例で、Foundation は改名しましたが OpenCFD は現行名として読むため、無条件に `renamed` と印を付けると OpenCFD 利用者に「自分のフォークが無視するキーを書け」と言うことになります。
 
 ### 生成モジュール（foamlore からのベンダリング）
 
-`schemas/_turbulence_coeffs.py`・`schemas/turbulence_properties.py`・`schemas/momentum_transport.py` は**生成ファイル**で、姉妹リポジトリ foamlore の `facts/tools/generate_fode_schemas.py` から取り込んでいます。**29 モデル**（RAS 16、LES/DES 13 — 両フォークが出荷する全モデル）の乱流モデル係数を、v2112 を含む 18 リリース全部（Foundation 7–13、OpenCFD v2106–v2606）の OpenFOAM `.C` コンストラクタから機械的に抽出し、それらのリリースにわたって実測した `supported_in` タグとソース既定値の `ChoiceItem` 付きで収録します。係数キーは親修飾（`kOmegaSSTCoeffs.beta1`）で出力され、OpenFOAM の `optionalSubDict` 読み取りイディオムに合わせて素のフォールバックキーも付きます。同じ名前を複数のモデルが読む場合、素のエントリは所有する全モデルを列挙し、各モデルの既定値を提示します。ここでは編集せず、foamlore で再生成して再コピーしてください（テストが `GENERATED` バナーの存在を検証します）。
+`schemas/_turbulence_coeffs.py`・`schemas/turbulence_properties.py`・`schemas/momentum_transport.py` は**生成ファイル**で、姉妹リポジトリ foamlore の `facts/tools/generate_fode_schemas.py` から取り込んでいます。**29 モデル**（RAS 16、LES/DES 13 — 両フォークが出荷する全モデル）の乱流モデル係数を、19 リリース全部（Foundation 7–14、OpenCFD v2106–v2606）の OpenFOAM `.C` コンストラクタから機械的に抽出し、それらのリリースにわたって実測した `supported_in` タグとソース既定値の `ChoiceItem` 付きで収録します。係数キーは親修飾（`kOmegaSSTCoeffs.beta1`）で出力され、OpenFOAM の `optionalSubDict` 読み取りイディオムに合わせて素のフォールバックキーも付きます。同じ名前を複数のモデルが読む場合、素のエントリは所有する全モデルを列挙し、各モデルの既定値を提示します。ここでは編集せず、foamlore で再生成して再コピーしてください（テストが `GENERATED` バナーの存在を検証します）。
 
 ファイルが 2 つではなく 3 つなのは、foundation が OpenFOAM 8 で `constant/turbulenceProperties` を `constant/momentumTransport` に改名したためです。`_turbulence_coeffs.py` が係数のファクトを 1 度だけ保持して `build_schemas(target_file)` を提供し、残り 2 つはそれぞれ約 25 行で自身の `TARGET_FILE` を宣言してこれを呼びます。`_turbulence_coeffs` は import されるだけで登録しません — `TARGET_FILE` を持たないので、どのみち `SchemaRegistry` は読み飛ばします。
 

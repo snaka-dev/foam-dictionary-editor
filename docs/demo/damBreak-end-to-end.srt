@@ -1,43 +1,43 @@
 1
-00:00:00,000 --> 00:00:05,044
+00:00:00,000 --> 00:00:04,599
 This is an OpenFOAM case — the damBreak tutorial — open in FoDE. The dictionary is a tree on the left, the mesh it describes is drawn on the right.
 
 2
-00:00:05,044 --> 00:00:10,047
+00:00:04,599 --> 00:00:09,603
 Open setFieldsDict, and the region it initialises is drawn straight onto that mesh.
 
 3
-00:00:10,047 --> 00:00:14,447
+00:00:09,603 --> 00:00:14,003
 Select the box that defines it, and the editor below jumps to the line it came from.
 
 4
-00:00:14,447 --> 00:00:18,903
+00:00:14,003 --> 00:00:18,458
 Change the water column — make it wider and taller.
 
 5
-00:00:18,903 --> 00:00:23,733
+00:00:18,458 --> 00:00:23,288
 The overlay follows the edit. No re-run, no export, no guessing at coordinates.
 
 6
-00:00:23,733 --> 00:00:28,533
+00:00:23,288 --> 00:00:28,288
 Save the file.
 
 7
-00:00:28,533 --> 00:00:33,734
+00:00:28,288 --> 00:00:33,289
 The mesh has to exist before the fields can be set, so run blockMesh.
 
 8
-00:00:33,734 --> 00:00:44,333
+00:00:33,289 --> 00:00:43,888
 It runs in the Terminal tab, in the case directory, and tees its output to a log.
 
 9
-00:00:44,333 --> 00:00:53,248
+00:00:43,888 --> 00:00:52,802
 Now setFields. The dialog offers the flags rather than asking you to remember them, and shows the exact command it will send. setFields rewrites 0/ in place, so it offers to restore 0/ from 0.orig first — checked by default, and visible in the command.
 
 10
-00:00:53,248 --> 00:01:03,333
+00:00:52,802 --> 00:01:02,888
 Run it.
 
 11
-00:01:03,333 --> 00:01:07,333
+00:01:02,888 --> 00:01:06,888
 And the logs those runs left behind are condensed to a report: what ran, what it produced, and every warning it printed.

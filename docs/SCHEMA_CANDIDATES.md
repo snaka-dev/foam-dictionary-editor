@@ -73,8 +73,8 @@ already did the research), then the rest as time allows.
 The valid values live in a C++ class hierarchy resolved at runtime, the set
 differs between forks and grows between releases, and the useful content is
 coefficient names, defaults and the prose OpenFOAM ships beside them. This is
-exactly the shape foamlore's generator was built for — it produced 12,095 lines
-covering 29 turbulence models across 18 releases, which nobody was going to hand-write.
+exactly the shape foamlore's generator was built for — it produced 12,501 lines
+covering 29 turbulence models across 19 releases, which nobody was going to hand-write.
 
 | dictionary | OF12 | v2606 | why generated |
 |---|---:|---:|---|
@@ -84,12 +84,21 @@ covering 29 turbulence models across 18 releases, which nobody was going to hand
 | `constant/radiationProperties` | 8 | 72 | radiation model + scatter/absorption sub-models, all RTS |
 | `constant/combustionProperties`, `chemistryProperties` | 16, 10 | 45, 42 | same shape, lower value; do them only if the generator is already scanning that tree |
 
-**The cost gate.** foamlore's `facts/tools/fetch_sources.sh` sparse-checks out
-only `src/TurbulenceModels` / `src/MomentumTransportModels` and
-`src/finiteVolume/finiteVolume` across its checkouts. Every family above starts
-with fetching a new subtree for all of them and writing a registry for it. That
-is worth doing once for the thermophysical family; it is not worth doing for a
-nine-key file. **Do not** hand-edit a generated module in `schemas/` to work
+**The cost gate, and it is lower than it looks.** foamlore's
+`facts/tools/fetch_sources.sh` sparse-checks out the turbulence subtree
+(`src/TurbulenceModels` / `src/MomentumTransportModels`) plus
+`src/OpenFOAM/db/dictionary`, `src/OpenFOAM/db/Time`, `src/OpenFOAM/matrices`,
+`src/finiteVolume`, `src/mesh/blockMesh` and `src/mesh/snappyHexMesh`. Every
+family above starts with fetching a new subtree for all of them and writing a
+registry for it.
+
+The fetch itself is cheap and is not the thing to weigh: the checkouts are
+partial clones (`blob:none`), so adding a subtree pulls only its blobs — adding
+both thermophysical subtrees to one checkout took 1.5 s and 7 MB, and expanding
+two Foundation checkouts to the whole of `src` + `applications` + `etc` cost a
+few minutes and about 210 MB. **The expensive part is the second extractor.**
+That is worth writing once for the thermophysical family; it is not worth
+writing for a nine-key file. **Do not** hand-edit a generated module in `schemas/` to work
 around this — they carry a GENERATED banner and a test asserts it. Requests to
 the generator go in foamlore's own spec.
 

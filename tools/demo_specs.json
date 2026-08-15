@@ -90,7 +90,7 @@
         },
         {
           "do": "click", "menu_item": "Add files from", "then": 2400,
-          "say": "Ask for them, and here is the one this case has: PDRblockMeshDict."
+          "say": "Ask for them, and here is the one this case has: blockMeshDict.m4, the m4 source the shipped blockMeshDict was generated from."
         },
         {"do": "click", "button": "Select All", "then": 1200},
         {
@@ -345,6 +345,7 @@
           "right_upper": [1080, 0, 0],
           "tree_bm": [360, 670]
         },
+        "minimized_panes": {"detail": 530},
         "block_mesh": {
           "toggles": {"boundary_faces": false, "vertex_table": false},
           "label_font_size": 11,
@@ -593,6 +594,7 @@
           "right_upper": [1040, 0, 0],
           "tree_bm": [430, 600]
         },
+        "minimized_panes": {"detail": 530},
         "block_mesh": {
           "toggles": {"boundary_faces": false, "vertex_table": false},
           "label_font_size": 12,

@@ -2,12 +2,13 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
-from schemas._base import ChoiceItem, KeySchema
+from schemas._base import ChoiceItem, KeySchema, has_unmeasured_successor
 from schemas.config_store import delete_schema_config
 from schemas.registry import SchemaRegistry, _supported_in_text
 
 __all__ = [
     "KeySchema",
+    "has_unmeasured_successor",
     "delete_schema_config",
     "apply_schema_modules",
     "get_schema_modules",
