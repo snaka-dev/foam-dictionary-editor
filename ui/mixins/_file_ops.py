@@ -88,6 +88,7 @@ class _FileOpsMixin(_Base):
         self._clear_undo_stacks()
         if self.block_mesh_panel is not None:
             self.block_mesh_panel.clear()
+            self.block_mesh_panel.set_case_dir(directory)
         self._clear_current_file()
         if self.terminal_panel is not None:
             self.terminal_panel.set_working_directory(directory)

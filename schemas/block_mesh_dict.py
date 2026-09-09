@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from schemas._base import (
     BOTH,
+    FOUNDATION_SERIES,
     OPENCFD_SERIES,
     ChoiceItem,
     KeySchema,
@@ -170,8 +171,22 @@ SCHEMAS: dict[str, KeySchema] = {
             ChoiceItem("off", "Disabled.", BOTH),
         ),
     ),
+    # Foundation-only, measured rather than assumed. blockMesh.C reads
+    # `lookupOrDefault<Switch>("fastMerge", false)` in every Foundation release
+    # from v7 to v14. OpenCFD reads it in none: its sole appearance anywhere in
+    # that fork's src or applications is the comment `// Warn about fairly
+    # obscure old "fastMerge" option?`, sitting beside the `mergeType` read
+    # that replaced it, and no shipped tutorial sets it.
+    #
+    # This entry claimed BOTH until 2026-09-06 and so told a v2606 user the key
+    # was valid. Both a FoDE pilot scan and foamlore's first scanner counted
+    # that comment as a read; it was caught by spot-checking citations, not by
+    # either count. See docs/foamlore-schema-spec.md item 11.
     "fastMerge": entry(
         "fastMerge", "Fast Merge",
         "Speeds up point merging on large meshes.",
+        supported_in=(FOUNDATION_SERIES,),
+        note="Foundation only. OpenCFD has no equivalent switch; it selects a "
+             "merge strategy with 'mergeType' instead.",
     ),
 }

@@ -35,6 +35,16 @@ _PATH_ROLE = Qt.ItemDataRole.UserRole
 _PATCH_NAME_ROLE = Qt.ItemDataRole.UserRole + 1
 _PATCH_NODE_ROLE = Qt.ItemDataRole.UserRole + 2
 
+# Joins the lines of a multi-line cell for the flattened CSV export. A newline inside a
+# quoted field is valid RFC 4180, but spreadsheets split pasted plain text into rows on
+# line breaks before parsing quotes, so it lands as a phantom row.
+_CSV_LINE_JOIN = "; "
+
+# The clipboard carries text, not a file, so the platform owns the record separator.
+# csv.writer's RFC 4180 default of CRLF is doubled to "\r\r\n" by a clipboard bridge
+# that translates LF on the way to Windows, which Excel reads as a blank row between rows.
+_CSV_LINE_TERMINATOR = "\n"
+
 
 def _is_printable(text: str) -> bool:
     """Return False if text contains non-printable control characters (binary data)."""
@@ -154,6 +164,7 @@ class BoundaryViewPanel(QWidget):
         copy_menu = QMenu(self)
         copy_menu.addAction(tr("Copy as Markdown"), self._copy_as_markdown)
         copy_menu.addAction(tr("Copy as CSV"), self._copy_as_csv)
+        copy_menu.addAction(tr("Copy as CSV (multi-line cells)"), self._copy_as_csv_multiline)
         self._copy_btn.setMenu(copy_menu)
 
         dir_row = QHBoxLayout()
@@ -354,14 +365,23 @@ class BoundaryViewPanel(QWidget):
             lines.append("| " + " | ".join([rh] + escaped) + " |")
         QApplication.clipboard().setText("\n".join(lines))
 
-    def _copy_as_csv(self) -> None:
+    def _csv_text(self, flatten: bool) -> str:
+        """Serialise the table as CSV; flatten joins each multi-line cell onto one line."""
         col_headers, row_headers, rows = self._table_data()
         buf = io.StringIO()
-        writer = csv.writer(buf)
+        writer = csv.writer(buf, lineterminator=_CSV_LINE_TERMINATOR)
         writer.writerow([""] + col_headers)
         for rh, cells in zip(row_headers, rows):
+            if flatten:
+                cells = [c.replace("\n", _CSV_LINE_JOIN) for c in cells]
             writer.writerow([rh] + cells)
-        QApplication.clipboard().setText(buf.getvalue())
+        return buf.getvalue()
+
+    def _copy_as_csv(self) -> None:
+        QApplication.clipboard().setText(self._csv_text(flatten=True))
+
+    def _copy_as_csv_multiline(self) -> None:
+        QApplication.clipboard().setText(self._csv_text(flatten=False))
 
     def _on_cell_clicked(self, item: QTableWidgetItem) -> None:
         if not self._autoscroll_chk.isChecked():

@@ -58,6 +58,10 @@ _SECTIONS_DATA: list[tuple[str, list[tuple[str, str]]]] = [
         ("Save Case",          "Ctrl+Shift+S"),
         ("Apply Text to Tree", "Ctrl+Shift+A"),
         ("Find in Tree",       "Ctrl+Shift+T"),
+        # Installed by the BlockMesh panel, but on a window-level QAction, so
+        # it fires from anywhere -- unlike the viewer bindings listed below,
+        # which VTK owns and which only apply while the 3-D view has focus.
+        ("Save 3-D View as Image", "Ctrl+Shift+I"),
         ("Exit",               "Ctrl+Q"),
     ]),
     ("Panes (show / minimize)", [

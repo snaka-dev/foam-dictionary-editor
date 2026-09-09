@@ -11,14 +11,16 @@
 # Technologies, licensed GPL-3.0-or-later. Per-file credits
 # and the exact lines quoted are in THIRD-PARTY.md.
 # Inputs: DeardorffDiffStress.derived.json, EBRSM.derived.json, GEKO.derived.json, LRR.derived.json,
-#   LaunderSharmaKE.derived.json, RNGkEpsilon.derived.json, SSG.derived.json,
-#   Smagorinsky.derived.json, SpalartAllmaras.derived.json, SpalartAllmarasDDES.derived.json,
-#   SpalartAllmarasDES.derived.json, SpalartAllmarasIDDES.derived.json, WALE.derived.json,
+#   LaunderSharmaKE.derived.json, PDRkEpsilon.derived.json, RNGkEpsilon.derived.json,
+#   SSG.derived.json, Smagorinsky.derived.json, SpalartAllmaras.derived.json,
+#   SpalartAllmarasDDES.derived.json, SpalartAllmarasDES.derived.json,
+#   SpalartAllmarasIDDES.derived.json, WALE.derived.json, buoyantKEpsilon.derived.json,
 #   dynamicKEqn.derived.json, dynamicLagrangian.derived.json, kEpsilon.derived.json,
-#   kEpsilonPhitF.derived.json, kEqn.derived.json, kOmega.derived.json, kOmega2006.derived.json,
-#   kOmegaSST.derived.json, kOmegaSSTDDES.derived.json, kOmegaSSTDES.derived.json,
-#   kOmegaSSTIDDES.derived.json, kOmegaSSTLM.derived.json, kOmegaSSTSAS.derived.json,
-#   realizableKE.derived.json, sigma.derived.json, v2f.derived.json
+#   kEpsilonLopesdaCosta.derived.json, kEpsilonPhitF.derived.json, kEqn.derived.json,
+#   kL.derived.json, kOmega.derived.json, kOmega2006.derived.json, kOmegaSST.derived.json,
+#   kOmegaSSTDDES.derived.json, kOmegaSSTDES.derived.json, kOmegaSSTIDDES.derived.json,
+#   kOmegaSSTLM.derived.json, kOmegaSSTSAS.derived.json, realizableKE.derived.json,
+#   sigma.derived.json, v2f.derived.json
 # Source commits: foundation-7=6334942, opencfd-v2106=c15bfde, opencfd-v2112=14aeaf8,
 #   opencfd-v2206=76d719d, opencfd-v2212=6690815, opencfd-v2306=a6e826b, opencfd-v2312=1d8f0d5,
 #   opencfd-v2406=630d60d, opencfd-v2412=d394908, opencfd-v2506=615aae6, opencfd-v2512=87ed40d,

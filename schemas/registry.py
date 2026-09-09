@@ -308,13 +308,25 @@ class SchemaRegistry:
                     continue
                 # setdefault + update never mutates the module's own SCHEMAS.
                 table = result.setdefault(target_file, {})
-                clashes = table.keys() & schemas.keys()
+                # A key may restrict itself to a subset of TARGET_FILES; the
+                # merge is otherwise identical per file, which is the hazard
+                # when the two files are read by different releases. See
+                # KeySchema.only_in_files. A new dict per file rather than a
+                # rebinding of `schemas`, since this loop runs once per target
+                # and rebinding would make the second file filter the first
+                # file's leftovers.
+                for_file = {
+                    k: v for k, v in schemas.items()
+                    if not getattr(v, "only_in_files", ())
+                    or target_file in v.only_in_files
+                }
+                clashes = table.keys() & for_file.keys()
                 if clashes:
                     logger.debug(
                         "%s overrides %d key(s) for %s: %s",
                         module_name, len(clashes), target_file, sorted(clashes),
                     )
-                table.update(schemas)
+                table.update(for_file)
 
         return result
 

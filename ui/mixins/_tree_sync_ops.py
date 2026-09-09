@@ -252,6 +252,13 @@ class _TreeSyncOpsMixin(_Base):
         self.on_tree_selection()
         self.statusBar().showMessage(tr("Vertex coordinates updated"), STATUS_SHORT)
 
+    def _on_blockmesh_image_saved(self, path: str) -> None:
+        # The Save Image dialog already asked where to write; a second modal
+        # confirming success would be redundant, so this is a status message.
+        self.statusBar().showMessage(
+            tr("Saved 3-D view to {path}").format(path=path), STATUS_NORMAL
+        )
+
     def _on_user_text_changed(self) -> None:
         if not self.state.current_file:
             return

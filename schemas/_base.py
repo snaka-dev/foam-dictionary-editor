@@ -77,14 +77,29 @@ BOTH = (FOUNDATION_SERIES, OPENCFD_SERIES)
 # whole model arrived in that release and has been there since: v8 is the
 # Foundation rename of constant/turbulenceProperties to
 # constant/momentumTransport, v9 added kOmega2006, v10 moved Smagorinsky's Ck
-# into LESeddyViscosity, v2206 added EBRSM, v2212 added the SpalartAllmaras
-# ft2 term, and v2412 changed a GEKO default. Foundation 14 added no
-# coefficient and dropped none, so the three Foundation ranges below simply
-# extend to it rather than closing.
+# into LESeddyViscosity, v2112 added the kL atmospheric RAS model, v2206 added
+# EBRSM, v2212 added the SpalartAllmaras ft2 term, and v2412 added the
+# SpalartAllmarasDDES ZDES coefficients (Cd3, Cd4, betaZDES, usefP2).
+# Foundation 14 added no coefficient and dropped none, so the three Foundation
+# ranges below simply extend to it rather than closing.
+#
+# v2112 is the newest of these and the only one that is a whole *model* rather
+# than a coefficient: kL lives in src/atmosphericModels, which foamlore could
+# not reach until the OpenCFD checkouts were widened (item 11, phase 0). v2106
+# ships atmosphericModels without kL, so the lower bound is the model arriving
+# rather than a subtree appearing.
+#
+# FOUNDATION_V12_V14 is the one exception in this block: not emitted by the
+# generator, since it belongs to a laminar stress model (residualAlpha on
+# lambdaThixotropic) and MODEL_DOCS carries no laminar coverage. Measured by
+# hand from turbulence_structure.py the same way the choice lists are.
 FOUNDATION_V8_V14   = "Foundation v8-v14"
 FOUNDATION_V9_V14   = "Foundation v9-v14"
 FOUNDATION_V10_V14  = "Foundation v10-v14"
 FOUNDATION_V11_V14  = "Foundation v11-v14"
+FOUNDATION_V12_V14  = "Foundation v12-v14"
+FOUNDATION_V13_V14  = "Foundation v13-v14"
+OPENCFD_V2112_V2606 = "OpenCFD v2112-v2606"
 OPENCFD_V2206_V2606 = "OpenCFD v2206-v2606"
 OPENCFD_V2212_V2606 = "OpenCFD v2212-v2606"
 OPENCFD_V2412_V2606 = "OpenCFD v2412-v2606"
@@ -93,7 +108,7 @@ OPENCFD_V2412_V2606 = "OpenCFD v2412-v2606"
 # superseded — the opposite shape from the "still there" ranges above.
 # SpalartAllmaras's sigmaNut read scalar(2)/scalar(3) through v2106, v2112
 # and v2206, then changed to the literal 0.66666 at v2212 (foamlore
-# request item 6, the generator's spec: v2112 was the missing
+# request item 6, docs/foamlore-schema-spec.md: v2112 was the missing
 # checkout that turned the old "v2106, v2206" explicit pair, which read as
 # "skipped v2112", into this measured range).
 OPENCFD_V2106_V2206 = "OpenCFD v2106-v2206"
@@ -115,6 +130,26 @@ OPENCFD_V2106_V2212 = "OpenCFD v2106-v2212"
 FOUNDATION_V7_V9  = "Foundation v7-v9"    # minTriangleTwist, dropped at v10
 FOUNDATION_V7_V11 = "Foundation v7-v11"   # functions timeStart/timeEnd, at v12
 FOUNDATION_V7_V12 = "Foundation v7-v12"   # maxDi and functions regionType, v13
+
+# The same shape as the three above -- Foundation read it, dropped it, OpenCFD
+# still reads it as current -- but reached by a rename rather than a removal,
+# and carried by a *choice value* rather than a key.
+#
+# `laminar { model generalizedNewtonian; }`, the American spelling. Foundation
+# registered it through `makeLaminarModel(generalizedNewtonian)` in v7 and v8
+# and renamed the class to `generalisedNewtonian` at v9. Measured by grepping
+# that macro across all nineteen foamlore checkouts, so this is a reading of
+# the run-time selection table rather than a directory listing: a name absent
+# from the table cannot be constructed whatever the source tree contains.
+#
+# Neither fork declares a compatible spelling for the other's -- no
+# `lookupBackwardsCompatible`, no `getCompat` -- so each name is a hard
+# construction error on the other side. That is why the choice keeps
+# `status="valid"` beside `OPENCFD_SERIES`: marking it `renamed` would tell an
+# OpenCFD user, for whom the `z` spelling is the only one that works, to write
+# the `s` one. Its `deprecated_since` records the measured Foundation end,
+# which is what keeps this label out of `OPEN_ENDED_SERIES`.
+FOUNDATION_V7_V8  = "Foundation v7-v8"    # generalizedNewtonian, respelled at v9
 
 # What a key entry represents. Most keys are `valid`; the other two exist
 # because OpenFOAM dictionaries in the wild are full of names that are no
@@ -175,6 +210,26 @@ class KeySchema:
     #: machine-readable, so a future "your case omits a required key" check can
     #: consume it, which a sentence in `description` could never support.
     required: bool = False
+    #: Restrict this key to a subset of its module's `TARGET_FILES`. Empty --
+    #: the default -- means every file the module targets, which is what almost
+    #: every key wants.
+    #:
+    #: It exists for the case where one module serves two spellings of the same
+    #: dictionary and a key belongs to only one of them. `constant/
+    #: turbulenceProperties` is read by Foundation v7 and every OpenCFD
+    #: release; `constant/momentumTransport` by Foundation v8-v14 and no
+    #: OpenCFD release at all. So a Foundation-v9+ key like `lambdaThixotropic`
+    #: cannot appear in a file that only v7 and OpenCFD read, and an
+    #: OpenCFD-only key like `density` cannot appear in one OpenCFD never
+    #: opens -- yet a single merged table offers both everywhere, which is
+    #: `docs/foamlore-schema-spec.md` item 2's hazard seen from the
+    #: hand-written side.
+    #:
+    #: This is a *restriction*, not a version tag: it says where the key can be
+    #: written, while `supported_in` says which releases read it. A test derives
+    #: the restriction from `supported_in` and asserts the two agree, so the
+    #: annotation cannot drift from the tag it follows from.
+    only_in_files: tuple[str, ...] = ()
 
 
 def _versions_text(items: tuple[str, ...]) -> str:
@@ -186,7 +241,7 @@ def _versions_text(items: tuple[str, ...]) -> str:
 #: v14 user as "not available in the release you are running" — the same
 #: misreading that once told OpenCFD users 61 shared keys were Foundation-only.
 #:
-#: **Empty, and that is the closed state of the generator's spec item
+#: **Empty, and that is the closed state of docs/foamlore-schema-spec.md item
 #: 9** — not an oversight, and not a set waiting to be filled. Every span FoDE
 #: carries now ends where the measuring found an end, so no label needs the
 #: caveat and the Detail pane appends nothing.

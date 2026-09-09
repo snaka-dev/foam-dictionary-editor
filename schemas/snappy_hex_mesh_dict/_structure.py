@@ -216,8 +216,14 @@ SCHEMAS: dict[str, KeySchema] = {
         "Origin of a searchableSphere. Current name; 'centre' is the older one."),
     "geometry.radius": entry("radius", "Radius",
         "Radius of a sphere, cylinder or cone. A vector gives an ellipsoid."),
+    # OpenCFD only, measured across nineteen releases. Foundation ships
+    # searchableDisk at v7 and v12 and does not read innerRadius in it; dev has
+    # no searchableDisk at all. Its only matches for the name are
+    # cylinderAnnulusToCell and cylinderAnnulusToFace, which are topoSet
+    # sources reading a different dictionary -- the radius1 shape.
     "geometry.innerRadius": entry("innerRadius", "Inner Radius",
-        "Inner radius, making a hollow sphere or an annular cone."),
+        "Inner radius, making a hollow sphere or an annular cone.",
+        supported_in=(OPENCFD_SERIES,)),
     "geometry.point1": entry("point1", "Point 1",
         "First axis point of a cylinder or cone."),
     "geometry.point2": entry("point2", "Point 2",
@@ -244,8 +250,18 @@ SCHEMAS: dict[str, KeySchema] = {
             ChoiceItem("planeEquation", "Coefficients of the plane equation.", BOTH),
         )),
     "geometry.span": entry("span", "Span", "Edge lengths of a searchableRotatedBox."),
-    "geometry.e1": entry("e1", "e1", "First axis of a searchableRotatedBox."),
-    "geometry.e3": entry("e3", "e3", "Third axis of a searchableRotatedBox."),
+    # OpenCFD only: Foundation ships no searchableRotatedBox in any release
+    # from v7 to v14. Both names do occur in its sources -- in
+    # polyTopoChange/meshCut/directions and in coordinate rotation, using them
+    # for axes, and in rotatedBoxToCell/Face, which are topoSet sources -- so a
+    # whole-tree search says "present" and is wrong. `docs/foamlore-schema-spec.md`
+    # item 11 named this pair as the radius1 shape before anything was measured,
+    # and a reader path added during that work briefly made them resolve here
+    # for exactly that reason.
+    "geometry.e1": entry("e1", "e1", "First axis of a searchableRotatedBox.",
+        supported_in=(OPENCFD_SERIES,)),
+    "geometry.e3": entry("e3", "e3", "Third axis of a searchableRotatedBox.",
+        supported_in=(OPENCFD_SERIES,)),
 
     # patchInfo may hang off a refinement surface or one of its regions, so it
     # is reachable from either level.
@@ -272,9 +288,16 @@ SCHEMAS: dict[str, KeySchema] = {
             ChoiceItem("displacementMedialAxis", "Medial-axis based shrinking. The default.", BOTH),
         ),
     ),
+    # OpenCFD only. The reader for *this* key is
+    # externalDisplacementMeshMover/displacementMotionSolverMeshMover.C, which
+    # Foundation has in no release; it also lacks
+    # snappySnapDriverBufferLayers.C, the other OpenCFD reader of the name.
+    # Foundation's matches are ODE and lduMatrix solvers, different
+    # dictionaries entirely.
     "addLayersControls.solver": entry(
         "solver", "Motion Solver",
         "Motion solver used when meshShrinker is displacementMotionSolver.",
+        supported_in=(OPENCFD_SERIES,),
     ),
     "addLayersControls.thicknessModel": KeySchema(
         key="thicknessModel", label="Thickness Model",

@@ -731,3 +731,106 @@ class TestSchemaRegistryModules:
         assert schema_config_path.exists()
         content = json.loads(schema_config_path.read_text(encoding="utf-8"))
         assert "schema_modules" in content
+
+
+class TestForkAsymmetricRenames:
+    """Pairs where one fork renamed a key and the other did not.
+
+    Both pairs in `fvSolution` have the same shape, and it is not the shape a
+    global rename would have: Foundation introduced a new spelling and kept
+    reading the old one, while OpenCFD never renamed at all and reads only the
+    old name. So the old key stays valid on *both* forks and carries
+    `deprecated_since` to say where the preference changed, and the new key is
+    tagged to the Foundation releases that read it.
+
+    Marking the old key `renamed` outright, or narrowing its `supported_in`,
+    would tell an OpenCFD user to write a spelling their fork does not read --
+    which is the same failure as `fastMerge` claiming OpenCFD support it never
+    had, in the opposite direction.
+
+    Neither pair had a test before 2026-09-06. `nAlphaCorr` was reported as
+    dropped at Foundation v13 and was measured to be a rename instead; the
+    older `turbOnFinalIterOnly` pair had been carrying the convention with
+    nothing checking it.
+    """
+
+    PAIRS = [
+        ("PIMPLE", "turbOnFinalIterOnly", "transportCorrectionFinal",
+         "Foundation v11"),
+        ("solvers", "nAlphaCorr", "nCorrectors", "Foundation v13"),
+    ]
+
+    @pytest.mark.parametrize(("parent", "old", "new", "since"), PAIRS)
+    def test_old_spelling_stays_valid_on_both_forks(
+            self, registry, parent, old, new, since):
+        schema = registry.schema_for_file_key("system/fvSolution", old,
+                                              parent_key=parent)
+        assert schema is not None, f"{parent}.{old} is missing"
+        # Still read by both forks: OpenCFD never renamed it.
+        assert OPENCFD_SERIES in schema.supported_in, (
+            f"{old} lost its OpenCFD tag; that fork reads this spelling as "
+            "current and has no other")
+        assert schema.deprecated_since == since
+        assert new in schema.note, (
+            f"{old}'s note should name {new} so a Foundation user can find it")
+
+    @pytest.mark.parametrize(("parent", "old", "new", "since"), PAIRS)
+    def test_new_spelling_is_foundation_only(
+            self, registry, parent, old, new, since):
+        schema = registry.schema_for_file_key("system/fvSolution", new,
+                                              parent_key=parent)
+        assert schema is not None, f"{parent}.{new} is missing"
+        assert OPENCFD_SERIES not in schema.supported_in, (
+            f"{new} claims OpenCFD support; that fork carries no compatibility "
+            "pair for it in any release")
+        assert all("Foundation" in v for v in schema.supported_in)
+        assert old in schema.note
+
+    def test_the_two_nCorrectors_keys_are_distinct(self, registry):
+        """`nCorrectors` means different things under different parents.
+
+        `PIMPLE.nCorrectors` and `PISO.nCorrectors` are pressure correctors and
+        predate all of this; `solvers.nCorrectors` is Foundation v13's name for
+        the phase-fraction correctors. Three keys, one spelling, and the
+        qualified lookup is what keeps them apart.
+        """
+        under = {p: registry.schema_for_file_key(
+                     "system/fvSolution", "nCorrectors", parent_key=p)
+                 for p in ("PIMPLE", "PISO", "solvers")}
+        assert all(v is not None for v in under.values())
+        assert under["solvers"].description != under["PIMPLE"].description
+        assert OPENCFD_SERIES in under["PIMPLE"].supported_in
+        assert OPENCFD_SERIES not in under["solvers"].supported_in
+
+
+class TestSnappyOpenCFDOnlyKeys:
+    """Four snappyHexMeshDict keys Foundation has no reader for.
+
+    Each was tagged as supported by both forks and is OpenCFD-only, measured
+    across nineteen releases and confirmed here against the trees on this
+    machine. They share a failure mode worth stating once: the name occurs in
+    Foundation's sources, in code that reads a different dictionary, so a
+    whole-tree search calls each of them present.
+
+    `e1` and `e3` describe `searchableRotatedBox`, which Foundation ships in no
+    release; the matches are mesh-cut directions, coordinate rotation and the
+    `rotatedBoxToCell`/`Face` topoSet sources. `innerRadius` is not read by
+    Foundation's `searchableDisk` even where that class exists; its matches are
+    `cylinderAnnulusToCell`/`Face`. `solver` here is the `addLayers`
+    mesh-shrinker's, read by `displacementMotionSolverMeshMover.C`, which
+    Foundation lacks entirely.
+    """
+
+    @pytest.mark.parametrize(
+        ("parent", "key"),
+        [("geometry", "e1"), ("geometry", "e3"),
+         ("geometry", "innerRadius"), ("addLayersControls", "solver")],
+    )
+    def test_is_opencfd_only(self, registry, parent, key):
+        schema = registry.schema_for_file_key(
+            "system/snappyHexMeshDict", key, parent_key=parent)
+        assert schema is not None, f"{parent}.{key} is missing"
+        assert schema.supported_in == (OPENCFD_SERIES,), (
+            f"{parent}.{key} claims {schema.supported_in}; Foundation has no "
+            "reader for it in any release v7-v14")
+

@@ -20,11 +20,21 @@ pixels rather than points. The conversion is the fixed 96/72 — under Qt 6 the
 logical DPI is pinned at 96 and scaling is carried by the device pixel ratio,
 which the WebEngine page applies to its CSS pixels as well, so both sides scale
 together and the ratio between them stays constant.
+
+The charter above is stated in point size, but a handful of toolbar buttons and
+a spin box pin their *width* instead — a plain ``setFixedWidth(52)`` and its
+kin, each a number measured once against one font on one platform style. That
+is a cap as well as a floor: the moment a larger desktop font or a
+differently-padded style needs more room than the figure chosen, the content
+is cut rather than merely under-padded. ``button_pixel_width`` is the entry
+that answers in width, for the same reason every other function here answers
+in its own unit — so those pins can become floors under a real measurement
+instead of numbers frozen at the moment someone happened to look.
 """
 from __future__ import annotations
 
-from PySide6.QtGui import QFont, QFontInfo
-from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QFont, QFontInfo, QFontMetrics
+from PySide6.QtWidgets import QApplication, QStyle
 
 # Preference order, not alternatives: setFamilies falls through to the first one
 # present. Consolas is Windows, Menlo/Monaco macOS, DejaVu Sans Mono the usual
@@ -59,6 +69,13 @@ HEADING_TEXT_RATIO = 1.25
 # than pinning 16px outright and leaving icons behind when text grows.
 ICON_TO_TEXT_RATIO = 1.30
 ICON_MIN_PIXEL_SIZE = 12
+
+# Fusion's own 2 * (PM_ButtonMargin + PM_DefaultFrameWidth), independent of
+# font size. Doubles as the floor under whatever the active style reports
+# (in case some style ever reserves less than Fusion does) and as the whole
+# answer from button_pixel_width() when there is no QApplication to ask a
+# style, or measure a font, at all.
+BUTTON_CHROME_MIN_PIXELS = 14
 
 
 def ui_point_size() -> float:
@@ -155,3 +172,38 @@ def icon_pixel_size() -> int:
     enough that the ratio alone would shrink it past recognition.
     """
     return max(ICON_MIN_PIXEL_SIZE, round(css_pixel_size() * ICON_TO_TEXT_RATIO))
+
+
+def button_pixel_width(text: str) -> int:
+    """Return the minimum width a button needs to show *text* without eliding.
+
+    Deliberately not ``QPushButton.sizeHint()``: a button's size hint is
+    dominated by the active style's global minimum button width — measured at
+    80 px under Fusion and 75 px under Qt's Windows style, at *any* font —
+    which is exactly what the handful of deliberately compact rows this exists
+    for (camera-view buttons, a spin box's neighbouring "Clear", a minimize
+    glyph) are trying to undercut. This instead measures the text's own
+    advance in the application font and adds only the chrome the active style
+    actually reserves around a button's label (:func:`_button_chrome_pixels`),
+    so a widened control gets real padding rather than the label touching its
+    frame.
+    """
+    if QApplication.instance() is None:
+        return BUTTON_CHROME_MIN_PIXELS
+    metrics = QFontMetrics(QApplication.font())
+    return metrics.horizontalAdvance(text) + _button_chrome_pixels()
+
+
+def _button_chrome_pixels() -> int:
+    """Return the padding a button reserves around its label, from the active style.
+
+    Style-derived, not a constant: this is exactly where Windows and Fusion
+    differ, and reading it at call time — rather than baking in a number
+    measured once against one style — is what lets the result adapt to
+    whatever style is active, including one, like Windows 11's native style,
+    that this codebase has no way to measure directly.
+    """
+    style = QApplication.style()
+    margin = style.pixelMetric(QStyle.PixelMetric.PM_ButtonMargin)
+    frame = style.pixelMetric(QStyle.PixelMetric.PM_DefaultFrameWidth)
+    return max(BUTTON_CHROME_MIN_PIXELS, 2 * (margin + frame))

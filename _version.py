@@ -13,7 +13,7 @@ import re
 import subprocess
 from pathlib import Path
 
-__version__ = "1.15.1"
+__version__ = "1.16.0"
 
 _REPO_DIR = Path(__file__).resolve().parent
 

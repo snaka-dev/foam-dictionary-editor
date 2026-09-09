@@ -115,13 +115,40 @@ class TestCopyAsCsv:
         assert "p" in text
         assert "fixedValue" in text
 
-    def test_multiline_preserved(self, qapp):
+    def test_multiline_flattened(self, qapp):
         panel = _make_panel(
             qapp, rows=["p"], cols=["inlet"], cells=[["fixedValue\nvalue  0"]]
         )
         panel._copy_as_csv()
         text = QApplication.clipboard().text()
-        assert "fixedValue\nvalue  0" in text
+        assert "fixedValue; value  0" in text
+
+    def test_no_embedded_newline(self, qapp):
+        """A multi-line cell must not add records: spreadsheets split pasted text on
+        line breaks before parsing quotes, so an embedded newline becomes a phantom row."""
+        panel = _make_panel(
+            qapp,
+            rows=["p", "U"],
+            cols=["inlet", "outlet"],
+            cells=[
+                ["fixedValue\nvalue  0", "zeroGradient"],
+                ["fixedValue\nvalue  (0 0 0)\nphi  phi", "inletOutlet"],
+            ],
+        )
+        panel._copy_as_csv()
+        text = QApplication.clipboard().text()
+        records = text.split("\n")[:-1]  # trailing terminator leaves an empty tail
+        assert len(records) == 3  # header + 2 rows
+        assert "\n" not in "".join(records)
+
+    def test_no_carriage_return(self, qapp):
+        """Records end in LF, never CRLF: a clipboard bridge translating LF on the way to
+        Windows turns a CRLF terminator into "\r\r\n", a blank row between every row."""
+        panel = _make_panel(
+            qapp, rows=["p"], cols=["inlet"], cells=[["fixedValue\nvalue  0"]]
+        )
+        panel._copy_as_csv()
+        assert "\r" not in QApplication.clipboard().text()
 
     def test_comma_in_cell_quoted(self, qapp):
         panel = _make_panel(
@@ -130,3 +157,37 @@ class TestCopyAsCsv:
         panel._copy_as_csv()
         text = QApplication.clipboard().text()
         assert '"a, b"' in text
+
+    def test_embedded_quote_doubled(self, qapp):
+        panel = _make_panel(
+            qapp, rows=["p"], cols=["inlet"], cells=[['type "a"']]
+        )
+        panel._copy_as_csv()
+        text = QApplication.clipboard().text()
+        assert '"type ""a"""' in text
+
+
+class TestCopyAsCsvMultiline:
+    """The second menu entry keeps the RFC 4180 multi-line output for importers that
+    parse quoted fields (LibreOffice Calc's paste dialog does)."""
+
+    def test_multiline_preserved(self, qapp):
+        panel = _make_panel(
+            qapp, rows=["p"], cols=["inlet"], cells=[["fixedValue\nvalue  0"]]
+        )
+        panel._copy_as_csv_multiline()
+        text = QApplication.clipboard().text()
+        assert '"fixedValue\nvalue  0"' in text
+
+    def test_no_carriage_return(self, qapp):
+        panel = _make_panel(
+            qapp, rows=["p"], cols=["inlet"], cells=[["fixedValue\nvalue  0"]]
+        )
+        panel._copy_as_csv_multiline()
+        assert "\r" not in QApplication.clipboard().text()
+
+    def test_single_line_matches_flattened(self, qapp):
+        panel = _make_panel(
+            qapp, rows=["p"], cols=["inlet"], cells=[["fixedValue"]]
+        )
+        assert panel._csv_text(flatten=True) == panel._csv_text(flatten=False)

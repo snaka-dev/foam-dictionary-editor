@@ -27,6 +27,7 @@ from services.case_loader import (
     detect_time_dirs,
     list_directory_files,
 )
+from ui.fonts import button_pixel_width
 from ui.theme import colors
 
 # Stored in headers to carry the clean group name for context-menu use.
@@ -52,6 +53,9 @@ _READ_ONLY_ROLE = Qt.ItemDataRole.UserRole + 8
 _INCLUDED_MARKER = " ↳"
 
 _DIFF_CAP = 50
+
+# Floor, not cap, for the refresh button -- see ui/fonts.py's button_pixel_width.
+_REFRESH_BTN_MIN_WIDTH = 24
 
 
 def _diff_suffix(count: int | None) -> str:
@@ -156,7 +160,7 @@ class FileListPanel(QWidget):
         self._refresh_btn.setFlat(True)
         self._refresh_btn.setCursor(Qt.PointingHandCursor)
         self._refresh_btn.setToolTip(tr("Refresh file list from disk"))
-        self._refresh_btn.setFixedWidth(24)
+        self._refresh_btn.setFixedWidth(max(_REFRESH_BTN_MIN_WIDTH, button_pixel_width("⟳")))
         self._refresh_btn.clicked.connect(self.refresh_requested)
 
         self._list = QListWidget()

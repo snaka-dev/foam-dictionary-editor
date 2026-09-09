@@ -4,7 +4,7 @@
 """Differential scan of collectively-tagged Foundation keys against a newer checkout.
 
 `schemas/_base.py`'s `FOUNDATION_SERIES` span is a verification record, not a
-synonym for "the whole fork" (see the generator's spec item 9), so
+synonym for "the whole fork" (see docs/foamlore-schema-spec.md item 9), so
 extending it costs a measurement, and this script is that measurement: for every
 hand-written key carrying either collective Foundation label, it looks for the
 key name in two OpenFOAM source checkouts and reports what changed between them.

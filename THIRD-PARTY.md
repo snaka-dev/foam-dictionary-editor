@@ -25,22 +25,32 @@ The year range is the envelope across every file and release quoted from, not a 
 | holder | years | files quoted from |
 |---|---|---|
 | Keysight Technologies | 2026 | 5 |
-| OpenCFD Ltd | 2017–2020 | 39 |
-| OpenCFD Ltd. | 2015–2024 | 36 |
-| OpenFOAM Foundation | 2011–2026 | 92 |
-| Upstream CFD GmbH | 2022–2024 | 4 |
+| OpenCFD Ltd | 2017–2020 | 55 |
+| OpenCFD Ltd. | 2015–2025 | 52 |
+| OpenFOAM Foundation | 2011–2026 | 122 |
+| Upstream CFD GmbH | 2022–2024 | 6 |
 
 ## Licence
 
-- **GPL-3.0-or-later** — 98 of the 98 quoted files.
+- **GPL-3.0-or-later** — 132 of the 132 quoted files.
 
 ## Where the quotes come from
 
-98 distinct source files, across 19 OpenFOAM checkouts. The exact commit for each checkout is recorded in `facts/VERIFICATION.md` and in the banner of every generated schema module.
+132 distinct source files, across 19 OpenFOAM checkouts. The exact commit for each checkout is recorded in `facts/VERIFICATION.md` and in the banner of every generated schema module.
 
 <details><summary>The full list of quoted files</summary>
 
+- `applications/legacy/combustion/PDRFoam/PDRModels/turbulence/PDRkEpsilon/PDRkEpsilon.H` — Copyright (C) 2011-2023 OpenFOAM Foundation; 2011-2026 OpenFOAM Foundation
+- `applications/solvers/combustion/PDRFoam/PDRModels/turbulence/PDRkEpsilon/PDRkEpsilon.H` — Copyright (C) 2011-2015 OpenFOAM Foundation; 2011-2019 OpenFOAM Foundation; 2011-2020 OpenFOAM Foundation; 2011-2021 OpenFOAM Foundation
+- `applications/solvers/combustion/XiFoam/PDRFoam/PDRModels/turbulence/PDRkEpsilon/PDRkEpsilon.H` — Copyright (C) 2011-2021 OpenFOAM Foundation
+- `src/MomentumTransportModels/compressible/RAS/buoyantKEpsilon/buoyantKEpsilon.H` — Copyright (C) 2014-2020 OpenFOAM Foundation; 2014-2021 OpenFOAM Foundation; 2014-2026 OpenFOAM Foundation
 - `src/MomentumTransportModels/momentumTransportModels/LES/DeardorffDiffStress/DeardorffDiffStress.H` — Copyright (C) 2011-2020 OpenFOAM Foundation; 2011-2021 OpenFOAM Foundation; 2011-2022 OpenFOAM Foundation
+- `src/MomentumTransportModels/momentumTransportModels/LES/LESdeltas/IDDESDelta/IDDESDelta.H` — Copyright (C) 2011-2020 OpenFOAM Foundation
+- `src/MomentumTransportModels/momentumTransportModels/LES/LESdeltas/PrandtlDelta/PrandtlDelta.H` — Copyright (C) 2011-2020 OpenFOAM Foundation; 2011-2026 OpenFOAM Foundation
+- `src/MomentumTransportModels/momentumTransportModels/LES/LESdeltas/cubeRootVolDelta/cubeRootVolDelta.H` — Copyright (C) 2011-2020 OpenFOAM Foundation
+- `src/MomentumTransportModels/momentumTransportModels/LES/LESdeltas/maxDeltaxyz/maxDeltaxyz.H` — Copyright (C) 2011-2020 OpenFOAM Foundation
+- `src/MomentumTransportModels/momentumTransportModels/LES/LESdeltas/smoothDelta/smoothDelta.H` — Copyright (C) 2011-2020 OpenFOAM Foundation; 2011-2022 OpenFOAM Foundation; 2011-2026 OpenFOAM Foundation
+- `src/MomentumTransportModels/momentumTransportModels/LES/LESdeltas/vanDriestDelta/vanDriestDelta.H` — Copyright (C) 2011-2020 OpenFOAM Foundation; 2011-2022 OpenFOAM Foundation
 - `src/MomentumTransportModels/momentumTransportModels/LES/Smagorinsky/Smagorinsky.H` — Copyright (C) 2011-2020 OpenFOAM Foundation; 2011-2022 OpenFOAM Foundation; 2011-2026 OpenFOAM Foundation
 - `src/MomentumTransportModels/momentumTransportModels/LES/SpalartAllmarasDDES/SpalartAllmarasDDES.H` — Copyright (C) 2011-2020 OpenFOAM Foundation; 2011-2021 OpenFOAM Foundation; 2011-2022 OpenFOAM Foundation
 - `src/MomentumTransportModels/momentumTransportModels/LES/SpalartAllmarasDES/SpalartAllmarasDES.H` — Copyright (C) 2011-2020 OpenFOAM Foundation; 2011-2021 OpenFOAM Foundation; 2011-2022 OpenFOAM Foundation; 2011-2023 OpenFOAM Foundation
@@ -63,6 +73,11 @@ The year range is the envelope across every file and release quoted from, not a 
 - `src/MomentumTransportModels/momentumTransportModels/RAS/kOmegaSSTSAS/kOmegaSSTSAS.H` — Copyright (C) 2015-2020 OpenFOAM Foundation; 2015-2021 OpenFOAM Foundation; 2015-2026 OpenFOAM Foundation
 - `src/MomentumTransportModels/momentumTransportModels/RAS/realizableKE/realizableKE.H` — Copyright (C) 2011-2020 OpenFOAM Foundation; 2011-2022 OpenFOAM Foundation; 2011-2023 OpenFOAM Foundation; 2011-2026 OpenFOAM Foundation
 - `src/MomentumTransportModels/momentumTransportModels/RAS/v2f/v2f.H` — Copyright (C) 2012-2020 OpenFOAM Foundation; 2012-2022 OpenFOAM Foundation; 2012-2023 OpenFOAM Foundation
+- `src/MomentumTransportModels/momentumTransportModels/laminar/Giesekus/Giesekus.H` — Copyright (C) 2019-2020 OpenFOAM Foundation; 2019-2021 OpenFOAM Foundation
+- `src/MomentumTransportModels/momentumTransportModels/laminar/Maxwell/Maxwell.H` — Copyright (C) 2016-2020 OpenFOAM Foundation; 2016-2021 OpenFOAM Foundation; 2016-2022 OpenFOAM Foundation; 2016-2024 OpenFOAM Foundation; 2016-2026 OpenFOAM Foundation
+- `src/MomentumTransportModels/momentumTransportModels/laminar/PTT/PTT.H` — Copyright (C) 2020 OpenFOAM Foundation; 2020-2022 OpenFOAM Foundation
+- `src/MomentumTransportModels/momentumTransportModels/laminar/Stokes/Stokes.H` — Copyright (C) 2013-2020 OpenFOAM Foundation; 2013-2021 OpenFOAM Foundation; 2013-2022 OpenFOAM Foundation; 2013-2024 OpenFOAM Foundation; 2013-2026 OpenFOAM Foundation
+- `src/MomentumTransportModels/momentumTransportModels/laminar/generalisedNewtonian/generalisedNewtonian.H` — Copyright (C) 2018-2021 OpenFOAM Foundation; 2018-2022 OpenFOAM Foundation; 2018-2026 OpenFOAM Foundation
 - `src/MomentumTransportModels/momentumTransportModels/laminar/generalisedNewtonian/generalisedNewtonianViscosityModels/BirdCarreau/BirdCarreau.H` — Copyright (C) 2018-2021 OpenFOAM Foundation
 - `src/MomentumTransportModels/momentumTransportModels/laminar/generalisedNewtonian/generalisedNewtonianViscosityModels/Casson/Casson.H` — Copyright (C) 2018-2021 OpenFOAM Foundation
 - `src/MomentumTransportModels/momentumTransportModels/laminar/generalisedNewtonian/generalisedNewtonianViscosityModels/CrossPowerLaw/CrossPowerLaw.H` — Copyright (C) 2018-2021 OpenFOAM Foundation
@@ -76,12 +91,15 @@ The year range is the envelope across every file and release quoted from, not a 
 - `src/MomentumTransportModels/momentumTransportModels/laminar/generalisedNewtonian/generalisedNewtonianViscosityModels/strainRateViscosityModels/HerschelBulkley/HerschelBulkley.H` — Copyright (C) 2018-2022 OpenFOAM Foundation; 2018-2024 OpenFOAM Foundation
 - `src/MomentumTransportModels/momentumTransportModels/laminar/generalisedNewtonian/generalisedNewtonianViscosityModels/strainRateViscosityModels/powerLaw/powerLaw.H` — Copyright (C) 2018-2022 OpenFOAM Foundation
 - `src/MomentumTransportModels/momentumTransportModels/laminar/generalisedNewtonian/generalisedNewtonianViscosityModels/strainRateViscosityModels/strainRateFunction/strainRateFunction.H` — Copyright (C) 2018-2021 OpenFOAM Foundation
+- `src/MomentumTransportModels/momentumTransportModels/laminar/generalizedNewtonian/generalizedNewtonian.H` — Copyright (C) 2018-2020 OpenFOAM Foundation
 - `src/MomentumTransportModels/momentumTransportModels/laminar/generalizedNewtonian/generalizedNewtonianViscosityModels/BirdCarreau/BirdCarreau.H` — Copyright (C) 2018-2020 OpenFOAM Foundation
 - `src/MomentumTransportModels/momentumTransportModels/laminar/generalizedNewtonian/generalizedNewtonianViscosityModels/Casson/Casson.H` — Copyright (C) 2018-2020 OpenFOAM Foundation
 - `src/MomentumTransportModels/momentumTransportModels/laminar/generalizedNewtonian/generalizedNewtonianViscosityModels/CrossPowerLaw/CrossPowerLaw.H` — Copyright (C) 2018-2020 OpenFOAM Foundation
 - `src/MomentumTransportModels/momentumTransportModels/laminar/generalizedNewtonian/generalizedNewtonianViscosityModels/HerschelBulkley/HerschelBulkley.H` — Copyright (C) 2018-2020 OpenFOAM Foundation
 - `src/MomentumTransportModels/momentumTransportModels/laminar/generalizedNewtonian/generalizedNewtonianViscosityModels/powerLaw/powerLaw.H` — Copyright (C) 2018-2020 OpenFOAM Foundation
 - `src/MomentumTransportModels/momentumTransportModels/laminar/generalizedNewtonian/generalizedNewtonianViscosityModels/strainRateFunction/strainRateFunction.H` — Copyright (C) 2018-2020 OpenFOAM Foundation
+- `src/MomentumTransportModels/momentumTransportModels/laminar/lambdaThixotropic/lambdaThixotropic.H` — Copyright (C) 2020 OpenFOAM Foundation; 2020-2021 OpenFOAM Foundation; 2020-2023 OpenFOAM Foundation; 2020-2024 OpenFOAM Foundation; 2020-2026 OpenFOAM Foundation
+- `src/TurbulenceModels/compressible/RAS/buoyantKEpsilon/buoyantKEpsilon.H` — Copyright (C) 2014-2016 OpenFOAM Foundation; 2014-2019 OpenFOAM Foundation; 2019 OpenCFD Ltd.
 - `src/TurbulenceModels/turbulenceModels/Base/kOmegaSST/kOmegaSSTBase.H` — Copyright (C) 2011-2016 OpenFOAM Foundation; 2017-2019 OpenCFD Ltd.; 2017-2021 OpenCFD Ltd.; 2017-2022 OpenCFD Ltd.; 2017-2023 OpenCFD Ltd.; 2022 Upstream CFD GmbH
 - `src/TurbulenceModels/turbulenceModels/DES/SpalartAllmarasDDES/SpalartAllmarasDDES.H` — Copyright (C) 2011-2016 OpenFOAM Foundation; 2019 OpenCFD Ltd.; 2019-2022 OpenCFD Ltd.; 2019-2024 OpenCFD Ltd.; 2022 Upstream CFD GmbH; 2022, 2024 Upstream CFD GmbH
 - `src/TurbulenceModels/turbulenceModels/DES/SpalartAllmarasDES/SpalartAllmarasDES.H` — Copyright (C) 2011-2016 OpenFOAM Foundation; 2015-2019 OpenCFD Ltd.; 2015-2022 OpenCFD Ltd.
@@ -90,6 +108,15 @@ The year range is the envelope across every file and release quoted from, not a 
 - `src/TurbulenceModels/turbulenceModels/DES/kOmegaSSTDES/kOmegaSSTDES.H` — Copyright (C) 2015 OpenFOAM Foundation; 2016-2019 OpenCFD Ltd.
 - `src/TurbulenceModels/turbulenceModels/DES/kOmegaSSTIDDES/kOmegaSSTIDDES.H` — Copyright (C) 2015 OpenFOAM Foundation; 2019 OpenCFD Ltd.; 2019-2022 OpenCFD Ltd.
 - `src/TurbulenceModels/turbulenceModels/LES/DeardorffDiffStress/DeardorffDiffStress.H` — Copyright (C) 2011-2016 OpenFOAM Foundation; 2011-2019 OpenFOAM Foundation; 2019-2020 OpenCFD Ltd.; 2019-2021 OpenCFD Ltd.
+- `src/TurbulenceModels/turbulenceModels/LES/LESdeltas/DeltaOmegaTildeDelta/DeltaOmegaTildeDelta.H` — Copyright (C) 2022 OpenCFD Ltd.; 2022 Upstream CFD GmbH
+- `src/TurbulenceModels/turbulenceModels/LES/LESdeltas/IDDESDelta/IDDESDelta.H` — Copyright (C) 2011-2015 OpenFOAM Foundation; 2011-2019 OpenFOAM Foundation; 2016-2017 OpenCFD Ltd.
+- `src/TurbulenceModels/turbulenceModels/LES/LESdeltas/PrandtlDelta/PrandtlDelta.H` — Copyright (C) 2011-2015 OpenFOAM Foundation; 2011-2019 OpenFOAM Foundation; 2019 OpenCFD Ltd.
+- `src/TurbulenceModels/turbulenceModels/LES/LESdeltas/SLADelta/SLADelta.H` — Copyright (C) 2022 OpenCFD Ltd.; 2022 Upstream CFD GmbH
+- `src/TurbulenceModels/turbulenceModels/LES/LESdeltas/cubeRootVolDelta/cubeRootVolDelta.H` — Copyright (C) 2011-2015 OpenFOAM Foundation; 2011-2019 OpenFOAM Foundation; 2016 OpenCFD Ltd.
+- `src/TurbulenceModels/turbulenceModels/LES/LESdeltas/maxDeltaxyz/maxDeltaxyz.H` — Copyright (C) 2011-2015 OpenFOAM Foundation; 2011-2019 OpenFOAM Foundation; 2016 OpenCFD Ltd.
+- `src/TurbulenceModels/turbulenceModels/LES/LESdeltas/maxDeltaxyzCubeRootLESDelta/maxDeltaxyzCubeRootLESDelta.H` — Copyright (C) 2016 OpenCFD Ltd.
+- `src/TurbulenceModels/turbulenceModels/LES/LESdeltas/smoothDelta/smoothDelta.H` — Copyright (C) 2011-2016 OpenFOAM Foundation; 2011-2019 OpenFOAM Foundation; 2016-2020 OpenCFD Ltd.; 2016-2020,2025 OpenCFD Ltd.
+- `src/TurbulenceModels/turbulenceModels/LES/LESdeltas/vanDriestDelta/vanDriestDelta.H` — Copyright (C) 2011-2015 OpenFOAM Foundation; 2011-2019 OpenFOAM Foundation; 2019 OpenCFD Ltd.; 2019,2022 OpenCFD Ltd.
 - `src/TurbulenceModels/turbulenceModels/LES/Smagorinsky/Smagorinsky.H` — Copyright (C) 2011-2016 OpenFOAM Foundation; 2011-2019 OpenFOAM Foundation; 2019-2020 OpenCFD Ltd.; 2019-2021 OpenCFD Ltd.
 - `src/TurbulenceModels/turbulenceModels/LES/SpalartAllmarasDDES/SpalartAllmarasDDES.H` — Copyright (C) 2011-2019 OpenFOAM Foundation
 - `src/TurbulenceModels/turbulenceModels/LES/SpalartAllmarasDES/SpalartAllmarasDES.H` — Copyright (C) 2011-2019 OpenFOAM Foundation
@@ -116,12 +143,19 @@ The year range is the envelope across every file and release quoted from, not a 
 - `src/TurbulenceModels/turbulenceModels/RAS/kOmegaSSTSAS/kOmegaSSTSAS.H` — Copyright (C) 2015-2016 OpenFOAM Foundation; 2015-2019 OpenFOAM Foundation; 2019 OpenCFD Ltd.
 - `src/TurbulenceModels/turbulenceModels/RAS/realizableKE/realizableKE.H` — Copyright (C) 2011-2017 OpenFOAM Foundation; 2011-2018 OpenFOAM Foundation; 2019-2020 OpenCFD Ltd.; 2019-2021 OpenCFD Ltd.
 - `src/TurbulenceModels/turbulenceModels/RAS/v2f/v2f.H` — Copyright (C) 2012-2018 OpenFOAM Foundation
+- `src/TurbulenceModels/turbulenceModels/laminar/Giesekus/Giesekus.H` — Copyright (C) 2019 OpenFOAM Foundation
+- `src/TurbulenceModels/turbulenceModels/laminar/Maxwell/Maxwell.H` — Copyright (C) 2016 OpenFOAM Foundation; 2016-2019 OpenFOAM Foundation; 2019 OpenCFD Ltd.
+- `src/TurbulenceModels/turbulenceModels/laminar/Stokes/Stokes.H` — Copyright (C) 2013-2016 OpenFOAM Foundation; 2013-2018 OpenFOAM Foundation; 2019-2020 OpenCFD Ltd.; 2019-2021 OpenCFD Ltd.
+- `src/TurbulenceModels/turbulenceModels/laminar/generalizedNewtonian/generalizedNewtonian.H` — Copyright (C) 2018 OpenFOAM Foundation; 2018-2020 OpenFOAM Foundation; 2021 OpenCFD Ltd.
 - `src/TurbulenceModels/turbulenceModels/laminar/generalizedNewtonian/generalizedNewtonianViscosityModels/BirdCarreau/BirdCarreau.H` — Copyright (C) 2018-2019 OpenFOAM Foundation; 2018-2020 OpenFOAM Foundation
 - `src/TurbulenceModels/turbulenceModels/laminar/generalizedNewtonian/generalizedNewtonianViscosityModels/Casson/Casson.H` — Copyright (C) 2018-2019 OpenFOAM Foundation; 2018-2020 OpenFOAM Foundation
 - `src/TurbulenceModels/turbulenceModels/laminar/generalizedNewtonian/generalizedNewtonianViscosityModels/CrossPowerLaw/CrossPowerLaw.H` — Copyright (C) 2018-2019 OpenFOAM Foundation; 2018-2020 OpenFOAM Foundation; 2020 OpenCFD Ltd
 - `src/TurbulenceModels/turbulenceModels/laminar/generalizedNewtonian/generalizedNewtonianViscosityModels/HerschelBulkley/HerschelBulkley.H` — Copyright (C) 2018-2019 OpenFOAM Foundation; 2018-2020 OpenFOAM Foundation; 2020 OpenCFD Ltd.
 - `src/TurbulenceModels/turbulenceModels/laminar/generalizedNewtonian/generalizedNewtonianViscosityModels/powerLaw/powerLaw.H` — Copyright (C) 2018-2019 OpenFOAM Foundation; 2018-2020 OpenFOAM Foundation; 2020 OpenCFD Ltd.
 - `src/TurbulenceModels/turbulenceModels/laminar/generalizedNewtonian/generalizedNewtonianViscosityModels/strainRateFunction/strainRateFunction.H` — Copyright (C) 2018-2019 OpenFOAM Foundation; 2018-2020 OpenFOAM Foundation; 2020 OpenCFD Ltd.
+- `src/atmosphericModels/kEpsilonLopesdaCosta/kEpsilonLopesdaCosta.H` — Copyright (C) 2018 OpenFOAM Foundation; 2018-2019 OpenFOAM Foundation; 2018-2020 OpenFOAM Foundation; 2018-2022 OpenFOAM Foundation; 2018-2023 OpenFOAM Foundation; 2018-2026 OpenFOAM Foundation; 2020 OpenCFD Ltd.
+- `src/atmosphericModels/turbulenceModels/RAS/kEpsilonLopesdaCosta/kEpsilonLopesdaCosta.H` — Copyright (C) 2018 OpenFOAM Foundation; 2020-2021 OpenCFD Ltd.
+- `src/atmosphericModels/turbulenceModels/RAS/kL/kL.H` — Copyright (C) 2021 OpenCFD Ltd.; 2021-2022 OpenCFD Ltd.
 - `src/physicalProperties/viscosityModels/constant/constantViscosityModel.H` — Copyright (C) 2021 OpenFOAM Foundation
 - `src/transportModels/incompressible/viscosityModels/Arrhenius/Arrhenius.H` — Copyright (C) 2017-2019 OpenCFD Ltd.; 2026 Keysight Technologies
 - `src/transportModels/incompressible/viscosityModels/BirdCarreau/BirdCarreau.H` — Copyright (C) 2011-2016 OpenFOAM Foundation; 2011-2019 OpenFOAM Foundation; 2017-2019 OpenCFD Ltd.

@@ -264,6 +264,20 @@ TRANSLATIONS: dict[str, str] = {
         "解除を行うか、ディクショナリの形状を STL ファイルとしてエクスポートします",
     "STL Load Error": "STL 読み込みエラー",
     "Could not load:\n{files}": "読み込めませんでした:\n{files}",
+    "Save Image…": "画像を保存…",
+    "Save the 3-D view as an image file, exactly as shown":
+        "3D ビューを表示されているそのままの状態で画像ファイルに保存します",
+    # Also the Help > Keyboard Shortcuts row label, which uses the same
+    # English string as the file dialog's title (cf. "Find in Tree" above).
+    "Save 3-D View as Image": "3D ビューを画像として保存",
+    # The format names sit before the "(" because Qt's gtk3 helper builds a
+    # native GTK filter label from that part alone and drops the patterns.
+    "Image files - PNG, JPEG, BMP, TIFF": "画像ファイル - PNG, JPEG, BMP, TIFF",
+    "Overwrite File?": "ファイルを上書きしますか?",
+    "{path} already exists.\nReplace it?": "{path} は既に存在します。\n置き換えますか?",
+    "Save Image Error": "画像の保存エラー",
+    "Could not save the image:\n{error}": "画像を保存できませんでした:\n{error}",
+    "Saved 3-D view to {path}": "3D ビューを {path} に保存しました",
     "Show all {noun}": "すべての{noun}を表示",
     "Hide all {noun}": "すべての{noun}を非表示",
     "shapes": "図形",
@@ -562,6 +576,7 @@ TRANSLATIONS: dict[str, str] = {
     "Rename Boundary…": "境界名を変更…",
     "Copy as Markdown": "Markdownとしてコピー",
     "Copy as CSV": "CSVとしてコピー",
+    "Copy as CSV (multi-line cells)": "CSVとしてコピー（セル内改行あり）",
     "Save File\tCtrl+S": "ファイルを保存\tCtrl+S",
     "Remove from extra files": "追加ファイルから削除",
     "Duplicate...": "複製...",

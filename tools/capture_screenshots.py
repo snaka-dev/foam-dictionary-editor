@@ -42,6 +42,7 @@ import argparse
 import dataclasses
 import json
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -247,6 +248,10 @@ def _process_events(app, milliseconds: int) -> None:
 
 def capture_window(window_id: int, out_path: Path) -> None:
     """Save the window, decorations included, via ImageMagick's import."""
+    if shutil.which("import") is None:
+        raise SystemExit(
+            "Error: ImageMagick is required to capture (apt install imagemagick)."
+        )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
         ["import", "-frame", "-window", str(window_id), str(out_path)],

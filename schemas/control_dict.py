@@ -17,6 +17,7 @@ from __future__ import annotations
 from schemas._base import (
     BOTH,
     FOUNDATION_V7,
+    FOUNDATION_V7_V8,
     FOUNDATION_V7_V11,
     FOUNDATION_V7_V12,
     OPENCFD_SERIES,
@@ -355,8 +356,22 @@ SCHEMAS: dict[str, KeySchema] = {
         "Fixed density used to dimensionalise forces in incompressible cases."),
     "functions.CofR": entry("CofR", "Centre of Rotation",
         "Point about which moments are taken."),
+    # Measured across nineteen releases rather than assumed. Foundation read
+    # this only through fieldMinMax, which it shipped at v7 and v8 and dropped
+    # at v9; OpenCFD reads it throughout. The BOTH tag this carried was the
+    # first tag the version-tag oracle corrected -- see
+    # docs/foamlore-schema-spec.md item 11.
+    #
+    # Note the span is not (FOUNDATION_V7_V8, OPENCFD_SERIES) by inference: the
+    # measurement returns the two Foundation releases separately, and the
+    # existing FOUNDATION_V7_V8 constant means the same span for an unrelated
+    # reason. Using it here is a deliberate reuse of the label, not a claim
+    # that the two facts are connected.
     "functions.mode": entry("mode", "Mode",
-        "Mode of operation, as defined by this function object's type."),
+        "Mode of operation, as defined by this function object's type.",
+        supported_in=(FOUNDATION_V7_V8, OPENCFD_SERIES),
+        note="Foundation read this only through fieldMinMax, which it dropped "
+             "at v9. OpenCFD reads it in every release."),
     "functions.result": entry("result", "Result",
         "Name given to the value this function object produces."),
     "functions.fvOptions": entry("fvOptions", "fvOptions",

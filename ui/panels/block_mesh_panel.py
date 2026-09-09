@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction, QColor, QIcon, QPixmap
+from PySide6.QtGui import QAction, QColor, QIcon, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QFileDialog,
@@ -37,7 +37,7 @@ from foam.snappy_hex_mesh_extractor import extract_snappy_hex_mesh_data
 from foam.topo_set_extractor import TopoShape, extract_topo_set_data
 from i18n import tr
 from ui.dialogs.export_stl_dialog import ExportStlDialog
-from ui.fonts import small_font
+from ui.fonts import button_pixel_width, small_font
 from ui.panels.block_mesh_renderer import (
     _ACTION_COLORS,
     _SAMPLING_COLOR,
@@ -61,6 +61,23 @@ except ImportError:
     _PYVISTA_OK = False
 
 _MAX_VERTEX_TABLE_ROWS = 500
+
+# Floors, not caps: FlowLayout geometries every item at its sizeHint()
+# verbatim (ui/widgets/flow_layout.py:85-95), so a control wider than these
+# simply takes the room it needs and the row wraps sooner. These are the
+# compact figures chosen when the style/font combination left room to spare;
+# see ui/fonts.py's button_pixel_width for why they can no longer be a cap.
+_LABEL_SPIN_MIN_WIDTH = 52
+_VIEW_BUTTON_MIN_WIDTH = 36
+
+# Mirrors pyvista's BasePlotter.screenshot() SUPPORTED_FORMATS; anything else
+# raises ValueError there, which _save_view_image() turns into a warning dialog.
+_IMAGE_SUFFIXES = frozenset({".png", ".jpeg", ".jpg", ".bmp", ".tif", ".tiff"})
+# The Save Image dialog's one file filter, derived from the set above so the
+# two cannot drift; .png leads because it is the default the panel offers.
+_IMAGE_FILTER_PATTERNS = " ".join(
+    "*" + s for s in [".png"] + sorted(_IMAGE_SUFFIXES - {".png"})
+)
 
 _MOUSE_HINT = (
     "Mouse:  drag = rotate  |  Shift+drag = pan  "
@@ -96,6 +113,24 @@ def _color_swatch(color_name: str, size: int = 12) -> QIcon:
     icon = QIcon(pm)
     icon.addPixmap(pm, QIcon.Mode.Disabled)
     return icon
+
+
+def _writable_image_path(path: str) -> str:
+    """*path* adjusted so plotter.screenshot() will accept its extension.
+
+    pyvista compares the suffix against its SUPPORTED_FORMATS list *without*
+    case-folding, so ".JPG" is rejected as readily as ".txt" even though the
+    format itself is supported. A suffix it cannot use is therefore lowered
+    when that is enough, and otherwise given a ".png" -- the alternative is
+    a ValueError from inside the writer, after the user has already chosen
+    where to save.
+    """
+    suffix = Path(path).suffix
+    if suffix.lower() not in _IMAGE_SUFFIXES:
+        return path + ".png"
+    if suffix != suffix.lower():
+        return str(Path(path).with_suffix(suffix.lower()))
+    return path
 
 
 def _menu_button(text: str, menu: QMenu, tooltip: str | None = None) -> QToolButton:
@@ -344,6 +379,7 @@ class BlockMeshPanel(QWidget):
     """
 
     vertices_changed = Signal(int, list)  # (vertex_index, [x, y, z])
+    image_saved = Signal(str)  # absolute path of a saved 3-D view image
 
     # Stable names for the view toggles and overlay menus, so a saved view state
     # is readable and survives renaming the widgets behind them.
@@ -400,6 +436,11 @@ class BlockMeshPanel(QWidget):
         self._clear_stl_act: QAction | None = None
         self._view_splitter: QSplitter | None = None
         self._vtx_group: QGroupBox | None = None
+        self._case_dir: str | None = None
+        # Public: MainWindow adds this same QAction to the View menu, so the
+        # toolbar button and the menu item can never drift apart. Stays None
+        # when pyvista is missing, since _build_controls() never runs then.
+        self.save_image_action: QAction | None = None
 
         if not _PYVISTA_OK:
             lbl = QLabel(
@@ -473,12 +514,14 @@ class BlockMeshPanel(QWidget):
         assert self._export_stl_act is not None
         assert self._clear_stl_act is not None
         assert self._vtx_table is not None
+        assert self.save_image_action is not None
 
         refresh_btn.clicked.connect(self._on_refresh)
         self._preview_btn.clicked.connect(self._on_preview_toggled)
         load_stl_act.triggered.connect(self._load_stl)
         self._clear_stl_act.triggered.connect(self._clear_stl)
         self._export_stl_act.triggered.connect(self._export_shapes_stl)
+        self.save_image_action.triggered.connect(self._save_view_image)
         self._act_vtx_table.triggered.connect(lambda checked: vtx_group.setVisible(checked))
         self._vtx_table.itemSelectionChanged.connect(self._on_vertex_selected)
         self._vtx_table.cellChanged.connect(self._on_cell_changed)
@@ -503,6 +546,7 @@ class BlockMeshPanel(QWidget):
         topo_btn, snappy_btn, set_fields_btn, sampling_btn = self._build_overlay_menus()
         refresh_btn = QPushButton(tr("Refresh"))
         stl_btn, load_stl_act = self._build_stl_menu()
+        save_image_btn = self._build_save_image_button()
         scale_btn, label_size_group = self._build_scale_and_label_controls()
 
         toolbar = FlowLayout()
@@ -515,6 +559,7 @@ class BlockMeshPanel(QWidget):
         toolbar.addWidget(sampling_btn)
         toolbar.addWidget(refresh_btn)
         toolbar.addWidget(stl_btn)
+        toolbar.addWidget(save_image_btn)
         toolbar.addWidget(scale_btn)
         toolbar.addWidget(label_size_group)
         toolbar.addWidget(QLabel(tr("View:")))
@@ -711,6 +756,31 @@ class BlockMeshPanel(QWidget):
 
         return stl_btn, load_stl_act
 
+    def _build_save_image_button(self) -> QToolButton:
+        """Build the Save Image button; set self.save_image_action.
+
+        One QAction drives both this button and the View-menu item MainWindow
+        adds, so their label, tooltip, shortcut and enabled state stay in sync
+        (setDefaultAction, rather than two objects kept aligned by hand).
+
+        It starts disabled: the plotter is created lazily on the first
+        showEvent, and there is no view to save before that happens.
+
+        The label is short because it has to sit in the wrapping toolbar
+        beside Refresh and STL ▾; the tooltip carries the full sentence, and
+        in the View menu the item follows the BlockMesh 3-D Panel toggle,
+        which supplies the context the label leaves out.
+        """
+        self.save_image_action = QAction(tr("Save Image…"), self)
+        self.save_image_action.setToolTip(
+            tr("Save the 3-D view as an image file, exactly as shown")
+        )
+        self.save_image_action.setShortcut(QKeySequence("Ctrl+Shift+I"))
+        self.save_image_action.setEnabled(False)
+        btn = QToolButton(self)
+        btn.setDefaultAction(self.save_image_action)
+        return btn
+
     def _build_scale_and_label_controls(self) -> tuple[QToolButton, QWidget]:
         """Build the Scale ▾ menu (axes/grid/dimensions) and the label-size spinbox."""
         scale_menu = _StaysOpenMenu(self)
@@ -727,7 +797,11 @@ class BlockMeshPanel(QWidget):
         self._label_font_size.setRange(6, 32)
         self._label_font_size.setValue(10)
         self._label_font_size.setToolTip(tr("Font size for vertex and block labels"))
-        self._label_font_size.setFixedWidth(52)
+        # The spin box asks the style for its own hint (CT_SpinBox includes
+        # the up/down button metrics), so it needs no helper of its own.
+        self._label_font_size.setFixedWidth(
+            max(_LABEL_SPIN_MIN_WIDTH, self._label_font_size.sizeHint().width())
+        )
 
         # "Label size:" and its spinbox wrap as one unit.
         label_size_group = QWidget()
@@ -746,7 +820,7 @@ class BlockMeshPanel(QWidget):
         deliberately not tr()-wrapped (see the axis-label entries in
         tests/ui/test_translatable_strings.py's _ALLOWED).
         """
-        for _label, _fn, _kw in [
+        views = [
             ("+X", "view_yz",        {"negative": False}),
             ("-X", "view_yz",        {"negative": True}),
             ("+Y", "view_xz",        {"negative": False}),
@@ -754,9 +828,13 @@ class BlockMeshPanel(QWidget):
             ("+Z", "view_xy",        {"negative": False}),
             ("-Z", "view_xy",        {"negative": True}),
             ("Iso", "view_isometric", {}),
-        ]:
+        ]
+        # One width for the whole row, not per button: per-button sizing goes
+        # ragged as the font grows ("+X" wants less room than "Iso" does).
+        width = max(_VIEW_BUTTON_MIN_WIDTH, max(button_pixel_width(lbl) for lbl, _, _ in views))
+        for _label, _fn, _kw in views:
             _btn = QPushButton(_label)
-            _btn.setFixedWidth(36)
+            _btn.setFixedWidth(width)
             _btn.clicked.connect(
                 lambda _=False, f=_fn, k=_kw: self._set_view(f, **k)
             )
@@ -828,6 +906,8 @@ class BlockMeshPanel(QWidget):
             color=colors().viewport_text,
         )
         self._renderer = BlockMeshRenderer(self._plotter)
+        if self.save_image_action is not None:
+            self.save_image_action.setEnabled(True)
         if self._data is not None:
             self._render()
 
@@ -995,8 +1075,17 @@ class BlockMeshPanel(QWidget):
         if self._plotter is not None:
             self._render()
 
+    def set_case_dir(self, directory: str | None) -> None:
+        """Remember the case directory, for the Save Image dialog's default path.
+
+        Poked by _load_case_dir whenever the case changes, the same way
+        LogSummaryDialog is kept pointed at the current case.
+        """
+        self._case_dir = directory
+
     def clear(self) -> None:
         self._data = None
+        self._case_dir = None
         # Surfaces were loaded for the case being left behind, so they must not
         # stay drawn over the next one.
         self._surfaces.clear()
@@ -1029,6 +1118,10 @@ class BlockMeshPanel(QWidget):
             except Exception:
                 pass
             self._plotter = None
+        # There is no render window left to capture; init_plotter() re-enables
+        # this when one is built again (the xterm/VTK switch does exactly that).
+        if self.save_image_action is not None:
+            self.save_image_action.setEnabled(False)
 
     # ── vertices table ────────────────────────────────────────────────────────
 
@@ -1348,3 +1441,72 @@ class BlockMeshPanel(QWidget):
             set_fields_visible=set_fields_visible,
         )
         dlg.exec()
+
+    # ── image export ──────────────────────────────────────────────────────────
+
+    def _default_image_path(self) -> str:
+        """Where the Save Image dialog opens, named after the case when known."""
+        if self._case_dir:
+            case = Path(self._case_dir)
+            return str(case / f"{case.name}-3Dview.png")
+        return "3Dview.png"
+
+    def _save_view_image(self) -> None:
+        """Write the 3-D view to an image file, exactly as it is on screen.
+
+        Capture goes through VTK's own render window rather than Qt: the
+        plotter is a native child window, and QWidget.grab() returns black
+        for it (see DEVELOPER.md's "Text drawn by VTK, not Qt" neighbourhood,
+        and tools/capture_screenshots.py, which shells out to ImageMagick for
+        the same reason). screenshot() with no size or background arguments
+        captures the live framebuffer, which is what "as shown" means here.
+
+        One combined image filter, deliberately, rather than one per format.
+        The written format comes from the file name's extension (Pillow picks
+        it there), while a native GTK chooser -- which is what Qt hands this
+        off to on a GNOME desktop -- treats a name filter as a *view* filter
+        and never rewrites the name to match it. Per-format entries therefore
+        let the user pick "JPEG image", leave the name ending in .png, and get
+        a PNG: a choice offered and then silently ignored. With nothing to
+        choose there is nothing to contradict.
+
+        The formats are spelled out in the filter's *name* rather than left to
+        its "(*.png ...)" half, because that half never reaches the screen
+        under GTK: Qt's gtk3 helper builds the GTK filter's label as
+        ``filter.left(filter.indexOf(u'('))``, dropping the patterns. Naming
+        them ahead of the parenthesis is the one place both dialogs show.
+        """
+        if not _PYVISTA_OK or self._plotter is None:
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            tr("Save 3-D View as Image"),
+            self._default_image_path(),
+            f"{tr('Image files - PNG, JPEG, BMP, TIFF')} ({_IMAGE_FILTER_PATTERNS});;"
+            f"{tr('All files')} (*)",
+        )
+        if not path:
+            return
+        chosen = path
+        path = _writable_image_path(path)
+        # The dialog checked for an existing file under the name the user gave,
+        # so a corrected name has not been checked at all -- and writing it
+        # would clobber a real file with no prompt of any kind.
+        if path != chosen and Path(path).exists():
+            answer = QMessageBox.question(
+                self,
+                tr("Overwrite File?"),
+                tr("{path} already exists.\nReplace it?").format(path=path),
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        try:
+            self._plotter.screenshot(path)
+        except Exception as exc:  # unwritable path, unsupported format, ...
+            QMessageBox.warning(
+                self,
+                tr("Save Image Error"),
+                tr("Could not save the image:\n{error}").format(error=exc),
+            )
+            return
+        self.image_saved.emit(path)

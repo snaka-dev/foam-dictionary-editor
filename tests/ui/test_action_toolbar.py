@@ -14,11 +14,14 @@ See ui/main_window.py's _build_top_bar / _build_shared_actions / createPopupMenu
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QAbstractButton, QLabel, QMenu, QToolBar
+from contextlib import contextmanager
 
-from ui.fonts import icon_pixel_size
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction, QFont
+from PySide6.QtWidgets import QAbstractButton, QApplication, QLabel, QMenu, QToolBar
+
+from i18n import get_language, set_language, tr
+from ui.fonts import button_pixel_width, icon_pixel_size
 
 
 def _toolbar(main_window) -> QToolBar:
@@ -140,3 +143,77 @@ class TestActionToolbar:
             win.close()
             for name, value in original.items():
                 cfg.set_feature(name, value)
+
+
+class TestPinnedButtonWidths:
+    """A handful of pinned buttons on MainWindow and file_list_panel used to
+    ``setFixedWidth`` a bare figure, which caps as well as floors -- see
+    ui/fonts.py's ``button_pixel_width`` and DEVELOPER.md's "setFixedWidth is
+    a cap, not a starting width". Built at a large application font, where
+    each figure was already tight, and the blockmesh feature enabled so the
+    side-by-side corner button exists to check.
+    """
+
+    @contextmanager
+    def _window(self, *, font_point_size: int, language: str):
+        """Build a MainWindow at *font_point_size* in *language*, restoring after.
+
+        A context manager rather than a returned cleanup callable: the font,
+        language and feature flags are process-global, and they are mutated
+        before MainWindow() runs. Handing the caller a cleanup to invoke would
+        leak all three into every later test in the session if construction
+        itself raised, since the caller's try/finally is not entered until
+        after the call returns.
+        """
+        from app_config import get_app_config
+        from ui.main_window import MainWindow
+
+        cfg = get_app_config()
+        original = {name: cfg.get_feature(name) for name in ("terminal", "blockmesh")}
+        previous_font = QApplication.font()
+        previous_language = get_language()
+        win = None
+        try:
+            cfg.set_feature("terminal", False)
+            cfg.set_feature("blockmesh", True)
+            QApplication.setFont(QFont("Sans Serif", font_point_size))
+            set_language(language)
+            win = MainWindow()
+            yield win
+        finally:
+            if win is not None:
+                win._file_list_refresh_timer.stop()
+                win.close()
+            QApplication.setFont(previous_font)
+            set_language(previous_language)
+            for name, value in original.items():
+                cfg.set_feature(name, value)
+
+    def _clear_button(self, win) -> QAbstractButton:
+        text = tr("Clear")
+        return next(b for b in win.findChildren(QAbstractButton) if b.text() == text)
+
+    def test_no_pinned_button_is_capped_below_its_own_text_at_16pt(
+        self, qapp, temp_config  # noqa: ARG002 (qapp/temp_config needed for construction)
+    ):
+        with self._window(font_point_size=16, language="en") as win:
+            assert win._bottom_minimize_btn.maximumWidth() >= button_pixel_width(
+                win._bottom_minimize_btn.text()
+            )
+            assert win._bm_side_by_side_btn is not None
+            assert win._bm_side_by_side_btn.maximumWidth() >= button_pixel_width(
+                win._bm_side_by_side_btn.text()
+            )
+            clear_btn = self._clear_button(win)
+            assert clear_btn.maximumWidth() >= button_pixel_width(clear_btn.text())
+            refresh_btn = win.file_list_panel._refresh_btn
+            assert refresh_btn.maximumWidth() >= button_pixel_width(refresh_btn.text())
+
+    def test_the_japanese_clear_label_is_not_capped_either(
+        self, qapp, temp_config  # noqa: ARG002 (qapp/temp_config needed for construction)
+    ):
+        # クリア is 11 px wider than "Clear" and hits a shared cap first.
+        with self._window(font_point_size=16, language="ja") as win:
+            clear_btn = self._clear_button(win)
+            assert clear_btn.text() != "Clear"
+            assert clear_btn.maximumWidth() >= button_pixel_width(clear_btn.text())

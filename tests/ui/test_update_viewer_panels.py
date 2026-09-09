@@ -37,6 +37,9 @@ class _RecordingBlockMeshPanel:
     def clear(self):
         self.calls.append(("clear", ""))
 
+    def set_case_dir(self, directory):
+        self.calls.append(("set_case_dir", directory))
+
     def shutdown(self):
         pass
 
@@ -147,7 +150,10 @@ def test_load_unrelated_dict_does_not_dispatch(main_window, tmp_path):
 
     win.load_selected_file(path)
 
-    assert [c for c in panel.calls if c[0] != "clear"] == []
+    # clear/set_case_dir are _load_case_dir's own bookkeeping, not a dispatch:
+    # what this test is about is that no overlay update ran for fvSchemes.
+    dispatches = [c for c in panel.calls if c[0] not in ("clear", "set_case_dir")]
+    assert dispatches == []
 
 
 def test_apply_text_to_tree_refreshes_snappy_overlay(main_window, tmp_path):

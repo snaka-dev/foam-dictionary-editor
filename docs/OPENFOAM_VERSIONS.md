@@ -173,6 +173,23 @@ There is no single modern spelling for either: the right one depends on the fork
 you are running, so a case carried across forks needs the key changed rather than
 merely kept.
 
+**And a fork can rename something the other never renamed**, which the table
+below cannot show at all. The laminar stress model spelled
+`generalizedNewtonian` — `laminar { model generalizedNewtonian; }` — is the only
+form OpenCFD has ever registered, from v2106 to v2606. Foundation registered the
+same spelling in v7 and v8, then renamed the class to `generalisedNewtonian` at
+v9. Neither fork declares a compatibility entry for the other's spelling, so
+this is not a rename in the sense the table means: each name is a hard
+construction error on the opposite fork rather than an older name still
+accepted. FoDE therefore offers both as separate choices, each tagged with the
+releases that can actually construct it.
+
+The distinction matters for reading the table at all: it lists renames a fork
+*declared*, through `getCompat` or `lookupBackwardsCompatible`. A divergence
+nobody declared leaves no trace in either mechanism and so can only be measured
+from the run-time selection table — which is why it is written here rather than
+generated below.
+
 ### The measured pairs
 
 The table below is not the whole hundred. It is every rename declared in the
@@ -192,7 +209,7 @@ that row at 9.
 | old → new | read from | Foundation | OpenCFD |
 |---|---|---|---|
 | `centre` → `origin` | `0/<field> boundaryField entry` | — | v2106-v2606 (api 1712) |
-| `redirectType` → `name` | `0/<field> boundaryField entry` | — | v2106-v2606 (api 1706) |
+| `redirectType` → `name` | `0/<field> boundaryField entry` / `system/controlDict functions entry` | — | v2106-v2606 (api 1706) |
 | `relaxation` → `qrRelaxation` | `0/<field> boundaryField entry` | — | v2106-v2606 (api 1712) |
 | `motionSolver` → `pointMeshMover` | `constant/dynamicMeshDict` | 14 | — |
 | `LESModel` → `model` | `constant/momentumTransport` / `constant/turbulenceProperties` | 9-14 | v2106-v2606 (api -2006) |
@@ -219,18 +236,22 @@ that row at 9.
 | `alphaDt` → `alphat` | `system/controlDict functions entry` | 13-14 | — |
 | `calcCoeff` → `mode` | `system/controlDict functions entry` | — | v2106-v2606 (api 1812) |
 | `calcTotal` → `mode` | `system/controlDict functions entry` | — | v2106-v2606 (api 1812) |
-| `nCorr` → `nCorrectors` | `system/controlDict functions entry` | 13-14 | — |
+| `geometric` → `logTransform` | `system/controlDict functions entry` | 10-14 † | — |
+| `nCorr` → `nCorrectors` | `system/controlDict functions entry` / `system/fvSolution` | 13-14 | — |
 | `name` → `faceZone` | `system/controlDict functions entry` | 11-12 | — |
 | `name` → `field` | `system/controlDict functions entry` | 11-14 | — |
 | `name` → `patch` | `system/controlDict functions entry` | 11-12 | — |
 | `regionType` → `select` | `system/controlDict functions entry` | 11-12 | — |
 | `timeVsFile` → `fileVsTime` | `system/controlDict functions entry` | 11-14 | — |
 | `SIMPLErho` → `simpleRho` | `system/fvSolution` | 9-14 | — |
+| `nAlphaCorr` → `nCorrectors` | `system/fvSolution` | 13-14 † | — |
 | `nCellsInCoarsestLevel` → `minCellsPerProcessor` | `system/fvSolution` | 14 | — |
 | `turbOnFinalIterOnly` → `transportCorrectionFinal` | `system/fvSolution` | 11-14 | — |
 | `minMedianAxisAngle` → `minMedialAxisAngle` | `system/snappyHexMeshDict` | 12-14 | v2106-v2206 (api 1712) |
 
 † Declared in a subtree that is not fetched for every checkout, so the span says where it was looked at, not where it exists.
+
+Measured over `src/` and the solver subtrees under `applications/` that read these dictionaries. A rename declared for a dictionary outside this table's set — `topoSetDict`, `extrudeToRegionMeshDict` — is not here, and its absence says nothing about it.
 <!-- END generated: renames-table -->
 
 ## The model sub-dictionary: OpenFOAM 14 adds a spelling

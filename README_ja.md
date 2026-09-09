@@ -103,6 +103,7 @@ pip install pyvista pyvistaqt
 - `topoSetDict` のアクションジオメトリ、`snappyHexMeshDict` の `geometry {}` 形状（surface / region / geometry のみ に分類）、`setFieldsDict` の領域（`fieldValues` をラベル表示）をオーバーレイ表示。形状ごとに表示切替可能。ブロックメッシュより大きい形状はビュー内でクリップされ「(clipped)」マークが付く
 - 3D ビュー横の頂点テーブルで座標を編集すると即座に反映。変数ベースの頂点はプレビューモードでファイルを変更せずに試せる
 - STL/OBJ のオーバーレイ読み込み（複数同時に読み込み可能。`STL ▾` メニューでファイルごとに行と色が割り当てられる）と、topoSet/snappyHexMesh/setFields 形状の STL エクスポート
+- **Save Image…** で 3D ビューを表示されているそのまま（オーバーレイ・色・カメラアングルを含む）PNG に保存。レポートや不具合報告にそのまま使える
 - **⊞** サイドバイサイドモードで、`blockMeshDict`・`topoSetDict`・`snappyHexMeshDict`・`setFieldsDict` の編集中にツリーの隣に 3D ビューを表示
 
 **[統合ターミナル](USER_GUIDE_ja.md#ターミナルタブ)**

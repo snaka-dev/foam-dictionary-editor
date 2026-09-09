@@ -20,6 +20,7 @@ from schemas._base import (
     FOUNDATION_SERIES,
     FOUNDATION_V7_V13,
     FOUNDATION_V11_V14,
+    FOUNDATION_V13_V14,
     FOUNDATION_V14,
     OPENCFD_SERIES,
     SWITCH_CHOICES,
@@ -338,8 +339,35 @@ SCHEMAS: dict[str, KeySchema] = {
     "solvers.nAlphaSubCycles": entry("nAlphaSubCycles", "Alpha Sub-Cycles",
         "Sub-cycles of the phase-fraction equation per time step, letting alpha "
         "run at a smaller step than the momentum equations."),
-    "solvers.nAlphaCorr": entry("nAlphaCorr", "Alpha Correctors",
-        "Corrector loops within each phase-fraction solution."),
+    # Same shape as PIMPLE.turbOnFinalIterOnly above, and tagged the same way.
+    # Foundation renamed this to nCorrectors at v13 -- the read is
+    # `lookupOrDefaultBackwardsCompatible<label>({"nCorrectors", "nAlphaCorr"})`
+    # in twoPhaseSolver.C and multiphaseEuler/phaseSystem.C -- and still
+    # accepts the old spelling. OpenCFD never renamed it and carries no
+    # compatibility pair in any release, so `supported_in` stays BOTH: this
+    # name is valid on both forks and marking it renamed outright would tell
+    # OpenCFD users to write a key their fork does not read.
+    "solvers.nAlphaCorr": KeySchema(
+        key="nAlphaCorr",
+        label="Alpha Correctors",
+        description="Corrector loops within each phase-fraction solution.",
+        supported_in=BOTH,
+        note="Foundation v13 renamed this to nCorrectors and still accepts "
+             "this spelling. OpenCFD reads this name.",
+        deprecated_since="Foundation v13",
+    ),
+    "solvers.nCorrectors": KeySchema(
+        key="nCorrectors",
+        label="Alpha Correctors",
+        description=(
+            "Corrector loops within each phase-fraction solution. "
+            "Foundation v13's name for nAlphaCorr."
+        ),
+        supported_in=(FOUNDATION_V13_V14,),
+        note="Foundation v13 onward. OpenCFD reads nAlphaCorr instead. "
+             "Distinct from PIMPLE.nCorrectors and PISO.nCorrectors, which "
+             "are different keys in different dictionaries.",
+    ),
     "solvers.cAlpha": entry("cAlpha", "Interface Compression",
         "Strength of the artificial interface-compression term. 1 is standard; "
         "0 disables it and blurs the interface."),

@@ -6,13 +6,15 @@ from __future__ import annotations
 from contextlib import contextmanager
 
 import pytest
-from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QFont, QFontMetrics
+from PySide6.QtWidgets import QApplication, QPushButton
 
 from ui.fonts import (
+    BUTTON_CHROME_MIN_PIXELS,
     FALLBACK_POINT_SIZE,
     MONOSPACE_FAMILIES,
     SMALL_TEXT_MIN_POINT_SIZE,
+    button_pixel_width,
     css_pixel_size,
     heading_font,
     heading_point_size,
@@ -130,8 +132,39 @@ class TestCssPixelSize:
         assert css_pixel_size(0.1) >= 1
 
 
+class TestButtonPixelWidth:
+    def test_leaves_room_for_chrome_around_the_text(self, qapp):  # noqa: ARG002
+        with _app_font(QFont("Sans Serif", 12)):
+            text = "Clear"
+            advance = QFontMetrics(QApplication.font()).horizontalAdvance(text)
+            assert button_pixel_width(text) > advance
+
+    def test_grows_with_the_application_font(self, qapp):  # noqa: ARG002
+        with _app_font(QFont("Sans Serif", 12)):
+            small = button_pixel_width("Clear")
+        with _app_font(QFont("Sans Serif", 20)):
+            assert button_pixel_width("Clear") > small
+
+    def test_a_longer_label_needs_more_room(self, qapp):  # noqa: ARG002
+        with _app_font(QFont("Sans Serif", 12)):
+            assert button_pixel_width("Iso") < button_pixel_width("Isometric")
+
+    def test_stays_well_under_the_button_size_hint(self, qapp):  # noqa: ARG002
+        # QPushButton.sizeHint() is dominated by the style's global minimum
+        # button width (measured: 80 px under Fusion at any font), which is
+        # exactly what button_pixel_width() exists to undercut.
+        with _app_font(QFont("Sans Serif", 12)):
+            btn = QPushButton("Clear")
+            assert button_pixel_width("Clear") < btn.sizeHint().width()
+
+
 class TestFallback:
     def test_fallback_is_a_usable_size(self):
         # Reached only when there is no QApplication to ask; a widget built then
         # must still come out at a size someone could read.
         assert 6.0 <= FALLBACK_POINT_SIZE <= 14.0
+
+    def test_button_chrome_floor_is_a_usable_size(self):
+        # Reached only when there is no QApplication to ask; small enough to
+        # add real padding, not so large it swamps a short label like "Iso".
+        assert 4 <= BUTTON_CHROME_MIN_PIXELS <= 30

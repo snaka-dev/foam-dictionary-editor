@@ -3,7 +3,7 @@
 """The Detail pane qualifies a span that stops where the measuring stopped --
 ui/panels/detail_panel.py, schemas/_base.py.
 
-`OPEN_ENDED_SERIES` is **empty** now that the generator's spec item 9 is
+`OPEN_ENDED_SERIES` is **empty** now that docs/foamlore-schema-spec.md item 9 is
 closed: every span FoDE carries ends where the measurement found an end, so no
 label earns the caveat. The mechanism stays, because the next unmeasured release
 will need it, and these tests keep it working while nothing exercises it in

@@ -28,7 +28,7 @@ from app_config import get_app_config
 from i18n import tr
 from model.tree_model import FoamTreeModel
 from ui.app_state import AppState
-from ui.fonts import icon_pixel_size
+from ui.fonts import button_pixel_width, icon_pixel_size
 from ui.icons import icon
 from ui.layout_constants import (
     SPLITTER_DETAIL_WIDTH,
@@ -75,6 +75,12 @@ if TYPE_CHECKING:
     from ui.dialogs.find_examples_dialog import FindExamplesDialog
     from ui.dialogs.log_summary_dialog import LogSummaryDialog
     from ui.panels.block_mesh_panel import BlockMeshPanel
+
+# Floors, not caps, for a handful of pinned buttons -- see ui/fonts.py's
+# button_pixel_width for why setFixedWidth needs one rather than a bare figure.
+_BOTTOM_MINIMIZE_BTN_MIN_WIDTH = 28
+_BM_SIDE_BY_SIDE_BTN_MIN_WIDTH = 28
+_DIFF_CLEAR_BTN_MIN_WIDTH = 60
 
 
 class _TreeView(QTreeView):
@@ -356,7 +362,9 @@ class MainWindow(
         # The splitters do not exist yet (see _build_splitters), so the click is
         # routed through a method that looks the minimizer up when it fires.
         self._bottom_minimize_btn = QPushButton("▁")
-        self._bottom_minimize_btn.setFixedWidth(28)
+        self._bottom_minimize_btn.setFixedWidth(
+            max(_BOTTOM_MINIMIZE_BTN_MIN_WIDTH, button_pixel_width("▁"))
+        )
         self._bottom_minimize_btn.clicked.connect(self._on_toggle_bottom_pane_btn)
 
         bar = QWidget()
@@ -396,6 +404,7 @@ class MainWindow(
             self.block_mesh_panel.vertices_changed.connect(
                 self._on_blockmesh_vertices_changed
             )
+            self.block_mesh_panel.image_saved.connect(self._on_blockmesh_image_saved)
 
     def _build_splitters(self, tree_container: QWidget) -> None:
         self.right_upper_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -440,7 +449,9 @@ class MainWindow(
             # Corner button to enter/exit side-by-side mode.
             self._bm_side_by_side_btn = QPushButton("⊞")
             self._bm_side_by_side_btn.setCheckable(True)
-            self._bm_side_by_side_btn.setFixedWidth(28)
+            self._bm_side_by_side_btn.setFixedWidth(
+                max(_BM_SIDE_BY_SIDE_BTN_MIN_WIDTH, button_pixel_width("⊞"))
+            )
             self._bm_side_by_side_btn.setToolTip(
                 tr("Show BlockMesh 3-D view alongside the tree (side-by-side)")
             )
@@ -685,6 +696,12 @@ class MainWindow(
                 )
             self._blockmesh_action.toggled.connect(self._on_toggle_blockmesh_panel)
             view_menu.addAction(self._blockmesh_action)
+            # The panel's own QAction, not a second one: the toolbar button in
+            # the panel and this menu item are the same object, so their label,
+            # tooltip, shortcut and enabled state cannot drift. It is None when
+            # pyvista is missing, since the panel never builds its controls then.
+            if self.block_mesh_panel.save_image_action is not None:
+                view_menu.addAction(self.block_mesh_panel.save_image_action)
 
         return view_menu
 
@@ -887,8 +904,13 @@ class MainWindow(
         self._diff_path_label = QLabel()
         self._side_by_side_cb = QCheckBox(tr("Side by side"))
         self._side_by_side_cb.toggled.connect(self._on_side_by_side_toggled)
-        clear_btn = QPushButton(tr("Clear"))
-        clear_btn.setFixedWidth(60)
+        clear_text = tr("Clear")
+        clear_btn = QPushButton(clear_text)
+        # Measured from clear_text rather than a fresh tr("Clear"): the width has
+        # to be measured from the very string the button shows, and the Japanese
+        # クリア is wider than "Clear" -- a translation can overflow a cap the
+        # original still fits.
+        clear_btn.setFixedWidth(max(_DIFF_CLEAR_BTN_MIN_WIDTH, button_pixel_width(clear_text)))
         clear_btn.clicked.connect(self._clear_diff)
         bar_layout = QHBoxLayout(self._diff_bar)
         bar_layout.setContentsMargins(8, 2, 8, 2)

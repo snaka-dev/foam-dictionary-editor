@@ -103,6 +103,7 @@ Each heading links to the full documentation in [USER_GUIDE.md](USER_GUIDE.md).
 - Overlays `topoSetDict` action geometry, `snappyHexMeshDict` `geometry {}` shapes (classified as surface / region / geometry-only), and `setFieldsDict` regions (labelled with their `fieldValues`), each with per-shape visibility toggles; shapes larger than the block mesh are clipped in the view and marked "(clipped)"
 - Vertices table beside the 3-D view: edit a coordinate and see the change instantly; a Preview mode explores variable-based vertices without touching the file
 - Load STL/OBJ overlays — several at once, each with its own row and colour in the `STL ▾` menu — and export topoSet/snappyHexMesh/setFields shapes as STL files
+- **Save Image…** writes the 3-D view to a PNG exactly as shown — overlays, colours, and camera angle included — for a report or a bug report
 - **⊞** side-by-side mode shows the 3-D view next to the tree while editing `blockMeshDict`, `topoSetDict`, `snappyHexMeshDict`, or `setFieldsDict`
 
 **[Integrated terminal](USER_GUIDE.md#terminal-tab)**

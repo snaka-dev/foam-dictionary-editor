@@ -108,6 +108,10 @@ OpenFOAM 14 は辞書ファイルを新設も改名もしていません。ケ�
 
 **さらに、どちらの綴りが現行かでフォーク同士が食い違うことがあります。** そのため「新しい名前を選んでおけばよい」という指針は、それだけでは誤りになります。Foundation 11 は `turbOnFinalIterOnly` を `transportCorrectionFinal` へ改名し、以来どちらも受け付けています。一方 OpenCFD は `turbOnFinalIterOnly` を*現行*の名前として読み、もう一方の名前をそもそも持ったことがありません。`fvSolution` の `SIMPLErho` / `simpleRho` の組も同じ分かれ方をし、しかもさらに古く、v7 以降のすべての Foundation リリースが `simpleRho` を読みます。つまりどちらについても「現代的な綴り」は 1 つに定まりません。正しいのは動かしているフォーク次第であり、フォークをまたいでケースを持ち込むときは、そのまま保つのではなくキーを書き換える必要があります。
 
+**さらに、片方のフォークだけが改名し、もう片方は改名していない、という場合もあります。** これは下の表では表現できません。層流応力モデルの `generalizedNewtonian` — `laminar { model generalizedNewtonian; }` — は、OpenCFD が v2106 から v2606 まで一貫して登録している唯一の綴りです。Foundation も v7 と v8 では同じ綴りで登録していましたが、v9 でクラス名を `generalisedNewtonian` に改名しました。どちらのフォークも相手側の綴りに対する互換エントリを宣言していないため、これは表が扱う意味での改名ではありません。旧称が今も通るのではなく、相手のフォークでは構築エラーになる名前です。そのため FoDE は両方を別々の選択肢として提示し、それぞれに実際に構築できるリリースを付けています。
+
+この区別は、表そのものの読み方にも関わります。表に載るのは、フォークが `getCompat` または `lookupBackwardsCompatible` を通じて*宣言した*改名です。誰も宣言していない食い違いはどちらの機構にも痕跡を残さず、実行時の選択テーブルからしか測れません。下で生成せずここに書いているのはそのためです。
+
 ### 実測した組
 
 下の表は約 100 の全部ではありません。foamlore が取得しているソースのサブツリー — FoDE がスキーマを持つ辞書の読み取り側と、それらのツリーがたまたま触れている範囲 — で宣言されている改名のすべてを、19 チェックアウト全体にわたって測ったものです。一度数えた値ではなく、ソースから再生成しています。ダッシュはそのフォークがその組を宣言していないことを示し、上で述べた食い違いはこれで一目で読めます。
@@ -118,7 +122,7 @@ OpenFOAM 14 は辞書ファイルを新設も改名もしていません。ケ�
 | 旧 → 新 | 読み取り元 | Foundation | OpenCFD |
 |---|---|---|---|
 | `centre` → `origin` | `0/<field> boundaryField entry` | — | v2106〜v2606 (api 1712) |
-| `redirectType` → `name` | `0/<field> boundaryField entry` | — | v2106〜v2606 (api 1706) |
+| `redirectType` → `name` | `0/<field> boundaryField entry` / `system/controlDict functions entry` | — | v2106〜v2606 (api 1706) |
 | `relaxation` → `qrRelaxation` | `0/<field> boundaryField entry` | — | v2106〜v2606 (api 1712) |
 | `motionSolver` → `pointMeshMover` | `constant/dynamicMeshDict` | 14 | — |
 | `LESModel` → `model` | `constant/momentumTransport` / `constant/turbulenceProperties` | 9〜14 | v2106〜v2606 (api -2006) |
@@ -145,18 +149,22 @@ OpenFOAM 14 は辞書ファイルを新設も改名もしていません。ケ�
 | `alphaDt` → `alphat` | `system/controlDict functions entry` | 13〜14 | — |
 | `calcCoeff` → `mode` | `system/controlDict functions entry` | — | v2106〜v2606 (api 1812) |
 | `calcTotal` → `mode` | `system/controlDict functions entry` | — | v2106〜v2606 (api 1812) |
-| `nCorr` → `nCorrectors` | `system/controlDict functions entry` | 13〜14 | — |
+| `geometric` → `logTransform` | `system/controlDict functions entry` | 10〜14 † | — |
+| `nCorr` → `nCorrectors` | `system/controlDict functions entry` / `system/fvSolution` | 13〜14 | — |
 | `name` → `faceZone` | `system/controlDict functions entry` | 11〜12 | — |
 | `name` → `field` | `system/controlDict functions entry` | 11〜14 | — |
 | `name` → `patch` | `system/controlDict functions entry` | 11〜12 | — |
 | `regionType` → `select` | `system/controlDict functions entry` | 11〜12 | — |
 | `timeVsFile` → `fileVsTime` | `system/controlDict functions entry` | 11〜14 | — |
 | `SIMPLErho` → `simpleRho` | `system/fvSolution` | 9〜14 | — |
+| `nAlphaCorr` → `nCorrectors` | `system/fvSolution` | 13〜14 † | — |
 | `nCellsInCoarsestLevel` → `minCellsPerProcessor` | `system/fvSolution` | 14 | — |
 | `turbOnFinalIterOnly` → `transportCorrectionFinal` | `system/fvSolution` | 11〜14 | — |
 | `minMedianAxisAngle` → `minMedialAxisAngle` | `system/snappyHexMeshDict` | 12〜14 | v2106〜v2206 (api 1712) |
 
 † すべてのチェックアウトで取得しているとは限らないサブツリー内の宣言であり、範囲は「存在する範囲」ではなく「調べた範囲」を表す。
+
+この表は `src/` と、これらの辞書を読む `applications/` 配下のソルバサブツリーを対象に実測している。この表が扱う辞書の外——`topoSetDict` や `extrudeToRegionMeshDict` など——に対する改名はここに載らず、無いことはその改名について何も語らない。
 <!-- END generated: renames-table -->
 
 ## モデルの副辞書: OpenFOAM 14 で綴りが 1 つ増えた

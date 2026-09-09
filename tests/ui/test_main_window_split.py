@@ -184,6 +184,7 @@ TREE_SYNC_OPS_METHODS = [
     "apply_text_to_tree",
     "reload_text_from_tree",
     "_on_blockmesh_vertices_changed",
+    "_on_blockmesh_image_saved",
     "_on_user_text_changed",
 ]
 
