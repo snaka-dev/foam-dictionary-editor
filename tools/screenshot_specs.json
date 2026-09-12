@@ -1,19 +1,22 @@
 {
   "_comment": [
-    "Specs for tools/capture_screenshots.py — the gallery in docs/SCREENSHOTS.md.",
+    "Specs for tools/capture_screenshots.py \u2014 the gallery in docs/SCREENSHOTS.md.",
     "Each shot's `state` is a ui/window_state.py WindowState; `defaults` is laid",
     "under every one of them. `case_dir` may use {repo} for this repository and",
     "{cases} for the capture machine's OpenFOAM run directory (--cases-dir).",
     "Only choices are pinned here: tree expansion beyond the selected row's",
     "ancestors, editor scroll, folds and the detail panel follow from the open",
     "file and the selected row, so they are left to follow.",
-    "Dialog shots are not here — a dialog is a top-level X window of its own,",
+    "Dialog shots are not here \u2014 a dialog is a top-level X window of its own,",
     "not part of the main window's frame, so tools/capture_dialog.py takes",
     "those. tools-menu.png is the one image still captured by hand: a menu is",
     "a popup that closes as soon as focus moves."
   ],
   "defaults": {
-    "window_size": [1200, 800],
+    "window_size": [
+      1200,
+      800
+    ],
     "upper_tab": "Tree",
     "lower_tab": "Editor",
     "side_by_side": false
@@ -29,7 +32,21 @@
         "terminal_mode": "xterm",
         "case_dir": "{cases}/pitzDaily",
         "current_file": "system/controlDict",
-        "tree_selection": ["startFrom"]
+        "tree_selection": [
+          "startFrom"
+        ]
+      }
+    },
+    "main-window-cases-tab": {
+      "note": "The Cases tab beside the file list, browsing an installation's simpleFoam tutorials with pitzDaily open. browse_dir is an installation path rather than a placeholder for the same reason the compare shot's cases are: the panel prints the directory it is showing.",
+      "outputs": {
+        "light": "main-window-cases-tab.png"
+      },
+      "browse_dir": "/lib/openfoam/openfoam2606/tutorials/incompressible/simpleFoam",
+      "state": {
+        "case_dir": "/lib/openfoam/openfoam2606/tutorials/incompressible/simpleFoam/pitzDaily",
+        "current_file": "system/controlDict",
+        "left_tab": "Cases"
       }
     },
     "main-window-boundary-editor": {
@@ -42,7 +59,9 @@
         "upper_tab": "Boundary",
         "case_dir": "{cases}/pitzDaily",
         "current_file": "0/U",
-        "tree_selection": ["boundaryField"]
+        "tree_selection": [
+          "boundaryField"
+        ]
       }
     },
     "blockMesh3Dview-topoSet-topoSetShapes": {
@@ -55,14 +74,44 @@
         "block_mesh_visible": true,
         "upper_tab": "BlockMesh",
         "case_dir": "{repo}/tutorials/topoSetShapes",
-        "preload_files": ["system/blockMeshDict"],
+        "preload_files": [
+          "system/blockMeshDict"
+        ],
         "current_file": "system/topoSetDict",
-        "tree_selection": ["actions", 5, "name"],
-        "splitter_sizes": {"right": [460, 260]},
+        "tree_selection": [
+          "actions",
+          5,
+          "name"
+        ],
+        "splitter_sizes": {
+          "right": [
+            460,
+            260
+          ]
+        },
         "block_mesh": {
-          "toggles": {"boundary_faces": false, "vertex_table": false},
+          "toggles": {
+            "boundary_faces": false,
+            "vertex_table": false
+          },
           "label_font_size": 14,
-          "camera": [[6.31, -3.49, 4.71], [1.5, 1.5, 1.5], [0.0, 0.0, 1.0]]
+          "camera": [
+            [
+              6.31,
+              -3.49,
+              4.71
+            ],
+            [
+              1.5,
+              1.5,
+              1.5
+            ],
+            [
+              0.0,
+              0.0,
+              1.0
+            ]
+          ]
         }
       }
     },
@@ -76,14 +125,43 @@
         "block_mesh_visible": true,
         "upper_tab": "BlockMesh",
         "case_dir": "{cases}/floatingObject",
-        "preload_files": ["system/blockMeshDict"],
+        "preload_files": [
+          "system/blockMeshDict"
+        ],
         "current_file": "system/topoSetDict",
-        "tree_selection": ["actions", 0, "name"],
-        "splitter_sizes": {"right": [460, 260]},
+        "tree_selection": [
+          "actions",
+          0,
+          "name"
+        ],
+        "splitter_sizes": {
+          "right": [
+            460,
+            260
+          ]
+        },
         "block_mesh": {
-          "toggles": {"boundary_faces": false},
+          "toggles": {
+            "boundary_faces": false
+          },
           "label_font_size": 14,
-          "camera": [[2.26, -1.62, 1.91], [0.5, 0.5, 0.5], [0.0, 0.0, 1.0]]
+          "camera": [
+            [
+              2.26,
+              -1.62,
+              1.91
+            ],
+            [
+              0.5,
+              0.5,
+              0.5
+            ],
+            [
+              0.0,
+              0.0,
+              1.0
+            ]
+          ]
         }
       }
     },
@@ -97,14 +175,43 @@
         "block_mesh_visible": true,
         "upper_tab": "BlockMesh",
         "case_dir": "{repo}/tutorials/damBreak",
-        "preload_files": ["system/blockMeshDict"],
+        "preload_files": [
+          "system/blockMeshDict"
+        ],
         "current_file": "system/setFieldsDict",
-        "tree_selection": ["regions", "boxToCell", "box"],
-        "splitter_sizes": {"right": [460, 260]},
+        "tree_selection": [
+          "regions",
+          "boxToCell",
+          "box"
+        ],
+        "splitter_sizes": {
+          "right": [
+            460,
+            260
+          ]
+        },
         "block_mesh": {
-          "toggles": {"boundary_faces": false},
+          "toggles": {
+            "boundary_faces": false
+          },
           "label_font_size": 14,
-          "camera": [[0.422, 0.141, 1.433], [0.292, 0.292, 0.007], [0.0, 1.0, 0.0]]
+          "camera": [
+            [
+              0.422,
+              0.141,
+              1.433
+            ],
+            [
+              0.292,
+              0.292,
+              0.007
+            ],
+            [
+              0.0,
+              1.0,
+              0.0
+            ]
+          ]
         }
       }
     },
@@ -124,12 +231,40 @@
           "system/sample"
         ],
         "current_file": "system/surfaces",
-        "tree_selection": ["surfaces", "midCut", "normal"],
-        "splitter_sizes": {"right": [460, 260]},
+        "tree_selection": [
+          "surfaces",
+          "midCut",
+          "normal"
+        ],
+        "splitter_sizes": {
+          "right": [
+            460,
+            260
+          ]
+        },
         "block_mesh": {
-          "toggles": {"boundary_faces": false, "vertex_table": false},
+          "toggles": {
+            "boundary_faces": false,
+            "vertex_table": false
+          },
           "label_font_size": 14,
-          "camera": [[6.31, -3.49, 4.71], [1.5, 1.5, 1.5], [0.0, 0.0, 1.0]]
+          "camera": [
+            [
+              6.31,
+              -3.49,
+              4.71
+            ],
+            [
+              1.5,
+              1.5,
+              1.5
+            ],
+            [
+              0.0,
+              0.0,
+              1.0
+            ]
+          ]
         }
       }
     },
@@ -143,8 +278,17 @@
         "terminal_mode": "xterm",
         "case_dir": "/tmp/OpenFOAM/run/cavity",
         "current_file": "system/fvSchemes",
-        "tree_selection": ["laplacianSchemes", "default"],
-        "splitter_sizes": {"right_upper": [320, 300, 370]}
+        "tree_selection": [
+          "laplacianSchemes",
+          "default"
+        ],
+        "splitter_sizes": {
+          "right_upper": [
+            320,
+            300,
+            370
+          ]
+        }
       }
     },
     "blockMesh3Dview-snappyHex-motorBike": {
@@ -158,20 +302,63 @@
         "block_mesh_visible": true,
         "side_by_side": true,
         "case_dir": "{cases}/motorBike",
-        "preload_files": ["system/blockMeshDict"],
+        "preload_files": [
+          "system/blockMeshDict"
+        ],
         "current_file": "system/snappyHexMeshDict",
-        "tree_expand": [["castellatedMeshControls", "refinementSurfaces", "motorBike"]],
-        "tree_selection": ["castellatedMeshControls", "refinementRegions", "refinementBox"],
+        "tree_expand": [
+          [
+            "castellatedMeshControls",
+            "refinementSurfaces",
+            "motorBike"
+          ]
+        ],
+        "tree_selection": [
+          "castellatedMeshControls",
+          "refinementRegions",
+          "refinementBox"
+        ],
         "splitter_sizes": {
-          "right": [460, 260],
-          "right_upper": [300, 0, 0],
-          "tree_bm": [300, 690]
+          "right": [
+            460,
+            260
+          ],
+          "right_upper": [
+            300,
+            0,
+            0
+          ],
+          "tree_bm": [
+            300,
+            690
+          ]
         },
-        "minimized_panes": {"detail": 530},
+        "minimized_panes": {
+          "detail": 530
+        },
         "block_mesh": {
-          "toggles": {"boundary_faces": false, "vertex_table": false},
+          "toggles": {
+            "boundary_faces": false,
+            "vertex_table": false
+          },
           "label_font_size": 10,
-          "camera": [[15.75, -15.5, 10.45], [4.0, 1.0, 2.0], [0.0, 0.0, 1.0]]
+          "camera": [
+            [
+              15.75,
+              -15.5,
+              10.45
+            ],
+            [
+              4.0,
+              1.0,
+              2.0
+            ],
+            [
+              0.0,
+              0.0,
+              1.0
+            ]
+          ]
         }
       }
     }

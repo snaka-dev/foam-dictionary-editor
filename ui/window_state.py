@@ -202,6 +202,9 @@ class WindowState:
     # with the terminal's mode, so indices are not stable.
     upper_tab: str | None = None
     lower_tab: str | None = None
+    # Which of the left column's Files/Cases tabs is in front. A choice like
+    # the two above rather than a consequence, so it is restored with them.
+    left_tab: str | None = None
     side_by_side: bool | None = None
     # View > BlockMesh 3-D Panel. Worth pinning because it does not follow from
     # the terminal's mode: switching out of xterm re-enables the menu item but
@@ -237,7 +240,7 @@ class WindowState:
                                       for name, sizes in self.splitter_sizes.items()}
         if self.minimized_panes:
             data["minimized_panes"] = dict(self.minimized_panes)
-        for name in ("upper_tab", "lower_tab", "side_by_side", "block_mesh_visible",
+        for name in ("upper_tab", "lower_tab", "left_tab", "side_by_side", "block_mesh_visible",
                      "terminal_mode", "case_dir", "current_file", "editor_zoom"):
             value = getattr(self, name)
             if value is not None:
@@ -278,6 +281,7 @@ class WindowState:
             ) or {},
             upper_tab=data.get("upper_tab"),
             lower_tab=data.get("lower_tab"),
+            left_tab=data.get("left_tab"),
             side_by_side=data.get("side_by_side"),
             block_mesh_visible=data.get("block_mesh_visible"),
             terminal_mode=data.get("terminal_mode"),
@@ -401,6 +405,7 @@ def key_path_for_index(index: QModelIndex) -> KeyPath:
 def capture_window_state(window: MainWindow) -> WindowState:
     """Read the current window layout back into a WindowState."""
     tabs = _tab_label(window.upper_tabs), _tab_label(window.bottom_tabs)
+    left_tab = _tab_label(window.left_tabs)
     selection = window.tree.currentIndex()
     tree_selection: KeyPath | None = None
     if selection.isValid():
@@ -428,6 +433,7 @@ def capture_window_state(window: MainWindow) -> WindowState:
         },
         upper_tab=tabs[0],
         lower_tab=tabs[1],
+        left_tab=left_tab,
         side_by_side=window.state.bm_side_by_side,
         block_mesh_visible=(window._blockmesh_action.isChecked()
                             if window._blockmesh_action is not None else None),
@@ -545,6 +551,7 @@ def apply_window_state(
 
     _select_tab(window.upper_tabs, state.upper_tab, strict, notes)
     _select_tab(window.bottom_tabs, state.lower_tab, strict, notes)
+    _select_tab(window.left_tabs, state.left_tab, strict, notes)
 
     for name, blob in state.splitters.items():
         splitter = _splitter(window, name, strict, notes)

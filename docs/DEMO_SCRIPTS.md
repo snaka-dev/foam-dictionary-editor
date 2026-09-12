@@ -12,8 +12,9 @@ Every movie below is **scripted in full and runs**: `tools/demo_driver.py` drive
 | 4 — Meshing around a surface | `motorBike-snappy-overlay` | `{cases}/motorBike` — **not** bundled | ~57 s | https://vimeo.com/1218350862?texttrack=en |
 | 5 — Three files, one view | `sampling-three-files-one-view` | bundled `tutorials/samplingShapes` | ~50 s | https://vimeo.com/1218352171?texttrack=en |
 | 6 — Five meshes, one case | `multiRegion-five-meshes-one-case` | bundled `tutorials/snappyMultiRegionHeater` | ~31 s | https://vimeo.com/1218352881?texttrack=en |
-| 7 — The whole workflow | `cavity-full-workflow` | bundled `tutorials/cavity` | ~3 min 38 s | https://vimeo.com/1217899060?texttrack=en |
+| 7 — The whole workflow | `cavity-full-workflow` | bundled `tutorials/cavity` | ~3 min 41 s | https://vimeo.com/1217899060?texttrack=en |
 | 8 — What the model is | `pitzDaily-turbulence-notes` | bundled `tutorials/pitzDaily` | ~64 s | https://vimeo.com/1218354126?texttrack=en |
+| 9 — Where your cases live | `case-browser-find-and-organise` | bundled `tutorials/cavity` + `damBreak` + `pitzDaily` | ~59 s | https://vimeo.com/1225897573?texttrack=en |
 
 ## Choosing what to show
 
@@ -140,7 +141,7 @@ The closing beat pays off twice by accident, and it is worth keeping the framing
 
 `constant/regionProperties` would have been the natural opening file — it is the entry that literally lists the five regions — and the scene was written around the fact that it did not parse: its list form (`regions ( fluid (…) solid (…) );`) landed as two nameless amber `unknown_raw_entry` rows, because the `regions` key was claimed unconditionally by setFieldsDict's named-dict form. Shooting this movie is what turned that up, and it has since been fixed — the file now parses as a single `regions` row. The scene still opens on the heater's `thermophysicalProperties`, which is what the published take shows and is the better opening for a movie about the *file list* rather than about one file; a future re-cut could open regionProperties instead.
 
-## Movie 7 — The whole workflow (`cavity`, ~3 min 38 s)
+## Movie 7 — The whole workflow (`cavity`, ~3 min 41 s)
 
 **Scene:** `cavity-full-workflow`. **Case:** bundled `tutorials/cavity/cavity`. **What it argues:** everything the other six show in isolation is one continuous piece of work, and it fits in one window. This is [Appendix A of the SoftwareX paper](https://doi.org/10.1016/j.softx.2026.102852) — the lid-driven cavity solved with icoFoam — shot beat for beat, section A.2 through A.7.
 
@@ -198,6 +199,24 @@ Two beats to protect in a re-cut, and they are the same claim from opposite side
 
 The take is also, incidentally, the check that browsing costs nothing: `DetailPanel` updates the help from `currentTextChanged` and writes the node only on **Apply Value**, which no step presses. The closing frame is the evidence, not the assurance.
 
+## Movie 9 — Where your cases live (`cavity`, ~59 s)
+
+**Scene:** `case-browser-find-and-organise`. **Cases:** bundled `tutorials/cavity/{cavity,cavityGrade,cavityClipped}`, `tutorials/damBreak` and `tutorials/pitzDaily`, all copied into one scratch directory so there is a set of cases to browse. **What it argues:** FoDE is where your cases live, not just the one you have open.
+
+| At | Beat | On screen | Narration |
+|---|---|---|---|
+| 0:00 | One case at a time | The Files tab: `cavity`'s file list, `controlDict` open | The file list shows what is inside the case you have open. That is most of the job — but it says nothing about the case next to it, or where either of them lives. |
+| 0:04 | The Cases tab | Five cases listed, each marked `◆`; the open one bold | So there is a second tab, and it lists the cases themselves. A diamond marks a directory that really is an OpenFOAM case, and the one in bold is the case you are in — so the list also answers which of these you are actually looking at. |
+| 0:08 | Open by double-click | `cavityGrade` opens; the file list and tree follow | Double-clicking a case opens it. No file chooser, and no typing a path you have to remember — the cases were already on screen. |
+| 0:12 | Compare from here | Right-click `cavity` → **Compare with Case…**; the two trees appear | And the case you are not in is the obvious thing to compare against. Pick it from the same list and the comparison starts — a graded mesh against a uniform one, differing entries marked in place. |
+| 0:19 | Clear | The comparison ends | Nothing was modified by comparing. |
+| 0:21 | The Case Browser | **Browse…** opens the two-pane window | Finding and opening is half of it. The other half is the work you used to leave for a file manager, and Browse opens the window that does it: a folder tree, the cases in the current folder, and what you can do to them. |
+| 0:25 | Somewhere to put things | **New Folder…**, typed `archive` | A finished run does not need deleting, it needs moving out of the way. |
+| 0:30 | Moved | `damBreak` selected, **Move…**, the destination, then the confirmation | It says where it is going before it goes, and the list updates when it has. Move, rename, copy and delete all work here — and deleting goes to your desktop trash, not to nowhere. |
+| 0:40 | Back to the case | **Close**; `cavityGrade` is still open behind it | The case you had open is still open. Browsing your cases never disturbed the one you were working on. |
+
+The scene copies five cases into one scratch directory rather than pointing at an installation's `tutorials/`, for the reason every other scene prefers a bundled case: it replays from a clone. It is also the only scene whose staging has to *remove* something — the `archive` folder a step creates would otherwise still be there on the next take, and **New Folder…** would refuse a name that already exists rather than making one.
+
 ## Recording
 
 ```bash
@@ -239,3 +258,7 @@ The take runs on a **nested display of its own** (Xephyr), not the desktop it wa
 Each take writes an `.srt` beside the video with the narration timed against the frames it belongs to — a script to read from, not a subtitle track to ship. Nothing is spoken by the tool.
 
 **A movie must not put the recording user's name on screen.** The same rule as the gallery, and the reason scenes copy their case to `/tmp` rather than opening it in place: the Log Summary dialog prints the case path out of the log file, and this repository lives under a home directory.
+
+That rule needed a second mitigation. A take also opens **file choosers**, and Qt's own chooser offers a **Home** shortcut in its sidebar — so the name went into the frame from there instead. A take now redirects `XDG_CONFIG_HOME` into its own scratch directory and seeds the sidebar with that directory, which fixes every chooser in every scene at once. It also means recording no longer edits your real `~/.config/QtProject.conf`, which it previously left its own `history` in. See [Demo recording](../DEVELOPER.md#demo-recording) for why `$HOME` is deliberately left alone.
+
+**Check the frames where a chooser is open** before publishing a retake, not an evenly spaced sample — those are the windows this rule is about.

@@ -121,3 +121,60 @@ class TestSaveTriggersFileListRefresh:
         text = _mesh_indicator_text(win)
         assert text is not None
         assert "stale" in text
+
+
+class TestVanishedCaseDirectory:
+    """A reload must not blank the file list when the case dir is gone.
+
+    ``list_case_files`` returns ``[]`` for a directory that is not there --
+    every branch of it is guarded by ``is_file()``/``is_dir()``/``glob`` -- so
+    a reload against a stale ``current_case_dir`` used to empty the file list
+    with no error, no exception and no warning, making the case look as though
+    it had lost every file it had. The case directory can go away without the
+    app doing it: something renames or deletes it outside FoDE, and
+    ``QFileSystemWatcher`` then fires ``directoryChanged`` (reporting a renamed
+    directory by its *old* path, while silently following the inode), which the
+    400 ms debounce turns into exactly this reload.
+    """
+
+    def test_reload_leaves_the_file_list_alone(self, main_window, tmp_path, monkeypatch):
+        win = main_window
+        case_dir = tmp_path / "case"
+        (case_dir / "system").mkdir(parents=True)
+        (case_dir / "system" / "controlDict").write_text("dummy v2;\n", encoding="utf-8")
+        win._load_case_dir(str(case_dir))
+        before = win.file_list_panel.file_paths()
+        assert before, "fixture should have listed at least one file"
+
+        os.rename(case_dir, tmp_path / "renamed_elsewhere")
+        win._reload_file_list()
+
+        assert win.file_list_panel.file_paths() == before
+
+    def test_reload_warns_rather_than_failing_silently(self, main_window, tmp_path):
+        win = main_window
+        case_dir = tmp_path / "case"
+        (case_dir / "system").mkdir(parents=True)
+        win._load_case_dir(str(case_dir))
+
+        os.rename(case_dir, tmp_path / "gone")
+        win._reload_file_list()
+
+        assert "no longer on disk" in win.statusBar().currentMessage()
+
+    def test_buffers_survive_so_unsaved_work_is_recoverable(self, main_window, tmp_path):
+        win = main_window
+        case_dir = tmp_path / "case"
+        (case_dir / "system").mkdir(parents=True)
+        dict_path = case_dir / "system" / "controlDict"
+        dict_path.write_text("dummy v2;\n", encoding="utf-8")
+        win._load_case_dir(str(case_dir))
+        win.load_selected_file(str(dict_path))
+        win.editor_panel.set_text("edited but never saved")
+        win._on_user_text_changed()
+
+        os.rename(case_dir, tmp_path / "gone")
+        win._reload_file_list()
+
+        assert win.state.file_dirty.get(str(dict_path)) is True
+        assert "edited but never saved" in win.editor_panel.editor.toPlainText()

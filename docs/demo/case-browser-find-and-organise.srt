@@ -1,0 +1,35 @@
+1
+00:00:00,000 --> 00:00:05,000
+The file list shows what is inside the case you have open. That is most of the job — but it says nothing about the case next to it, or where either of them lives.
+
+2
+00:00:05,000 --> 00:00:09,801
+So there is a second tab, and it lists the cases themselves. A diamond marks a directory that really is an OpenFOAM case, and the one in bold is the case you are in — so the list also answers which of these you are actually looking at.
+
+3
+00:00:09,801 --> 00:00:17,601
+Double-clicking a case opens it. No file chooser, and no typing a path you have to remember — the cases were already on screen.
+
+4
+00:00:17,601 --> 00:00:24,000
+And the case you are not in is the obvious thing to compare against. Pick it from the same list and the comparison starts — a graded mesh against a uniform one, differing entries marked in place.
+
+5
+00:00:24,000 --> 00:00:27,001
+Nothing was modified by comparing.
+
+6
+00:00:27,001 --> 00:00:35,904
+Finding and opening is half of it. The other half is the work you used to leave for a file manager, and Browse opens the window that does it: a folder tree, the cases in the current folder, and what you can do to them.
+
+7
+00:00:35,904 --> 00:00:48,201
+A finished run does not need deleting, it needs moving out of the way.
+
+8
+00:00:48,201 --> 00:00:53,200
+It says where it is going before it goes, and the list updates when it has. Move, rename, copy and delete all work here — and deleting goes to your desktop trash, not to nowhere.
+
+9
+00:00:53,200 --> 00:00:57,200
+The case you had open is still open. Browsing your cases never disturbed the one you were working on.

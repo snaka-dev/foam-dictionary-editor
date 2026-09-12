@@ -14,6 +14,10 @@ Tree view and plain-text editor side by side, kept in sync in both directions �
 
 The same view with **Settings > Appearance** set to **Dark**. The theme reaches everything the window draws, including the editor's syntax highlighting, the line-number gutter, and the selected-row fill and text — the last recomputed by FoDE rather than inherited from the desktop, so a selected row stays legible whatever accent colour is set. See [Appearance and colours](../USER_GUIDE.md#appearance-and-colours).
 
+![Main window — the Cases tab](images/main-window-cases-tab.png)
+
+The **Cases** tab beside the file list, browsing an OpenFOAM installation's `simpleFoam` tutorials with `pitzDaily` open. A **◆** marks a directory that is a case, and the open one is bold — so the list doubles as an answer to "which of these am I actually in?". `bump2D` and `turbulentFlatPlate` carry no marker and an expand arrow instead: they hold cases rather than being cases, and the tab goes into them like any other folder. Double-clicking a case *opens* it rather than expanding it, which is the whole distinction — what is inside a case is the **Files** tab's job. The path is elided from the middle rather than the end, keeping both the drive it is under and the folder you are in readable in a 220-pixel column. **Browse…** at the foot opens the fuller [Case Browser](#case-browser). See [Case navigator](../USER_GUIDE.md#case-navigator).
+
 ![Main window — Boundary and Editor tabs](images/main-window-boundary-editor.png)
 
 The Boundary view tab: every boundary patch across every field file laid out as a table (patches × fields), so the whole boundary condition set can be reviewed and edited at a glance instead of opening each field file in turn. Each cell shows the patch's `type`; raising **Lines per cell** shows the entries under it (`value uniform (10 0 0)` and so on) as well. See [Boundary view](../USER_GUIDE.md#boundary-view).
@@ -61,6 +65,12 @@ The OpenFOAM `motorBike` tutorial in side-by-side mode: tree and 3-D view shown 
 The same overlay from the same camera in the dark theme — the same spec captured twice, so nothing but the theme differs. The 3-D scene has no palette of its own, so it is themed explicitly: the scene background, the bounds readout above it, the grid's tick numbers and axis titles, the orientation triad's X/Y/Z letters, and the vertex and block numbers all switch with the theme. The patch and overlay colours do not — the motorBike surface stays teal and `refinementBox` stays purple, because those identify what you are looking at. Shape name badges stay a light sticker in both themes for the same reason: they have to read against whatever colour the geometry underneath them is. See [Appearance and colours](../USER_GUIDE.md#appearance-and-colours).
 
 ## Dialogs and menus
+
+### Case Browser
+
+![Case Browser dialog](images/case-browser-dialog.png)
+
+The non-modal Case Browser, pointed at an OpenFOAM installation's `simpleFoam` tutorials: a folder tree on the left, the contents of the current folder on the right, and the actions that apply to whatever is selected along the bottom. A **◆** marks a directory that is an OpenFOAM case — and the two rows without one are the point of the view. `bump2D` and `turbulentFlatPlate` hold cases rather than being cases, so they get an expand arrow instead of a marker and are entered like any other folder. What the browser never does is descend into a case, since what is inside one is the [file list](../USER_GUIDE.md#file-list-behavior)'s job. The case-only actions — **Open Case**, **Compare**, **Duplicate…** — are enabled because a case is selected; **Move…**, **Rename…** and **Delete…** apply to any folder. See [Case Browser window](../USER_GUIDE.md#case-browser-window).
 
 ### Find OpenFOAM Examples
 

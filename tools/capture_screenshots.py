@@ -90,6 +90,12 @@ class Shot:
     # screenshot one — and compare mode is a consequence rather than the sort of
     # choice that module holds (starting it forces side-by-side on).
     compare_with: str = ""
+    # Directory the Cases tab shows. Not a WindowState field for the same
+    # reason as compare_with, and one more: where the case navigator is
+    # pointing is an app_config preference (see DEVELOPER.md's "Case
+    # navigation"), so putting it in WindowState would give one value two
+    # persistence paths.
+    browse_dir: str = ""
 
 
 def load_spec(path: Path, cases_dir: Path) -> list[Shot]:
@@ -99,7 +105,7 @@ def load_spec(path: Path, cases_dir: Path) -> list[Shot]:
 
     shots: list[Shot] = []
     for name, entry in data["shots"].items():
-        unknown = sorted(set(entry) - {"outputs", "state", "note", "compare_with"})
+        unknown = sorted(set(entry) - {"outputs", "state", "note", "compare_with", "browse_dir"})
         if unknown:
             raise ValueError(f"shot {name!r}: unknown key(s) {', '.join(unknown)}")
         state = defaults.merged_with(WindowState.from_dict(entry.get("state") or {}))
@@ -112,9 +118,13 @@ def load_spec(path: Path, cases_dir: Path) -> list[Shot]:
         compare_with = entry.get("compare_with") or ""
         if compare_with:
             compare_with = _expand_case_path(compare_with, cases_dir)
+        browse_dir = entry.get("browse_dir") or ""
+        if browse_dir:
+            browse_dir = _expand_case_path(browse_dir, cases_dir)
         shots.append(Shot(
             name=name, state=state, outputs=outputs,
             note=entry.get("note", ""), compare_with=compare_with,
+            browse_dir=browse_dir,
         ))
     return shots
 
@@ -170,6 +180,16 @@ def capture_one(shot: Shot, theme: str, out_path: Path | None, settle_ms: int) -
     # The settle hook runs at the points where Qt needs an event-loop turn
     # before the next step can see the result (see apply_window_state).
     apply_window_state(window, shot.state, settle=lambda: _process_events(app, 600))
+    if shot.browse_dir:
+        if not Path(shot.browse_dir).is_dir():
+            raise SystemExit(f"{shot.name}: no browse directory at {shot.browse_dir}")
+        # After apply_window_state: loading a case does not move the navigator
+        # (deliberately — see DEVELOPER.md), but pinning the location before
+        # the window has finished settling would be undone by nothing and
+        # read oddly here. Keep it beside the other post-state steps.
+        window._case_navigator.go_to(Path(shot.browse_dir))
+        _process_events(app, 200)
+
     if shot.compare_with:
         if not Path(shot.compare_with).is_dir():
             raise SystemExit(f"{shot.name}: no reference case at {shot.compare_with}")

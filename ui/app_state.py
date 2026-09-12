@@ -94,6 +94,14 @@ class AppState:
     case_files_config: CaseFilesConfig | None = None
     parsed_roots: dict[str, FoamNode] = dataclasses.field(default_factory=dict)
 
+    # Viewer dict path -> the files its last `#include` expansion consumed.
+    # A splitter file such as `settings-region` is not a viewer dict itself, so
+    # editing it matches nothing in _update_viewer_panels' name table; this is
+    # what lets that edit refresh the dictionaries that depend on it.
+    viewer_include_sources: dict[str, frozenset[str]] = dataclasses.field(
+        default_factory=dict
+    )
+
     # ── diff / comparison state ───────────────────────────────────────────────
     diff: DiffState = dataclasses.field(default_factory=DiffState)
 

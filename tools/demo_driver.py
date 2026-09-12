@@ -152,6 +152,13 @@ class Scene:
     # library is whatever the recording machine has registered, and the case
     # chooser opens somewhere different on every machine — see _library_config.
     case_library: str = ""
+    # Directory the Cases tab shows when the window opens. Not a WindowState
+    # field for the same reason as capture_screenshots.py's: where the case
+    # navigator is pointing is an app_config preference, so putting it there
+    # would give one value two persistence paths. Without it a take would open
+    # wherever the seeded config's fallbacks led, which is not the point of a
+    # scene about browsing.
+    browse_dir: str = ""
     # Sent to the Terminal tab during staging, before recording starts — an
     # OpenFOAM `etc/bashrc` to source, typically. Watching someone set up their
     # shell is not the demo.
@@ -164,7 +171,7 @@ def load_spec(path: Path, cases_dir: Path, workdir: Path) -> list[Scene]:
     defaults = WindowState.from_dict(data.get("defaults") or {})
     known = {
         "state", "steps", "note", "theme", "case_source", "workdir",
-        "terminal_prelude", "copy_also", "clean", "case_library",
+        "terminal_prelude", "copy_also", "clean", "case_library", "browse_dir",
     }
 
     scenes: list[Scene] = []
@@ -205,6 +212,7 @@ def load_spec(path: Path, cases_dir: Path, workdir: Path) -> list[Scene]:
             workdir=scene_workdir,
             clean=[_expand(p, cases_dir, workdir) for p in entry.get("clean") or []],
             case_library=_expand(entry.get("case_library", ""), cases_dir, workdir),
+            browse_dir=_expand(entry.get("browse_dir", ""), cases_dir, workdir),
             terminal_prelude=list(entry.get("terminal_prelude") or []),
             copy_also=[
                 {"source": _expand(item["source"], cases_dir, workdir),
@@ -301,6 +309,85 @@ def seed_app_config(scene: Scene, workdir: Path) -> None:
     get_app_config(str(path))
     print(f"  config: {path}")
 
+
+
+def _isolate_qt_settings(workdir: Path) -> Path:
+    """Point QSettings -- ours *and* ParaView's -- at the take's scratch config.
+
+    ``seed_app_config`` sandboxes the application's own `app_config.json`, but
+    Qt keeps its widget state somewhere else entirely --
+    ``$XDG_CONFIG_HOME/QtProject.conf`` -- and a take was reading *and writing*
+    the recorder's real one, leaving its own `history` behind. That is the
+    "a take must not write the recording user's settings" this module's
+    docstring promises, half-kept.
+
+    The redirect deliberately stays in place for the whole take, so the
+    ParaView a step launches inherits it too and finds the profile
+    ``_seed_paraview_profile`` puts there rather than the recorder's. That is
+    what makes `cavity-full-workflow`'s pixel coordinates mean the same thing
+    on another machine -- left to the recorder's own profile they do not, and
+    a `point` step cannot miss, so the take records the wrong thing in
+    silence. `$HOME` is still left alone: redirecting it would drop
+    ``Path.home()`` from ``services/case_fs_ops.py``'s protected paths.
+
+    QSettings caches its path per process, so this must run before the first
+    QSettings or QFileDialog exists.
+    """
+    config_dir = workdir / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    os.environ["XDG_CONFIG_HOME"] = str(config_dir)
+    return config_dir
+
+
+def _seed_paraview_profile(config_dir: Path) -> None:
+    """Give the take's ParaView the profile shipped for it, if there is one.
+
+    Without it ParaView starts up first-run and puts a Getting Started splash
+    across the window. The profile is generated rather than hand-written --
+    see tools/make_paraview_demo_profile.sh -- because its file is named for
+    the ParaView version, so a different build ignores it and falls back to
+    that first run. Missing is therefore not fatal: the scene still records,
+    it just records the splash, which is a thing to notice in review.
+    """
+    source = ROOT / "tools" / "demo_paraview_profile"
+    if not source.is_dir():
+        return
+    destination = config_dir / "ParaView"
+    destination.mkdir(parents=True, exist_ok=True)
+    for item in source.iterdir():
+        if item.is_file():
+            shutil.copy2(item, destination / item.name)
+
+
+def _seed_file_dialog_sidebar(app, urls: list[Path]) -> None:
+    """Give every QFileDialog in this process a sidebar naming only *urls*.
+
+    Qt's default sidebar is ``["file:", home]``, so a chooser opened during a
+    take prints the recording user's account name into the frame -- the half of
+    the problem that switching off the native dialog did not fix. How much of
+    the name shows depends on the recorder's stored `sidebarWidth`, so the
+    truncation seen in one take was luck rather than mitigation.
+
+    Qt restores its widget state all-or-nothing and ignores a hand-written
+    conf, so the blob has to come from a real dialog: build one, set the
+    sidebar, show it, destroy it. Every later dialog then picks that up,
+    including the static getExistingDirectory/getOpenFileName calls the app
+    actually uses, which is what makes this a rig fix rather than twelve
+    call-site changes.
+    """
+    from PySide6.QtCore import QUrl
+    from PySide6.QtWidgets import QFileDialog
+
+    dialog = QFileDialog()
+    dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+    dialog.setSidebarUrls([QUrl.fromLocalFile(str(path)) for path in urls])
+    dialog.show()
+    _process_events(app, 150)
+    dialog.close()
+    dialog.deleteLater()
+    # The state is written when the dialog is destroyed, so the queued deletion
+    # has to be allowed to run before anything else opens a chooser.
+    _process_events(app, 150)
 
 # ── a display of the take's own ───────────────────────────────────────────────
 
@@ -421,6 +508,65 @@ class Pointer:
     def key(self, keys: str) -> None:
         self._run(["key", "--clearmodifiers", keys])
 
+    def fit_window(self, name: str, width: int | None, height: int | None,
+                   wait_ms: int = 20000) -> None:
+        """Move every window matching *name* to the origin and size it to the screen.
+
+        Waits for the window rather than trusting the previous step's dwell.
+        ParaView takes tens of seconds to appear, and if this runs before it
+        does, nothing is resized and *nothing says so*: the take goes on and
+        ParaView's toolbars sit where its default width put them, which is
+        ~20px from where they sit once fitted -- enough for the Last Frame
+        click to land in the gap beside the button and advance one step
+        instead of jumping to the end. Found the hard way, twice.
+        """
+        deadline = time.monotonic() + wait_ms / 1000.0
+        targets: list[str] = []
+        while True:
+            found = subprocess.run(
+                ["xdotool", "search", "--name", name],
+                check=False, capture_output=True, text=True,
+            )
+            targets = [line for line in found.stdout.split() if line.strip()]
+            if targets or time.monotonic() >= deadline:
+                break
+            time.sleep(0.4)
+        if not targets:
+            print(f"  warning: fit_window matched no window named {name!r} "
+                  f"after {wait_ms} ms", file=sys.stderr)
+            return
+        # Resize, then check it stuck, then resize again. ParaView creates its
+        # window before it applies its own saved geometry, so a resize that
+        # lands in that gap is silently undone a second later -- and the only
+        # symptom is a toolbar sitting ~20px from where the scene's pixel
+        # coordinates expect it.
+        for attempt in range(3):
+            for win in targets:
+                self._run(["windowmove", win, "0", "0"])
+                if width and height:
+                    self._run(["windowsize", win, str(width), str(height)])
+            if not (width and height):
+                return
+            time.sleep(1.5)
+            if all(self._window_size(win) == (width, height) for win in targets):
+                return
+        print(f"  warning: fit_window could not hold {width}x{height} on {name!r}; "
+              f"got {[self._window_size(w) for w in targets]}", file=sys.stderr)
+
+    @staticmethod
+    def _window_size(win: str) -> tuple[int, int] | None:
+        probe = subprocess.run(
+            ["xdotool", "getwindowgeometry", "--shell", win],
+            check=False, capture_output=True, text=True,
+        )
+        values = dict(
+            line.split("=", 1) for line in probe.stdout.splitlines() if "=" in line
+        )
+        try:
+            return int(values["WIDTH"]), int(values["HEIGHT"])
+        except (KeyError, ValueError):
+            return None
+
     @staticmethod
     def _run(args: list[str]) -> None:
         subprocess.run(["xdotool", *args], check=False, capture_output=True)
@@ -458,6 +604,8 @@ def resolve(window, target: dict[str, Any]):
         return _file_row_point(window, target["file"])
     if "group" in target:
         return _file_group_point(window, target["group"])
+    if "case" in target:
+        return _case_row_point(window, target["case"])
     if "tree" in target:
         return _tree_row_point(window, target["tree"], int(target.get("col", 0)))
     if "cell" in target:
@@ -585,6 +733,41 @@ def _file_group_point(window, group: str):
     raise TargetError(f"no file-list group header for {group!r}")
 
 
+def _case_row_point(window, name: str):
+    """A case row by its directory name, in whichever view is in front.
+
+    Named rather than pathed because both views show one directory at a time:
+    the row is a child of wherever the navigator currently is, so a full path
+    would repeat what the previous step already established.
+    """
+    # The Case Browser first, on _named_button's rule: while it is up it is
+    # what the step is about, and both views are over the same model anyway.
+    from PySide6.QtWidgets import QApplication
+
+    from ui.dialogs.case_browser_dialog import CaseBrowserDialog
+
+    # Visible, not merely active: the window that has focus flickers back to
+    # the main window as a dialog of the browser's own closes, and a step that
+    # then resolved against the Cases tab would click a row behind the browser.
+    browsers = [
+        w for w in QApplication.topLevelWidgets()
+        if isinstance(w, CaseBrowserDialog) and w.isVisible()
+    ]
+    view = browsers[0]._list if browsers else window.case_nav_panel._tree
+    root = view.rootIndex()
+    model = view.model()
+    for row in range(model.rowCount(root)):
+        index = model.index(row, 0, root)
+        entry = model.entry_for_index(index)
+        if entry is not None and entry.name == name:
+            view.scrollTo(index)
+            rect = view.visualRect(index)
+            if rect.isEmpty():
+                raise TargetError(f"case row {name!r} is off-view")
+            return view.viewport().mapToGlobal(rect.center())
+    raise TargetError(f"no case row named {name!r}")
+
+
 def _tree_row_point(window, key_path: list[str | int], column: int):
     tree = window.tree
     model = tree.model()
@@ -633,7 +816,7 @@ def _table_cell_point(window, names: list[str]):
 
 
 def _tab_point(window, label: str):
-    for tabs in (window.upper_tabs, window.bottom_tabs):
+    for tabs in (window.upper_tabs, window.bottom_tabs, window.left_tabs):
         bar = tabs.tabBar()
         for i in range(tabs.count()):
             if _plain(tabs.tabText(i)) == _plain(label):
@@ -909,6 +1092,23 @@ class Runner:
     def _step_key(self, step: dict[str, Any]) -> list[Atom]:
         return [(0, lambda: self.pointer.key(step["keys"]))]
 
+    def _step_fit_window(self, step: dict[str, Any]) -> list[Atom]:
+        """Move and size a *foreign* window to fit the take's display.
+
+        ParaView opens at whatever geometry its profile last saved, and the
+        recorder's own was wider than the nested display -- so the colour
+        legend sat off the right edge of every take. Forcing it here rather
+        than storing a geometry in the shipped profile is deliberate: ParaView
+        does not write its geometry on the way out under a bare X server, and
+        a value that does not survive regeneration is worse than none.
+        """
+        name = step.get("name", "^ParaView [0-9]")
+        width = int(step.get("width", 0)) or None
+        height = int(step.get("height", 0)) or None
+        return [(int(step.get("ms", 1200)),
+                 lambda: self.pointer.fit_window(
+                     name, width, height, int(step.get("wait_ms", 20000))))]
+
     def _step_say(self, step: dict[str, Any]) -> list[Atom]:
         # The caption was already marked by _expand; this is just its dwell.
         return [(int(step.get("ms", 0)), lambda: None)]
@@ -1069,6 +1269,7 @@ def play(scene: Scene, out_path: Path | None, settle_ms: int, fps: int,
 
     prepare_case(scene)
     seed_app_config(scene, workdir)
+    _seed_paraview_profile(_isolate_qt_settings(workdir))
 
     from PySide6.QtCore import Qt
 
@@ -1082,6 +1283,9 @@ def play(scene: Scene, out_path: Path | None, settle_ms: int, fps: int,
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
 
     app = QApplication([sys.argv[0]])
+    # Qt's own dialog still offers a Home shortcut, which names the recorder
+    # just as the portal chooser did; the take's scratch root replaces it.
+    _seed_file_dialog_sidebar(app, [workdir])
     apply_theme(app, scene.theme)
     # Demo movies are English; the saved language setting must not leak in.
     set_language("en")
@@ -1102,6 +1306,12 @@ def play(scene: Scene, out_path: Path | None, settle_ms: int, fps: int,
     # re-render that resets the camera happens.
     apply_block_mesh_view(window, scene.state)
     _process_events(app, 400)
+
+    if scene.browse_dir:
+        if not Path(scene.browse_dir).is_dir():
+            raise SystemExit(f"{scene.name}: no browse directory at {scene.browse_dir}")
+        window._case_navigator.go_to(Path(scene.browse_dir))
+        _process_events(app, 300)
 
     for command in scene.terminal_prelude:
         if window.terminal_panel is None:

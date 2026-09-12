@@ -68,13 +68,32 @@ DEFAULT_OUT = ROOT / "docs" / "images"
 DEFAULT_CASE = Path("/tmp/OpenFOAM/run/pitzDaily")
 # Pinned rather than left to whichever installation discovery happens to put
 # first, so the shot does not change version between two machines.
-DEFAULT_INSTALLATION = Path("/usr/lib/openfoam/openfoam2606")
+# /lib is a symlink to usr/lib on Debian-family systems, and the shorter form
+# is what the case-browser shot prints into its path bar.
+DEFAULT_INSTALLATION = Path("/lib/openfoam/openfoam2606")
 
 # What the Find Examples shot searches for and settles on. Both are pinned here
 # because the caption quotes them.
 _EXAMPLE_QUERY = "topoSetDict"
 _EXAMPLE_SELECTION = ("multiphase", "interFoam", "RAS", "floatingObject",
                       "system", "topoSetDict")
+
+# The case browser prints the directory it is showing into its path bar *and*
+# renders the sibling directories of every level above it, so the shot needs a
+# location whose whole ancestry is free of the capturing user's name -- see
+# DEVELOPER.md. An installation's tutorials tree is ideal: outside $HOME,
+# identical on any machine with the same OpenFOAM, and this particular level
+# holds fifteen cases beside two plain folders, so the ◆ marker and the
+# not-a-case rows are both visible in one picture.
+_CASE_BROWSER_SUBPATH = Path("tutorials/incompressible/simpleFoam")
+# The row the action buttons are enabled for. Pinned because the caption says
+# which case is selected.
+_CASE_BROWSER_SELECTION = "motorBike"
+_CASE_BROWSER_RECIPE = (
+    "missing {what}\n"
+    f"The case browser shot reads {_CASE_BROWSER_SUBPATH} of an OpenFOAM "
+    "installation. Pass --installation to point at one this machine has."
+)
 
 # The bundled damBreak has a 0.orig/, which is what makes the run dialog offer
 # its "restore 0/ first" prefix — the thing this shot is for.
@@ -231,6 +250,52 @@ def _build_run_tool(ctx: ShotContext):
     )
 
 
+def _case_browser_dir(ctx: ShotContext) -> Path:
+    """The directory the browser shows: a tutorials level of the installation.
+
+    Derived from ``ctx`` rather than pinned so ``--installation`` moves this
+    shot with the find-examples one, and so ``requires`` can answer "not on
+    this machine" for a context that has nothing -- which the tests check.
+    """
+    return ctx.installation / _CASE_BROWSER_SUBPATH
+
+
+def _requires_case_browser(ctx: ShotContext) -> None:
+    from services.case_loader import is_openfoam_case
+
+    browse_dir = _case_browser_dir(ctx)
+    if not browse_dir.is_dir():
+        raise SystemExit(_CASE_BROWSER_RECIPE.format(what=browse_dir))
+    cases = [d for d in browse_dir.iterdir() if d.is_dir() and is_openfoam_case(str(d))]
+    if len(cases) < 2:
+        raise SystemExit(
+            _CASE_BROWSER_RECIPE.format(what=f"at least two cases under {browse_dir}")
+        )
+    if not (browse_dir / _CASE_BROWSER_SELECTION).is_dir():
+        raise SystemExit(
+            _CASE_BROWSER_RECIPE.format(what=browse_dir / _CASE_BROWSER_SELECTION)
+        )
+
+
+def _build_case_browser(ctx: ShotContext):
+    from ui.case_navigation import CaseNavigator
+    from ui.dialogs.case_browser_dialog import CaseBrowserDialog
+
+    browse_dir = _case_browser_dir(ctx)
+    navigator = CaseNavigator()
+    navigator.go_to(browse_dir)
+    dialog = CaseBrowserDialog(navigator)
+    # Keep the navigator alive for as long as the dialog: it is parentless
+    # here, where the app would own it through MainWindow.
+    dialog._shot_navigator = navigator  # type: ignore[attr-defined]
+    # Select a case so the case-only buttons draw enabled rather than all
+    # greyed, which is the more informative half of the action row.
+    index = navigator.model.index_for_path(browse_dir / _CASE_BROWSER_SELECTION)
+    dialog._list.setCurrentIndex(index)
+    dialog._update_actions()
+    return dialog
+
+
 DIALOG_SHOTS: dict[str, DialogShot] = {
     "log-summary": DialogShot(
         name="log-summary",
@@ -252,6 +317,19 @@ DIALOG_SHOTS: dict[str, DialogShot] = {
         requires=_requires_run_tool,
         build=_build_run_tool,
         note="Run setFields options dialog, with its pre-flight and command preview.",
+    ),
+    "case-browser": DialogShot(
+        name="case-browser",
+        output="case-browser-dialog.png",
+        # Wide enough that the folder tree and the listing both read, and the
+        # action row fits on one line rather than eliding its last buttons.
+        size=(940, 520),
+        requires=_requires_case_browser,
+        build=_build_case_browser,
+        note=(
+            "Case Browser over a directory of cases, with "
+            f"{_CASE_BROWSER_SELECTION} selected."
+        ),
     ),
     "find-examples": DialogShot(
         name="find-examples",

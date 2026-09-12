@@ -963,4 +963,104 @@ TRANSLATIONS: dict[str, str] = {
 
     # ── simple terminal widget ────────────────────────────────────────────────
     "Enter command and press Enter": "コマンドを入力して Enter キーを押してください",
+
+    # ── case navigator / case browser ─────────────────────────────────────────
+    # Left-column tab labels and the browser window.
+    "Files": "ファイル",
+    "Cases": "ケース",
+    "Case Browser": "ケースブラウザ",
+    "Case Browser…": "ケースブラウザ…",
+    # "Browse…" is already translated above, for the extra-directory picker.
+    "Open the full Case Browser window": "ケースブラウザウィンドウを開きます",
+    "Go to the parent folder": "親フォルダへ移動します",
+    "Rescan this folder from disk": "このフォルダをディスクから再読み込みします",
+    "Up": "上へ",
+    "Home": "ホーム",
+    "Compare": "比較",
+    # Row tooltips.
+    "OpenFOAM case": "OpenFOAM ケース",
+    "{n} time directories": "時刻ディレクトリ {n} 個",
+    "{n} cells": "{n} セル",
+    "{path}\nNot readable.": "{path}\n読み取れません。",
+    # Context-menu and action-row items.
+    "Open Folder": "フォルダを開く",
+    "Show Subfolders": "サブフォルダを表示",
+    "Rename": "名前の変更",
+    "Rename…": "名前の変更…",
+    "Move…": "移動…",
+    "Delete…": "削除…",
+    "Duplicate…": "複製…",
+    "New Folder": "新規フォルダ",
+    "New Folder…": "新規フォルダ…",
+    # Prompts.
+    "New name:": "新しい名前:",
+    "New folder name (in {dir}):": "新しいフォルダ名 ({dir} 内):",
+    "Move '{name}' Into": "'{name}' の移動先",
+    # Refusals (services/case_fs_ops.py Refusal codes, translated in
+    # ui/case_navigation.py).
+    "'{name}' already exists there.": "'{name}' は既に存在します。",
+    "'{name}' is not a folder.": "'{name}' はフォルダではありません。",
+    "'{name}' no longer exists.": "'{name}' は既に存在しません。",
+    "'{name}' is protected and cannot be changed from here.":
+        "'{name}' は保護されているため、ここからは変更できません。",
+    "A folder cannot be moved or copied into itself.":
+        "フォルダを自身の中へ移動またはコピーすることはできません。",
+    "A name cannot contain a path separator.": "名前にパス区切り文字は使用できません。",
+    "A name cannot point outside its own folder.":
+        "名前で自身のフォルダの外を指すことはできません。",
+    "The source and the destination are the same folder.":
+        "移動元と移動先が同じフォルダです。",
+    "Enter a name.": "名前を入力してください。",
+    "Permission denied.": "アクセスが拒否されました。",
+    # Confirmations.
+    "Move Folder": "フォルダの移動",
+    "Move <b>{name}</b> to a new location?": "<b>{name}</b> を別の場所へ移動しますか?",
+    "From: {src}\nTo:   {dst}": "移動元: {src}\n移動先: {dst}",
+    "The destination is on a different filesystem, so this is a copy "
+    "followed by a delete and may take a while.":
+        "移動先が別のファイルシステム上にあるため、コピーしてから削除する処理になり、"
+        "時間がかかる場合があります。",
+    "Delete Folder": "フォルダの削除",
+    "Delete <b>{name}</b>?": "<b>{name}</b> を削除しますか?",
+    "Everything inside it goes to the trash too.":
+        "中身もすべてゴミ箱へ移動されます。",
+    "This is a symbolic link. Only the link will be removed; "
+    "its target is not affected.":
+        "これはシンボリックリンクです。リンクのみが削除され、リンク先には影響しません。",
+    "Move": "移動",
+    "Move to Trash": "ゴミ箱へ移動",
+    # The open case.
+    "Case Is Open": "ケースを開いています",
+    "The open case is about to be renamed. It will be reloaded afterwards.":
+        "開いているケースの名前を変更します。変更後に再読み込みされます。",
+    "This case is currently open. It will be reloaded at its new location.":
+        "このケースは現在開いています。移動先で再読み込みされます。",
+    "This case is currently open. It will be closed.":
+        "このケースは現在開いています。ケースは閉じられます。",
+    "This folder contains the case that is currently open. Close the case first.":
+        "このフォルダには現在開いているケースが含まれています。先にケースを閉じてください。",
+    "The open case directory is no longer on disk.":
+        "開いているケースのディレクトリがディスク上に見つかりません。",
+    # Errors.
+    "Create Folder Error": "フォルダ作成エラー",
+    "Could not create folder:\n{e}": "フォルダを作成できませんでした:\n{e}",
+    "Could not delete folder:\n{e}": "フォルダを削除できませんでした:\n{e}",
+    "Move Failed": "移動に失敗しました",
+    "The move did not complete:\n{e}\n\n"
+    "The original is unchanged at:\n{src}\n"
+    "An incomplete copy may exist at:\n{dst}":
+        "移動が完了しませんでした:\n{e}\n\n"
+        "移動元は変更されていません:\n{src}\n"
+        "移動先に不完全なコピーが残っている可能性があります:\n{dst}",
+    "Could Not Move to Trash": "ゴミ箱へ移動できませんでした",
+    "<b>{name}</b> could not be moved to the trash.":
+        "<b>{name}</b> をゴミ箱へ移動できませんでした。",
+    "Reason: {reason}\n\nDeleting permanently cannot be undone.":
+        "理由: {reason}\n\n完全に削除すると元に戻せません。",
+    "Delete Permanently": "完全に削除",
+    # Status bar.
+    "Created {name}": "{name} を作成しました",
+    "Renamed to {name}": "{name} に名前を変更しました",
+    "Moved {name}": "{name} を移動しました",
+    "Moved to trash: {name}": "ゴミ箱へ移動しました: {name}",
 }

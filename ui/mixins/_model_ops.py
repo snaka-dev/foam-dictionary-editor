@@ -7,12 +7,14 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
 
+from foam.include_expand import ExpandedTree, expand_includes
 from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser
 from foam.utils import read_foam_file
 from foam.writer import write_root
 from i18n import tr
 from model.tree_model import FoamTreeModel
+from services.include_scan import foam_etc_dirs
 from ui.layout_constants import (
     BLOCKMESH_DICT_NAME,
     SAMPLING_DICT_NAMES,
@@ -51,9 +53,50 @@ class _ModelOpsMixin(_Base):
         self.on_tree_selection()
         self.statusBar().showMessage(tr("Tree changes applied to text editor"), STATUS_SHORT)
 
+    def _expand_includes_for_viewer(self, path: str, root: FoamNode) -> ExpandedTree:
+        """Resolve `#include`d entries into a read-only copy of one file's tree.
+
+        Only the 3-D viewer gets this tree. Everything that writes -- the tree
+        view, the editor, the writer, the boundary table -- keeps the original
+        root, so nothing can save another file's entries into this one.
+
+        Unsaved editor buffers are served ahead of the file on disk, so editing
+        the included file updates the view before it is saved.
+        """
+        case_dir = self.state.current_case_dir
+        if case_dir is None:
+            return ExpandedTree(root=root)
+
+        def read_buffer(target: Path) -> str | None:
+            # The open file's freshest text is in the editor, not in
+            # file_buffers: apply_text_to_tree parses the editor directly and
+            # never flushes it there, so reading the buffer would serve the
+            # text as it was when the file was opened.
+            if self.state.current_file is not None and str(target) == self.state.current_file:
+                return self.editor_panel.get_text()
+            return self.state.file_buffers.get(str(target))
+
+        try:
+            return expand_includes(
+                root,
+                source_file=Path(path),
+                case_dir=Path(case_dir),
+                etc_dirs=foam_etc_dirs(),
+                read_text=read_buffer,
+            )
+        except OSError:
+            # An unreadable include must never stop the viewer updating; it
+            # simply renders what the unexpanded tree holds, as before.
+            return ExpandedTree(root=root)
+
     def _update_viewer_panels(self, path: str, root: FoamNode) -> None:
         """Refresh the boundary table and the 3-D viewer for one file's tree."""
         self.boundary_panel.update_field(path, root)
+        self._update_block_mesh_viewer(path, root)
+        self._refresh_include_dependents(path)
+
+    def _update_block_mesh_viewer(self, path: str, root: FoamNode) -> None:
+        """Push one file's tree at the 3-D viewer, with its includes resolved."""
         if self.block_mesh_panel is None:
             return
         name = Path(path).name
@@ -65,8 +108,36 @@ class _ModelOpsMixin(_Base):
         }.get(name)
         if update is None and name in SAMPLING_DICT_NAMES:
             update = self.block_mesh_panel.update_sampling
-        if update is not None:
-            update(path, root)
+        if update is None:
+            return
+        expanded = self._expand_includes_for_viewer(path, root)
+        if expanded.expanded:
+            self.state.viewer_include_sources[path] = expanded.sources
+        else:
+            self.state.viewer_include_sources.pop(path, None)
+        update(path, expanded.root)
+
+    def _refresh_include_dependents(self, path: str) -> None:
+        """Re-render any viewer dict whose last expansion consumed *path*.
+
+        The file just edited may be a parameter file rather than a dictionary
+        the viewer knows -- a `settings-region` holding every dimension matches
+        no name in the table above -- so without this the 3-D view would keep
+        showing the values it was built with.
+
+        Only the 3-D half is re-run: the boundary table is keyed on the file the
+        user is actually looking at, and a dependent dictionary is not it.
+        """
+        # Snapshot first: _update_block_mesh_viewer rewrites this dict as it
+        # re-renders each dependent.
+        for dict_path, sources in list(self.state.viewer_include_sources.items()):
+            if dict_path == path or path not in sources:
+                continue
+            dependent_root = self.state.parsed_roots.get(dict_path)
+            if dependent_root is None:
+                dependent_root = self._cache_parsed_root(dict_path)
+            if dependent_root is not None:
+                self._update_block_mesh_viewer(dict_path, dependent_root)
 
     def _on_tree_data_changed(self, top_left, bottom_right, roles) -> None:
         # Catches edits made directly in the tree view (inline cell editing), which

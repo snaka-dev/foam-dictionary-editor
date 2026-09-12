@@ -81,6 +81,7 @@ Each heading links to the full documentation in [USER_GUIDE.md](USER_GUIDE.md).
 - Create, duplicate, back up, or delete files from the file panel; reload the case from disk at any time
 - File list auto-refreshes after changes made outside the app (e.g. via the Terminal); a `constant/polyMesh` indicator shows the cell count, marked stale when `blockMeshDict` has changed since the mesh was generated
 - Save the current state as a new case, or duplicate an existing one
+- [Browse your case directories from inside FoDE](USER_GUIDE.md#case-navigator) — a **Cases** tab beside the file list, and a two-pane **Case Browser** window — to find a case to open or compare against, and to move, rename, copy or delete a whole case without switching to a file manager; deleting goes to the desktop trash
 
 **[Tree and text editing](USER_GUIDE.md#tree-and-text-workflow)**
 - Structured tree view and a raw text editor, synced in both directions

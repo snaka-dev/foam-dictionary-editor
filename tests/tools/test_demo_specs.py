@@ -41,7 +41,7 @@ PLACEHOLDERS = ("{repo}", "{cases}", "{work}")
 # The ways a step can name what it acts on, i.e. every branch of resolve().
 TARGET_KEYS = frozenset({
     "point", "menu", "menu_item", "file", "group", "tree", "cell", "tab",
-    "widget", "button", "field",
+    "widget", "button", "field", "case",
 })
 
 # Steps that act on a target and so must name exactly one.

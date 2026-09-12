@@ -28,7 +28,7 @@ from capture_dialog import (  # noqa: E402
 
 # Shots whose inputs come from the capture machine (a run case, an OpenFOAM
 # installation) versus ones whose inputs are bundled in the repository.
-_CONTEXT_BACKED = ("find-examples", "log-summary")
+_CONTEXT_BACKED = ("case-browser", "find-examples", "log-summary")
 _REPO_BACKED = ("run-tool",)
 
 

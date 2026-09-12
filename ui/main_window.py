@@ -28,6 +28,7 @@ from app_config import get_app_config
 from i18n import tr
 from model.tree_model import FoamTreeModel
 from ui.app_state import AppState
+from ui.case_navigation import CaseNavigator
 from ui.fonts import button_pixel_width, icon_pixel_size
 from ui.icons import icon
 from ui.layout_constants import (
@@ -37,6 +38,7 @@ from ui.layout_constants import (
     SPLITTER_LOWER_HEIGHT,
     SPLITTER_TREE_WIDTH,
     SPLITTER_UPPER_HEIGHT,
+    STATUS_NORMAL,
 )
 from ui.mixins._boundary_ops import _BoundaryOpsMixin
 from ui.mixins._case_ops import _CaseOpsMixin
@@ -58,6 +60,7 @@ from ui.pane_minimize import (
     PaneMinimizer,
     install_handle_double_click,
 )
+from ui.panels.case_nav_panel import CaseNavPanel
 from ui.panels.comparison_tree_panel import ComparisonTreePanel
 from ui.panels.detail_panel import DetailPanel
 from ui.panels.editor_panel import EditorPanel
@@ -72,6 +75,7 @@ if TYPE_CHECKING:
     # stack is not loaded unless the BlockMesh feature is enabled; the two
     # dialogs are imported lazily in ui/mixins/_tools_ops.py since they are
     # only ever needed once the user opens them.
+    from ui.dialogs.case_browser_dialog import CaseBrowserDialog
     from ui.dialogs.find_examples_dialog import FindExamplesDialog
     from ui.dialogs.log_summary_dialog import LogSummaryDialog
     from ui.panels.block_mesh_panel import BlockMeshPanel
@@ -133,6 +137,7 @@ class MainWindow(
         self._view_log_summary_action: QAction | None = None
         self._log_summary_dialog: LogSummaryDialog | None = None
         self._find_examples_dialog: FindExamplesDialog | None = None
+        self._case_browser_dialog: CaseBrowserDialog | None = None
 
         self._build_ui()
         self.setAcceptDrops(True)
@@ -393,6 +398,12 @@ class MainWindow(
             self._build_tree_text_sync_bar(), Qt.Corner.TopRightCorner
         )
 
+        # One navigator drives both the Cases tab and the Case Browser window,
+        # so the two share a model and a location rather than each keeping
+        # their own. See ui/case_navigation.py.
+        self._case_navigator = CaseNavigator(self)
+        self.case_nav_panel = CaseNavPanel(self._case_navigator)
+
         from ui.panels.boundary_view_panel import BoundaryViewPanel
         self.boundary_panel = BoundaryViewPanel()
 
@@ -473,8 +484,27 @@ class MainWindow(
         right_splitter.setCollapsible(1, False)
         right_splitter.setStyleSheet(splitter_qss())
 
+        # The left column holds two tabs rather than the file list alone. The
+        # tab bar is its own switcher, so no extra button is needed, and
+        # PANE_FILE_LIST goes on addressing main_splitter index 0 -- the
+        # minimizer takes an index, not a widget, and this splitter leaves its
+        # children collapsible, so setSizes still closes the column fully.
+        self.left_tabs = QTabWidget()
+        self.left_tabs.setDocumentMode(True)
+        self.left_tabs.addTab(self.file_list_panel, tr("Files"))
+        self.left_tabs.addTab(self.case_nav_panel, tr("Cases"))
+        self.left_tabs.setMinimumSize(0, 0)
+        self.file_list_panel.setMinimumSize(0, 0)
+        self.case_nav_panel.setMinimumSize(0, 0)
+        # Keep the tab bar's own minimum small, or a restore would come back
+        # wider than SPLITTER_FILE_LIST_WIDTH.
+        tab_bar = self.left_tabs.tabBar()
+        tab_bar.setExpanding(False)
+        tab_bar.setElideMode(Qt.TextElideMode.ElideRight)
+        tab_bar.setUsesScrollButtons(True)
+
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.main_splitter.addWidget(self.file_list_panel)
+        self.main_splitter.addWidget(self.left_tabs)
         self.main_splitter.addWidget(right_splitter)
         self.main_splitter.setSizes([SPLITTER_FILE_LIST_WIDTH, SPLITTER_TREE_WIDTH + SPLITTER_DETAIL_WIDTH])
 
@@ -537,6 +567,19 @@ class MainWindow(
         self.file_list_panel.remove_extra_dir_requested.connect(self._on_remove_extra_dir)
         self.file_list_panel.refresh_requested.connect(self._reload_file_list)
         self.file_list_panel.copy_into_case_requested.connect(self._on_copy_into_case_requested)
+        nav = self._case_navigator
+        nav.browser_requested.connect(self._on_open_case_browser)
+        nav.open_case_requested.connect(self._on_case_nav_open_requested)
+        nav.compare_case_requested.connect(self._on_case_nav_compare_requested)
+        nav.duplicate_case_requested.connect(self._on_case_nav_duplicate_requested)
+        nav.move_requested.connect(self._on_case_nav_move_requested)
+        nav.rename_requested.connect(self._on_case_nav_rename_requested)
+        nav.delete_requested.connect(self._on_case_nav_delete_requested)
+        nav.new_folder_requested.connect(self._on_case_nav_new_folder_requested)
+        nav.status_message.connect(
+            lambda message: self.statusBar().showMessage(message, STATUS_NORMAL)
+        )
+        nav.go_to(nav.initial_location(self.state.current_case_dir))
         self.boundary_panel.patch_edit_requested.connect(self._on_patch_edit_requested)
         self.boundary_panel.patch_create_requested.connect(self._on_patch_create_requested)
         self.boundary_panel.patch_delete_requested.connect(self._on_patch_delete_requested)
@@ -606,6 +649,7 @@ class MainWindow(
             self.duplicate_from_library
         )
         case_menu.addAction(self._find_examples_action)
+        case_menu.addAction(tr("Case Browser…")).triggered.connect(self._on_open_case_browser)
         case_menu.addSeparator()
         # File-list housekeeping, grouped: Clean Backup Files and Manage Extra
         # Files & Directories both moved here from Settings (they act on a

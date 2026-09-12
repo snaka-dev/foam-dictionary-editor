@@ -58,6 +58,7 @@ class TestSerialisation:
             splitter_sizes={"right": [460, 260]},
             upper_tab="BlockMesh",
             lower_tab="Editor",
+            left_tab="Cases",
             side_by_side=True,
             block_mesh_visible=True,
             terminal_mode="simple",
@@ -298,6 +299,7 @@ class TestCaptureLiveWindow:
         state = capture_window_state(main_window)
         assert state.upper_tab == "Tree"
         assert state.lower_tab == "Editor"
+        assert state.left_tab == "Files"
         # The fixture disables the terminal and BlockMesh features, so those
         # two are absent rather than merely unset.
         assert state.terminal_mode is None
@@ -375,9 +377,51 @@ class TestScreenshotSpec:
                 )
                 assert not path.startswith(str(Path.home())), f"{name}: {path}"
 
+    def test_browse_shots_name_directories_outside_a_home_directory(self, spec):
+        # The Cases tab prints the directory it is showing into its path bar,
+        # and the Case Browser additionally renders the sibling directories of
+        # every level above it. Same rule and same reason as the compare shots.
+        for name, entry in spec["shots"].items():
+            browse_dir = entry.get("browse_dir")
+            if not browse_dir:
+                continue
+            for path in (browse_dir, entry["state"]["case_dir"]):
+                assert "{repo}" not in path and "{cases}" not in path, (
+                    f"{name}: a browsed directory is shown as a path, so it cannot be "
+                    f"a placeholder that resolves under $HOME ({path})"
+                )
+                assert not path.startswith(str(Path.home())), f"{name}: {path}"
+
     def test_case_dir_placeholders_are_known(self, spec):
         for name, entry in spec["shots"].items():
             case_dir = entry["state"].get("case_dir", "")
             for placeholder in ("{repo}", "{cases}"):
                 case_dir = case_dir.replace(placeholder, "")
             assert "{" not in case_dir, f"{name}: unknown placeholder in case_dir"
+
+
+class TestLeftTab:
+    """The left column's Files/Cases choice travels with the other two tabs.
+
+    Adding the Cases tab introduced a layout choice the window could not
+    re-derive, so leaving it out of WindowState would have meant a session
+    that reopened on Files however you left it.
+    """
+
+    def test_capture_then_apply_restores_the_cases_tab(self, main_window):
+        main_window.left_tabs.setCurrentIndex(1)
+        state = capture_window_state(main_window)
+        assert state.left_tab == "Cases"
+
+        main_window.left_tabs.setCurrentIndex(0)
+        apply_window_state(main_window, state)
+        assert main_window.left_tabs.currentIndex() == 1
+
+    def test_an_unknown_left_tab_is_a_note_rather_than_a_failure(self, main_window):
+        notes = apply_window_state(main_window, WindowState(left_tab="Nope"), strict=False)
+        assert any("Nope" in note for note in notes)
+        assert main_window.left_tabs.currentIndex() == 0
+
+    def test_an_unknown_left_tab_raises_in_strict_mode(self, main_window):
+        with pytest.raises(ValueError):
+            apply_window_state(main_window, WindowState(left_tab="Nope"))

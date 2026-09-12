@@ -7,26 +7,82 @@ block_mesh_extractor and topo_set_extractor.
 """
 from __future__ import annotations
 
+import ast
+import math
 import re
 from collections.abc import Iterator
 
 from foam.nodes import FoamNode
 
 _EVAL_VALUE_RE = re.compile(r'^#eval\s*\{\s*([^}]+)\}')
-_SAFE_EXPR_RE = re.compile(r'^[\d\s\+\-\*/\.\(\)eE]+$')
+
+# The functions and constants an #eval expression may name. OpenFOAM's own
+# expression grammar is far larger, but these are the ones that appear in
+# dictionaries defining geometry; anything else is rejected rather than
+# guessed at, which keeps a typo a silent miss instead of a wrong number.
+_EVAL_NAMES: dict[str, object] = {
+    "pi": math.pi,
+    "round": round,
+    "floor": math.floor,
+    "ceil": math.ceil,
+    "sqrt": math.sqrt,
+    "min": min,
+    "max": max,
+    "mag": abs,
+    "abs": abs,
+    "pow": pow,
+    "sin": math.sin,
+    "cos": math.cos,
+    "tan": math.tan,
+    "asin": math.asin,
+    "acos": math.acos,
+    "atan": math.atan,
+    "atan2": math.atan2,
+    "exp": math.exp,
+    "log": math.log,
+    "log10": math.log10,
+    "degToRad": math.radians,
+    "radToDeg": math.degrees,
+}
+
+# The only AST shapes an expression may be built from. Whitelisting the grammar
+# rather than the character set is what lets `round(...)` through while still
+# refusing attribute access and subscripts structurally -- `().__class__` and
+# `__import__("os")` are not patterns to be matched, they are node types that
+# never appear here.
+_EVAL_NODES: tuple[type[ast.AST], ...] = (
+    ast.Expression, ast.BinOp, ast.UnaryOp, ast.Call, ast.Name, ast.Constant, ast.Load,
+    ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod, ast.USub, ast.UAdd,
+)
 
 
 def eval_foam_expr(expr: str) -> str | None:
     """Evaluate a numeric arithmetic expression from #eval{...}.
 
-    Returns the float result as a string, or None if the expression
-    contains non-numeric tokens (e.g. unresolved $var references).
+    Returns the float result as a string, or None if the expression is not a
+    pure numeric expression over _EVAL_NAMES -- which is also how an unresolved
+    $var reference is rejected, since `$x + 1` is a syntax error.
     """
     cleaned = expr.strip()
-    if not _SAFE_EXPR_RE.match(cleaned):
+    if not cleaned:
         return None
     try:
-        result = eval(cleaned, {"__builtins__": {}}, {})  # noqa: S307
+        tree = ast.parse(cleaned, mode="eval")
+    except (SyntaxError, ValueError):
+        return None
+    for node in ast.walk(tree):
+        if not isinstance(node, _EVAL_NODES):
+            return None
+        if isinstance(node, ast.Name) and node.id not in _EVAL_NAMES:
+            return None
+        if isinstance(node, ast.Constant) and not isinstance(node.value, (int, float)):
+            return None
+        if isinstance(node, ast.Call) and not isinstance(node.func, ast.Name):
+            return None
+    try:
+        result = eval(  # noqa: S307
+            compile(tree, "<foam-eval>", "eval"), {"__builtins__": {}}, dict(_EVAL_NAMES)
+        )
         return str(float(result))
     except Exception:
         return None

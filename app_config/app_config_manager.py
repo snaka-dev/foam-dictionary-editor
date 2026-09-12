@@ -70,6 +70,7 @@ class AppConfigManager:
         self._config_path = Path(config_path)
         self._window_size: list[int] | None = None
         self._default_case_dir: str | None = None
+        self._case_browser_dir: str | None = None
         self._case_library_dirs: list[str] = []
         self._user_links: list[dict] = []
         self._features: dict[str, bool] = {}
@@ -91,6 +92,7 @@ class AppConfigManager:
             return
         self._window_size = data.get("window_size", None)
         self._default_case_dir = data.get("default_case_dir", None)
+        self._case_browser_dir = data.get("case_browser_dir", None)
         self._case_library_dirs = data.get("case_library_dirs", [])
         self._user_links = data.get("user_links", [])
         self._features = data.get("features", {})
@@ -119,6 +121,8 @@ class AppConfigManager:
                 data["language"] = self._language
             if self._openfoam_dir:
                 data["openfoam_dir"] = self._openfoam_dir
+            if self._case_browser_dir:
+                data["case_browser_dir"] = self._case_browser_dir
             if self._theme != DEFAULT_THEME:
                 data["theme"] = self._theme
             if self._ui_scale != DEFAULT_UI_SCALE:
@@ -134,6 +138,7 @@ class AppConfigManager:
     def reset(self) -> None:
         self._window_size = None
         self._default_case_dir = None
+        self._case_browser_dir = None
         self._case_library_dirs = []
         self._user_links = []
         self._features = {}
@@ -194,6 +199,16 @@ class AppConfigManager:
 
     def set_default_case_dir(self, path: str | None) -> None:
         self._default_case_dir = path
+
+    # ── case browser directory ────────────────────────────────────────────────
+
+    def get_case_browser_dir(self) -> str | None:
+        """Return the last-visited Case Browser directory, if any."""
+        return self._case_browser_dir
+
+    def set_case_browser_dir(self, path: str | None) -> None:
+        """Set the last-visited Case Browser directory. Does not auto-save."""
+        self._case_browser_dir = path
 
     # ── case library ──────────────────────────────────────────────────────────
 

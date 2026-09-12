@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 
+from foam.include_expand import clear_expand_cache
 from foam.include_resolver import ResolvedInclude
 from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser, ParseError
@@ -73,6 +74,7 @@ class _FileOpsMixin(_Base):
             self._case_dir_watcher.addPath(constant_dir)
 
         clear_scan_cache()  # the memos are per case; bound them on a switch
+        clear_expand_cache()
         paths, extra, extra_dir_paths, origins = self._case_file_paths(directory)
         self.file_list_panel.load_files(
             paths,
@@ -85,6 +87,7 @@ class _FileOpsMixin(_Base):
         self.state.file_buffers.clear()
         self.state.file_dirty.clear()
         self.state.parsed_roots.clear()
+        self.state.viewer_include_sources.clear()
         self._clear_undo_stacks()
         if self.block_mesh_panel is not None:
             self.block_mesh_panel.clear()
@@ -94,6 +97,10 @@ class _FileOpsMixin(_Base):
             self.terminal_panel.set_working_directory(directory)
         if self._log_summary_dialog is not None:
             self._log_summary_dialog.set_case_dir(directory)
+        # Bolds the open case in the Cases tab and the Case Browser. It does
+        # not move either view: yanking the user's browsing position around
+        # because a case was opened would be the wrong kind of helpful.
+        self._case_navigator.set_current_case(directory)
         self._stop_foam_monitor()
         self._reset_diff_for_case_dir(directory, previous_dir)
         QTimer.singleShot(0, self._reload_boundary_panel)
@@ -122,6 +129,17 @@ class _FileOpsMixin(_Base):
     def _reload_file_list(self) -> None:
         if not self.state.current_case_dir or not self.state.case_files_config:
             return
+        if not Path(self.state.current_case_dir).is_dir():
+            # list_case_files returns [] for a directory that is not there --
+            # every branch of it is guarded by is_file()/is_dir()/glob -- so
+            # reloading now would blank the file list with no error at all and
+            # make the case look as though it had lost every file it had.
+            # Leaving the list and the buffers untouched keeps unsaved work
+            # recoverable through Save as New Case.
+            self.statusBar().showMessage(
+                tr("The open case directory is no longer on disk."), STATUS_WARNING
+            )
+            return
         paths, extra, extra_dir_paths, origins = self._case_file_paths(
             self.state.current_case_dir
         )
@@ -139,6 +157,16 @@ class _FileOpsMixin(_Base):
             self.file_list_panel.select_file(self.state.current_file)
 
     def _on_case_dir_changed_on_disk(self, path: str) -> None:
+        """Debounce a burst of on-disk changes into one file-list reload.
+
+        *path* is deliberately unused: the watcher is pointed at the case
+        directory and its `constant/` subdirectory, and the reload re-reads
+        `state.current_case_dir` rather than whichever of the two fired, so a
+        `cp -r` touching both still costs one reload. Note Qt reports a renamed
+        watched directory by its *old* path and keeps following the inode, so
+        the path it hands over cannot be trusted to still exist anyway --
+        `_reload_file_list` checks the case directory itself instead.
+        """
         self._file_list_refresh_timer.start()
 
     def _open_included_target(self, directive_text: str) -> None:

@@ -646,3 +646,53 @@ def test_raw_list_fallback_still_extracts_hex_blocks():
         [0, 1, 2, 3, 4, 5, 6, 7],
         [1, 8, 9, 2, 5, 10, 11, 6],
     ]
+
+
+# ── scale and inline #eval resolution ─────────────────────────────────────────
+
+def _bm_root(body: str):
+    header = "FoamFile { version 2.0; format ascii; class dictionary; object blockMeshDict; }\n"
+    return OpenFoamParser(header + body).parse()
+
+
+_UNIT_CUBE_VERTICES = """vertices
+(
+    (0 0 0) (1 0 0) (1 1 0) (0 1 0)
+    (0 0 1) (1 0 1) (1 1 1) (0 1 1)
+);
+blocks ( hex (0 1 2 3 4 5 6 7) (1 1 1) simpleGrading (1 1 1) );
+"""
+
+
+def test_scale_given_as_a_macro_is_resolved():
+    """`scale $s;` parses as a macro; it used to fall back to 1.0 in silence."""
+    data = extract_block_mesh_data(_bm_root("s 0.001;\nscale $s;\n" + _UNIT_CUBE_VERTICES))
+    assert data.scale == 0.001
+    assert max(v[0] for v in data.vertices) == 0.001
+
+
+def test_scale_given_as_an_eval_is_resolved():
+    data = extract_block_mesh_data(
+        _bm_root("mm 0.001;\nscale #eval{$mm * 2};\n" + _UNIT_CUBE_VERTICES)
+    )
+    assert data.scale == 0.002
+
+
+def test_plain_numeric_scale_still_works():
+    data = extract_block_mesh_data(_bm_root("scale 0.5;\n" + _UNIT_CUBE_VERTICES))
+    assert data.scale == 0.5
+
+
+def test_inline_eval_inside_a_vertex_coordinate_is_evaluated():
+    """substitute_vars alone left the #eval as text, dropping the whole triple."""
+    root = _bm_root("""L 2;
+vertices
+(
+    (0 0 0) (#eval{$L/4} 0 0) (1 1 0) (0 1 0)
+    (0 0 1) (1 0 1) (1 1 1) (0 1 1)
+);
+blocks ( hex (0 1 2 3 4 5 6 7) (1 1 1) simpleGrading (1 1 1) );
+""")
+    data = extract_block_mesh_data(root)
+    assert len(data.vertices) == 8
+    assert data.vertices[1] == [0.5, 0.0, 0.0]

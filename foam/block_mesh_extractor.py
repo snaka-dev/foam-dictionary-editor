@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass, field
 
 from foam.nodes import FoamNode
+from foam.tree_utils import expand_evals, resolve_scalar
 from foam.var_resolver import build_var_map, substitute_vars
 
 
@@ -34,7 +35,14 @@ def _build_var_map(root: FoamNode) -> dict[str, str]:
 
 
 def _substitute_vars(text: str, var_map: dict[str, str]) -> str:
-    return substitute_vars(text, var_map)
+    """Resolve $var references and then any inline #eval{...} left in the text.
+
+    Both halves are needed: `expand_evals` alone cannot evaluate an expression
+    still holding a `$name`, and `substitute_vars` alone leaves an `#eval{}`
+    written *inside* a vertex coordinate as literal text, which then fails to
+    parse as a number and silently drops the whole triple.
+    """
+    return expand_evals(substitute_vars(text, var_map))
 
 
 # ── hex face index table ─────────────────────────────────────────────────────
@@ -261,8 +269,14 @@ def extract_block_mesh_data(root: FoamNode) -> BlockMeshData:
     for idx, child in enumerate(children):
         name = child.name
 
-        if name in ("scale", "convertToMeters") and isinstance(child.value, (int, float)):
-            scale = float(child.value)
+        if name in ("scale", "convertToMeters"):
+            # Through resolve_scalar rather than an isinstance check on the
+            # value: `scale $s;` parses as a macro and `scale #eval{...}` as a
+            # word, both of which would otherwise fall back to 1.0 in silence
+            # and render the mesh at the wrong size.
+            resolved_scale = resolve_scalar(child, var_map)
+            if resolved_scale is not None:
+                scale = resolved_scale
 
         elif name == "vertices" and child.node_type == "raw_list":
             vertices = parse_vertices(_substitute_vars(str(child.value), var_map))

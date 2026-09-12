@@ -15,6 +15,8 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 | I want to… | Section |
 |---|---|
 | Browse and manage case files | [File list behavior](#file-list-behavior) |
+| Find a case to open or compare by looking through directories | [Case navigator](#case-navigator) |
+| Move, rename, copy or delete a whole case without leaving FoDE | [Case Browser window](#case-browser-window) |
 | Add non-default files, whole directories, or result time steps to the file list | [Adding extra directories](#adding-extra-directories) |
 | Open or reload a case | [Reloading a case](#reloading-a-case) |
 | Save or duplicate a case | [Duplicating a case](#duplicating-a-case) / [Saving as a new case](#saving-as-a-new-case) |
@@ -34,6 +36,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 | Rename a boundary patch across blockMeshDict and all field files | [Renaming a boundary patch](#renaming-a-boundary-patch) |
 | Copy the boundary table into a report (Markdown/CSV) | [Copy Table](#copy-table) |
 | View blockMeshDict geometry in 3-D | [BlockMesh panel](#blockmesh-panel) |
+| View geometry whose dimensions live in an `#include`d file | [Parameters kept in an included file](#parameters-kept-in-an-included-file) |
 | View topoSetDict geometry in 3-D | [topoSetDict overlay](#toposetdict-overlay) |
 | View snappyHexMeshDict surfaces/regions in 3-D | [snappyHexMeshDict overlay](#snappyhexmeshdict-overlay) |
 | View setFieldsDict regions in 3-D | [setFieldsDict overlay](#setfieldsdict-overlay) |
@@ -96,6 +99,9 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
   - [Duplicating a field directory](#duplicating-a-field-directory)
   - [Deleting a field directory](#deleting-a-field-directory)
   - [Resetting the file list](#resetting-the-file-list)
+- [Case navigator](#case-navigator)
+  - [Case Browser window](#case-browser-window)
+  - [Moving, renaming, copying and deleting a case](#moving-renaming-copying-and-deleting-a-case)
 - [Case Library](#case-library)
 - [Bundled example cases](#bundled-example-cases)
 - [Case comparison](#case-comparison)
@@ -121,6 +127,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
   - [Deleting a boundary condition across all field files](#deleting-a-boundary-condition-across-all-field-files)
   - [Adding a boundary condition across all field files](#adding-a-boundary-condition-across-all-field-files)
 - [BlockMesh panel](#blockmesh-panel)
+  - [Parameters kept in an included file](#parameters-kept-in-an-included-file)
   - [Side-by-side mode](#side-by-side-mode)
   - [Variable resolution](#variable-resolution)
   - [Geometry controls](#geometry-controls)
@@ -233,7 +240,7 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 
 The main window is divided into two top-level columns separated by a horizontal splitter.
 
-- **Left column** — file list for the selected OpenFOAM case (full window height).
+- **Left column** — two tabs, full window height: **Files**, the file list for the selected OpenFOAM case, and **Cases**, a directory browser for finding and managing whole cases (see [Case navigator](#case-navigator)). `Ctrl+1` hides or shows the column as a whole, whichever tab is in front.
 - **Right column** — a vertical splitter with two rows:
   - **Upper row** — a tab widget with up to three tabs:
     - **Tree** tab — parsed dictionary tree (center) and detail editor (right). A **⊞** button in the tab bar's top-right corner activates side-by-side mode when `blockMeshDict`, `topoSetDict`, `snappyHexMeshDict`, or `setFieldsDict` is the active file (see [BlockMesh panel — Side-by-side mode](#side-by-side-mode)).
@@ -287,6 +294,7 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, a *
 - Case > Reload from Tree — the same action as the **▼ Reload from Tree** button. Deliberately without a shortcut: it overwrites the editor text, discarding any edits not yet applied to the tree.
 - Case > Duplicate Case…
 - Case > Duplicate from Case Library…
+- Case > Case Browser… — open the two-pane Case Browser window. See [Case Browser window](#case-browser-window).
 - Case > Find OpenFOAM Examples… — the same action as Tools > Find OpenFOAM Examples…, listed here too because it can duplicate a tutorial case as the starting point for a new case. See [Find OpenFOAM Examples](#find-openfoam-examples).
 - Case > Clean Backup Files…
 - Case > Manage Extra Files & Directories… — moved here from the Settings menu: it acts on the currently open case, not on an application-wide setting. See [Adding extra directories](#adding-extra-directories).
@@ -703,6 +711,26 @@ Loading or editing `setFieldsDict` overlays its `regions ( … )` list the same 
 
 Overlay shapes that extend beyond the block mesh are clipped in the view so the mesh stays visible — see [Overlay clipping](#overlay-clipping).
 
+### Parameters kept in an included file
+
+A case can keep every dimension and cell count in one place and have each dictionary pull it in:
+
+```
+#include "settings-region"
+```
+
+with `scale`, `x0`, `xMax` and the rest defined only in `system/settings-region`. The 3-D view resolves those definitions as though they had been written inline, so a `blockMeshDict` whose every vertex is a `$variable` from the included file renders normally — as do the `topoSetDict`, `snappyHexMeshDict`, `setFieldsDict` and sampling overlays, which share the same mechanism. An included file that includes another is followed too.
+
+**Editing the included file updates the view.** Change a dimension in `settings-region`, apply it, and every dictionary that includes it re-renders — you do not have to reopen them, and you do not have to save first: an unsaved edit is used as soon as it is applied.
+
+The included file is not shown in the tree, and nothing is ever written back into it through the dictionary that includes it. The `#include` line stays a single row, and **Open Included File** on its right-click menu is still the way to go and edit the file itself.
+
+If an include cannot be resolved — a missing file, or one that will not parse — the view simply falls back to what the dictionary holds on its own, which is what it did before. A `#sinclude` with no target is legal OpenFOAM and is not treated as a problem.
+
+`#includeFunc` is left alone on purpose. It names a function object whose file already appears in the file list and is drawn on its own, so resolving it here as well would draw the same sample lines twice.
+
+Arithmetic in `#eval{ … }` understands the usual functions — `round`, `floor`, `ceil`, `sqrt`, `min`, `max`, `mag`, `pow`, `abs`, the trigonometric family, `exp`, `log`, `log10`, `degToRad`, `radToDeg` and the constant `pi` — so a cell count written `nX #eval{round($xMax/$CS)}` resolves rather than being quietly skipped.
+
 ### Side-by-side mode
 
 A **⊞** toggle button appears in the top-right corner of the upper tab widget when `blockMeshDict`, `topoSetDict`, `snappyHexMeshDict`, or `setFieldsDict` is the active file and the BlockMesh panel is available. Clicking it places the 3-D viewer in a horizontal splitter to the right of the Tree tab so both are visible at the same time. The separate **BlockMesh** tab is removed while side-by-side mode is on, and restored when it is turned off.
@@ -721,9 +749,9 @@ Variable definitions at the top level of `blockMeshDict` are automatically resol
 - **Macro references** — `nx $nCell;` is resolved to whatever `nCell` evaluates to, including through chains of arbitrary depth.
 - **Negated macro references** — `xMin -$xMax;` (a leading minus sign before a `$reference`) is resolved once `xMax` is known.
 - **`$varName` and `${varName}`** references inside `vertices` and `blocks` are substituted with the resolved values.
-- **`#eval{ expr }`** — arithmetic expressions are evaluated after variable substitution. Supported operators: `+`, `−`, `*`, `/`, parentheses. Example: `zMax #eval{ $length / $nCell };`.
+- **`#eval{ expr }`** — arithmetic expressions are evaluated after variable substitution. Supported operators: `+`, `−`, `*`, `/`, `**`, parentheses; plus the functions `round`, `floor`, `ceil`, `sqrt`, `min`, `max`, `mag`, `pow`, `abs`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `exp`, `log`, `log10`, `degToRad`, `radToDeg` and the constant `pi`. Examples: `zMax #eval{ $length / $nCell };`, `nX #eval{ round($xMax/$CS) };`.
 
-If a reference cannot be resolved (the variable is defined in an external file, for instance), any vertex or block that contains it is silently skipped.
+A variable defined in an `#include`d file counts as resolved — see [Parameters kept in an included file](#parameters-kept-in-an-included-file). If a reference genuinely cannot be resolved (a typo in the name, or an include that does not resolve), any vertex or block that contains it is silently skipped, so a mesh that renders with fewer vertices than it should is usually a misspelt variable.
 
 ### Geometry controls
 
@@ -1040,6 +1068,7 @@ General application settings are stored in `app_config.json`, which is separate 
   "window_size": [1200, 800],
   "default_case_dir": "/path/to/cases",
   "case_library_dirs": ["/home/user/my_templates"],
+  "case_browser_dir": "/path/to/cases/run",
   "user_links": [{"label": "My reference", "url": "https://example.com"}],
   "features": {"terminal": true, "blockmesh": true},
   "openfoam_dir": "/usr/lib/openfoam/openfoam2606",
@@ -1053,6 +1082,7 @@ General application settings are stored in `app_config.json`, which is separate 
 | `window_size` | Main window size on startup. Saved automatically when the application is closed. |
 | `default_case_dir` | Initial directory shown when **Case > Open Case…** is used. Updated automatically to the parent of the last opened case. Also used as the default destination parent in **Case > Duplicate from Case Library…** and **Case > Save as New Case…**. |
 | `case_library_dirs` | User-added Case Library directories. The `$FOAM_TUTORIALS` directory is not stored here; it is included dynamically from the environment variable. |
+| `case_browser_dir` | Directory the [case navigator](#case-navigator) and the Case Browser last showed, so both reopen where you left off. Written as you navigate; absent means the [default case directory](#setting-the-default-case-directory) is used instead. Kept separate from `default_case_dir`, which is where **Open Case…** and the duplicate destination start from. |
 | `user_links` | User-defined reference links shown in **Help > Resources > My Links**. Each entry is `{"label": "…", "url": "…"}`. |
 | `features` | Feature flags set by `--variant` (see [Variants](#variants)). Omitting this key is equivalent to `{"terminal": true, "blockmesh": true}`. |
 | `openfoam_dir` | OpenFOAM installation chosen via **Browse…** in [Find OpenFOAM Examples](#find-openfoam-examples). Only written after browsing; auto-discovered installations are not stored. |
@@ -1369,6 +1399,40 @@ The `tutorials/` directory in the repository root contains ready-to-open OpenFOA
 Open any case directly with **Case > Open Case…** and navigate to the case subdirectory, or duplicate it to a working directory with **Case > Duplicate from Case Library…** after adding `tutorials/` to the Case Library.
 
 These case files are licensed under the **GPL-3.0**, separate from the AGPL-3.0 that covers FoDE source code. See `tutorials/README.md` for full provenance and license details.
+
+## Case navigator
+
+The file list shows what is inside *one* case. The **Cases** tab beside it shows the cases themselves: it walks through directories on disk so you can find the case you want to open or compare against, and move, rename, copy or delete whole cases without switching to a file manager.
+
+A directory that looks like an OpenFOAM case — one that contains `system/` or `constant/` — is marked with a **◆** and shown in bold when it is the case you currently have open. Double-clicking it **opens the case** rather than expanding it. Double-clicking any other folder goes into it; the **↑** button goes back up, and **⟳** rescans the current folder from disk.
+
+Two things the navigator deliberately does not do. It does not descend into a case, because what is inside a case is the file list's job and two browsers over one case would only be confusing. And it does not list loose files at all — only directories. If a directory is wrongly detected as a case and you need to see the folders inside it, right-click it and choose **Show Subfolders**.
+
+The navigator opens at the last place you were browsing, remembered between runs. The first time, it uses your [default case directory](#setting-the-default-case-directory), and failing that your home directory. You can navigate anywhere on the filesystem from there.
+
+### Case Browser window
+
+**Browse…** at the bottom of the Cases tab — or **Case > Case Browser…** — opens the full browser: a folder tree on the left, the contents of the current folder on the right, and a row of actions along the bottom. It is not modal, so you can leave it open beside the main window while you work, and it shares its location with the Cases tab: navigating in one moves the other.
+
+The action row applies to whatever is selected in the right-hand pane. **Open Case**, **Compare** and **Duplicate…** are available only for a real case; **Move…**, **Rename…** and **Delete…** work on any folder; **New Folder…** creates one in the folder you are looking at.
+
+- **Open Case** opens the selected case, exactly as **Case > Open Case…** would.
+- **Compare** makes the selected case the reference for [case comparison](#case-comparison). A case has to be open already for there to be anything to compare it against.
+- **Duplicate…** opens the usual [Duplicate Case](#duplicating-a-case) dialog with the selected case as the source, so you can copy a case and choose whether to bring all its files or only the ones FoDE shows.
+
+### Moving, renaming, copying and deleting a case
+
+These are also on the right-click menu in the Cases tab. Each asks before doing anything that cannot be trivially undone, and each refuses outright rather than asking when the operation is one that cannot be done safely — a refusal appears in the status bar, not as a dialog.
+
+**Deleting** sends the folder and everything in it to your desktop trash, so it can be recovered by the usual means. If the trash cannot be used — a different filesystem with no trash directory, or a permissions problem — you are told why and offered a permanent delete as a separate, explicit choice; nothing is ever permanently deleted without that second confirmation. Deleting a symbolic link removes only the link and leaves its target alone, and the confirmation says so.
+
+**Moving** across filesystems is a copy followed by a delete rather than a rename, so it can take a while; the confirmation tells you when that is what will happen. If a move fails part-way, the original is always left untouched and you are told both where it still is and where an incomplete copy may have been left, rather than FoDE trying to tidy up and risking the only surviving copy.
+
+**Operations on the case you have open** are allowed, and FoDE follows them: rename or move it and the case is reloaded at its new location, with the file list, the tree and the terminal's working directory all following. You are asked about unsaved changes first. Deleting the open case closes it first, leaving FoDE with no case open.
+
+**Operations on a folder that *contains* the open case are refused.** Deleting `~/runs` while `~/runs/cavity` is open would mean closing a case you did not name, so FoDE asks you to close the case yourself first. A registered [Case Library](#case-library) directory, your home directory and the filesystem root are likewise protected and cannot be changed from here.
+
+If the case you were comparing against is moved, the comparison follows it; if it is deleted, the comparison is simply cleared.
 
 ## Case Library
 

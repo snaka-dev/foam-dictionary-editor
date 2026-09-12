@@ -130,6 +130,46 @@ class TestDefaultCaseDir:
         assert manager.get_default_case_dir() is None
 
 
+class TestCaseBrowserDir:
+    def test_default_is_none(self, manager):
+        assert manager.get_case_browser_dir() is None
+
+    def test_set_get(self, manager, tmp_path):
+        case_dir = str(tmp_path / "caseA")
+        manager.set_case_browser_dir(case_dir)
+        assert manager.get_case_browser_dir() == case_dir
+
+    def test_set_get_overwrite(self, manager, tmp_path):
+        d1 = str(tmp_path / "caseA")
+        d2 = str(tmp_path / "caseB")
+        manager.set_case_browser_dir(d1)
+        manager.set_case_browser_dir(d2)
+        assert manager.get_case_browser_dir() == d2
+
+    def test_none_clears(self, manager, tmp_path):
+        manager.set_case_browser_dir(str(tmp_path))
+        manager.set_case_browser_dir(None)
+        assert manager.get_case_browser_dir() is None
+
+    def test_persists_across_save_and_reload(self, config_path, tmp_path):
+        case_dir = str(tmp_path / "caseA")
+        mgr1 = AppConfigManager(config_path=str(config_path))
+        mgr1.set_case_browser_dir(case_dir)
+        mgr1.save()
+        mgr2 = AppConfigManager(config_path=str(config_path))
+        assert mgr2.get_case_browser_dir() == case_dir
+
+    def test_reset_clears(self, manager, tmp_path):
+        manager.set_case_browser_dir(str(tmp_path))
+        manager.reset()
+        assert manager.get_case_browser_dir() is None
+
+    def test_unset_not_written_to_json(self, config_path, manager):
+        manager.save()
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+        assert "case_browser_dir" not in data
+
+
 class TestCaseLibraryDirs:
     def test_initial_empty_user_dirs_when_no_env(self, config_path, monkeypatch):
         monkeypatch.delenv("FOAM_TUTORIALS", raising=False)

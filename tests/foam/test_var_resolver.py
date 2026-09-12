@@ -113,3 +113,46 @@ def test_dictionary_nodes_not_collected():
     vm = build_var_map(root)
     assert "a" in vm
     assert "subDict" not in vm
+
+
+# ── eval_foam_expr: functions and constants ───────────────────────────────────
+
+@pytest.mark.parametrize("expr,expected", [
+    ("round(6.0/0.175)", 34.0),
+    ("floor(3.7)", 3.0),
+    ("ceil(3.2)", 4.0),
+    ("sqrt(2)", 2 ** 0.5),
+    ("min(1, 2)", 1.0),
+    ("max(1, 2)", 2.0),
+    ("mag(-3)", 3.0),
+    ("abs(-3)", 3.0),
+    ("pow(2, 3)", 8.0),
+    ("pi", 3.141592653589793),
+    ("degToRad(180)", 3.141592653589793),
+    ("radToDeg(0)", 0.0),
+    ("2**10", 1024.0),
+    ("1e-3 * 5", 0.005),
+])
+def test_eval_allows_openfoam_functions(expr, expected):
+    assert pytest.approx(float(eval_foam_expr(expr))) == expected
+
+
+@pytest.mark.parametrize("expr", [
+    "$x + 1",            # an unresolved macro must still be rejected
+    "__import__('os')",
+    "open('x')",
+    "().__class__",
+    "[1, 2][0]",
+    "nonsense(",
+    "undefinedName",
+    "'text'",
+    "",
+])
+def test_eval_rejects_non_numeric_expressions(expr):
+    assert eval_foam_expr(expr) is None
+
+
+def test_build_var_map_resolves_a_function_call():
+    """`nX #eval{round($xMax/$CS)}` is the real-world shape this unlocks."""
+    root = _root("xMax 0.006;\nCS 0.000175;\nnX #eval{round($xMax/$CS)};\n")
+    assert pytest.approx(float(build_var_map(root)["nX"])) == 34.0
