@@ -36,8 +36,10 @@ def big_app_font(qapp):  # noqa: ARG001 (qapp required by PySide6)
 
 
 @pytest.fixture
-def about(big_app_font):  # noqa: ARG001
-    return AboutDialog()
+def about(big_app_font, destroy_widget):  # noqa: ARG001
+    dlg = AboutDialog()
+    yield dlg
+    destroy_widget(dlg)
 
 
 class TestAboutDialog:
@@ -65,6 +67,11 @@ class TestAboutDialog:
         assert _label(about, "not approved or endorsed").font().pointSizeF() == pytest.approx(
             ui_point_size()
         )
+
+    def test_the_warranty_notice_is_shown(self, about):
+        """AGPL section 15/16 in short form: FoDE deletes files, so it must be visible."""
+        text = _label(about, "ABSOLUTELY NO WARRANTY").text()
+        assert "own risk" in text and "15 and 16" in text
 
     def test_no_label_pins_a_font_size(self, about):
         pinned = [lbl.text()[:30] for lbl in about.findChildren(QLabel)

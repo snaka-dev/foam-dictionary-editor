@@ -12,8 +12,10 @@ from ui.panels.editor_panel import EditorPanel
 
 
 @pytest.fixture
-def panel(qapp):
-    return EditorPanel()
+def panel(qapp, destroy_widget):
+    p = EditorPanel()
+    yield p
+    destroy_widget(p)
 
 
 def _count_user_text_changed(panel: EditorPanel) -> list[int]:

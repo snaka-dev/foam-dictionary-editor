@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QTimer, Signal
-from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
 
 from i18n import tr
+from services.process_tree import running_command_names
 from ui.widgets._simple_terminal_widget import SimpleTerminalWidget
 from ui.widgets._xterm_widget import _XTERM_AVAILABLE
 
@@ -106,9 +107,51 @@ class TerminalPanel(QWidget):
     def run_command(self, cmd: str) -> None:
         self._widget.run_command(cmd)
 
+    def running_commands(self) -> list[str]:
+        """What the shell is still running (``["simpleFoam"]``), or [] when idle.
+
+        Anything that ends the shell -- closing the window, switching
+        terminal mode -- ends these with it, so both ask first.
+        """
+        shell_pid = getattr(self._widget, "shell_pid", None)
+        return running_command_names(
+            shell_pid() if callable(shell_pid) else None,
+            # The xterm shell is interactive, with job control -- see
+            # running_command_names for why that changes the test.
+            job_control=self._use_xterm,
+        )
+
+    def confirm_stop_running(self, parent: QWidget, action: str) -> bool:
+        """Ask before *action* ends a running command; True to go ahead.
+
+        True straight away when nothing is running. The question defaults to
+        No: answering it by reflex must not cost a long run.
+        """
+        names = self.running_commands()
+        if not names:
+            return True
+        reply = QMessageBox.question(
+            parent,
+            tr("Command still running"),
+            tr(
+                "{names} is still running in the Terminal tab.\n"
+                "{action} stops it, and a solver stopped this way does not "
+                "write its current time step.\n\nContinue anyway?"
+            ).format(names=", ".join(names), action=action),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return reply == QMessageBox.StandardButton.Yes
+
     # ── private ───────────────────────────────────────────────────────────────
 
     def _on_toggle(self, checked: bool) -> None:
+        # Switching mode replaces the shell, and whatever it is running with it.
+        if not self.confirm_stop_running(self, tr("Switching the terminal mode")):
+            self._xterm_chk.blockSignals(True)
+            self._xterm_chk.setChecked(not checked)
+            self._xterm_chk.blockSignals(False)
+            return
         if checked:
             # Disable checkbox during transition to prevent double-clicks.
             self._xterm_chk.setEnabled(False)

@@ -61,6 +61,8 @@ from capture_screenshots import (  # noqa: E402
     capture_window,
 )
 
+from ui.theme import ThemeMode  # noqa: E402
+
 DEFAULT_OUT = ROOT / "docs" / "images"
 # Deliberately not a path under $HOME: the log's own "Case:" line is reproduced
 # in the summary, so a case run from a home directory would print the capturing
@@ -343,7 +345,7 @@ DIALOG_SHOTS: dict[str, DialogShot] = {
 }
 
 
-def capture_shot(shot: DialogShot, theme: str, ctx: ShotContext, out_path: Path) -> None:
+def capture_shot(shot: DialogShot, theme: ThemeMode, ctx: ShotContext, out_path: Path) -> None:
     """Build the dialog, let it settle, and capture it with its decorations."""
     from PySide6.QtWidgets import QApplication
 

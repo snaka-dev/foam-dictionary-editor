@@ -2,15 +2,13 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtCore import QModelIndex, QPoint, Qt
-from PySide6.QtGui import QAction, QResizeEvent
+from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
-    QMenu,
     QPushButton,
     QTreeView,
     QVBoxLayout,
@@ -20,6 +18,7 @@ from PySide6.QtWidgets import (
 from i18n import tr
 from ui.case_navigation import CaseNavigator
 from ui.fonts import button_pixel_width
+from ui.menu_builder import BuiltMenu, MenuBuilder, exec_menu
 
 # Floors, not caps, for the glyph buttons -- a wider glyph in another font must
 # not be clipped. See ui/fonts.py's button_pixel_width.
@@ -134,15 +133,11 @@ class CaseNavPanel(QWidget):
 
     def _on_context_menu(self, pos: QPoint) -> None:
         index = self._tree.indexAt(pos)
-        menu, actions = self._build_context_menu(index)
-        chosen = menu.exec(self._tree.viewport().mapToGlobal(pos))
-        handler = actions.get(chosen) if chosen is not None else None
-        if handler is not None:
-            handler()
+        exec_menu(self._build_context_menu(index), self._tree.viewport().mapToGlobal(pos))
 
     def _build_context_menu(
         self, index: QModelIndex
-    ) -> tuple[QMenu, dict[QAction, Callable[[], None]]]:
+    ) -> BuiltMenu:
         """The menu for *index*, paired with what each of its actions does.
 
         Split from _on_context_menu so the wiring between a menu row and the
@@ -150,13 +145,8 @@ class CaseNavPanel(QWidget):
         waiting for a mouse an offscreen test has no way to supply.
         """
         entry = self._nav.model.entry_for_index(index)
-        menu = QMenu(self)
-        actions: dict[QAction, Callable[[], None]] = {}
-
-        def add(label: str, handler: Callable[[], None]) -> QAction:
-            action = menu.addAction(label)
-            actions[action] = handler
-            return action
+        b = MenuBuilder(self)
+        menu, add = b.menu, b.add
 
         if entry is not None:
             path = entry.path
@@ -184,7 +174,7 @@ class CaseNavPanel(QWidget):
         if current is not None:
             add(tr("New Folder…"), lambda: self._nav.request_new_folder(current))
 
-        return menu, actions
+        return b.built()
 
 
 def _glyph_button(glyph: str, tooltip: str) -> QPushButton:

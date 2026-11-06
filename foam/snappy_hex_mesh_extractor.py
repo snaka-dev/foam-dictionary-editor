@@ -16,16 +16,26 @@ from pathlib import Path
 from foam.nodes import FoamNode
 from foam.shapes import SourceShape
 from foam.tree_utils import (
+    child_vector,
     expand_evals,
     find_child,
+    find_child_any,
     resolve_box_geometry,
     resolve_cone_geometry,
     resolve_cylinder_geometry,
+    resolve_point_list,
     resolve_sphere_geometry,
     resolve_vector,
 )
 from foam.utils import resolve_optionally_gzipped
 from foam.var_resolver import build_var_map, substitute_vars
+
+# Every searchableSurface backed by a surface file, all read the same way. OpenFOAM's
+# closedTriSurfaceMesh *is* a triSurfaceMesh -- `class closedTriSurfaceMesh : public
+# triSurfaceMesh` in both forks -- so it takes the same entries: an explicit `file "x.obj"`
+# or the entry name standing in for the filename. Both spellings appear in the tutorials,
+# 4 uses across the two trees, and none of them rendered while this tuple named only two.
+_TRISURFACE_TYPES = ("triSurfaceMesh", "distributedTriSurfaceMesh", "closedTriSurfaceMesh")
 
 _TRISURFACE_EXTENSIONS = (".stl", ".stlb", ".obj")
 _TRISURFACE_GZ_EXTENSIONS = tuple(ext + ".gz" for ext in _TRISURFACE_EXTENSIONS)
@@ -120,23 +130,51 @@ def _resolve_stl_path(entry: FoamNode, entry_key: str, case_dir: str | None) -> 
     return str(resolved) if resolved is not None else None
 
 
+# snappyHexMesh geometry types, keyed by the short name this module dispatches on.
+#
+# Both spellings are live, and the two forks do not overlap: OpenCFD's tutorials use the
+# short form exclusively (37 `box`, 6 `sphere`, 4 `cylinder`), Foundation's the long one
+# exclusively (12 `searchableBox`, 3 `searchableSphere`, 1 `searchableCylinder`). The long
+# form is the canonical name in *both* -- `searchableBox.H` declares
+# `TypeName("searchableBox")` in each fork -- and the short one is an alias, so a dict
+# written either way is valid and has to render. Supporting only the short form meant no
+# Foundation case's geometry drew at all: each entry was filed as non-geometric instead,
+# which looks like a dictionary with nothing in it rather than like a bug.
+_GEOMETRY_TYPE_ALIASES = {
+    "searchableBox": "box",
+    "searchableSphere": "sphere",
+    "searchableCylinder": "cylinder",
+    "searchableCone": "cone",
+    "searchableSurfaceCollection": "collection",
+}
+
+
+def _canonical_geometry_type(geo_type: str) -> str:
+    """The short spelling this module dispatches on, for either name a dict may use."""
+    return _GEOMETRY_TYPE_ALIASES.get(geo_type, geo_type)
+
+
 def _extract_geometry_entry(
     entry: FoamNode, var_map: dict[str, str], case_dir: str | None
 ) -> tuple[str, dict]:
     """Return (geo_type, geometry) for one named entry under 'geometry {}'."""
     type_node = find_child(entry, "type")
     geo_type = str(type_node.value) if type_node is not None else ""
+    # Dispatch on the short spelling; `geo_type` itself is returned unchanged, because it
+    # becomes SnappyShape.kind and that is shown to the user verbatim -- a dict saying
+    # `searchableBox` should read "searchableBox" in the menu, not "box".
+    kind = _canonical_geometry_type(geo_type)
     geometry: dict = {}
 
-    if geo_type == "box":
+    if kind == "box":
         geometry = resolve_box_geometry(entry, var_map)
-    elif geo_type == "sphere":
+    elif kind == "sphere":
         geometry = resolve_sphere_geometry(entry, var_map, allow_vector_radius=True)
-    elif geo_type == "cylinder":
+    elif kind == "cylinder":
         geometry = resolve_cylinder_geometry(entry, var_map)
-    elif geo_type == "cone":
+    elif kind == "cone":
         geometry = resolve_cone_geometry(entry, var_map)
-    elif geo_type in ("triSurfaceMesh", "distributedTriSurfaceMesh"):
+    elif geo_type in _TRISURFACE_TYPES:
         stl_path = _resolve_stl_path(entry, _unquote(entry.name), case_dir)
         if stl_path is not None:
             geometry["stl_path"] = stl_path
@@ -155,12 +193,8 @@ def _collection_rotation(transform: FoamNode, var_map: dict[str, str]):
     rotation_node = find_child(transform, "rotation")
     if rotation_node is not None and str(rotation_node.value) == "none":
         return ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
-    e1_node = find_child(transform, "e1")
-    e3_node = find_child(transform, "e3")
-    if e1_node is None or e3_node is None:
-        return None
-    e1 = resolve_vector(e1_node, var_map)
-    e3 = resolve_vector(e3_node, var_map)
+    e1 = child_vector(transform, var_map, "e1")
+    e3 = child_vector(transform, var_map, "e3")
     if e1 is None or e3 is None:
         return None
     e1n = _normalize(e1)
@@ -204,10 +238,7 @@ def _extract_collection_members(
         transform_node = find_child(sub, "transform")
         if transform_node is None or transform_node.node_type != "dictionary":
             continue
-        origin_node = find_child(transform_node, "origin")
-        if origin_node is None:
-            continue
-        origin = resolve_vector(origin_node, var_map)
+        origin = child_vector(transform_node, var_map, "origin")
         if origin is None:
             continue
         rotation = _collection_rotation(transform_node, var_map)
@@ -270,7 +301,10 @@ def _collect_geometry_shapes(
         if entry.node_type != "dictionary" or not entry.name:
             continue
         type_node = find_child(entry, "type")
-        if type_node is not None and str(type_node.value) == "collection":
+        if (
+            type_node is not None
+            and _canonical_geometry_type(str(type_node.value)) == "collection"
+        ):
             collection_entries.append(entry)
             continue
         geo_type, geometry = _extract_geometry_entry(entry, var_map, case_dir)
@@ -357,11 +391,31 @@ def _apply_castellated_mesh_controls(
             if shapes[matched].category != "surface":
                 shapes[matched].category = "region"
 
-    loc_node = find_child(cmc_node, "locationInMesh")
-    if loc_node is not None:
-        point = resolve_vector(loc_node, var_map)
-        if point is not None:
-            location_points.append((point, "locationInMesh"))
+    # Keep-points. Every form below is read at the castellatedMeshControls level *only*,
+    # and that is what makes reading Foundation's spellings safe at all: OpenCFD uses both
+    # `insidePoint` and `insidePoints` inside a `refinementSurfaces` entry for an unrelated
+    # per-surface cellZone selector ("which side of this closed surface is the zone"). A
+    # lookup scoped to this dictionary cannot reach those, and the corpus sweep confirms
+    # it -- OpenCFD's keep-point count is unchanged by any of this.
+    #
+    # The precedence mirrors Foundation's own reader (refinementParameters.C), which takes
+    # the first of insidePoints / insidePoint / locationInMesh that is present rather than
+    # combining them. Reading all three would invent keep-points the mesher never uses.
+    #
+    # `locationsInMesh` stays separate rather than being folded in as a plural synonym:
+    # it is a list of `((x y z) zoneName)` pairs, where `insidePoints` is a plain list of
+    # points, so they are different grammars rather than different spellings.
+    points_node = find_child(cmc_node, "insidePoints")
+    resolved = resolve_point_list(points_node, var_map) if points_node is not None else None
+    if resolved:
+        for point in resolved:
+            location_points.append((point, "insidePoints"))
+    else:
+        loc_node = find_child_any(cmc_node, "insidePoint", "locationInMesh")
+        if loc_node is not None:
+            single = resolve_vector(loc_node, var_map)
+            if single is not None:
+                location_points.append((single, loc_node.name or "locationInMesh"))
 
     locs_node = find_child(cmc_node, "locationsInMesh")
     if locs_node is not None:

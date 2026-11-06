@@ -106,3 +106,48 @@ class TestHelper:
         parent.show()
         fit_wrapped_labels(parent)
         assert label.minimumHeight() == 0
+
+
+class TestTheOtherFittedDialogs:
+    """The four dialogs that gained `fit_wrapped_labels` alongside the two above.
+
+    Only RunToolDialog was measurably clipped (at 20 pt: 119 px allocated for 148 px of
+    warning text). The other three were not clipped at the sizes tested, but they are the
+    same shape of problem -- a fixed width full of wrapped labels -- and a longer string, a
+    translation, or a larger desktop font puts them one line over at any time. They are
+    included so that stays true rather than remaining true by luck.
+    """
+
+    @staticmethod
+    def _dialogs(qt_widget):
+        from foam.parser import OpenFoamParser
+        from services.tool_options import TOOL_SPECS
+        from ui.dialogs.boundary_edit_dialog import BoundaryEditDialog
+        from ui.dialogs.reset_settings_dialog import ResetSettingsDialog
+        from ui.dialogs.run_tool_dialog import RunToolDialog
+        from ui.dialogs.save_as_new_case_dialog import SaveAsNewCaseDialog
+
+        patch = OpenFoamParser(
+            "boundaryField { walls { type fixedValue; value uniform (0 0 0); } }"
+        ).parse().children[0].children[0]
+        warning = (
+            "Re-running this utility over an existing mesh writes into time directories a "
+            "previous run already produced; the results are compounded rather than replaced."
+        )
+        return [
+            ("ResetSettingsDialog", qt_widget(ResetSettingsDialog())),
+            ("SaveAsNewCaseDialog", qt_widget(SaveAsNewCaseDialog("/tmp/case"))),
+            ("RunToolDialog",
+             qt_widget(RunToolDialog(TOOL_SPECS["snappyHexMesh"], "/tmp/case", None, warning))),
+            ("BoundaryEditDialog", qt_widget(BoundaryEditDialog("U", "walls", patch))),
+        ]
+
+    @pytest.mark.parametrize("app_font", [11, 16, 20], indirect=True)
+    def test_every_wrapped_label_gets_the_height_it_needs(self, app_font, qt_widget):  # noqa: ARG002
+        offenders = []
+        for name, dialog in self._dialogs(qt_widget):
+            dialog.show()
+            for text, got, needed in _clipped(dialog):
+                offenders.append(f"{name}: {text!r} has {got}px, needs {needed}px")
+            dialog.hide()
+        assert offenders == []

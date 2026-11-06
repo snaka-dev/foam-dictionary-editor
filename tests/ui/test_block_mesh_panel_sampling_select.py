@@ -52,25 +52,26 @@ _EMPTY_CONTROL_DICT = (
 )
 
 
-def _panel_with_control_dict(qapp) -> BlockMeshPanel:
-    panel = BlockMeshPanel()
+def _panel_with_control_dict(qapp, qt_widget) -> BlockMeshPanel:
+    panel = qt_widget(BlockMeshPanel())
     root = OpenFoamParser(_CONTROL_DICT).parse()
     panel.update_sampling("/case/system/controlDict", root)
     return panel
 
 
-def test_menu_populated_from_control_dict_functions(qapp):
-    panel = _panel_with_control_dict(qapp)
+def test_menu_populated_from_control_dict_functions(qapp, qt_widget):
+    panel = _panel_with_control_dict(qapp, qt_widget)
     assert len(panel._sampling.shape_actions) == 2
     texts = [a.text() for a in panel._sampling.shape_actions]
     assert any("myProbes" in t and "probes" in t for t in texts)
     assert any("surf.cutter" in t and "cuttingPlane" in t for t in texts)
-    # Rows carry the source basename so multi-file unions stay attributable.
-    assert all("[controlDict]" in t for t in texts)
+    # One file feeding the overlay: no attribution suffix, because there is nothing to
+    # disambiguate and every row would carry the same name. See the multi-file test below.
+    assert all("[" not in t for t in texts)
 
 
-def test_unchecking_one_hides_only_that_shape(qapp):
-    panel = _panel_with_control_dict(qapp)
+def test_unchecking_one_hides_only_that_shape(qapp, qt_widget):
+    panel = _panel_with_control_dict(qapp, qt_widget)
     probes_idx = next(
         i for i, s in enumerate(panel._sampling.shapes) if s.kind == "probes"
     )
@@ -79,16 +80,16 @@ def test_unchecking_one_hides_only_that_shape(qapp):
     assert [s.kind for s in visible] == ["cuttingPlane"]
 
 
-def test_master_toggle_hides_all(qapp):
-    panel = _panel_with_control_dict(qapp)
+def test_master_toggle_hides_all(qapp, qt_widget):
+    panel = _panel_with_control_dict(qapp, qt_widget)
     panel._sampling.master.setChecked(False)
     assert panel._sampling.visible_shapes() == []
     panel._sampling.master.setChecked(True)
     assert len(panel._sampling.visible_shapes()) == 2
 
 
-def test_non_geometric_patch_surface_listed_disabled(qapp):
-    panel = _panel_with_control_dict(qapp)
+def test_non_geometric_patch_surface_listed_disabled(qapp, qt_widget):
+    panel = _panel_with_control_dict(qapp, qt_widget)
     assert len(panel._sampling.info_actions) == 1
     act = panel._sampling.info_actions[0]
     assert "surf.wallSurf" in act.text()
@@ -96,8 +97,8 @@ def test_non_geometric_patch_surface_listed_disabled(qapp):
     assert not act.isEnabled()
 
 
-def test_multiple_files_merge_into_one_menu(qapp):
-    panel = _panel_with_control_dict(qapp)
+def test_multiple_files_merge_into_one_menu(qapp, qt_widget):
+    panel = _panel_with_control_dict(qapp, qt_widget)
     sample_root = OpenFoamParser(_SAMPLE_FILE).parse()
     panel.update_sampling("/case/system/sample", sample_root)
     labels = [s.label for s in panel._sampling.shapes]
@@ -107,8 +108,8 @@ def test_multiple_files_merge_into_one_menu(qapp):
     assert files == {"controlDict", "sample"}
 
 
-def test_reloading_one_file_replaces_only_its_shapes(qapp):
-    panel = _panel_with_control_dict(qapp)
+def test_reloading_one_file_replaces_only_its_shapes(qapp, qt_widget):
+    panel = _panel_with_control_dict(qapp, qt_widget)
     sample_root = OpenFoamParser(_SAMPLE_FILE).parse()
     panel.update_sampling("/case/system/sample", sample_root)
     assert len(panel._sampling.shapes) == 3
@@ -118,10 +119,10 @@ def test_reloading_one_file_replaces_only_its_shapes(qapp):
     assert [s.label for s in panel._sampling.shapes] == ["centerline"]
 
 
-def test_hidden_shape_stays_hidden_when_another_file_is_edited(qapp):
+def test_hidden_shape_stays_hidden_when_another_file_is_edited(qapp, qt_widget):
     """Hiding a shape from system/sample must survive a later edit to
     controlDict, which rebuilds the shared union menu."""
-    panel = _panel_with_control_dict(qapp)
+    panel = _panel_with_control_dict(qapp, qt_widget)
     sample_root = OpenFoamParser(_SAMPLE_FILE).parse()
     panel.update_sampling("/case/system/sample", sample_root)
 
@@ -141,11 +142,11 @@ def test_hidden_shape_stays_hidden_when_another_file_is_edited(qapp):
     assert all(s.label != "centerline" for s in panel._sampling.visible_shapes())
 
 
-def test_same_basename_in_two_directories_do_not_overwrite(qapp):
+def test_same_basename_in_two_directories_do_not_overwrite(qapp, qt_widget):
     """Two sampling dicts sharing a basename (reachable once the user adds an
     extra directory holding a second `sample`) must both stay loaded: the
     store was keyed by basename, so the later one replaced the earlier."""
-    panel = BlockMeshPanel()
+    panel = qt_widget(BlockMeshPanel())
     panel.update_sampling("/case/system/sample", OpenFoamParser(_SAMPLE_FILE).parse())
     panel.update_sampling("/other/system/sample", OpenFoamParser(_SAMPLE_FILE).parse())
 
@@ -155,8 +156,8 @@ def test_same_basename_in_two_directories_do_not_overwrite(qapp):
     assert {s.source_file for s in panel._sampling.shapes} == {"sample"}
 
 
-def test_clear_resets_everything(qapp):
-    panel = _panel_with_control_dict(qapp)
+def test_clear_resets_everything(qapp, qt_widget):
+    panel = _panel_with_control_dict(qapp, qt_widget)
     assert panel._sampling.shape_actions
     panel.clear()
     assert panel._sampling.shape_actions == []

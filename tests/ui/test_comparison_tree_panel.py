@@ -31,10 +31,10 @@ def _dict_node(name, children) -> FoamNode:
 
 
 @pytest.fixture
-def panel(qapp):
+def panel(qapp, destroy_widget):
     p = ComparisonTreePanel()
     yield p
-    p.deleteLater()
+    destroy_widget(p)
 
 
 # ── initial state ─────────────────────────────────────────────────────────────

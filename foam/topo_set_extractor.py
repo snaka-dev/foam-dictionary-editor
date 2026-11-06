@@ -9,6 +9,7 @@ import re
 from foam.nodes import FoamNode
 from foam.shapes import SourceShape
 from foam.tree_utils import (
+    child_vector,
     find_child,
     find_child_by_type,
     resolve_box_geometry,
@@ -17,7 +18,6 @@ from foam.tree_utils import (
     resolve_plane_geometry,
     resolve_point_list,
     resolve_sphere_geometry,
-    resolve_vector,
 )
 from foam.var_resolver import build_var_map
 
@@ -85,26 +85,9 @@ def resolve_source_geometry(
             entry, var_map, allow_box_pair=True, allow_multi=True
         )
     elif source in _ROTATED_BOX_SOURCES:
-        o_node = find_child(entry, "origin")
-        i_node = find_child(entry, "i")
-        j_node = find_child(entry, "j")
-        k_node = find_child(entry, "k")
-        if (
-            o_node is not None and i_node is not None
-            and j_node is not None and k_node is not None
-        ):
-            origin = resolve_vector(o_node, var_map)
-            i = resolve_vector(i_node, var_map)
-            j = resolve_vector(j_node, var_map)
-            k = resolve_vector(k_node, var_map)
-            if (
-                origin is not None and i is not None
-                and j is not None and k is not None
-            ):
-                geometry["origin"] = origin
-                geometry["i"] = i
-                geometry["j"] = j
-                geometry["k"] = k
+        axes = {key: child_vector(entry, var_map, key) for key in ("origin", "i", "j", "k")}
+        if all(v is not None for v in axes.values()):
+            geometry.update(axes)
     elif source in _SPHERE_SOURCES:
         geometry = resolve_sphere_geometry(entry, var_map, allow_inner_radius=True)
     elif source in _CYLINDER_SOURCES:
@@ -122,17 +105,15 @@ def resolve_source_geometry(
             if pts_node is not None:
                 points = resolve_point_list(pts_node, var_map)
             else:
-                single_node = find_child(entry, "insidePoint")
-                if single_node is not None:
-                    single = resolve_vector(single_node, var_map)
-                    if single is not None:
-                        points = [single]
+                # insidePoints, when present, wins even if it fails to
+                # resolve -- hence the node test above rather than a fallback.
+                single = child_vector(entry, var_map, "insidePoint")
+                if single is not None:
+                    points = [single]
         elif source == "regionToFace":
-            near_node = find_child(entry, "nearPoint")
-            if near_node is not None:
-                near = resolve_vector(near_node, var_map)
-                if near is not None:
-                    points = [near]
+            near = child_vector(entry, var_map, "nearPoint")
+            if near is not None:
+                points = [near]
         if points:
             geometry["points"] = points
     elif source in _PLANE_SOURCES:

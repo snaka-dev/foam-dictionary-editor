@@ -97,6 +97,30 @@ OpenFOAM 14 は辞書ファイルを新設も改名もしていません。ケ�
 
 片方にしか存在しない辞書もあります。`system/optimisationDict` と `constant/adjointRASProperties`（随伴最適化）、`system/meshDict`（cfMesh）、finite area の 3 点（`faSchemes` / `faSolution` / `faMeshDefinition`）は OpenCFD 側。`system/createZonesDict`、`system/setWavesDict`、`constant/cloudProperties` は Foundation 側です。
 
+### ファイルの*中*の名前も食い違う
+
+上の表はファイル名の話です。同じ分裂は辞書の中に書かれる名前にも起き、FoDE の 3-D ビューを Foundation 系ケースで動かす過程で 2 例見つかりました。どちらも実用上の形は同じで、**片方の綴りは両フォークで通り、もう片方は通らない** というものです。そして 2 例とも、通らない側の綴りこそ、そのフォーク自身のチュートリアルが使っているものです。ケースがその綴りを拾う経路はまさにそこ — チュートリアルからのコピー — にあります。
+
+**snappyHexMeshDict の `geometry` タイプ。** `searchableBox` と書いてください。どこでも通ります。短い `box` は OpenCFD 系だけのエイリアスです:
+
+| `geometry { … }` の `type` | Foundation | OpenCFD |
+|---|---|---|
+| `searchableBox`、`searchableSphere`、`searchableCylinder`、`searchableCone`、`searchableSurfaceCollection` ほか | 可 | 可 |
+| `box`、`sphere`、`cylinder`、`cone`、`collection`、`disk`、`plane`、`plate`、`rotatedBox`、`extrudedCircle` | **不可** | 可 |
+
+これは 2 つのフォークが別々の名前を選んだのではなく、片方がエイリアスを足したという話です。*両方*のフォークの各 `searchable*.C` が `addToRunTimeSelectionTable` で長い名前を登録しており、OpenCFD 系はそれに加えて `addNamedToRunTimeSelectionTable(..., box)` で短い名前も 10 タイプ分登録しています。Foundation 系の `searchableSurfaces/` には `addNamedToRunTimeSelectionTable` が 1 つもありません。チュートリアルは自分のフォークに正確に従っていて、OpenCFD 系は短い綴りを 47 回使い長い綴りは 0 回、Foundation 系は長い綴りを 16 回使い短い綴りは 0 回です。
+
+**snappyHexMesh のキープポイント。** こちらは移植性のある綴りが*逆*で、`locationInMesh` と書きます:
+
+| `castellatedMeshControls` 内 | Foundation | OpenCFD |
+|---|---|---|
+| `locationInMesh` | 可（最後のフォールバック） | 可 |
+| `insidePoint` | 可（優先） | **不可** — 下記参照 |
+
+Foundation 系の `refinementParameters.C` は `insidePoints`、次に `insidePoint`、次に `locationInMesh` の順に試します。OpenCFD 系は*このレベルでは* `locationInMesh` / `locationsInMesh` しか読みません。`insidePoint` という語は使いますが、それは `refinementSurfaces` エントリの中であり、グローバルなキープポイントではなくサーフェスごとの cellZone セレクタを指します。綴りを共有する別物であり、grep する前に知っておく価値があります。なお複数形どうしも交換できませんが、こちらは名前の問題ではありません。`locationsInMesh` は `((x y z) zoneName)` のペアのリスト、`insidePoints` は単なる点のリストです。
+
+*確認したのは OpenCFD v2606 と Foundation 12 のみ* です。各フォークの登録テーブルとリーダのソースを読んで確かめたもので、（上記の使用回数を除き）チュートリアルの集計ではありません。本ドキュメントの他のリリース表とは異なり、この 2 例は全リリースにわたって追跡してはいません。
+
 ## ファイルの中のキーの改名
 
 キーも改名されます。しかもファイルよりはるかに頻繁です。両フォークのソースから互換宣言を走査すると、旧称→新称の組が約 100 得られます。FoDE はこれを文書ではなく **Detail ペイン**で示します。答えが、いま見ているキーごとに違うからです。
@@ -244,6 +268,7 @@ Foundation 限定であり、両ツリーの `GAMGAgglomeration.C` と `GAMGProc
 ## FoDE 側の対応
 
 - **ファイル一覧は両方の綴りを提示します。** 上記の辞書はすべて、旧称と新称の両方が FoDE のファイル一覧に載っており、実際にケースに存在するほうだけが表示されます。設定は不要です。
+- **どちらの綴りでも 3-D ビューに描画されます。** 上記の `searchable*` と短縮名の組はどちらでも受け付けられ、`locationInMesh` に加えて `insidePoint` も同様です。そのため Foundation 系ケースのリファインメント box やキープポイントも OpenCFD 系と同じように描画されます。オーバーレイメニューには、正規化した名前ではなく実際にファイルが使っている綴りが表示されます。
 - **キーのバージョン表示は推測ではなく実測です。** Detail ペインの *Supported in* は両フォークの全リリースを読んだ結果なので、「OpenCFD v2106-v2606」はそのすべてに存在するという意味であり、たまたま調べた 2 つに存在するという意味ではありません。
 - **リリースをまたぐ比較はメニュー項目です。** **Case > Find OpenFOAM Examples** がインストール済みの `tutorials/` を検索し、ヒットしたケースを比較の参照側として開く（**Case > Compare with Case**）ことも、新しい編集可能なケースとして複製することもできます。**移行先**のインストールを指定して検索するのが、同種の現代的なケースがどう書かれているかを知る最短経路です。
 

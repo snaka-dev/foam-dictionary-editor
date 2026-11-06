@@ -32,6 +32,17 @@ class _UiOpsMixin(_Base):
 
     # ── shared dialogs ────────────────────────────────────────────────────────
 
+    def _error(self, title: str, message: str) -> None:
+        """Show a modal error dialog.
+
+        A thin wrapper, like :meth:`_confirm` beside it: the caller still builds the
+        message, so each site keeps its own ``tr()`` literal where the i18n scans can see
+        it. What it buys is that error reporting has one place to change -- and that
+        errors do not go raw while confirmations go through a helper, which was the state
+        of it across four mixins and eighteen call sites.
+        """
+        QMessageBox.critical(self, title, message)
+
     def _confirm(self, title: str, message: str) -> bool:
         """Show a Yes/No confirmation dialog defaulting to No."""
         reply = QMessageBox.question(

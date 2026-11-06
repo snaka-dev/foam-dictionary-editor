@@ -4,7 +4,7 @@ FoDE — Foam Dictionary Editor (pronounced "foh-dee")
 
 A GUI editor for OpenFOAM dictionary files, built with Python and PySide6.
 
-🎬 **Demo movies on Vimeo** — eight short walkthroughs, listed with shot-by-shot scripts in [docs/DEMO_SCRIPTS.md](docs/DEMO_SCRIPTS.md). Start with [Edit, see, run](https://vimeo.com/1218332419?texttrack=en) (~74 s), or watch [the whole workflow](https://vimeo.com/1217899060?texttrack=en) end to end (~3 min 38 s).
+🎬 **Demo movies on Vimeo** — nine short walkthroughs, listed with shot-by-shot scripts in [docs/DEMO_SCRIPTS.md](docs/DEMO_SCRIPTS.md). Start with [Edit, see, run](https://vimeo.com/1218332419?texttrack=en) (~74 s), or watch [the whole workflow](https://vimeo.com/1217899060?texttrack=en) end to end (~3 min 41 s).
 
 > 📄 **Now published in [*SoftwareX*](https://doi.org/10.1016/j.softx.2026.102852)** (Elsevier) — see [Citation](#citation).
 
@@ -112,7 +112,7 @@ Each heading links to the full documentation in [USER_GUIDE.md](USER_GUIDE.md).
 - Omitted entirely in the `no-terminal` variants (Windows-friendly)
 
 **[Tools menu](USER_GUIDE.md#foammonitor-launcher)**
-- Run `blockMesh`, `snappyHexMesh`, `topoSet`, `setFields`, or `checkMesh` in the terminal with one click (output saved to `log.*`), or restore `0/` from `0.orig`
+- Run `blockMesh`, `snappyHexMesh`, `topoSet`, `setFields`, `checkMesh`, `decomposePar`, `reconstructPar`, or the case's solver (read from `controlDict`, optionally in parallel) in the terminal with one click (output saved to `log.*`), or restore `0/` from `0.orig`
 - Run the case's `Allrun`/`Allclean` scripts, or clean the case back to a pristine state with `foamCleanTutorials`
 - Launch `foamMonitor` to plot residuals with gnuplot while the solver runs
 - Open the generated mesh in ParaView
@@ -180,6 +180,8 @@ Some material here comes from OpenFOAM and is **not** covered by that licence: t
 The toolbar and menu icons in `ui/assets/icons/` were drawn for this project rather than taken from an existing icon set, so they are covered by the licence above and carry no third-party attribution requirement. They are deliberately plain conventional forms — a folder, a disk, a circular arrow, a magnifier — laid out on a 16-pixel grid so they stay sharp at the size they are actually drawn.
 
 ## Disclaimer
+
+FoDE is provided "as is", without warranty of any kind. It edits, copies and deletes files in your cases, and although it guards those operations, you use it at your own risk: the authors are not liable for any loss of data or other damage arising from its use. Keep backups of any case you cannot regenerate. The binding terms are sections 15 (Disclaimer of Warranty) and 16 (Limitation of Liability) of the [licence](LICENSE).
 
 This offering is not approved or endorsed by OpenCFD Limited, producer and distributor of the OpenFOAM software via [www.openfoam.com](http://www.openfoam.com/), and owner of the OPENFOAM® and OpenCFD® trade marks.
 

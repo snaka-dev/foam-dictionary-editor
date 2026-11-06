@@ -48,11 +48,12 @@ boundary
 
 
 @pytest.fixture
-def panel(qapp):
+def panel(qapp, destroy_widget):
     p = BlockMeshPanel()
     p.update_block_mesh("system/blockMeshDict", OpenFoamParser(_BLOCK_MESH_DICT).parse())
     yield p
-    p.shutdown()
+    p.shutdown()  # closes the VTK render window, needs its QWidget alive
+    destroy_widget(p)
 
 
 class TestPanelState:

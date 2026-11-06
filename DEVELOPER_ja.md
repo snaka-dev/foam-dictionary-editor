@@ -20,6 +20,9 @@ foam-dictionary-editor/
 │   ├── make_paraview_demo_profile.sh  # 上記プロファイルを使い捨ての ParaView を操作して再生成する。ParaView のバージョンが変わったときに必要: 設定ファイル名にバージョンが入るため、別のビルドは他バージョンが書いたものを無視する
 │   ├── demo_specs.json            # 動画のシーン一覧。シーンごとの開始状態と、それを操作する steps・ナレーション・表示時間
 │   ├── generate_foam_keywords.py  # app_config/keyword_generator.py の CLI ラッパー。--dir でインストールルートを指定（デフォルト: source 済み環境）
+│   ├── gen_reader_paths.py        # tools/fode-reader-paths.json を出力する。バージョンタグ・オラクルの FoDE 側: 各スキーマ辞書のキーがどこで読まれるかを示し、foamlore が supported_in を測定できるようにする
+│   ├── fode-reader-paths.json     # その対応表（生成物。tests/tools/test_reader_paths.py がレジストリとの一致を保つ）
+│   ├── scan_foundation14_keys.py  # まとめてタグ付けされた Foundation のキーを新しいチェックアウトに対して差分スキャンする — FOUNDATION_SERIES を延長する根拠となる測定
 │   └── roundtrip_corpus.py        # インストール済み tutorials の全辞書を parse+write してバイト単位で一致した件数を数える。リリースノートのラウンドトリップ数値の測定元
 ├── tutorials/               # 同梱サンプルケース（GPL-3.0、tutorials/README.md 参照）
 ├── main.py
@@ -27,6 +30,9 @@ foam-dictionary-editor/
 ├── requirements.txt
 ├── requirements-dev.txt
 ├── requirements-packaging.txt
+├── build_linux.sh           # foam-dictionary-editor.spec による PyInstaller ビルド
+├── foam-dictionary-editor.spec, foam_dict_editor.spec, main.spec  # PyInstaller の spec ファイル
+├── package.json, package-lock.json  # ターミナルが実行時にダウンロードする xterm.js パッケージのバージョン指定（同梱はしない）
 ├── README.md
 ├── README_ja.md
 ├── USER_GUIDE.md
@@ -47,7 +53,9 @@ foam-dictionary-editor/
 │   ├── constants.py
 │   ├── defaults.py
 │   ├── foam_env.py          # foam_env_dirs(env) → FoamEnvDirs: $WM_PROJECT_DIR/$FOAM_TUTORIALS/$FOAM_ETC/$FOAM_SRC/$FOAM_APP を読む唯一の情報源（各フィールドはディレクトリが存在する場合のみ非 None、project_dir 配下へのフォールバック付き）。純粋な標準ライブラリのみに依存し services/ には依存しないため、services/example_search.py からも import されるものの services/ ではなくここに置く。example_search、keyword_generator、AppConfigManager.foam_tutorials_dir が共有
-│   └── keyword_generator.py  # OpenFOAM インストールをスキャン（etc/caseDicts テンプレート、src/ と applications/ ソース内の TypeName/ClassName + addNamedTo* マクロと辞書読み取り呼び出し — lookup("…")、get<…>("…")、readEntry("…") など）して foam_keywords.json を構築（ユーザー生成、gitignore 対象。トラック済みの foam_keywords.default.json ベースラインより優先）。インストールルートは generate(project_dir=…) か source 済み環境（foam_env.foam_env_dirs を利用）から取得。出力は json_io.atomic_write_text でアトミックに書き込み。ペイロードには来歴メタデータ（source、version、generated、note — 識別子名のみで OpenFOAM のソースコードは含まない）を記録。tools/generate_foam_keywords.py と Settings メニューのアクションで共用
+│   ├── json_io.py           # load_json/save_json（アトミック: 隣の .tmp + os.replace）と atomic_write_text。app_config.json・.foam-editor-files.json・キーワード生成器が共用
+│   ├── keyword_generator.py  # OpenFOAM インストールをスキャン（etc/caseDicts テンプレート、src/ と applications/ ソース内の TypeName/ClassName + addNamedTo* マクロと辞書読み取り呼び出し — lookup("…")、get<…>("…")、readEntry("…") など）して foam_keywords.json を構築（ユーザー生成、gitignore 対象。トラック済みの foam_keywords.default.json ベースラインより優先）。インストールルートは generate(project_dir=…) か source 済み環境（foam_env.foam_env_dirs を利用）から取得。出力は json_io.atomic_write_text でアトミックに書き込み。ペイロードには来歴メタデータ（source、version、generated、note — 識別子名のみで OpenFOAM のソースコードは含まない）を記録。tools/generate_foam_keywords.py と Settings メニューのアクションで共用
+│   └── foam_keywords.default.json  # 同梱のハイライト用キーワードの基準一覧。生成した foam_keywords.json（gitignore 対象）があればそちらが優先
 ├── foam/
 │   ├── block_mesh_extractor.py  # blockMeshDict の FoamNode ツリーから頂点・ブロック・境界を抽出。_HEX_FACE_VERTICES + _expand_compact_faces がコンパクト (blockIdx, faceIdx) 境界エントリを 4 頂点リストに展開。_compute_default_faces は、どのパッチにも割り当てられていない外部ブロック面（blockMesh の暗黙の defaultFaces — 擬似 2D ケースが boundary に列挙しない面）を BlockMeshData.default_faces に収集。parse_vertices() はパブリック API。変数解決は var_resolver に委譲
 │   ├── var_resolver.py          # 共有の変数解決ロジック: build_var_map(root, skip_keys) が任意の深さの $変数（`-$xMax` のような否定マクロ word ノードを含む）と #eval{} チェーンを反復的に解決。substitute_vars() と eval_foam_expr() は両エクストラクタが使うパブリックヘルパー。eval_foam_expr() は文字クラスの正規表現ではなく AST 走査（_EVAL_NODES）で #eval の*文法*を、固定の名前表（_EVAL_NAMES: round/floor/ceil/sqrt/min/max/mag/pow/abs、三角関数一式、exp/log/log10、degToRad/radToDeg、pi）で許可する。これにより round($x/$y) を通しつつ、属性アクセスや添字を構造的に拒否できる
@@ -55,10 +63,10 @@ foam-dictionary-editor/
 │   ├── topo_set_extractor.py    # topoSetDict の action_entry ノードから描画可能なジオメトリ（box〈min/max・複数ボックス boxes 形式を含む〉、rotated box、sphere〈origin エイリアスと innerRadius を含む〉、cylinder、cone、点セット〈nearestTo*/insidePoints/nearPoint〉、planeToFaceZone の平面）を抽出。raw_list / マクロ形式のジオメトリ値内の $var と #eval を var_resolver 経由で解決し、TopoSetData(shapes=[TopoShape(...)]) を返す。TopoShape は shapes.SourceShape のサブクラス（追加フィールド: action）。ソースごとのジオメトリ分岐は resolve_source_geometry() / is_non_geometric_source() として公開され、set_fields_extractor.py と共有される
 │   ├── set_fields_extractor.py  # setFieldsDict の regions ( … ) リスト（region_block → region_entry ノード。エントリの「名前」がソースタイプ — boxToCell、sphereToCell など — で、`source` 子ノードは持たない）から描画可能な領域ジオメトリを抽出。topo_set_extractor.resolve_source_geometry() を再利用し、各シェイプに fieldValues の要約（例: "alpha.water=1"）をラベル付けして SetFieldsData(shapes=[SetFieldsShape(...)]) を返す。SetFieldsShape は shapes.SourceShape のサブクラス（追加フィールドなし）
 │   ├── sampling_extractor.py    # 描画可能なサンプリングジオメトリ — probes の probeLocations（点マーカー）、sets タイプのサンプル線（start/end）、surfaces タイプの plane/cuttingPlane 円盤 — を controlDict の functions {} ブロックまたはスタンドアロンのサンプリング辞書（system/sample・probes・surfaces・singleGraph。.org 系のトップレベル start/end スタイルを含む）から抽出。入れ子のメンバーリストは 2 つの書式とも構造化パーサーノード: 辞書形式 sets {}/surfaces {} と、従来の丸括弧リスト形式 sets ( name {…} )（named_dict_list）。平面解決は tree_utils.resolve_plane_geometry を再利用。SamplingData(shapes=[SamplingShape(...)]) を返す。SamplingShape は shapes.SourceShape のサブクラス（追加フィールド: source_file）
-│   ├── snappy_hex_mesh_extractor.py  # snappyHexMeshDict の geometry {} プリミティブ（box、sphere〈ベクトル radius によるだ円体を含む〉、cylinder、cone、constant/triSurface/ から解決される triSurfaceMesh/distributedTriSurfaceMesh〈.gz サイドカーへの透過的な解決を含む〉、box ベースの collection メンバー）を抽出。castellatedMeshControls.refinementSurfaces/refinementRegions（正規表現パターンのサーフェス名を含む）と照合し surface/region/geometry に分類。locationInMesh/locationsInMesh も抽出し、SnappyHexMeshData(shapes=[SnappyShape(...)]) を返す。SnappyShape は shapes.SourceShape のサブクラス（追加フィールド: category/level/mode）
+│   ├── snappy_hex_mesh_extractor.py  # snappyHexMeshDict の geometry {} プリミティブ（box、sphere〈ベクトル radius によるだ円体を含む〉、cylinder、cone、constant/triSurface/ から解決される triSurfaceMesh/distributedTriSurfaceMesh/closedTriSurfaceMesh（最後のものは両フォークで triSurfaceMesh のサブクラスであり、同じエントリを読む）〈.gz サイドカーへの透過的な解決を含む〉、box ベースの collection メンバー）を抽出。各タイプは両フォークの綴りを受け付ける（searchableBox/box、searchableSphere/sphere、searchableCylinder/cylinder、searchableCone/cone、searchableSurfaceCollection/collection — `_GEOMETRY_TYPE_ALIASES`）。shape の kind には辞書が実際に使った綴りがそのまま残る。castellatedMeshControls.refinementSurfaces/refinementRegions（正規表現パターンのサーフェス名を含む）と照合し surface/region/geometry に分類。キープポイントは castellatedMeshControls 直下のみで、insidePoints（リスト）→ insidePoint → locationInMesh の順（Foundation 自身の優先順位に合わせたもの）に加えて OpenCFD の locationsInMesh のペアリストを抽出する。この「直下のみ」という限定が、OpenCFD が refinementSurfaces の中で同じ insidePoint(s) という綴りを使うサーフェスごとの cellZone セレクタと区別する決め手になっている。これらを抽出し、SnappyHexMeshData(shapes=[SnappyShape(...)]) を返す。SnappyShape は shapes.SourceShape のサブクラス（追加フィールド: category/level/mode）
 │   ├── include_resolver.py      # Qt 非依存・標準ライブラリのみ: parse_include_directive() が directive_entry の生テキストを IncludeRef（#include/#sinclude/#includeIfPresent/#includeEtc/#includeFunc）に変換し、#codeStream 本体が取り込む C++ ヘッダーを除外する。resolve_include() が ResolvedInclude へ解決し、$VAR と先頭の <case>/<system>/<constant>/<etc> トークンを展開する。etc_dirs は引数として受け取るため foam/ の無依存ルールが保たれる
 │   ├── include_expand.py        # expand_includes(root, source_file=…, case_dir=…, etc_dirs=…, read_text=…) が、解決可能な各 #include のエントリを辞書ツリーの読み取り専用な**コピー**へ記述順に差し込み、3-D 抽出関数が他ファイルで定義された変数を見られるようにする。深さ上限つきで再帰的、実パスによる循環ガード、コピーオンライト（元のツリーは決して変更しない）、#includeFunc は意図的に対象外、パースは (mtime, size) でメモ化し clear_expand_cache() で破棄。Qt 非依存 — etc_dirs は引数で、include_resolver.py と同じ規則
-│   ├── tree_utils.py            # topo_set / snappy_hex_mesh / set_fields の各エクストラクタが共有する汎用 FoamNode ヘルパー: find_child、find_child_any、resolve_scalar、resolve_vector、resolve_point_list、expand_evals、および box/sphere/cylinder/cone の共有ジオメトリリゾルバ（resolve_box_geometry は min/max、`box (min) (max)` ペア、複数ボックス `boxes` の各形式をオプトインフラグで扱う）
+│   ├── tree_utils.py            # topo_set / snappy_hex_mesh / set_fields の各エクストラクタが共有する汎用 FoamNode ヘルパー: find_child、find_child_any、child_vector/child_scalar（最初に存在するキーを採用し、解決できなくても次のキーは試さない）、resolve_scalar、resolve_vector、resolve_point_list、expand_evals、および box/sphere/cylinder/cone の共有ジオメトリリゾルバ（resolve_box_geometry は min/max、`box (min) (max)` ペア、複数ボックス `boxes` の各形式をオプトインフラグで扱う）
 │   ├── diff.py                  # diff_trees(a, b) と diff_trees_reverse(b, a) — キー名で 2 つの FoamNode ツリーを比較し dict[FoamNode, DiffEntry] を返す
 │   ├── boundary_patch.py        # 境界パッチに対する Qt 非依存の FoamNode 操作: value_complexity/get_patch_type/patch_inner_text/parse_patch_content（境界編集ダイアログ用のパッチ内容の読み取り/パース）と find_rename_targets（パース済みルート群から名前が一致する boundary_entry / boundaryField 辞書ノードを走査）。ui/dialogs/boundary_edit_dialog.py と ui/dialogs/rename_boundary_dialog.py から分離 — QDialog モジュールに置かれていた Qt 非依存ロジックが、パッケージ間でアンダースコア付きプライベートとしてインポートされていたため。ui/panels/boundary_view_panel.py と ui/mixins/_boundary_ops.py でも共有される
 │   ├── lexer.py                 # OpenFoamLexer。_read_directive は '{' で読み取りを停止するため、#eval{...} の波括弧が LBRACE/RBRACE トークンになり深さ追跡が正しく機能する
@@ -82,6 +90,8 @@ foam-dictionary-editor/
 │   ├── fv_schemes.py
 │   ├── fv_solution.py
 │   ├── _turbulence_coeffs.py    # foamlore から取り込んだ生成ファイル: 全 29 モデルの係数ファクトと build_schemas(target_file)
+│   ├── _transport.py, _generalised_newtonian.py, _laminar_models.py, _delta_models.py  # 生成物、foamlore からベンダリング: 粘性・一般化ニュートン・層流モデル・LES デルタの各ファミリー
+│   ├── transport_properties.py, physical_properties.py, *_viscosity.py  # 生成物、foamlore からベンダリング: _transport / _generalised_newtonian の上に載る薄いファイル別モジュール
 │   ├── momentum_transport.py    # foamlore から取り込んだ生成ファイル: 薄いモジュール、TARGET_FILE = constant/momentumTransport（Foundation v8-v14）
 │   ├── snappy_hex_mesh_dict/    # パッケージ: サブドメイン別に分割（geometry, castellated mesh, snap, layers, mesh quality）
 │   │   ├── __init__.py          # 各サブモジュールの SCHEMAS を統合し、TARGET_FILE を再エクスポート
@@ -101,7 +111,7 @@ foam-dictionary-editor/
 │   ├── backup_files.py      # find_backup_files(case_dir): ケース配下の <name>.bak_YYYYMMDD_HHMMSS ファイルすべてについて [(abs_path, rel_path, size_bytes)] を返す。ui/dialogs/clean_backups_dialog.py の削除チェックリストに使われ、ui/mixins/_file_mgmt_ops.py から呼び出される
 │   ├── case_files_config.py
 │   ├── case_fs_ops.py       # ケースディレクトリに対する Qt 非依存の移動/リネーム/コピー/削除/新規フォルダ作成と、その手前にある安全確認ロジック: check_*() は Refusal *コード*を返す（文言は返さない -- tests/test_i18n.py は ui/ しか走査しないため、ここで文言を返すと未翻訳のまま出荷されてしまう）、perform_*() が実処理を行う。perform_delete は削除処理を注入で受け取る作りで、実体は Qt の QFile.moveToTrash()
-│   ├── case_loader.py       # detect_poly_mesh() も含む -- constant/polyMesh/owner の FoamFile note フィールドから PolyMeshInfo(n_points, n_cells, n_faces, stale) を生成
+│   ├── case_loader.py       # VARIANT_FILE_BASES/_list_variant_files により system/<ビューア辞書>* を自動で一覧に載せるため、topoSetDict-slices と topoSetDict-background を持つケースでも手動の Add files は不要。detect_poly_mesh() も含む -- constant/polyMesh/owner の FoamFile note フィールドから PolyMeshInfo(n_points, n_cells, n_faces, stale) を生成
 │   ├── case_scan.py         # ケースナビゲーター向けの Qt 非依存ディレクトリ一覧: list_subdirectories() -> DirEntry(path, name, is_case, is_symlink, readable, has_subdirs)。ディレクトリのみを対象とし隠しエントリは除外、OSError に対して安全。case_summary() は行のツールチップ用に case_loader のタイムディレクトリ・polyMesh 探索をラップする
 │   ├── include_scan.py      # インクルード対応のディスク側: foam_etc_dirs() が OpenFOAM の etc 検索パスを構築し、scan_includes()/included_files() が list_case_files の返したファイルに foam/include_resolver を適用する（パースではなく安価な正規表現の行スキャン。mtime+size でメモ化、1 段階のみで再帰しない）。copy_destination_for() は「ケースにコピー」の配置先を決める
 │   ├── example_search.py    # discover_installations()/search_examples(): OpenFOAM インストールを検出（app_config/foam_env による環境変数読み取り → 既知のパス）し、その tutorials/ + etc/caseDicts/ をキーワード走査して SearchHit（一致行、囲むチュートリアルケースのルート）を返す
@@ -113,28 +123,40 @@ foam-dictionary-editor/
 │   │   ├── _topo_set.py         # topoSet 文法: セットごとのソース/サイズの集約
 │   │   ├── _solver.py           # ソルバー文法: タイムループのステップ・残差・Courant 数・実行時間
 │   │   └── _generic.py          # フォールバック文法: 未認識ログの末尾表示
-│   └── tool_options.py      # Tools メニュー「Run *」オプションダイアログ用の ToolSpec/ToolOption 仕様（TOOL_SPECS）+ build_args()/build_command()。常に log.<ツール名> へ tee する
+│   ├── process_tree.py      # Qt 非依存、Linux の /proc: child_processes(pid) と running_command_names(shell_pid, job_control=…) — Terminal タブのシェルがまだ実行中のもの。閉じる・モード切替時の警告に使う
+│   ├── solver_run.py        # Run Solver/decomposePar の背後にある Qt 非依存の読み取り: controlDict の application/solver/regionSolvers/startFrom、decomposeParDict の numberOfSubdomains、processor* ディレクトリと分割数、再構築されていない processor の時刻、分割後の変更検出（0/、constant/polyMesh）、メッシュの有無、ソルバー名と残すログのサフィックスの検証、次の partN、check_processor_deletion（processor* を削除してもデータが失われないか: すべての時刻・すべてのファイル・sets/・メッシュの合計セル数）
+│   └── tool_options.py      # Tools メニュー「Run *」オプションダイアログ用の ToolSpec/ToolOption 仕様（TOOL_SPECS、SOLVER_SPEC）+ build_args()/build_command()。常に log.<ツール名> へ tee し、必要なら mpirun -np N … -parallel で包む
 ├── i18n/
 │   ├── __init__.py             # tr()、set_language()、get_language()、available_languages()
 │   └── ja.py                   # 日本語翻訳（LANGUAGE_NAME + TRANSLATIONS 辞書）
 ├── ui/
+│   ├── fonts.py                # UI が描くすべてのフォントサイズ。QApplication.font() から導出 — 「フォントサイズと表示スケーリング」を参照
+│   ├── icons.py                # icon(name) → QIcon: ui/assets/icons/ の SVG を、その時点の ButtonText 色でアルファマスク経由で着色
+│   ├── label_fit.py            # fit_wrapped_labels(root): 折り返し QLabel に、実際の幅で必要な高さを与える
+│   ├── assets/icons/           # 手書きの黒一色のツールバー/メニュー用 SVG 9 個
+│   ├── xterm_terminal.html     # xterm ターミナルが読み込む xterm.js のページ。フォントサイズは <!--XTERM_FONT_SIZE--> に注入
 │   ├── app_state.py            # AppState データクラス: 共有可変フィールドすべて（`current_case_dir`、`current_file`、`current_root`、`current_model`、`file_buffers`、`file_dirty`、`text_dirty`、`source_lines_valid`、`syncing`、`case_files_config`、`parsed_roots`、`diff`、`foam_monitor`、`run_tool_options`、`undo`、`bm_side_by_side`）。`diff` は `DiffState` サブデータクラス（`case_dir`、`parsed_roots`）。`foam_monitor` は `FoamMonitorState` サブデータクラス（`proc`、`script_tmp`、`last_file`、`last_options`）。`undo` は `UndoState` サブデータクラス（ファイルごとの `UndoSnapshot` スタックと `op_active`/`restoring` ガード）。`MainWindow.__init__` が `self.state = AppState()` を生成し、すべての Mixin が `self.state.<field>` として共有状態にアクセス
 │   ├── case_navigation.py      # CaseNavigator（QObject）: Cases タブと Case Browser ウィンドウの背後にある共有コントローラ -- 1 つの CaseTreeModel、1 つの現在位置、両ビューが発するすべてのシグナルを持つ。下位層の上に立つ tr() 利用層でもある: refusal_message() が services/case_fs_ops の Refusal コードを文へ変換し、describe_entry() が行のツールチップを組み立てる
+│   ├── viewer_dicts.py        # viewer_dict_kind(path, root): そのファイルがどの 3-D オーバーレイに対応するか（該当なしは None）。まずファイル名、次に FoamFile の `object` ヘッダを見るため、既定名でない `topoSetDict-slices` や `topoSetDict.1` もビューアに届く。ファイル名の前方一致にはしていない — blockMeshDict.resolvedBlocks などは #include されるフラグメントであり、振り分けてはならないため。_model_ops（振り分け）と _panel_ops（サイドバイサイドボタン）で共有
 │   ├── theme.py               # テーマモード（system/light/dark）、Qt がデスクトップから継承する Highlight/HighlightedText の組を修復する readable_selection_pair() のコントラスト規則、および colors() 経由で解決されるすべての UI 意味色を保持する ThemeColors テーブル
 │   ├── pane_minimize.py       # PaneMinimizer: QSplitter の 1 ペインをワンクリックで畳む/戻す。ハンドルのダブルクリック用イベントフィルタも含む。方式は 2 つ: `sizes`（0 まで畳む — ファイル一覧・Detail ペイン）と `strip`（ウィジェットの最大サイズを固定して細い帯を残す — Editor/Terminal 行。この splitter は setCollapsible(False) を設定しており、その下では setSizes が QTabWidget の minimumSizeHint までしかクランプされず畳めない。残る帯はタブバーなので、タブと同期ボタンは操作可能なまま）。畳む直前のサイズ列全体を記憶するため、開閉のたびに 1 px ずつ失われることがない。外部から（復元セッションなど）サイズを設定するとこの記憶は破棄される
+│   ├── menu_builder.py        # MenuBuilder/exec_menu: コンテキストメニューを (QMenu, {QAction: ハンドラ}) として表し、ブロッキングする QMenu.exec() を 1 行に閉じ込めて、どの行がどのシグナルを出すかをそれなしでテストできるようにする — ファイル一覧・Cases タブ・ツリーのメニューで使用
+│   ├── processor_deletion.py   # run_deletion_with_progress(): 確認済みの processor* 削除を、停止ボタン付きのアプリケーションモーダルな QProgressDialog の裏でワーカースレッド実行
 │   ├── window_state.py         # WindowState / BlockMeshViewState データクラスと capture_window_state() / apply_window_state()。レイアウトのうち「結果」ではなく「選択」である部分（ジオメトリ、スプリッタ、タブ、開いているファイル、ツリー選択、3-D のトグルとカメラ、および `minimized_panes` — どのペインが最小化されているかと各ペインの復帰サイズ。スプリッタの blob では表せない半分）を扱う。JSON 化できるため、状態をプロセス間で受け渡せる。strict / lenient の使い分け（from_dict と apply_window_state の `strict` フラグ、load_saved_state）は、2 つの利用側の要求が逆であることに由来する: スクリーンショット spec は失敗を大きく報せるべきで、復元されるセッションは静かに劣化すべき
 │   ├── session_restore.py      # window_state.py の上に載る「実行間の配線」。save_session() は MainWindow.closeEvent から（パネル破棄前、自動保存はしない）、restore_session() は main.py の show() 後から呼ばれる。レイアウトは AppConfigManager.session_key() ごとに保存し、ケース読み込み時の描画が reset_camera() で終わるため 3-D カメラはタイマーで再適用、スキップした部分はステータスバーに表示
-│   ├── main_window.py          # オーケストレータ。`MainWindow` は 13 個の Mixin を継承。自身のファイルは `__init__`、`_build_ui`、共有ヘルパーのみを扱う。`file_list_panel`、`tree`、`editor_panel` などの UI ウィジェット参照は素の `self` 属性のまま残り、可変データ状態はすべて `self.state` に置かれる
+│   ├── main_window.py          # オーケストレータ。`MainWindow` は 15 個の Mixin を継承。自身のファイルは `__init__`、`_build_ui`、共有ヘルパーのみを扱う。`file_list_panel`、`tree`、`editor_panel` などの UI ウィジェット参照は素の `self` 属性のまま残り、可変データ状態はすべて `self.state` に置かれる
 │   ├── mixins/
 │   │   ├── _boundary_ops.py        # Mixin: バウンダリビューのパッチ操作
 │   │   ├── _case_ops.py            # Mixin: ケースの開く・再読み込み・複製・名前を付けて保存・設定
+│   │   ├── _case_nav_ops.py        # Mixin: Case Browser / Cases タブのハンドラ — CaseNavigator のシグナルはすべてここに届く。_close_case() も含む。_case_ops.py から分離（下記「ケースナビゲーション」を参照）
 │   │   ├── _diff_ops.py            # Mixin: サイドバイサイド比較、差分の計算・クリア。_reset_diff_for_case_dir は _load_case_dir 後にアクティブな比較を調整（ケース切り替え時はクリア、同一ディレクトリの再読み込み時は再アーム）。参照ファイルの解析失敗はステータスバーで報告（_recompute_diff ではファイル単位、事前計算スキャンの最後にはスキップ件数のサマリ）
 │   │   ├── _file_mgmt_ops.py       # Mixin: ファイルの作成・追加・バックアップ・削除・複製・クリーンアップ
 │   │   ├── _file_ops.py            # Mixin: ファイル単位の読み込み・保存、ディレクトリスキャンヘルパー
 │   │   ├── _foam_monitor_ops.py    # Mixin: foamMonitor の起動・停止・ポーリング、gnuplot reread パッチ
+│   │   ├── _menu_bar_ops.py        # Mixin: Case/Settings/View/Tools/Help メニューの構築。main_window.py から分離。構築時のみの関心事であり、i18n のスキャンが拾えるよう tr() リテラルは ui/ に残してある
 │   │   ├── _model_ops.py           # Mixin: バッファ・ツリー状態、ダーティ追跡、パースキャッシュ
 │   │   ├── _panel_ops.py           # Mixin: BlockMesh パネルおよびターミナルモード切替ハンドラ
-│   │   ├── _tools_ops.py           # Mixin: Tools メニューのアクション — 0/ を 0.orig から復元、blockMesh/snappyHexMesh/topoSet/setFields/checkMesh の実行（いずれも _run_tool_with_options 経由: ツールごとの RunToolDialog を表示 — 仕様は services/tool_options.py —、最後に使った値を state.run_tool_options に記憶し、合成したコマンドを送信。プレフライト警告はダイアログに統合 — メッシュ系ツールは _rerun_over_results_warning の時間ディレクトリ注意、setFields は 0/ を直接書き換え再実行が重ねて適用されるため 0.orig/ が存在する場合デフォルトでチェックされた「先に 0/ を 0.orig/ から復元する」プレフィックスチェックボックス、checkMesh は読み取り専用なので警告なし）、Allrun/Allclean スクリプトの実行、foamCleanTutorials によるケースのクリーン（runApplication はログ済みステップをスキップするため、log.* が存在する場合 Allrun は「クリーンしてから実行」を提案）、ParaView を開く、ログ要約を表示（非モーダルの LogSummaryDialog、self._log_summary_dialog で参照を保持）、OpenFOAM の例を検索（非モーダルの FindExamplesDialog、self._find_examples_dialog で参照を保持。compare_requested は _diff_ops._start_comparison_with に、duplicate_requested はホームディレクトリをフォールバックのコピー先として _case_ops._duplicate_case_from に接続）
+│   │   ├── _tools_ops.py           # Mixin: Tools メニューのアクション — 0/ を 0.orig から復元、blockMesh/snappyHexMesh/topoSet/setFields/checkMesh の実行（いずれも _run_tool_with_options 経由: ツールごとの RunToolDialog を表示 — 仕様は services/tool_options.py —、最後に使った値を state.run_tool_options に記憶し、合成したコマンドを送信。プレフライト警告はダイアログに統合 — メッシュ系ツールは _rerun_over_results_warning の時間ディレクトリ注意、setFields は 0/ を直接書き換え再実行が重ねて適用されるため 0.orig/ が存在する場合デフォルトでチェックされた「先に 0/ を 0.orig/ から復元する」プレフィックスチェックボックス、checkMesh は読み取り専用なので警告なし）、decomposePar の実行（processor* があれば -force をチェック済みで開く）、ソルバーの実行（_on_run_solver_clicked: RunSolverDialog。編集可能な ExecutableChoice を services/solver_run.read_solver_info で controlDict から事前入力 — メモリ上のテキストを読むので未保存の編集も反映 —、decomposeParDict の numberOfSubdomains による並列チェックボックス、未保存ファイルがあれば「先にすべて保存」チェックボックス。ソルバー名は記憶せずオプションのみ記憶）、Allrun/Allclean スクリプトの実行、foamCleanTutorials によるケースのクリーン（runApplication はログ済みステップをスキップするため、log.* が存在する場合 Allrun は「クリーンしてから実行」を提案）、ParaView を開く、ログ要約を表示（非モーダルの LogSummaryDialog、self._log_summary_dialog で参照を保持）、OpenFOAM の例を検索（非モーダルの FindExamplesDialog、self._find_examples_dialog で参照を保持。compare_requested は _diff_ops._start_comparison_with に、duplicate_requested はホームディレクトリをフォールバックのコピー先として _case_ops._duplicate_case_from に接続）
 │   │   ├── _tree_crud_ops.py       # Mixin: ツリーエントリの CRUD（コピー・ペースト、追加、複製、コメントアウト、削除、復元）と _apply_comparison_value
 │   │   ├── _tree_sync_ops.py       # Mixin: エディタ↔ツリー同期（Apply Text to Tree、Reload from Tree）
 │   │   ├── _undo_ops.py            # Mixin: スナップショット方式のツリー編集 Undo/Redo（ツリーにスコープされた Ctrl+Z / Ctrl+Shift+Z。シリアライズ済みテキストのスナップショットからなる単一のグローバルタイムライン）
@@ -160,11 +182,14 @@ foam-dictionary-editor/
 │   │   ├── openfoam_resources_dialog.py
 │   │   ├── rename_boundary_dialog.py  # Rename Boundary ダイアログ + find_rename_targets() スキャナ
 │   │   ├── reset_settings_dialog.py
-│   │   ├── run_tool_dialog.py  # RunToolDialog: services/tool_options.TOOL_SPECS から構築される Tools メニュー「Run *」の汎用オプションダイアログ — 主要フラグのウィジェット、自由記述の追加オプション、ライブコマンドプレビュー、任意のプレフライト警告とシェルプレフィックスチェックボックス
+│   │   ├── run_tool_dialog.py  # RunToolDialog: services/tool_options.TOOL_SPECS から構築される Tools メニュー「Run *」の汎用オプションダイアログ — 主要フラグのウィジェット、自由記述の追加オプション、ライブコマンドプレビュー、任意のプレフライト警告とシェルプレフィックスチェックボックス。サブクラス用フック _build_extra_sections/_resolved_spec/_run_prefix/_parallel_np
+│   │   ├── run_solver_dialog.py  # RunSolverDialog(RunToolDialog) + ExecutableChoice: 編集可能なソルバー欄、先にすべて保存・mpirun -parallel のチェックボックス、既存 log.<ソルバー名> を残すか上書きするかの選択（不正または既存名と重なるサフィックスでは Run を無効化）
 │   │   ├── save_as_new_case_dialog.py  # SaveAsNewCaseDialog（_CaseDestDialogBase）: 名前サフィックスは "_new"、デフォルトで「Copy app-visible files only」が選択済み、未保存の編集についての斜体注記ラベルを追加
 │   │   ├── schema_manager_dialog.py
 │   │   └── _worker_thread.py  # _CancellableWorkerThread（QThread）: find_examples_dialog の _SearchThread と generate_keywords_dialog の _GeneratorThread が共有する progress/finished_err シグナルと cancel() フラグ。各サブクラスは自身の finished_ok シグナルと run() を追加する
 │   ├── panels/
+│   │   ├── _shape_overlay_menu.py  # 形状ごとのチェック可能なオーバーレイメニュー（_ShapeOverlayMenu、_StaysOpenMenu と共有ヘルパー）。block_mesh_panel.py から分離。パネルを一切参照せず、渡された shape のみに依存
+│   │   ├── _view_image_export.py    # Save Image ダイアログと画像書き出し。block_mesh_panel.py から分離。親ウィジェット・プロッタ・初期パスだけを必要とするため、コントローラではなく関数として切り出している（STL オーバーレイ側はパネルの状態を持つ機構なのでそのまま残してある）
 │   │   ├── block_mesh_panel.py     # blockMeshDict 用 3D ビューア（pyVista/VTK、遅延初期化）。topoSetDict（topoSet ▾ メニュー）、snappyHexMeshDict（snappyHexMesh ▾ メニュー）、setFieldsDict の領域（setFields ▾ メニュー）、サンプリング定義（sample ▾ メニュー。controlDict の functions {} とスタンドアロンの system/sample 系辞書の合算を _sampling_by_file に元ファイル名ごとに保持）のジオメトリもそれぞれシェイプ単位の表示切替・Show all/Hide all アクション・描画不能エントリ用の「Non-geometric sources (N)」サブメニュー付きで重ねて表示する。アクター構築は block_mesh_renderer.BlockMeshRenderer に委譲。STL ▾ メニューには読み込み済み STL/OBJ サーフェス用の同じファイル別の行（block_mesh_renderer.LoadedSurface。1 ファイル 1 色、Unload サブメニュー付き）があり、「Export Shapes as STL…」は dialogs/export_stl_dialog.ExportStlDialog を開く。Save Image… ボタンは描画されたシーンそのものを plotter.screenshot() で書き出す（このネイティブ子ウィンドウに対して QWidget.grab() は黒画像を返すため）。その QAction は MainWindow が View メニューにも追加する
 │   │   ├── block_mesh_renderer.py  # BlockMeshRenderer: RenderSettings データクラス経由の blockMeshDict/topoSetDict/snappyHexMeshDict/setFieldsDict ジオメトリ用 VTK レンダリングパイプライン。色テーブル（_PATCH_COLORS、_ACTION_COLORS、_SNAPPY_CATEGORY_COLORS、_SET_FIELDS_REGION_COLOR、_SURFACE_COLORS）と _opacity()（テーマ依存の alpha 倍率）は ui.theme に依存するためこちらに残る。シェイプごとの描画メソッドは Qt に依存しないジオメトリ生成/クリッピング/ラベル付けを shape_mesh.make_shape_mesh()/_clip_to_bounds()/_mark_label() 経由で呼び出す。_render_boundary_faces は BlockMeshData.default_faces も薄い "empty" グレーで描画する。pyvista のガードを通過した後にのみインポートされる
 │   │   ├── boundary_view_panel.py
@@ -188,10 +213,13 @@ foam-dictionary-editor/
     ├── test_lint.py             # pytest スイートの一部として ruff（リポジトリ全体）+ mypy（ソースパッケージのみ、「Linting and type-checking」参照）を実行
     ├── test_version.py          # _version.get_version(): git describe の整形（タグ一致、タグより先行、dirty、ハッシュのみ、git 無しフォールバック）
     ├── test_i18n.py             # i18n/ja.py の TRANSLATIONS に重複キーがないこと、および ui/ 配下の tr() 呼び出しがすべて ja.py のエントリを持つか、測定済みの _UNTRANSLATED 許可リストに含まれること（いずれも AST 走査）
+    ├── test_config_isolation.py # autouse の temp_config フィクスチャが、どのテストにもリポジトリの app_config.json を触らせないこと
+    ├── test_main_ui_scale.py    # main._apply_ui_scale: UI Scale 設定を QApplication の生成前に QT_SCALE_FACTOR として書き込むこと
     ├── foam/
     │   ├── test_block_mesh_extractor.py
     │   ├── test_boundary_patch.py
     │   ├── test_diff.py
+    │   ├── _parser_helpers.py     # test_parser_*.py の文法テストが共用する find_child（フィクスチャではなくモジュール）
     │   ├── test_lexer.py
     │   ├── test_parser_block_mesh_dict.py
     │   ├── test_parser_control_dict.py
@@ -236,13 +264,16 @@ foam-dictionary-editor/
     │   ├── test_block_mesh_renderer_colors.py
     │   ├── test_block_mesh_selected_block.py
     │   ├── test_bm_side_by_side_multi_dict.py
+    │   ├── test_boundary_ops.py
     │   ├── test_boundary_view_copy.py
+    │   ├── test_case_ops.py
     │   ├── test_case_switch_clears_block_mesh_panel.py
     │   ├── test_code_editor.py
     │   ├── test_code_editor_zoom.py
     │   ├── test_comparison_tree_panel.py
     │   ├── test_detail_panel_fit.py
     │   ├── test_dialog_fonts.py
+    │   ├── test_current_text.py
     │   ├── test_dialog_label_fit.py
     │   ├── test_diff_state_reset_on_case_change.py
     │   ├── test_drag_drop_open_case.py
@@ -253,6 +284,7 @@ foam-dictionary-editor/
     │   ├── test_case_browser_dialog.py
     │   ├── test_case_browser_state.py
     │   ├── test_case_nav_panel.py
+    │   ├── test_file_mgmt_ops.py
     │   ├── test_file_list_panel.py
     │   ├── test_find_examples_dialog.py
     │   ├── test_flow_layout.py
@@ -266,16 +298,20 @@ foam-dictionary-editor/
     │   ├── test_main_window_save_refresh.py
     │   ├── test_main_window_split.py
     │   ├── test_manage_extra_files_dialog.py
+    │   ├── test_multi_dict_overlays.py
     │   ├── test_pane_minimize.py
     │   ├── test_reset_all_settings.py
     │   ├── test_run_tool_dialog.py
     │   ├── test_shape_mesh.py
     │   ├── test_stays_open_menu.py
+    │   ├── test_supported_in_caveat.py
     │   ├── test_terminal_panel.py
     │   ├── test_theme.py
     │   ├── test_tools_ops_mesh_actions.py
+    │   ├── test_tools_busy_terminal.py
     │   ├── test_translatable_strings.py
     │   ├── test_tree_block_crud.py
+    │   ├── test_tree_context_menu.py
     │   ├── test_tree_color_lexer_dispatch.py
     │   ├── test_tree_copy_paste.py
     │   ├── test_tree_inline_edit_dirty.py
@@ -283,6 +319,8 @@ foam-dictionary-editor/
     │   ├── test_tree_text_sync_bar.py
     │   ├── test_update_viewer_panels.py
     │   ├── test_view_log_summary_action.py
+    │   ├── test_viewer_dicts.py
+    │   ├── test_viewer_kind_override.py
     │   ├── test_session_restore.py
     │   └── test_window_state.py
     ├── services/
@@ -295,18 +333,26 @@ foam-dictionary-editor/
     │   ├── test_case_scan.py
     │   ├── test_example_search.py
     │   ├── test_log_summary.py
+    │   ├── test_process_tree.py
+    │   ├── _processor_cases.py
+    │   ├── test_solver_run.py
     │   └── test_tool_options.py
     ├── app_config/
     │   ├── test_app_config.py
+    │   ├── test_config_failure_reporting.py
     │   ├── test_foam_env.py
     │   ├── test_json_io.py
     │   └── test_keyword_generator.py
     ├── schemas/
     │   ├── test_schemas.py
+    │   ├── test_default_and_required.py
     │   ├── test_schema_coverage.py
-    │   └── test_turbulence_schemas.py
+    │   ├── test_turbulence_schemas.py
+    │   └── test_vendored_modules.py
     └── tools/
         ├── test_capture_dialog.py
+        ├── test_demo_driver_isolation.py
+        ├── test_reader_paths.py
         └── test_demo_specs.py
 ```
 
@@ -322,8 +368,12 @@ foam-dictionary-editor/
 | `docs/DEMO_SCRIPTS.md` | デモ動画のショットごとの台本と収録方法。いずれも `tools/demo_specs.json` の実行可能なシーンなので、台本と実際の収録結果が食い違うことはない。 |
 | `docs/OPENFOAM_VERSIONS.md` | ユーザー向け: OpenFOAM のリリース間・フォーク間で起きた辞書ファイルの改名を、チュートリアルツリーの実測に基づいてまとめたもの。`services/case_loader.py` が新旧両方の綴りを持つ理由の出典。 |
 | `docs/SCHEMA_CANDIDATES.md` | 次にどの辞書のスキーマを書くか。実測した出現頻度とキー数で順位付けし、FoDE で手書きすべきか foamlore で生成すべきかを示す。 |
+| `docs/foamlore-schema-spec.md` | foamlore とのやり取りのうち確定した側: FoDE がジェネレータに出した依頼すべてを番号付きで、測定・決定された内容とともに記録。新しい依頼はここではなく foamlore の `HANDOFF.md` に書く。 |
+| `THIRD-PARTY.md` | 生成スキーマモジュールが引用する OpenFOAM ドキュメントのクレジット。`revendor.sh` が foamlore からコピーするため、ここでは編集しない。 |
+| `tutorials/README.md` | 同梱サンプルケースそれぞれの出典と、何を確かめるためのものか。 |
+| `CLAUDE.md` | AI コーディングエージェント向けのアーキテクチャマップ。公開リリース用のコピーには含めない。 |
 
-各英語ドキュメントには日本語版（`*_ja.md`）があり、一方を編集したら必ずもう一方にも反映します。日本語ドキュメントではメニューラベルなどの UI 文字列は英語のまま表記します。
+各英語ドキュメントには日本語版（`*_ja.md`）があり（英語のみの `THIRD-PARTY.md`・`tutorials/README.md`・`CLAUDE.md` を除く）、一方を編集したら必ずもう一方にも反映します。日本語ドキュメントではメニューラベルなどの UI 文字列は英語のまま表記します。
 
 ### テストカバレッジ一覧
 
@@ -357,6 +407,7 @@ foam-dictionary-editor/
 - `test_include_expand.py` — `expand_includes`: トップレベルの差し込みと記述順（後の定義が先の定義を隠すこと）、インクルード先の `FoamFile` ヘッダーの除去、元のツリーが変更されないこと、インクルードの無いファイルが*ルートオブジェクトそのもの*を返すこと、辞書の内側のインクルード、再帰的展開と深さ上限、解決できないインクルードがその場に残り報告される一方で `#sinclude` は報告されないこと、自己参照と相互参照の循環が断ち切られること、`#includeFunc` が対象外であること、`read_text` がディスクより優先されること・`None` を返せばディスクへフォールバックすること、そして動機となったエンドツーエンドのケース — `scale` と全頂点変数がインクルード先にある `blockMeshDict` が、展開前は何も返さず展開後は正しくスケールされた 8 頂点を返すこと。
 - `test_var_resolver.py` — `build_var_map`、`substitute_vars`、`eval_foam_expr`: スカラー/整数のシード、マクロチェーン、`#eval` 式、否定マクロ word ノード、解決不能な変数が値を持たないままになること、`skip_keys` による除外、辞書ノードが収集対象にならないこと。また `eval_foam_expr` の関数表 — `round`/`floor`/`ceil`/`sqrt`/`min`/`max`/`mag`/`pow`/`abs`/`degToRad`/`radToDeg`/`pi` と `**` — と、AST 走査の健全性を担保する拒否集合（解決されない `$var`、`__import__`、`open`、`().__class__`、添字、未定義名、文字列リテラル）。
 - `test_writer_roundtrip.py` — `write_root`/`write_node` 全般: 未変更ノードが `raw_text` で再現されること、変更された word/int/scalar/vector ノードが再生成されること、directive/unknown_raw/macro エントリが保持されること、ネストした辞書、空行の連続がそのまま保持されること、`field_value_block`/`region_block` の round-trip（リージョン内のフィールド値編集を含む）、および 1 つの region エントリの再生成時に未変更の兄弟エントリの名前が失われていたリグレッション（エントリの `raw_text` が名前トークンから始まるようになった）。さらに、実際のチュートリアル `blockMeshDict` を模したフィクスチャ `_CORPUS_SHAPED_DICT` に対するバイト単位一致ラウンドトリップ群: `// * * *` バナーの直後の空行が保たれること、エントリ間の複数空行が残ること、末尾の `// ****` フッタバナーが `root.trailing_trivia` から再出力されること、最終改行がないファイルに改行が付加されないこと、`x1 14; x2 6;` が 1 行に留まること、1 エントリの編集がその行だけを変更すること、トリビアなしで追加されたノードが独立した行になること、`}` の直後の余分な `;` が独立した（インデント付きの）行に送り出されず波括弧と同じ行に留まること、ネストしたノードを型を問わず再生成してもソースのインデントが二重にならず再現されること（dictionary/simple/directive/macro/region/action/field-value/深いネストでパラメータ化）、およびトリビアがインデントを持たない場合はライタが従来どおりインデントを補うこと。さらに `macro_entry` 群として、以前は解析失敗だった 2 つの記法を検証する: 波括弧付きの `${../_bladeForces}` と `;` の無い裸の `$minX` がいずれも `macro_entry` ノードになること、裸のマクロが解析エラーにならず後続エントリに属するトリビアを飲み込まないこと、5 つの記法すべてがバイト単位で一致してラウンドトリップすること、ノード再生成時に `_macro_suffix` が元ソースの終端子を（インラインコメントを伴う場合も含めて）再現すること、アプリが `raw_text` 無しで構築したノードには従来どおり `;` が付くこと。
+- `_parser_helpers.py` — テストではなく、`test_parser_*.py` の文法テストが共用する `find_child`。65 回呼ばれるため、フィクスチャにするとそのすべてのテストに引数が増えるので、モジュールにしています。
 
 **`tests/model/`**
 - `test_bool_nonuniform.py` — bool/nonuniform_list のパースと round-trip、`FoamTreeModel` の bool 編集（大文字小文字を区別しない、拒否シグナル）、`nonuniform_list` の表示・編集不可、不正エントリに対するパーサエラー収集。
@@ -371,7 +422,7 @@ foam-dictionary-editor/
 - `test_block_mesh_panel_fonts.py` — パネルの補助ラベル 2 つ（ヒント行と `⚙ Variable-based` バッジ）が 9・11・16 pt でデスクトップのフォントサイズに追従すること。どちらも以前はスタイルシートに `font-size: 11px` を直接書いていたため、デスクトップのフォントをどれだけ大きくしても 11 px のままだった — 下記「フォントサイズと表示スケーリング」を参照。Label size スピンボックスと 7 個のカメラビューボタンも検証対象で、こちらは固定していた `setFixedWidth` が下限ではなく上限になっていた不具合です。16 pt では、スピンボックス自身の `minimumSizeHint()` がすでに 52px の上限を超えており、カメラボタンの 36px の上限も自身のテキストに対する `button_pixel_width()` を下回ります。`default_font_panel` フィクスチャは、プラットフォームの既定フォントではこの 2 つの数値がそのまま変わらず有効であることを固定しています。
 - `test_block_mesh_panel_load_stl.py` — `STL ▾` メニューの読み込み済みサーフェス: 1 回の `getOpenFileNames` での複数ファイル選択、読み込めないファイルがあっても読める分は読み込まれること（失敗分をまとめた警告 1 回）、ダイアログのキャンセルが何もしないこと。さらにファイル別の行について: ファイルごとに 1 行・パレットから 1 色（最初は `lightgray`）、個別の非表示とアンロードの違い、アンロード後や同一パスの再読み込み後（重複行ではなく既存行の再読み込み）も各行のチェック状態が保たれること、`blockMeshDict` が無い状態で読み込んだサーフェスがレンダラーに届くこと（スタブレンダラー経由。最後の 1 つをアンロードしたときのクリア用レンダリングを含む）。
 - `test_block_mesh_panel_sampling_select.py` — `sample ▾` の形状別表示メニュー: controlDict の `functions {}` ブロックからのメニュー生成（行には元ファイル名のタグ付き）、個別/マスタートグル、ジオメトリを持たないエントリのグレーアウト表示、複数ファイルの合算（controlDict + system/sample）とファイル単位の再読み込み置換、ベース名が同じ 2 つの辞書が別ディレクトリにあっても分離されること（`_sampling_by_file` はフルパスをキーとし、表示はベース名）、`clear()` による `_sampling_by_file` のリセット。
-- `test_block_mesh_panel_save_image.py` — **Save Image…** アクション: 初期状態は無効（プロッタは最初の `showEvent` で遅延生成されるため、まだ取り込む対象がない）で、`shutdown()` で再び無効化されること。ツールバーのボタンと View メニューの項目が2 つではなく 1 つの `QAction` であること。選択したパスがそのまま `screenshot()` に渡ること。`_writable_image_path` が pyvista の拒否する拡張子を補正すること（`.JPG` は小文字化、`.txt` には `.png` を付加）。および、この関数が出力しうる拡張子がすべて pyvista の実際の `SUPPORTED_FORMATS` に含まれることの対検証 — スタブでは実際の書き出し側の検証を再現できないため。ダイアログのフィルタが、対応する全拡張子を含む画像フィルタ 1 つだけであること（形式別のドロップダウンはネイティブの GTK チューザに黙って無視されるため）。補正後の名前が既存ファイルと衝突する場合は置き換え前に確認すること（ファイルダイアログが確認したのは*補正前*の名前だけであるため）、補正がなければ二重に確認しないこと。ダイアログのキャンセルとプロッタ未生成のどちらでも何も書き出さないこと。書き出し失敗時は警告が 1 回だけ出て保存報告はされないこと。既定のファイル名が `set_case_dir()`/`clear()` に追随すること。プロッタは記録用スタブで代用している — 取り込み自体は VTK 側の処理で、実際のディスプレイを必要とするため。
+- `test_block_mesh_panel_save_image.py` — **Save Image…** アクション: 初期状態は無効（プロッタは最初の `showEvent` で遅延生成されるため、まだ取り込む対象がない）で、`shutdown()` で再び無効化されること。ツールバーのボタンと View メニューの項目が2 つではなく 1 つの `QAction` であること。選択したパスがそのまま `screenshot()` に渡ること。`_view_image_export.writable_image_path` が pyvista の拒否する拡張子を補正すること（`.JPG` は小文字化、`.txt` には `.png` を付加）。および、この関数が出力しうる拡張子がすべて pyvista の実際の `SUPPORTED_FORMATS` に含まれることの対検証 — スタブでは実際の書き出し側の検証を再現できないため。ダイアログのフィルタが、対応する全拡張子を含む画像フィルタ 1 つだけであること（形式別のドロップダウンはネイティブの GTK チューザに黙って無視されるため）。補正後の名前が既存ファイルと衝突する場合は置き換え前に確認すること（ファイルダイアログが確認したのは*補正前*の名前だけであるため）、補正がなければ二重に確認しないこと。ダイアログのキャンセルとプロッタ未生成のどちらでも何も書き出さないこと。書き出し失敗時は警告が 1 回だけ出て保存報告はされないこと。既定のファイル名が `set_case_dir()`/`clear()` に追随すること。プロッタは記録用スタブで代用している — 取り込み自体は VTK 側の処理で、実際のディスプレイを必要とするため。
 - `test_block_mesh_panel_set_fields_select.py` — `setFields ▾` の形状別表示メニュー: 同梱の damBreak チュートリアルの `setFieldsDict` からのメニュー生成（行は `fieldValues` の要約でラベル付け）、個別/マスタートグル、ジオメトリを持たないソースのグレーアウト表示、STL エクスポートへの包含、再読み込み時のクリア。
 - `test_block_mesh_panel_snappy_select.py` — `snappyHexMesh ▾` の形状別表示メニュー: メニューの生成、個別/マスタートグル、surface/region/geometry カテゴリカラーの凡例、ジオメトリを持たないソースのグレーアウト表示、`locationInMesh`/`locationsInMesh` キープポイントのトグル。
 - `test_block_mesh_panel_topo_select.py` — `topoSet ▾` の形状別表示メニュー: メニューの生成、個別/マスタートグル、Show all/Hide all、アクションカラーの凡例、ジオメトリを持たないソースをまとめた「Non-geometric sources (N)」サブメニュー、点/平面シェイプの STL エクスポートからの除外。
@@ -381,6 +432,9 @@ foam-dictionary-editor/
 - `test_block_mesh_selected_block.py` — ツリー → 3D のブロックハイライト: 初期状態ではどのブロックもハイライトされないこと、`set_selected_block` が `RenderSettings.selected_block` に届くこと、解除、別メッシュ読み込みでの破棄。`_highlight_selected_block` が `block_entry` 行の番号を転送し、それ以外の行では解除すること。`_render_selected_block` が `None` や範囲外の番号では何も描画しないこと（`None` のプロッタを渡して検証。`add_mesh` が呼ばれれば例外になる）。
 - `test_bm_side_by_side_multi_dict.py` — `⊞` サイドバイサイドコーナーボタン（`_update_bm_side_by_side_btn`）: `blockMeshDict`・`topoSetDict`・`snappyHexMeshDict`・`controlDict`（サンプリングオーバーレイ）では有効化され、無関係な辞書（例: `fvSchemes`）では無効化されることを検証。ツリー/BlockMesh スプリッターの両ペインが折りたたみ不可であることと、パネルが 150 px の最小幅を保つことも検証。
 - `test_flow_layout.py` — `FlowLayout`（ui/widgets/flow_layout.py）: 最小幅が最も幅の広い 1 項目分に等しいこと、狭めたときの `heightForWidth` による折り返し、折り返し後の項目の順序と位置、`takeAt` の管理を検証。
+- `test_case_ops.py` — ケース全体を開く・再読み込みする・複製する・名前を付けて保存する操作（カバレッジ 16% → 66%）。まず破壊的な側から。`_confirm_and_remove_existing_dir` はユーザが指定したディレクトリに対して `shutil.rmtree` を実行し、`save_as_new_case` は未保存の編集バッファをすべてコピー先へ書き込む。次にその周辺の流れ。OpenFOAM ケースではない可能性の警告、未保存の変更を破棄する前の確認、ケースライブラリの選択（空・1 件・複数・キャンセル）、そして **Reset Window Size** が `window_size` だけでなく保存済みジオメトリも消すこと。最後のものは教訓的で、最初に書いたテストは名前こそジオメトリに言及しながらサイズしか検証しておらず、`clear_session_geometry()` を削除しても素通りした — 次回起動時に取り消されてしまうリセットである。
+- `test_file_mgmt_ops.py` — `ui/mixins/_file_mgmt_ops.py` 全体（カバレッジ 28% → 80%）。まずバックアップ、ファイル削除、ディレクトリ削除、すなわちディスクから対象を取り除く操作。呼び出し側からは見えず、リファクタで失われやすい 2 つの規則を固定している。`_on_delete_dir_requested` は `0.orig/` が存在しない限り `0/` を拒否する（ソルバ実行における初期条件の唯一の控えであるため）。また **Backup & Delete** はバックアップに失敗した場合に削除を中止する（そうしないと、どちらのボタン単体よりも悪い結果になる）。`_create_backup` は未保存の編集がある場合、ディスク上の古いファイルではなく*バッファ*をコピーする — 破壊的操作の前にバックアップを提示する意味は、ユーザが目にしているものを残すことにあるため。3 つとも対応するバグを注入して確認済み。その前後の流れも対象とする。作成・複製が必ず通る新しい名前の入力（空、パス区切り、既存名）、複製された辞書が自身を正しく名乗るようにする `object` の書き換え、未保存の編集があるファイルを複製するときの 3 択プロンプト、削除できないファイルがあっても残りの処理を続ける clean-backups、追加ファイルダイアログの追加・削除・切り替えの計算。ファイル全体で 6 件のバグを注入し、いずれも対応するテストだけが失敗することを確認した。
+- `test_boundary_ops.py` — `ui/mixins/_boundary_ops.py` の複数ファイルにまたがる操作。1 クリックで複数のフィールドファイルに書き込むもの（全ファイルからの削除、全ファイルへの追加、テーブルのコンテキストメニューから呼ばれる単一ファイルの編集・作成・貼り付け・削除）を対象とする。このうち 2 つのアサーションは書き直した。`extract_boundary` 経由でパッチを数えても重複は見えない（パッチ名をキーとする dict を返すため）し、「影響を受けるファイル」の集合は確認ダイアログの文言にしか現れない（書き込みループは一致するパッチの無いファイルをどちらにせよスキップするため）。いずれも対応するバグを注入して失敗することを確認済み。
 - `test_boundary_view_copy.py` — `BoundaryViewPanel._table_data()` と Copy Table: Markdown 出力と 2 つの CSV アクション（連結版・複数行版）。
 - `test_case_switch_clears_block_mesh_panel.py` — 別のケースに切り替えたとき、`_load_case_dir()` が `BlockMeshPanel` の状態を（`_topo_shapes`/`_snappy_shapes` の一覧だけでなく）`clear()` 経由で完全にリセットすること: シェイプ別メニューアクション、`non_geometric` 一覧、`locationInMesh`/`locationsInMesh` マーカー、`Export Shapes as STL…` アクションの有効/無効状態がすべてクリアされること。
 - `test_code_editor.py` — `CodeEditor` の折りたたみマップ計算、折りたたみ/展開のトグル、`FoamFile { … }` ヘッダーとファイル先頭のコメントバナーの自動折りたたみ。
@@ -388,6 +442,7 @@ foam-dictionary-editor/
 - `test_comparison_tree_panel.py` — `ComparisonTreePanel`: `load` でヘッダーラベルを設定しプロキシを更新して FoamFile ノードを折りたたみ Type 列の表示を再適用すること、`clear` でモデルとヘッダーをリセットすること、`set_type_column_visible` で Type 列の表示を切り替え `load` をまたいで状態が維持されること、`use_value_requested` シグナルが接続可能なこと。
 - `test_detail_panel_fit.py` — Detail ペイン自身の折り返しラベル切れ修正（下記「フォントサイズと表示スケーリング」の「繰り返しフィットする: Detail ペイン」を参照）: `_choice_hint_label` が 3 通りのフォントサイズでスクロールエリアの到達可能範囲の下端に届くこと、通常ページのすべての折り返しラベルが必要な高さを得ていること、populate 後に幅を狭めても追従すること（populate 時のフィットだけでなく `resizeEvent` 自身の再フィットを検証）。
 - `test_dialog_fonts.py` — About ダイアログと Resources ダイアログのラベルが 9・11・16 pt でデスクトップのフォントサイズに追従すること。うち 6 つは以前 `font-size` をピクセル値（16, 12, 12, 12, 13, 13）で固定しており、デスクトップのフォント設定を完全に無視していた — 上記 `test_block_mesh_panel_fonts.py` と同じ不具合。
+- `test_current_text.py` — `_current_text` の優先順位（開いているファイルはエディタ、次にバッファ、パースキャッシュ、ディスク。`fallback=False` ではバッファで止まること、開いているファイルを別表記のパスで指しても一致すること）と `_dirty_paths`（読み取り専用を除外し、開いているファイルは `text_dirty` で数えること）。
 - `test_dialog_label_fit.py` — `ui/label_fit.py` の検証: 両ダイアログを 9・11・16 pt で構築し、折り返しラベルがどれも必要な高さより小さく割り当てられないことを検証する。どちらも幅固定で折り返しラベルが詰まっており、折り返し `QLabel` の `sizeHint` は実際に与えられる幅ではなく Qt が推測した幅で測られる。その推測が楽観的すぎて、11 pt という平凡なデスクトップフォントでも About ダイアログの謝辞は最後の数行が、免責ボックスは 2 段落目が切れていた。同じヘルパーを「一度きり」ではなく「繰り返し」適用する側は上記 `test_detail_panel_fit.py` を参照。
 - `test_diff_state_reset_on_case_change.py` — `_reset_diff_for_case_dir` の回帰テスト: 別のケースを開くとアクティブな比較（差分状態・バー・パネル・解析キャッシュ）がクリアされること、同じケースの再読み込みでは維持されること、比較が無いときは何もしないこと。
 - `test_drag_drop_open_case.py` — `MainWindow` のドラッグ＆ドロップによるケースオープン: `dragEnterEvent`、`dropEvent`、すべての子ウィジェットを有効なドロップ先にする `eventFilter`。
@@ -398,26 +453,27 @@ foam-dictionary-editor/
 - `test_case_browser_dialog.py` — `CaseBrowserDialog`: 非モーダルなウィンドウモダリティ、2 つのペインが 1 つのモデルを共有すること、ツリークリックによるナビゲーションとリストのダブルクリック（ケースは開き、フォルダは降りる）、選択項目の種類ごとのアクション行の有効/無効、同じナビゲーターに対するもう 1 つのビューが追従すること。
 - `test_case_browser_state.py` — 結合まわりの規則: 開いているケースの祖先に対する操作はモーダルを一切出さずに拒否されること、開いているケースをリネームすると新しいパスで再読み込みされウォッチャーも付け替えられること、削除するとケースを閉じてパスをキーとする状態がクリアされること、foamMonitor が削除より*前*に停止されること、`.foam-editor-files.json` はパスがケース相対のため移動後も残ること、`_close_case()` が自身の持つ各フィールドをクリアすること。
 - `test_case_nav_panel.py` — `CaseNavPanel`: ルートの付け替えとパスラベル、ダブルクリックで降りずにケースを開くこと、ナビゲーターの各シグナルとそのペイロードごとのテスト、記憶された場所とそのフォールバック連鎖、長い名前が水平スクロールバーを伸ばすのではなく省略されること。
-- `test_file_list_panel.py` — 差分フィルター: `set_diff_filter_enabled` でチェックボックスの表示・非表示・チェック解除、フィルターが差分件数 0 のファイルアイテムを非表示にしヘッダーは常に表示、`mark_diff` がフィルター有効時に即座にアイテムの表示を更新すること。
+- `test_file_list_panel.py` — `_build_context_menu` 経由で構築したコンテキストメニュー（ファイル行の各アクションが対応するシグナルを出すこと、追加ファイルのみの Remove、Show in 3-D view as のチェック状態、読み取り専用行は Copy into case のみ、ヘッダーの New/Add、0/ ↔ 0.orig の複製・削除の条件、ケースがなければメニューなし）。差分フィルター: `set_diff_filter_enabled` でチェックボックスの表示・非表示・チェック解除、フィルターが差分件数 0 のファイルアイテムを非表示にしヘッダーは常に表示、`mark_diff` がフィルター有効時に即座にアイテムの表示を更新すること。
 - `test_find_examples_dialog.py` — `FindExamplesDialog`: 非モーダルなウィンドウモダリティ、インストールコンボの初期化（`discover_installations` を偽インストールにモンキーパッチ）、スレッド検索後の Tutorials/caseDicts グループ化結果、チュートリアル一致と caseDicts 一致でのプレビュー表示と比較/複製ボタンの有効/無効、クリップボードへのコピー、チュートリアルケースルートを渡す `compare_requested`/`duplicate_requested` の発行、一致なし・空クエリ・検索対象なしのステータスメッセージ、ファイル名フィルタ。
 - `test_include_expansion_viewer.py` — 展開済みツリーを 3-D ビューアへ渡す MainWindow 側の結線。`BlockMeshPanel` の記録用スタブを使う（`main_window` フィクスチャは blockmesh を無効化しており、検証対象は VTK の挙動ではなくパネルに渡されるツリーそのもの）。ファイル単体では 0 頂点のところパネルが正しくスケールされた 8 頂点を受け取ること、ツリー／エディタ／パースキャッシュが*未展開*のルートを保持すること、`viewer_include_sources` が依存関係を追跡すること、インクルード先の編集で取り込み元の辞書が再描画されること、保存前の編集が使われること、インクルードの無い辞書が何も追跡しないこと、ケース切り替えで追跡が破棄されること。
 - `test_included_files.py` — `MainWindow` における `#include` 対応のエンドツーエンド。`tmp_path` 上に偽の OpenFOAM `etc` ツリーを作るため実インストールに依存しない: ケース外のインクルードが `<included>` グループに入り、ケース内のものは本来のグループに入ること、既に一覧にある対象にマークが付かないこと、読み取り専用の契約（エディタ、`flags()`、`_mark_dirty`、`save_file`、`save_all_files`、バックアップ、`apply_text_to_tree`、次のファイルでのフラグ解除）、ケース内外双方に対する **Open Included File** と missing/optional/非インクルードの各ケース、ツールチップの注記、既存名と `../` による脱出の拒否を含む **Copy into case…**。
 - `test_foam_highlighter.py` — `FoamHighlighter`: コメント、文字列、`#directives`、`$macro` 参照、予約キーワード、数値（`wall0`/`inlet-1` のような識別子内の数字を色付けしない lookaround ガードを含む）、同じガードを共有するキーワードルール（`y0.1` や `off.1`、シェルの `config.fi` のようなドット付き識別子が分割されない）、スキーマレジストリとキーワード JSON（ユーザーの `foam_keywords.json` 優先、同梱の `foam_keywords.default.json` にフォールバック、両方無ければ空集合）から得られる辞書キーの色付け、1,000 キーワード単位の `QRegularExpression` チャンク分割、有効/無効の切り替え。
 - `test_keyboard_shortcuts_dialog.py` — **Help > Keyboard Shortcuts** が実態と一致し、かつ画面に収まり続けることの検証。この一覧は手書きの表なので、ウィンドウが実際に登録しているショートカットとずれても何も止めるものがなかった — `Ctrl+S` はメニュー項目もこの一覧の記載も無いまま数リリース登録され続けていた。`TestCoverage` は構築済みの `MainWindow` 配下の生きた `QShortcut` と `QAction` のショートカットをすべて走査し、この一覧に無いキーシーケンスを名指しで失敗させる。新しいショートカットを追加したら `_SECTIONS_DATA` にも行を追加しないとテストが落ちるのはこのため。残りはレイアウトの保証（表が小さいディスプレイに収まらない高さまで伸びており、スクロールエリアの無い `QDialog` は内容より小さくリサイズできない）と、セクション名・行ラベルに未翻訳が無いことの検証。
 - `test_log_summary_dialog.py` — `LogSummaryDialog`: 非モーダルなウィンドウモダリティ、ケースディレクトリ内で最も新しく更新された `log.*` ファイルをデフォルト選択してその要約を表示すること、ファイルフィールド変更時の再パース、空のケースディレクトリでのフォールバックメッセージ。
-- `test_main_window_save_refresh.py` — `test_main_window_split.py` の構造チェックのみとは異なる、初めての振る舞いレベルの `MainWindow` テスト: 保存せずに編集しても `constant/polyMesh` メッシュインジケーターが変化しないこと、`save_file()`/`save_all_files()` のどちらも即座にファイル一覧を更新して、フル「Reload Case」なしで staleness インジケーターが更新されること。加えて `TestVanishedCaseDirectory`: ケースディレクトリがアプリの外でリネームまたは削除された状態でのリフレッシュは、パネルを黙って空にするのではなく、ファイル一覧とダーティなバッファをそのままにして警告すること(3 ケース中 2 つはガードが無いと失敗する)。
+- `test_main_window_save_refresh.py` — `test_main_window_split.py` の構造チェックのみとは異なる、初めての振る舞いレベルの `MainWindow` テスト: 保存せずに編集しても `constant/polyMesh` メッシュインジケーターが変化しないこと、`save_file()`/`save_all_files()` のどちらも即座にファイル一覧を更新して、フル「Reload Case」なしで staleness インジケーターが更新されること。加えて `TestVanishedCaseDirectory`: ケースディレクトリがアプリの外でリネームまたは削除された状態でのリフレッシュは、パネルを黙って空にするのではなく、ファイル一覧とダーティなバッファをそのままにして警告すること(3 ケース中 2 つはガードが無いと失敗する)。 あわせて `closeEvent` がまずターミナルに確認すること: 断るとウィンドウは閉じずシェルも残り、同意すると後片付けに進むこと。
 - `test_main_window_split.py` — Mixin 構造: 各 Mixin が正しいメソッドを保有すること（`_BoundaryOpsMixin` の `_on_patch_selected`、`_TreeCrudOpsMixin` の `_apply_comparison_value`、`_FoamMonitorOpsMixin` の foamMonitor 関連メソッドを含む）、Mixin 間の重複がないこと、`MainWindow` がすべての Mixin を継承していること。
 - `test_manage_extra_files_dialog.py` — `ManageExtraFilesDialog`: 登録済みの追加ファイル・ディレクトリの表示と削除操作。
 - `test_reset_all_settings.py` — **Reset All Settings** の後に `app_config.json` がどうなるかを検証します。ファイルを削除するだけでは処理の半分でしかありません。アプリケーションは動き続けており、`closeEvent` が終了時にセッションレイアウトとウィンドウサイズを保存していたため、ファイルが再生成され、ユーザーが消したばかりの設定がそのまま戻ってきていました。設定ファイルが削除された後の終了では何も書き込まないこと、削除されていない場合は従来どおり書き込むことを固定します。
 - `test_run_tool_dialog.py` — `RunToolDialog`: 初期状態のライブプレビューが `get_command()` と一致すること、チェックボックス/値編集によるコマンド更新、`last_values` の復元と `get_values()` の新しいダイアログへのラウンドトリップ、解析不能な追加オプションでの実行ボタン無効化、プレフィックスチェックボックスによるシェルプレフィックスの付加、Browse によるケース相対パスの挿入（ケース外は絶対パス）。
 - `test_stays_open_menu.py` — ツールバーのドロップダウンメニュー（`Vertices ▾`、`Blocks ▾`、`Scale ▾`、`topoSet ▾`、`snappyHexMesh ▾`）がチェック可能項目のクリックでは開いたままになり、チェック不可のアクションでは通常どおり閉じること。
-- `test_terminal_panel.py` — `SimpleTerminalWidget` と `TerminalPanel`: 初期状態、作業ディレクトリの切替、クリーンアップ、コマンド履歴、タブラベル、`run_command()`（シェル準備前のキューイングを含む）。
+- `test_terminal_panel.py` — `SimpleTerminalWidget` と `TerminalPanel`: 初期状態、作業ディレクトリの切替、クリーンアップ、コマンド履歴、タブラベル、`run_command()`（シェル準備前のキューイングを含む）。 あわせて実行中コマンドの保護: Simple ターミナルと xterm の PTY バックエンドそれぞれで実際の `sleep` が報告されること、何も実行していなければ確認を出さないこと、確認がコマンド名を示し既定が No であること、モード切替を断るとシェルが保たれチェックボックスが元に戻ること。
 - `test_theme.py` — `ui/theme.py` の配色テーブルをデータとして検証します: コントラスト計算、選択行の前景・背景ペアに関する慣習ルール（Windows のアクセントカラー `#0078d4` を明示的に指定したリグレッションテストを含む。黒と白のうちコントラストが高い方を選ぶ実装だと、この不具合を再現してしまうため）、どのアクセントカラーでも判読不能なペアが生じないことを網羅的に確認するテスト、両テーブルのすべての前景色がそのテーマの `Base` に対して 3:1 を下回らないこと、差分スウォッチと凡例の塗りが分離していること、そしてビューポートの文字色が `viewport_bg` に対して 3:1 を下回らないこと。いずれもテーブル単位の検査で、成立しない配色は検出しますが、単に見栄えが悪いだけの配色は検出しません。「テーマと配色」を参照。
 - `test_fonts.py` — `ui/fonts.py` の検証: エディタと 2 つのターミナルがアプリケーションフォントから導出する等幅フォントサイズ。`ui_point_size` が `QFontInfo` にフォールバックするのはプラットフォームフォントがピクセル指定の場合だけであること（`QFontInfo` は整数ピクセルに量子化するため、96 dpi の 13 pt は 12.75 として返ってくる）、および xterm ページ用に `css_pixel_size` が 96/72 固定で変換することを含む。`TestButtonPixelWidth` は `button_pixel_width` を検証します: テキスト自体の幅を超える余白を確保していること、アプリケーションフォントに追従して大きくなること、長いラベルほど広い幅を必要とすること、そして — このヘルパーが存在する理由そのものである — `QPushButton.sizeHint()` よりも十分小さいことです。
 - `test_icons.py` — `ui/icons.py`: `ICON_NAMES` とアセットディレクトリの対応を両方向で検証すること、宣言されたすべての名前が非 null かつ空でないピクセルのアイコンを返すこと、未知の名前は例外ではなく null のアイコンに落ちること、すべての SVG アセットがパース可能で SPDX ヘッダーを持つこと、`icon_pixel_size()` がアプリケーションフォントに追従して大きくなること、そしてダークモードのガード — アイコンの alpha マスクされた不透明ピクセルの平均輝度が `apply_theme(app, "dark")` の下では高く `"light"` の下では低いこと（文字列置換によるティントへの回帰を実際に捕捉する唯一の検査です）。下記「アイコンの色付け」を参照。
-- `test_tools_ops_mesh_actions.py` — Tools メニューの「Run *」アクションと Run Allrun/Run Allclean/Clean Case: blockMesh/snappyHexMesh/topoSet/setFields/checkMesh の（実物の、exec をパッチした）`RunToolDialog` を受理した後に偽のターミナルパネルへ送信される正確なコマンド文字列、キャンセル時に何も送信されないこと、時間ディレクトリが存在する場合にダイアログへ渡される再実行警告テキスト、`state.run_tool_options` からの前回オプションの復元、setFields の 0/ 復元プレフィックスチェックボックス（`0.orig/` があれば存在しデフォルトでチェック、なければ非表示、チェックを外せば「そのまま実行」）。Allrun/Allclean のスクリプト欠如警告、`log.*` が存在する場合の Allrun 三択プレフライト — クリーンしてから実行・そのまま実行・キャンセル —、Allclean への委譲または `-auto` による 0/ 削除に言及する Clean Case ダイアログ、`_update_tools_actions()` によるこれらのアクションおよび View Log Summary（ターミナルは不要でケースのみ必要）の有効化。
+- `test_tools_ops_mesh_actions.py` — Tools メニューの「Run *」アクションと Run Allrun/Run Allclean/Clean Case: blockMesh/snappyHexMesh/topoSet/setFields/checkMesh の（実物の、exec をパッチした）`RunToolDialog` を受理した後に偽のターミナルパネルへ送信される正確なコマンド文字列、キャンセル時に何も送信されないこと、時間ディレクトリが存在する場合にダイアログへ渡される再実行警告テキスト、`state.run_tool_options` からの前回オプションの復元、setFields の 0/ 復元プレフィックスチェックボックス（`0.orig/` があれば存在しデフォルトでチェック、なければ非表示、チェックを外せば「そのまま実行」）。Run Solver — controlDict（および未保存のエディタテキスト）からの事前入力、上書き入力した名前がその回だけ使われ記憶されないこと、不正な名前で Run が無効になること、foamRun モジュールの注記、並列チェックボックス（decomposeParDict がなければ非表示、分割済みならチェック済み、未分割ならチェックなし＋警告）、先に保存チェックボックス（未保存がなければ非表示、送信前に保存）、メッシュなし・`startFrom latestTime` の警告。既存ログの選択肢（ログがなければ非表示、次の `partN` は既存の最大番号の次、入力したサフィックス、上書きでは `mv` を送らないこと、不正なサフィックスや既存名と重なるサフィックスで Run が無効になること、ソルバー名の編集にサフィックスが追従すること、`mpirun` の前に付く `mv` プレフィックス）。並列実行の安全策（分割数の不一致、古い `0/`、未保存の `0/` の場も古い扱いになること — いずれもチェックを外して警告）。Run decomposePar — decomposeParDict がなければ拒否、`processor*` があれば `-force` がチェック済み、再構築されていない processor の時刻がある場合は（記憶されていても）チェックしないこと、再構築済みの時刻は対象外。Allrun/Allclean のスクリプト欠如警告、`log.*` が存在する場合の Allrun 三択プレフライト — クリーンしてから実行・そのまま実行・キャンセル —、Allclean への委譲または `-auto` による 0/ 削除に言及する Clean Case ダイアログ、`_update_tools_actions()` によるこれらのアクションおよび View Log Summary（ターミナルは不要でケースのみ必要）の有効化。
 - `test_tree_block_crud.py` — `block_entry` 行に対する追加/複製/削除: `_new_sibling_for` が生成する `block_entry` のデフォルト値が実際のブロックとして再解析されること（辞書が親の場合は `word` エントリ）、`_delete_label` がブロックを位置で呼ぶこと、ブロックの削除・追加後に書き出されるファイル（兄弟はそのまま、リストは自分の行で閉じる、残りのブロックは位置で振り直される）、および MainWindow を通した削除 → エディタテキスト → Ctrl+Z の一連の往復。
-- `test_tree_color_lexer_dispatch.py` — `unknown_raw_entry` の琥珀色表示、パーサの `_PAREN_DISPATCH` テーブル。
+- `test_tree_context_menu.py` — `_build_tree_context_menu` 経由のツリー右クリックメニュー: 通常エントリでの兄弟操作、`block_entry` では CRUD 可・Comment Out 不可、境界エントリでの Rename Boundary、解決できない `#include` では Open Included File が無効、読み取り専用ファイルでは Copy Value 以外すべて無効、各行が対応する操作を呼ぶこと。
+- `test_tree_color_lexer_dispatch.py` — `unknown_raw_entry` の琥珀色表示、パーサの括弧ブロック用ディスパッチテーブル（`_FIELD_VALUE_KEYS`・`_NAMED_BLOCK_PARAMS`・`_OPTIONAL_NAMED_BLOCK_PARAMS`）と、どのキーが同じハンドラを共有するか。
 - `test_tree_copy_paste.py` — ツリーの Copy/Paste Value: コピーした値の round-trip、異なる型のノード間でのペースト、サポート対象外のノード型を拒否するガード。
 - `test_tree_undo_redo.py` — スナップショット方式のツリー Undo/Redo: インライン編集の Undo が値・エディタテキスト・クリーンなダーティフラグを復元すること（Redo で再適用）、複数ステップの Undo、新しい編集による Redo ブランチのクリア、拒否された編集の迷子スナップショットのスキップ、削除/エントリ追加の往復、1 つの CRUD 操作がちょうど 1 つのスナップショットを生むこと（シグナルによる二重チェックポイントなし）、複数ファイルのスナップショットが全ファイルを復元すること、ケース再読み込みでのスタッククリア、深さ上限。
 - `test_update_viewer_panels.py` — `MainWindow._update_viewer_panels`: ファイル名から 3D ビューアへのディスパッチを、オーバーレイを駆動する各辞書についてパラメータ化して検証し、無関係な辞書では何もディスパッチされないこと、そして Apply Text to Tree が snappyHexMesh オーバーレイを更新することを確認します。最後の 1 つがこのヘルパーの存在理由です: ディスパッチは読み込み・保存・ツリー編集の各パスにコピー&ペーストされており、apply 側のコピーには snappyHexMeshDict のケースが抜けていたため、編集した snappy のテキストを適用しても 3D 表示が更新されませんでした。
@@ -428,6 +484,11 @@ foam-dictionary-editor/
 - `test_tree_text_sync_bar.py` — **Apply Text to Tree** / **Reload from Tree** の配置: タブページの内部ではなく下段タブバーのコーナーにあること（内部だとタブ切り替えで消え、3D オーバーレイを更新するのは `apply_text_to_tree` である）、上部アクションバーからは消えていること、実際のメソッドに接続されていること（ウィンドウ構築*前*にクラス側でパッチするため、テストが張り直した接続ではなく本物の配線を検証する）、そして Case メニューにも並び、Apply には `Ctrl+Shift+A` があり Reload には意図的にないこと（エディタのテキストを上書きするため）。
 - `test_action_toolbar.py` — 上部アクションツールバー: `addToolBar` で配置される実体としての `QToolBar` であり `centralWidget()` の子ではないこと、アイコンサイズが `icon_pixel_size()` に追従すること、`createPopupMenu()` が `None` を返すこと（Qt 標準の「このツールバーを隠す」メニューには元に戻す手段がないため）、ツールバーへ移動した後も現在ケース/現在ファイルのラベルが更新され続けること、`"Save All Files"` という文字列がどこにも残っていないこと（`QAction` のテキスト、`QAbstractButton` のテキスト、`QLabel` のテキスト、ツールチップのいずれにも）、そして — ラベルと有効・無効状態の同期を無償で得ている根拠となる同一性検査 — ツールバーの `Open Case…`/`Save File`/`Save Case`/`Reload Case` の各アクションが、Case メニューのものと単に等しいのではなく*同一のオブジェクト*であること。
 - `test_session_restore.py` — `ui/session_restore.py`: 終了時に正しいキーでレイアウトが保存されること、設定オフでは何も保存しないこと、適用対象がないときに restore が正直に報告すること、壊れた blob（改名されたフィールド、形の変わったフィールド、切り詰められたカメラ、移動したケース、別言語のタブラベル）で例外を出さないこと、そして実際の `MainWindow` から別の `MainWindow` へケース・開いているファイル・選択ツリー行が往復すること。
+- `test_multi_dict_overlays.py` — 1 つのオーバーレイに複数のファイルが入る場合（`topoSetDict-slices` と `topoSetDict-background`）: 最後に読んだものが前のものを置き換えるのではなく両方が描かれること、複数のファイルが寄与するときだけ行にファイル名が付くこと、別ファイルの編集後も形状ごとの表示切替が保たれること。
+- `test_supported_in_caveat.py` — 測定が止まったところで終わる `supported_in` の範囲に対する Detail パネルの注記。すべての範囲が測定済みになったため `OPEN_ENDED_SERIES` は空で、現在この注記が付くラベルはありません。次の未測定リリースに備えて仕組みが動き続けることを保つテストです。
+- `test_viewer_dicts.py` — `ui/viewer_dicts.viewer_dict_kind`: まず既定の名前、次に手で名付けた派生（`topoSetDict-slices`、`topoSetDict.1`）に対する `FoamFile` の `object` ヘッダ。`blockMeshDict.resolvedBlocks` のようなヘッダのない `#include` 断片はどのオーバーレイにも送らないこと。
+- `test_viewer_kind_override.py` — **Show in 3-D view as** による上書き: 自動判定より優先されること、手で編集した設定の未知のキーは無視されること、選択が `.foam-editor-files.json` にケース相対で保存されること、Automatic に戻すとその行がすぐ消えること、ケース外のファイルは拒否されること。
+- `test_tools_busy_terminal.py` — ターミナルが使用中のとき、ターミナル系の操作（各 Run ツール、Run Solver、Allrun、Allclean、Clean Case、Restore 0/）がすべて拒否され何も送らないこと。Run reconstructPar…（`processor*` がなければ拒否、警告に未再構築の時刻、既定で `-newTimes`、実行中は拒否）。Delete processor\* Directories…（最新時刻を残す選択が既定でチェックされ `<最新>` と `constant/` を残すこと、チェックを外すと全削除、ケースルートが先行していればチェックなしで始まること、メッシュが `processor*` にしかなければチェック固定 — ウィジェットだけでなくハンドラでも強制 — であること、processor 側に時刻がなければ全削除のみ。No なら何もしない、`processor*` にしかないデータがあれば確認すら出さずに拒否し一覧を 12 件で打ち切る、実行中は拒否、ターミナルなしでも動作、すべての問題の種類に説明文があること）。 このテストファイルには、削除を確認した後の SIGBUS クラッシュに対する回帰テストも 2 つあります。チェックボックスを Python が所有していないこと（PySide6 の `setCheckBox` は所有権を移さない）と、実際のメニュー操作・実際のダイアログ・強制的な `gc.collect()` をサブプロセスで実行しても落ちないことです。どちらも元のコードでは失敗します。
 
 **`tests/services/`**
 - `test_backup.py` — バックアップファイルの命名（`.bak_<タイムスタンプ>`）と内容（ファイルが開いている場合はインメモリバッファ、それ以外はディスク上の内容をキャプチャ）。
@@ -439,29 +500,36 @@ foam-dictionary-editor/
 - `test_case_loader.py` — `detect_time_dirs` と `TestExtraDirs`: フラット・再帰スキャン、存在しないディレクトリの許容、重複排除。
 - `test_example_search.py` — `example_search`: インストールルート／素の tutorials ディレクトリ／非インストールディレクトリに対する `installation_from_dir`、環境変数マッピングの注入・`extra_roots` の優先・重複排除を含む `discover_installations`、`stop` 境界付きで祖先を遡る `case_root_for`、両ソースでの一致（source/case_root/line_numbers/snippet フィールド）・大文字小文字を区別しない一致・`file_name` と `sources` フィルタ・`max_hits` 上限・`cancelled` による早期終了・バイナリ／サイズ超過ファイルのスキップ・一致行番号の 50 行上限・空クエリの `ValueError`・`progress` コールバックを検証する `search_examples`。
 - `test_log_summary.py` — `parse_log`/`format_summary`: `blockMesh` の Mesh Information/Patches 抽出と致命的エラー検出、`snappyHexMesh` の `Wrote mesh in` マーカーによるフェーズ分割・カテゴリごとの細分化反復回数・最終的なパッチ別レイヤーテーブル・件数付きの警告重複排除、`topoSet` のマルチソースセットの集約（`Read set` チェックポイントは新規セットではなく同一セットの継続として扱われること）、ソルバーログ — 収束した定常計算（Run/Residuals フェーズ、収束メッセージ、合計時間）、Courant 行と ESI 形式の `Time = 0.005s` 単位サフィックスを含む非定常計算、致命的エラーや `End` 未到達の実行が FAILED になること、`Time =` 行はあるが残差のない `checkMesh` 型のログが汎用パスに留まること、未知のユーティリティに対する末尾行フォールバック。
-- `test_tool_options.py` — `tool_options`: 期待される `TOOL_SPECS` の集合とデフォルトコマンド（snappyHexMesh のデフォルトでオンの `-overwrite`）、`build_args` の bool/value/file の仕様順処理、空値の省略、追加テキストの shlex 分割（閉じていない引用符 → `ValueError`）、古い未知フラグの無視、`build_command` のクォート・生プレフィックス・`tee log.<ツール名>` サフィックス。
+- `test_tool_options.py` — `tool_options`: 期待される `TOOL_SPECS` の集合とデフォルトコマンド（snappyHexMesh のデフォルトでオンの `-overwrite`）、`build_args` の bool/value/file の仕様順処理、空値の省略、追加テキストの shlex 分割（閉じていない引用符 → `ValueError`）、古い未知フラグの無視、`build_command` のクォート・生プレフィックス・`mpirun -np N … -parallel` による包み込み・`tee log.<ツール名>` サフィックス。
+- `test_solver_run.py` — `solver_run`: controlDict の `application`（通常・引用符付き・欠落・解析不能）、foamRun の `solver` モジュール（foamRun のときのみ）、foamMultiRun の `regionSolvers`、`numberOfSubdomains`（0 以下や `$var` は不明扱い）、ソルバー名の検証（シェルのメタ文字・パス・先頭の `-` を拒否）、collated 形式の `processorsN` を含む `processor*` ディレクトリの数値順ソート、単一リージョン・マルチリージョン・分割済みのみのケースでのメッシュ有無、残すログのサフィックス検証と `next_part_suffix`（隙間ではなく最大番号の次）、`decomposed_count`（非 collated/collated）、`unreconstructed_times`、`stale_decomposition`（古いメッシュ、再構築済みの時間ディレクトリを意図的に対象外とすること、保存予定のファイルも古い扱いになること）。 あわせて `check_processor_deletion`: 完全に再構築されたケースは安全とされること。データが `processor*` にしか存在しないそれぞれの場合 — 残された時刻（`-latestTime`）、残されたフィールド（`-fields`）、入れ子の `lagrangian/` データ、セット（`-noSets`）、再構築されていない並列メッシュ（セル数の不一致）、processor 側にしかないメッシュ、読めないセル数、collated 形式 — がそれぞれ固有の問題として拒否されること。`*ProcAddressing` ファイルはケースルートに必要としないこと。さらに最新時刻を残すモード: `delete_processor_data` の後も最新の processor 時刻と `constant/` が残ること、全削除より解放量が少ないこと、残す時刻とメッシュ・セットは確認しない（残るため）一方で前の時刻は確認すること、ケースルートの最新時刻を報告すること、残す時刻がないときに全削除へ切り替わらないこと。
+- `test_process_tree.py` — 偽の `/proc` に対する `child_processes`/`running_command_names`（空白や括弧を含む `comm`、孫プロセスは報告しないこと、`tee` は名前から除くが実行中として数えること、`job_control` ではシェル自身の補助プロセスを無視し、独自のプロセスグループを持つジョブは報告すること、`/proc` がなければ何も報告しないこと）と、`sleep` を実行する実際の `bash` に対する検証。
+- `_processor_cases.py` — テストではなく、分割ケースの組み立て用ヘルパー。decomposePar・並列計算・reconstructPar がディスクに残す配置をなぞる（実際の v2606 cavity の計算で確認済み）。`test_solver_run.py` と `tests/ui/test_tools_busy_terminal.py` が共用。
 
 **`tests/app_config/`**
 - `test_app_config.py` — `AppConfigManager`: ウィンドウサイズ、デフォルトケースディレクトリ、Case Library ディレクトリ（`$WM_PROJECT_DIR/tutorials` フォールバックを含む）、`save()`/`reset()` のセマンティクス、`app_config.json` が存在しない場合のフォールバック、設定の組み合わせ、JSON 構造、フィーチャーフラグの扱い（`set_feature`/`set_features`）。
 - `test_foam_env.py` — `foam_env_dirs`: 明示的な `FOAM_*` 変数が `WM_PROJECT_DIR` フォールバックより優先されること、サブディレクトリ単位のフォールバックはディレクトリが存在する場合のみ働くこと、無効・空白の変数は未設定扱いになること、バージョンの解決。
 - `test_json_io.py` — `load_json` の欠落・破損・正常 JSON の扱い、`save_json` のラウンドトリップと親ディレクトリ作成、`atomic_write_text` が成功時に `.tmp` を残さないこと、最終リネームやシリアライズが失敗しても元ファイルが無傷のまま（一時ファイルも掃除される）こと。
 - `test_keyword_generator.py` — `keyword_generator`: `*.C`/`*.H` から辞書読み取り呼び出し（`lookup`/`get<…>`/`readEntry`/`found` など）を収集する `scan_src_lookup_keywords()`（キーワードでない形式は除外）、フィクスチャのインストールツリーに対する `generate(project_dir=…)` — 環境変数は無視、`version` はディレクトリ名由来、ペイロードの来歴メタデータ、何も収集できない場合の `RuntimeError`。
+- `test_config_failure_reporting.py` — 設定ファイルを読めない・書けない・削除できないときにユーザーに伝える内容: 失敗は出力されるのではなく記録されて `take_warnings()` で取り出されること、解析できないファイルは終了時に既定値で上書きされるのではなく `.json.bad` に退避されること。
 
 **`tests/schemas/`**
 - `test_schemas.py` — `ChoiceItem`/`KeySchema`、`schema_config.json` の読み込み・保存・リセット・削除、`SchemaRegistry` のプレーン/親修飾/祖父母修飾ルックアップ、他の名前空間の内側でフラットフォールバックを抑止する閉じた名前空間ルール（2 モデル構成の合成モジュールによる検証と、実在する `snappyHexMeshDict` の名前空間で過剰抑止が起きないことの確認）、`snappyHexMeshDict` スキーマモジュール、設定済みモジュール一覧。
 - `test_schema_coverage.py` — モジュールが丸ごと機能停止したことを検出できたはずのテスト。`tests/fixtures/schemas/` にある実際の辞書（v2606 のチュートリアルから無改変でコピーしたもの。スキーマに合わせて手を加えていない点が重要）をパースし、`DetailPanel` とまったく同じ方法（`node.name`、`node.parent.name`、`node.parent.parent.name`）で走査して、辞書ごとのカバレッジ下限を検証します。`fv_schemes.py` はかつてキーを `"<key>.<parent>"` と綴っていた一方でレジストリは `"<parent>.<key>"` で引いていたため、全エントリが到達不能で実際の fvSchemes の 0% しか解決されませんでした。それでもユニットテストが通っていたのは、UI が実際に行う呼び出しではなく内部テーブルの形を検証していたからです。さらにテーブルの不変条件を 2 つ検査します。ドット区切りキーのサフィックスは `KeySchema.key` と一致しなければならないこと（当該モジュールが破っていたまさにその規則）と、`use_instead`／`renamed_from` の参照先がそのファイルに documented なキーとして存在すること。加えて来歴の各ケースをエンドツーエンドで検証します。motorBike の `minFlatness` が `ineffective` として報告されること、`minMedianAxisAngle` が後継とバージョン付きの `renamed` であること、`mergeType` が無効な `merge` を決して提示しないことです。
 - `test_turbulence_schemas.py` — foamlore が生成した `turbulence_properties`/`momentum_transport` モジュール: `TARGET_FILE` と `SCHEMAS` の形状（値はすべて `KeySchema`、選択肢はすべて `ChoiceItem`）、`schemas/builtin.py` のモジュール一覧に両方が既定で登録されていること、`SchemaRegistry` による親修飾形式（`kOmegaSSTCoeffs.beta1`）と `RAS` 辞書直下へのプレーンなフォールバックの両方でのルックアップ、バージョン別の `supported_in` タグとソース既定値の選択肢（`decayControl` の OpenCFD 限定である旨の注記を含む）、そして `GENERATED` バナーがそのまま残っていること — これらのファイルは foamlore で再生成するものであり、手で編集してはいけません。 加えて手書きモジュールとの接合部: `RAS`/`LES` モデルセレクタを `DetailPanel` と同じ形（実際のファイルパスと親キー、`<Model>Coeffs` 辞書はどこにも存在しない状態）でルックアップし、その選択肢が `MODEL_DOCS` の説明と引用を持つことを検証します。これはこの変更自体が対象としたチェックです — レジストリ API 経由の確認だけでは、通常のケースでは何も表示されないのに散文が到達可能だと報告されていました。
+- `test_default_and_required.py` — 「このキーを省略するとどうなるか」への 2 つの答えである `KeySchema.default` / `.required`: Detail パネルは 1 行で表示するため、既定値があることと既定値がないことを同時に主張するスキーマがないこと。あわせて、その行が各場合をどう表示するか（既定値は `required` より優先、どちらもなければ何も表示しない）。
+- `test_vendored_modules.py` — `GENERATED by foamlore` のバナーを持つすべてのモジュールが存在し、**git で追跡されており**、`../foamlore/fode-schemas/` とバイト単位で一致すること（foamlore のチェックアウトがなければ比較はスキップ）。git のチェックがあるのは、`_laminar_models.py` がかつて正しくベンダリングされたまま追跡されていなかったためです。
 
 **`tests/tools/`**
 - `test_capture_dialog.py` — `tools/capture_dialog.py` のショット一覧を素のデータとして検証するテストで、`test_window_state.py` のスクリーンショット spec 検査に対応するものです: 名前がキーと一致すること、同じファイルへ書き込むショットが 2 つないこと、すべてのショットが両言語のギャラリーページから参照されていて画像も存在すること、`requires()` がトレースバックではなく不足しているものを名指しすること。ショットは入力の出どころ（撮影マシンかリポジトリか）で分類され、3 つ目のテストがすべてのショットがそのどちらかに分類されていることを検証するため、ショットを追加すると必ずどちらかを選ぶことになります。さらに `find-examples` ショットが操作する `FindExamplesDialog` のプライベート属性名を固定し、run-tool ショットの警告文と前置き文字列が `ui/mixins/_tools_ops.py` に今も存在することを検証します。これによりアプリが決して表示しないダイアログをギャラリーが見せてしまうことはありません。キャプチャ自体は実 X ディスプレイを要するため対象外です。
 - `test_demo_driver_isolation.py` — テイクが収録環境に手を出さないことの確認: `XDG_CONFIG_HOME` がテイクのスクラッチディレクトリへ向き `$HOME` は触られないこと、同梱の ParaView プロファイルが存在して Getting Started スプラッシュを抑止し ParaView が見つける場所へコピーされること、そして — QSettings は 最初の構築時にパスをキャッシュするためサブプロセスで — ファイルダイアログに Home のショートカットが出ず、収録ユーザ自身の `QtProject.conf` が書き換えられないこと。
 - `test_demo_specs.py` — `tools/demo_specs.json` のシーンを素のデータとして検証します。この中で最も費用対効果が高い検査です。収録には実 X ディスプレイと OpenFOAM のインストール、そして 1 分程度の実時間が必要なため、リネームされたメニュー項目を指しているシーンは、本来なら収録の途中で初めて失敗します。検証内容は、spec が strict な `WindowState` の経路で読み込めること、各ステップの種類と必須フィールド、ターゲットを取るステップがちょうど 1 つだけターゲットを指定していること（取らないステップは 1 つも指定していないこと）、パスと入力テキストのプレースホルダが `_expand` の知っているものであること、スクラッチ用 workdir がリポジトリの外にあること、そして同梱ケースについてのみ（`{cases}` のシーンは収録マシンに依存するため）ケースが存在し、シーンが開くファイルをすべて含んでいること。ラベルは上記 run-tool ショットと同じ考え方でUI のソースと突き合わせます: メニューバーのタイトル、省略記号付きのメニュー項目（ダイアログを開くアクションの慣習であり、ケースから読み出される形状名の行とは違ってソース中のリテラル）、ボタンのラベル、ウィジェットの属性名。実際に起きた不具合のためだけのテストも 1 つあります: ステップのマウスボタンは `with` であり、`button` は既にターゲット（クリックするボタンの名前）なので、`"button": "left"` は "left" という名前のターゲットとして解釈され、収録時にしか失敗しません。ステップの語彙は列挙ではなく `Runner` の `_step_*` メソッドから読み取るため、ドライバに新しいステップ種別を足してここが古いまま取り残されることはありません。操作と収録自体はディスプレイを要するため対象外です。
+- `test_reader_paths.py` — バージョンタグ・オラクルの FoDE 側である `tools/fode-reader-paths.json`: 現在のレジストリに対して最新であること（タグが変わった瞬間に `keys` が古くなるため）、foamlore と取り決めた形であること、読み取り箇所のパスが実際の OpenFOAM ツリーに存在すること（`lnInclude` は除外）、実行時に組み立てられるキーと構造的なキーが黙って落とされずにフラグ付きで残ること。
 
 ## パーサとデータモデル
 
 ### ノード型
 
-**リーフ値型** — `foam/parser.py:387` の `_classify_value` と `foam/utils.py:113` の `classify_parenthesized_value` によって設定されます。
+**リーフ値型** — `foam/parser.py` の `_classify_value` と `foam/utils.py` の `classify_parenthesized_value` によって設定されます。
 
 | `node_type` | `value` の Python 型 | 生成条件 |
 |---|---|---|
@@ -478,6 +546,7 @@ foam-dictionary-editor/
 | `scalar_list` | `list[float]` | `(a b …)` — 括弧内がすべて数値トークン（3 つでないもの） |
 | `raw_list` | `str`（内側テキスト） | `(…)` — 混在またはネストしたコンテンツ |
 | `box_pair` | `list[list[float]]`（2×3） | `(x y z) (x y z)` — `box` キーにのみ生成 |
+| `valueless` | `None` | キーの直後が `;` のもの — `fluxRequired { p; pcorr; }`、`cache { grad(U); }` など。OpenFOAM は名前の集合として読み、キーそのものが意味を担う。`_classify_value` より前に `_parse_entry` で判定し、`key;` として書き戻す |
 
 **構造型** — `_parse_entry` / `_parse_dictionary_entry` / `_parse_named_dict_block` によって設定されます。
 
@@ -502,10 +571,10 @@ foam-dictionary-editor/
 
 ### 分類ロジック
 
-`_classify_value(key, text)`（`foam/parser.py:387`）は、波括弧・特殊括弧以外のすべてのエントリに対して呼ばれます。優先順位は次の通りです。
+`_classify_value(key, text)`（`foam/parser.py`）は、波括弧・特殊括弧以外のすべてのエントリに対して呼ばれます。優先順位は次の通りです。
 
 1. **`box_pair`** — `key == "box"` かつ `foam/utils.py` の `parse_box_pair(text)` が成功する場合のみ。
-2. **括弧付き** — `classify_parenthesized_value`（`foam/utils.py:113`）に委譲。`vector`（ちょうど 3 つの float）、`int_list`（すべて整数）、`scalar_list`（すべて数値で 3 つでない）、`raw_list`（それ以外）を返す。
+2. **括弧付き** — `classify_parenthesized_value`（`foam/utils.py`）に委譲。`vector`（ちょうど 3 つの float）、`int_list`（すべて整数）、`scalar_list`（すべて数値で 3 つでない）、`raw_list`（それ以外）を返す。
 3. **`string`** — `"` で始まり `"` で終わる。
 4. **`macro`** — `$` で始まる。
 5. **空白を含む** — `nonuniform List…` で始まる場合は `nonuniform_list`、それ以外は `compound`。
@@ -553,7 +622,7 @@ foam-dictionary-editor/
 
 ### ライタの raw_text パススルー
 
-`_write_node`（`foam/writer.py:61`）は 3 つの条件がすべて満たされる場合、再生成を完全にスキップします。
+`_write_node`（`foam/writer.py`）は 3 つの条件がすべて満たされる場合、再生成を完全にスキップします。
 
 ```python
 if not node.modified and node.raw_text and not _has_modified_descendant(node):
@@ -597,7 +666,7 @@ python3 tools/roundtrip_corpus.py --dir /usr/lib/openfoam/openfoam2512
 
 ### `field_value_block` の子ノードが `value` に格納される
 
-`field_value_block` は子ノードを `node.children` ではなく `node.value`（`list[FoamNode]`）に格納する唯一の構造型です。`FoamTreeModel._child_list`（`model/tree_model.py:159`）がこの特殊ケースを処理します。
+`field_value_block` は子ノードを `node.children` ではなく `node.value`（`list[FoamNode]`）に格納する唯一の構造型です。`FoamTreeModel._child_list`（`model/tree_model.py`）がこの特殊ケースを処理します。
 
 ```python
 if node.node_type == "field_value_block":
@@ -605,7 +674,7 @@ if node.node_type == "field_value_block":
 return node.children
 ```
 
-`field_value_block` ノードの `node.children` は常に空のリストです。ツリーを汎用的に再帰処理するコードは、この型に対して `node.value` を反復処理する必要があります。ライタ（`foam/writer.py:72`）と `_has_modified_descendant` はどちらも明示的にこれを行います。
+`field_value_block` ノードの `node.children` は常に空のリストです。ツリーを汎用的に再帰処理するコードは、この型に対して `node.value` を反復処理する必要があります。ライタ（`foam/writer.py`）と `_has_modified_descendant` はどちらも明示的にこれを行います。
 
 ### レガシーな `"list"` 型
 
@@ -933,6 +1002,28 @@ v2512 チュートリアル全体では 1081 件中 1072 件のディレクテ�
 
 最後に閲覧していた場所は `WindowState` のフィールドではなく `app_config.json` の `case_browser_dir` キーです。これはレイアウトではなく `default_case_dir` と同じ並びの好み設定です。`WindowState` を使うのは 2 重の意味で誤りだったはずです — `session_key()` によって*フィーチャーセットごと*にキー分けされるため `--variant no-terminal` では別のディレクトリを記憶してしまいますし、セッション復元がオンのときしか書き込まれませんが、ブラウザはそれに関わらず場所を覚えているべきだからです。開始位置の連鎖は `case_browser_dir` → `default_case_dir` → 開いているケースの親ディレクトリ → `Path.home()`（`CaseNavigator.initial_location`）です。
 
+## 同じ辞書が複数あるケース
+
+1 つのケースが同じ辞書を既定でない名前で複数持つことがあります。`topoSetDict-slices` と `topoSetDict-background` が並ぶ形や、チュートリアルで使われる `topoSetDict.1` / `.2` / `.3` の形です。そして `topoSet -dict <名前>` がそれぞれを順に実行します。これを 3-D ビューで扱うには 2 つの別々の作業が必要で、2 つめは見落としやすいものです。
+
+**ファイルを識別する。** `ui/viewer_dicts.py` の `viewer_dict_kind(path, root)` はまずファイル名を試し、次にそのファイルの `FoamFile` ヘッダの `object` エントリを見ます。これは「その辞書が何であるか」に対する OpenFOAM 自身の答えであり、ファイル名が何であろうと変わりません。両フォークのチュートリアルツリーで計測したところ、ビューアの辞書らしい名前でありながら完全一致はしない 138 ファイルのうち、118 が基底の辞書名を `object` に持ち、さらに 12 がバリアント名（`object topoSetDict.1`）を持っていました。後者は区切り文字でガードした前方一致で拾えます。
+
+残る 4 つが、これをファイル名の前方一致にしていない理由です。`blockMeshDict.resolvedBlocks` とその同類は `#include` される*フラグメント*であり、辞書に包まれていない裸の `hex (…)` の並びです。これをブロックメッシュの抽出に回すと、本物のシーンが空のシーンに置き換わってしまいます。これらに `FoamFile` ヘッダが無いのは、まさに辞書ではないからです。したがってヘッダを読むことで、描画すべきファイルを見つけることと、描画すべきでないファイルを外すことが、1 つの判定で同時に達成されます。
+
+サンプリングだけは名前のみで判定します。単体の `sample`/`probes`/`surfaces` ファイルは関数オブジェクトのエントリ 1 つであり、`FoamFile` ヘッダがそもそも無いため、読むものがありません。名前を変えたものは、既知の名前で追加する必要があります。
+
+**見つけたものをマージする。** 識別だけでは、不具合を直すどころか新たに作り込むことになります。サンプリング以外のオーバーレイは、最後に渡されたファイルだけから作り直していたため、2 つめの `topoSetDict` が 1 つめを消していました。つまり 2 つが交互に表示されるだけだったのです。現在は各オーバーレイが `dict[path, Data]`（`_topo_by_file` など。既存の `_sampling_by_file` に倣ったもの）を保持し、`BlockMeshPanel._merge_by_file` を通して和集合を作り直します。キーはベース名ではなくフルパスなので、追加ディレクトリに 2 つめの `topoSetDict` があっても機能します。何も生成しなかったファイルは空エントリとして残すのではなくストアから削除されるため、ある辞書を空にするとその行だけが消え、他はそのまま残ります。
+
+行に `[ファイル名]` のサフィックスが付くのは、**そのオーバーレイに複数のファイルが寄与しているときだけ**です（`_ShapeOverlayMenu._attribution`。寄与したファイル数を知っている唯一の場所です）。ほとんどのケースは `topoSetDict` を 1 つしか持たず、そこで全行に名前を付けるのは情報ではなくノイズになります。これによりサンプリングの挙動も変わりました。従来は無条件にサフィックスを表示していました。
+
+**自動判定では決められない場合。** ファイルの右クリックメニューに **Show in 3-D view as** サブメニューがあります。選択肢は「自動判定」、4 つの辞書のいずれか、または「サンプリング」です。これはヘッダでは決められないケースのためにあります。名前を変えたサンプリング辞書は関数オブジェクトのエントリ 1 つであり、`FoamFile` ヘッダがそもそも無いため、読むものがありません。ヘッダの記述が単に間違っているファイルにも使えます。そうした場合、そのファイルが何であるかは利用者には分かっていて、プログラムには分かりません。
+
+この上書き指定は 2 つの判定のどちらよりも優先されます。未知のキーは振り分けられずに無視されるため、`.foam-editor-files.json` を手で編集して存在しないオーバーレイ名を書いても効きません。保存先はそのファイルの `viewer_kinds` マップで、ケース単位かつ追加ファイル一覧と同じくケース相対です。そのため Case Browser でケースディレクトリを移動しても一緒に付いていきます。この選択はセッションについての事実ではなく、そのケースのファイルについての事実だからです。
+
+変更や解除は、まず `BlockMeshPanel.forget_file(path)` を通ります。再描画だけでは後片付けができません。そのファイルが以前に寄与していたオーバーレイは、いま書き込まれている側とは別であり、「自動判定」に戻した場合はそもそも何も振り分けられないため、古い行を消すものが存在しないからです。
+
+マージされたビューが主張し*ない*ことが 1 つあります。`topoSet` のアクションは逐次実行であり、辞書が `action invert` で終わることもあります。オーバーレイは読み込まれた全ファイルの全アクションについて、その元になるジオメトリを同時に描きます。それらを実行した結果として得られるセルセットの絵ではありません。これは `topoSetDict` が 1 つのときから同じでしたが、2 ファイルが並ぶと誤読しやすくなるだけです。
+
 ## ツリーとエディタの同期
 
 ツリーノードを選択すると、対応するソース行がテキストエディタで琥珀色の背景でハイライトされ、オプションでその行にスクロールします。仕組みは以下の通りです。
@@ -941,7 +1032,7 @@ v2512 チュートリアル全体では 1081 件中 1072 件のディレクテ�
 
 **UI 側** — `CodeEditor` は `_span_start_line` / `_span_end_line` を保持します。`set_span_highlight(start, end)` でこの範囲を保存し `highlight_current_line` をトリガーします。`highlight_current_line` は `setExtraSelections` で琥珀色のスパン（背景）と青い現在行ハイライト（前面）を重ねて描画します。`EditorPanel` は `jump_to_node(start, end, scroll=True)`（ハイライト＋オプショナルスクロール）と `clear_node_highlight()` を公開します。
 
-**状態ガード** — `MainWindow._source_lines_valid` は `_load_tree` 呼び出し後（ファイル読み込みまたは Apply Text to Tree）に `True` になり、ユーザーがエディタテキストを編集した瞬間（`_on_user_text_changed`）に `False` になります。`on_tree_selection` はこのフラグが `False` の場合にジャンプとハイライトをスキップし、古い行番号への誤ジャンプを防ぎます。`_update_sync_checkbox` はこの有効/古いの状態をチェックボックスのラベル・スタイル・ツールチップに反映します。
+**状態ガード** — `state.source_lines_valid` は `_load_tree` 呼び出し後（ファイル読み込みまたは Apply Text to Tree）に `True` になり、ユーザーがエディタテキストを編集した瞬間（`_on_user_text_changed`）に `False` になります。`on_tree_selection` はこのフラグが `False` の場合にジャンプとハイライトをスキップし、古い行番号への誤ジャンプを防ぎます。`_update_sync_checkbox` はこの有効/古いの状態をチェックボックスのラベル・スタイル・ツールチップに反映します。
 
 **エディタ → ツリー方向** — `_sync_tree_to_editor_line` は現在のエディタカーソル行を読み取り、`_find_deepest(root, line)` を呼び出して `source_line ≤ line ≤ source_end_line` を満たす最も内側のノードを探します。結果が見つかればツリーをそのノードまでスクロールして選択します。一致したノードがプロキシモデルでフィルタリングされている場合は、表示中の最も近い祖先まで遡ります。このメソッドは Editor ツールバーの **Find in Tree** ボタンと `Ctrl+Shift+T` ショートカットで呼び出されます。
 
@@ -964,17 +1055,17 @@ Boundary パネルツールバーの **Auto-scroll editor** チェックボッ�
 - `state.text_dirty: bool` — 現在開いているファイルのインメモリエディタ内容がディスク上のものと異なるかどうか。`_mark_dirty()` で設定され、`save_file()`、Apply Text to Tree、Reload from Disk でクリアされます。
 - `state.file_dirty: dict[str, bool]` — 現在のセッションで読み込まれたすべてのファイルのファイルごとのダーティ状態。ファイルを切り替えても未保存の編集が失われないよう、ファイルスイッチをまたいで保持されます。
 
-`_mark_dirty()`（`ui/mixins/_model_ops.py:102`）は両方の値を `True` に設定し、ウィンドウタイトルに `*` サフィックスを追加し、`file_list_panel.mark_dirty()` を呼び出してファイルリストにインジケーターを表示します。これは `_after_model_edit()`（`write_root()` 経由でテキストを再生成するツリー編集後）と `_on_user_text_changed()`（エディタへの人間によるキー入力時）から呼び出されます。
+`_mark_dirty()`（`ui/mixins/_model_ops.py`）は両方の値を `True` に設定し、ウィンドウタイトルに `*` サフィックスを追加し、`file_list_panel.mark_dirty()` を呼び出してファイルリストにインジケーターを表示します。これは `_after_model_edit()`（`write_root()` 経由でテキストを再生成するツリー編集後）と `_on_user_text_changed()`（エディタへの人間によるキー入力時）から呼び出されます。
 
 `_after_model_edit()` 自体は 2 つの経路で呼ばれます。1 つは明示的な呼び出しで、Detail パネルの「Apply」ハンドラとツリー CRUD 操作（`_tree_crud_ops.py`）が `FoamTreeModel.setData()` / `insert_node()` / `remove_node()` を呼び出した直後に行われます。もう 1 つは `_load_tree()` 経由で、これは `FoamTreeModel.dataChanged` を `_on_tree_data_changed()`（`ui/mixins/_model_ops.py`）に接続し、`Qt.EditRole` を伴う発行だけにフィルタします。この signal 接続が、Tree パネルのインラインセルエディタで直接行われた編集を捕捉する仕組みです — Qt のアイテムデリゲートはビューから直接 `setData()` を呼び出すため、そのパスには明示的な `_after_model_edit()` 呼び出しがどこにもありません。この `dataChanged` フックがなければ、インラインでのツリー編集はノードを変更するだけで、エディタテキストの再生成もファイルのダーティマークも行われません。`Qt.EditRole` フィルタは差分ハイライトの再描画（`set_diff()` / `clear_diff()`、`BackgroundRole` のみで `dataChanged` を発行）を除外します。
 
-`_save_current_buffer()`（`ui/mixins/_model_ops.py:29`）はファイルスイッチ前に `editor_panel.get_text()` を `state.file_buffers[state.current_file]` へフラッシュし、`state.text_dirty` を `state.file_dirty[state.current_file]` に書き戻します。これにより、スイッチをまたいでも未保存の編集がインメモリで保持されます。
+`_save_current_buffer()`（`ui/mixins/_model_ops.py`）はファイルスイッチ前に `editor_panel.get_text()` を `state.file_buffers[state.current_file]` へフラッシュし、`state.text_dirty` を `state.file_dirty[state.current_file]` に書き戻します。これにより、スイッチをまたいでも未保存の編集がインメモリで保持されます。
 
 `_mark_path_dirty(path)` は現在開いているファイルに関係なく特定のパスをダーティとしてマークします。複数のフィールドファイルにわたって境界パッチをリネームするような操作で使用されます。
 
 ## ツリーのコピー・ペーストショートカット
 
-`_setup_tree_copy_paste()`（`ui/mixins/_tree_crud_ops.py:27`）は `Qt.WidgetShortcut` スコープを使って Ctrl+C と Ctrl+V の `QShortcut` インスタンスを `tree` ウィジェットに直接アタッチします。
+`_setup_tree_copy_paste()`（`ui/mixins/_tree_crud_ops.py`）は `Qt.WidgetShortcut` スコープを使って Ctrl+C と Ctrl+V の `QShortcut` インスタンスを `tree` ウィジェットに直接アタッチします。
 
 ```python
 copy_sc = QShortcut(QKeySequence.Copy, self.tree)
@@ -1067,6 +1158,14 @@ python3 main.py --ui-scale 150                    # この実行のみ。QT_SCAL
 ## アプリケーション設定
 
 `AppConfigManager`（`app_config/app_config_manager.py`）はアプリケーションの永続設定を管理します。`get_app_config()` でシングルトンインスタンスを取得し、セッション全体で再利用します。読み込み/保存の実処理は `app_config/json_io.py`（`load_json`/`save_json`）に委譲しており、これは `services/case_files_config.py` とも共有しています。`save_json` はアトミックに書き込みます（`atomic_write_text`: 隣接する `.tmp` ファイル + `os.replace` なので、書き込みが失敗しても既存の設定ファイルが壊れることはありません。`tempfile.mkstemp` ではなく名前付き一時ファイルを使うことで umask デフォルトのパーミッションを保ちます）。
+
+### 設定が読めない・書けないとき
+
+`AppConfigManager` は失敗を `_warnings` に積む形で報告します。`take_warnings()` がそれを取り出し、`main.py` が `restore_session` の後にステータスバーへ表示します。これ以上直接的なことはできません。`app_config/` は階層として `ui/` より下にあり、ダイアログを出す手段がなく、置き換え前の 4 つの `print()` は、FoDE をデスクトップエントリから起動したときには存在しない stdout へ出力していました。
+
+読み込み経路では、報告に加えてもう 1 つやることがあります。パースできないファイルは、デフォルト値を読み込む前に **`app_config.json.bad` へリネーム** します。これがないと、そのファイルは静かに破壊されます。パースに失敗し、`reset()` がデフォルト値をメモリに置き、必ず保存を行う `closeEvent` がそのデフォルト値をファイルに上書きするからです。ユーザから見れば、理由も分からず全設定が初期化され、復元する手がかりも残りません。削除ではなくリネームにしているのは、壊れた箇所の周囲の JSON はたいてい目視で読めますし、ケースライブラリを記憶から作り直すのは面倒だからです。
+
+`delete_config_file()` が bool を返すのは、`services/case_files_config.py` にある同名のものと同じ理由です。どちらも「このファイルを削除します」とユーザに約束したコードから呼ばれます。`reset_file_list` は従来どちらの場合も成功と報告しており、直後にケースを再読み込みするため、削除に失敗した場合は「消えました」と伝えた直後に全エントリが一覧へ戻っていました。
 
 ### save() のセマンティクス
 
@@ -1195,17 +1294,17 @@ Linux 上では、次の 2 つのサブシステムが GPU に同時アクセス
 これら 2 つは同一 GPU コンテキストに安全に共存できません。`main.py` で次の回避策を適用しています。
 
 1. `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu --disable-vulkan --log-level=2` を設定し、WebEngine を SwiftShader（CPU ソフトウェアレンダリング）で強制起動することで GPU を VTK 専用に開放します。`--log-level=2` は `--disable-gpu` の副作用として表示される "GPUInfo not initialized on GpuInfoUpdate" という Chromium の警告を抑制します。
-2. 起動時に `block_mesh_panel` が `None` でなく、かつターミナルが存在しないかシンプルモードの場合は、`QTimer.singleShot(0, block_mesh_panel._init_plotter)` で VTK を先行初期化し、ユーザー操作より前に OpenGL コンテキストを確保します。
+2. 起動時に `block_mesh_panel` が `None` でなく、かつターミナルが存在しないかシンプルモードの場合は、`QTimer.singleShot(0, block_mesh_panel.init_plotter)` で VTK を先行初期化し、ユーザー操作より前に OpenGL コンテキストを確保します。
 
 ターミナルモードの切替（`TerminalPanel.mode_changed` シグナル）では、xterm 起動前に VTK をシャットダウンし、シンプルモードへ戻る際に 300 ms の遅延後に VTK を再初期化します。このシグナルは `terminal` と `blockmesh` の両方が有効なときのみ接続されます。
 
 **View メニューのアクション** — `_build_menu_bar` 内の `_blockmesh_action`（`QAction`、チェック式）は、ターミナルモードとは独立して BlockMesh タブを表示・非表示にする第 2 の手段です。xterm が有効な場合はアクションが無効化され、テキストが `"BlockMesh 3-D Panel  (unavailable: xterm active)"` に変わって理由をホバーなしで表示します。`_on_terminal_mode_changed` がアクションの有効状態とラベルをターミナルモードと同期させ、`_on_toggle_blockmesh_panel` がユーザーのクリック時に実際のタブ追加・削除を処理します。
 
-**Axes ウィジェット** — `add_axes()` は `vtkOrientationMarkerWidget` を生成します。このウィジェットはアクター（`plotter.clear()` で消去される）ではないため、`clear()` をまたいで持続します。そのため `_init_plotter()` で一度だけ呼び出します。`_render()` では毎フレーム再追加するのではなく `show_axes()` / `hide_axes()` でトグルします。
+**Axes ウィジェット** — `add_axes()` は `vtkOrientationMarkerWidget` を生成します。このウィジェットはアクター（`plotter.clear()` で消去される）ではないため、`clear()` をまたいで持続します。そのため `init_plotter()` で一度だけ呼び出します。`_render()` では毎フレーム再追加するのではなく `show_axes()` / `hide_axes()` でトグルします。
 
 **テキストを描画するのは Qt ではなく VTK** — 3D シーン自身のテキスト（形状名バッジ、頂点番号とブロック番号、範囲表示、方位軸の文字、グリッドの目盛りラベル）は VTK の組み込みラベルフォントで描画され、Qt が使うデスクトップのフォントスタックとは別物です。このフォントはグリフを持たない文字に対して**何も描画しません** — 代替の四角い枠さえ描きません — そのため Qt のメニューでは正しく見える記号が、3D ラベルの中では幅だけを占めて消えることがあります。2026-07-30 まで 2 か所が実際にそうなっていました: `_CLIP_MARK_SUFFIX`（現在は `ui/panels/shape_mesh.py`）の `✂`/`⚠` と、**Dimensions** の範囲表示（`block_mesh_renderer.py`）で各軸の 2 つの数値を区切っていた `→` で、後者は画面上では `X  0   3  (3 m)` になっていました。角括弧も同様に不可で、丸括弧として描画されます。`shape_mesh.py` と `block_mesh_renderer.py` 内のすべての文字列は ASCII に限定してください。`tests/ui/test_shape_mesh.py` と `tests/ui/test_block_mesh_renderer_colors.py` がそれぞれ自分のモジュールの AST を走査して（docstring を除き）まさにこれを検査します。範囲表示はインラインの f-string だったため、定数ごとの検査では見逃されていたからです。ただしこのテストが捕捉できるのは「描画できない文字」であって「見た目が不適切な文字」ではないため、新しく追加したシーン表示は画面で確認してください — グリフの欠落は `assert` では検出できません。なお `block_mesh_panel.py` の `▾`・`·`・`📍`・`…` は対象外です。これらは Qt のウィジェットテキストです。
 
-**サイドバイサイドモード** — `⊞` トグルボタン（`_bm_side_by_side_btn`）が `QTabWidget` のコーナーウィジェットとして追加されます。有効化すると `_on_toggle_bm_side_by_side` が `block_mesh_panel` を `upper_tabs`（`QTabWidget`）から `_tree_bm_splitter`（`right_upper_splitter` をラップし Tree タブのコンテンツとなる `QSplitter(Qt.Horizontal)`）へ再ペアレント化します。リペアレント前にまず Tree タブへ切り替えてスプリッターを可視状態にし、`setSizes([1,1])` と `_init_plotter()` は `QTimer.singleShot(0, ...)` で次のイベントループティックまで遅延させます。サイドバイサイドモードを切ると `block_mesh_panel` は通常タブとして `upper_tabs` に戻されます。`_update_bm_side_by_side_btn`（`ui/mixins/_panel_ops.py`）は、現在のファイル名が `blockMeshDict`・`topoSetDict`・`snappyHexMeshDict`・`setFieldsDict`、またはサンプリング名（`SAMPLING_DICT_NAMES`: `controlDict`・`sample`・`probes`・`surfaces`・`singleGraph`）のいずれか（いずれも同じ 3D ビューに描画される — `block_mesh_extractor.py`、`topo_set_extractor.py`、`snappy_hex_mesh_extractor.py`、`set_fields_extractor.py`、`sampling_extractor.py` を参照）で、BlockMesh タブ自体が有効、かつ xterm が非アクティブなときにボタンを有効化します。それ以外はボタンを無効化し、サイドバイサイドモードが有効であれば強制的に解除します。
+**サイドバイサイドモード** — `⊞` トグルボタン（`_bm_side_by_side_btn`）が `QTabWidget` のコーナーウィジェットとして追加されます。有効化すると `_on_toggle_bm_side_by_side` が `block_mesh_panel` を `upper_tabs`（`QTabWidget`）から `_tree_bm_splitter`（`right_upper_splitter` をラップし Tree タブのコンテンツとなる `QSplitter(Qt.Horizontal)`）へ再ペアレント化します。リペアレント前にまず Tree タブへ切り替えてスプリッターを可視状態にし、`setSizes([1,1])` と `init_plotter()` は `QTimer.singleShot(0, ...)` で次のイベントループティックまで遅延させます。サイドバイサイドモードを切ると `block_mesh_panel` は通常タブとして `upper_tabs` に戻されます。`_update_bm_side_by_side_btn`（`ui/mixins/_panel_ops.py`）は、現在のファイル名が `blockMeshDict`・`topoSetDict`・`snappyHexMeshDict`・`setFieldsDict`、またはサンプリング名（`SAMPLING_DICT_NAMES`: `controlDict`・`sample`・`probes`・`surfaces`・`singleGraph`）のいずれか（いずれも同じ 3D ビューに描画される — `block_mesh_extractor.py`、`topo_set_extractor.py`、`snappy_hex_mesh_extractor.py`、`set_fields_extractor.py`、`sampling_extractor.py` を参照）で、BlockMesh タブ自体が有効、かつ xterm が非アクティブなときにボタンを有効化します。それ以外はボタンを無効化し、サイドバイサイドモードが有効であれば強制的に解除します。
 
 **比較パネルの表示制御** — `comparison_panel` は起動時に `right_upper_splitter` へ追加されますが直後に非表示（`comparison_panel.hide()`）になります。`QSplitter` は非表示の子ウィジェットを無視するため、ハンドルや隙間は表示されません。`_on_side_by_side_toggled(True)` では `setSizes` 前に `comparison_panel.show()` を呼び、`_on_side_by_side_toggled(False)` と `_clear_diff` では `comparison_panel.hide()` を呼びます。
 
@@ -1221,6 +1320,8 @@ DISPLAY=:1 python3 tools/capture_screenshots.py main-window-tree-editor --theme 
 python3 tools/capture_screenshots.py --list                              # spec が定義しているショット
 DISPLAY=:1 python3 tools/capture_screenshots.py <shot> --interactive     # 手で調整し、その状態を JSON で出力
 ```
+
+**キャプチャが設定を変更することはありません。** `_sandbox_app_config()` は `MainWindow` の構築前に `app_config.json` を使い捨てファイルへコピーし、設定シングルトンをそのコピーへ向けます。空ファイルではなくコピーにしているのは意図的です。キャプチャは実際の設定を*読み*ます — `terminal`/`blockmesh` のフィーチャーフラグはどのパネルが存在するか自体を決めます — ため、空から始めると撮影される内容が変わってしまいます。ウィンドウを閉じないこと（下記）で `window_size` を書く唯一の経路である `closeEvent` は既に塞がれていますが、サンドボックスはそれを経由しない保存経路もカバーします。ケースの複製、ケースライブラリの編集、テーマ・言語・UI スケール・シンタックスハイライトの変更はいずれも単独で `cfg.save()` を呼び、`--interactive` はそのどれにも手が届く状態でウィンドウを開いたままにします。`tools/demo_driver.py` の `seed_app_config` は収録に対して同じことをしています。
 
 **実際の X ディスプレイに加えて、ImageMagick の `import` コマンドも必須です**（`apt install imagemagick` / `brew install imagemagick` — システムパッケージであり、`requirements-dev.txt` では固定できません）。オフスクリーン Qt では VTK が abort するため、ヘッドレスモードはありません。`--out` のデフォルトは `docs/images/` なので、最初の実行は別のディレクトリに向けてください。
 
@@ -1364,6 +1465,98 @@ FODE_CONFIG=/tmp/throwaway.json python3 some_scratch_script.py
 
 このフィクスチャに手を入れる場合の注意が 2 つあります。1 つは、`monkeypatch` ではなく素朴な保存・復元で実装している点です。autouse フィクスチャが `monkeypatch` を要求すると、全テストで monkeypatch が最初に生成されるフィクスチャとなり、その取り消しが teardown の最後に回ります。`tests/ui/test_included_files.py` は `include_scan.foam_etc_dirs`（`lru_cache`）をパッチし、自身の teardown でそのキャッシュをクリアするため、先にパッチが取り消されている必要があります。もう 1 つは、`main_window` が autouse の順序に頼らず `temp_config` を明示的に要求している点です。このフィクスチャが作るウィンドウ自体が、保存を行うものの 1 つだからです。
 
+### 並列実行
+
+`pytest-xdist` は導入済み（requirements-dev.txt）ですが、既定では**有効にしていません**。そして起動オプションの選び方は、見た目以上に効きます。
+
+```bash
+python3 -m pytest -q -n 16          # 約 10 秒  <- コア数の多いマシンではこれ
+python3 -m pytest -q -n auto        # 約 17 秒  64 コア機ではむしろ遅い（下記参照）
+python3 -m pytest -q                # 約 96 秒  逐次実行
+```
+
+**ここでは `-n auto` が最速ではありません。** これはコア数ぶんのワーカを起動しますが、各ワーカは何かを実行する前に PySide6 と pyvista・pyvistaqt のインポート（約 1 秒）を支払います。64 ワーカではその起動コストが支配的になり、実測でも `-n auto`（17.1 秒）は `-n 16`（10.9 秒）より遅く、`-n 8`（12.2 秒）ともほとんど変わりません。コア数ではなく中間の数を選んでください。
+
+分散モードはどちらでも通ります。`--dist load`（xdist の既定。テスト単位のラウンドロビン）が通るということは、このスイートがファイル単位だけでなくテスト単位で独立しているということです。`--dist loadfile` はファイル内のテストを同じワーカにまとめるので、将来順序依存が紛れ込んだ場合により安全です。速度差は 1 秒程度です。
+
+既定で無効にしているのは意図的です。マシン非依存な唯一の設定である `-n auto` はここでは不適切であり、固定値は小さなマシンで不適切になります。さらに並列実行は出力が混ざり、`-s` やブレークポイントが毎回使いにくくなります。それで節約できるのは、もはや苦痛ではない 1 分半です。常に有効にしたい場合は `pytest.ini` に `addopts = -n 16` を足してください。デバッグ時は `-n0` で無効に戻せます。
+
+`real_config_untouched` のガードは xdist 下でも機能します。各ワーカがそれぞれ独立したセッションなので、各々が `app_config.json` をスナップショットして検査します（テストにわざと書き込ませ、全ワーカが失敗することを確認済み）。
+
+### カバレッジの計測
+
+`coverage` は requirements-dev.txt に入っています。スイート自体は使っておらず、閾値も課していません。「何がテストされていないか」に答えるためのものです。この問いは当て推量では答えを誤ります。
+
+```bash
+python3 -m coverage run --source=foam,model,services,ui,app_config -m pytest -q
+python3 -m coverage report --sort=cover | head -20      # カバー率の低い順
+python3 -m coverage report --skip-covered               # 穴のあるものだけ
+python3 -m coverage html && xdg-open htmlcov/index.html # 行単位で確認
+```
+
+数値を読む前に 2 点。`ui/mixins/_protocol.py` は 0% と出ますし、今後もそうです。これは実行されない mypy 専用のスタブなので、追いかけずに除外してください。もう 1 点、上の並列実行の `-n` を併用する場合は `coverage` 側の combine 処理を挟まないと合計値が正しくなりません。面倒がなければ逐次で計測してください。
+
+この数値は目標ではありません。最初に計測したときの合計は 75% でしたが、有用だったのは合計値ではありませんでした。`ui/mixins/_boundary_ops.py` が 17% である一方、そのパネル側のコピー用ヘルパーは十分カバーされていた、という事実です。つまりテストは、複数のフィールドファイルを一度に書き換える部分ではなく、テストしやすい部分に付いていたということです。
+
+### ダイアログのスタブ
+
+`tests/conftest.py` の autouse な `no_unstubbed_modals` が、ブロックするダイアログ呼び出しをすべて — `QDialog.exec`、`QMessageBox` の `exec`/`question`/`warning`/`information`/`critical`、`QFileDialog.get*`、`QInputDialog.getText`/`getItem` — 例外を送出するものに差し替えます。テストがスタブし忘れたダイアログにハンドラが到達すると、実行がハングするのではなく、クラス名とメソッド名を示して*失敗*します。ある午後に起きた 5 件のハングはすべて同じ間違いでしたが、ハングはテスト名を一切示しません。特定には手作業の二分探索が要り、CI では単なるタイムアウトになります。これらが例外を投げる状態でもスイート全体が通ります。これは「正当にダイアログを開くテストは 1 つもない」という言明と同じことです。
+
+もう半分、ダイアログに答えるための fixture は `tests/ui/conftest.py` にあります:
+
+| fixture | 応答対象 |
+|---|---|
+| `stub_dialog("pkg.mod.DialogClass", accepted=…, **attrs)` | ダイアログクラス全体（ハンドラから見える名前で指定） |
+| `answer_message_box(button)` | `QMessageBox` の static 全部。プロンプト文字列のリストを返す |
+| `choose_directory(path)` | `QFileDialog.getExistingDirectory` |
+| `answer_input(value, ok=…)` | `QInputDialog.getText`/`getItem` |
+
+`answer_message_box` が 4 つの static をまとめて差し替えるのは意図的です。ハンドラは複数に到達することが多く、思い浮かべた 1 つだけをスタブすると、もう一方でハングします。
+
+ボタンを手組みしているダイアログには、今もローカルなスタブが必要です。ハンドラが `clickedButton()` を自前のオブジェクトと同一性で比較するためで、`tests/ui/test_file_mgmt_ops.py` の `_answer_delete_dialog` がその唯一の例です。
+
+### テストにおけるウィジェットの破棄
+
+Qt ウィジェットを生成する fixture は、それを破棄しなければなりません。本スイートはイベントループを
+持たないため、放っておいてウィジェットが回収されることはありません:
+
+- `deleteLater()` は何もしません。ループレベル 0 では `processEvents()` が `DeferredDelete` を
+  配送しないため、呼び出し後もウィジェットは `QApplication.allWidgets()` に残ります。
+- `del` と `gc.collect()` も同様です。Python 側のラッパーは消えても C++ オブジェクトは残ります。
+  `MainWindow` 1 個あたり 237 個の `QWidget` が生き続けます。
+- 実際に解放するのは `shiboken6.delete()` です。`tests/conftest.py` の `_destroy_widget` が
+  これをラップしています。ウィジェットを所有する fixture では引数に `destroy_widget` を、テスト本体で
+  生成するウィジェットには `qt_widget` を取ってください。`tests/test_lint.py` には、ウィジェット
+  fixture がこれを忘れた場合に失敗するガードがあります。
+
+これは整理整頓の話ではありません。`apply_theme()` → `setStyle`/`setPalette`/`setStyleSheet` は
+*ブロードキャスト* です。Qt はプロセス内の生存するウィジェットすべてを走査して再 polish し、その
+コストは 1 個あたり約 0.5 ミリ秒です。テストごとにウィンドウが 1 個漏れる状態では生存ウィジェットが
+数万個に達し、`tests/ui/test_theme.py` と `tests/ui/test_icons.py` は — **単独実行なら 0.31 秒**
+なのに — 1700 秒の実行のうち約 1300 秒を、パレットに一切触れないテストの teardown で消費していました。
+このリークの修正により、スイートは **28 分から 2 分未満** になりました。
+
+省略できない 2 つの規則。いずれも反対のことを実際にやって学んだものです:
+
+**テスト内で `MainWindow` を `close()` してはいけません。** `closeEvent` は
+`_confirm_discard_if_needed()` を呼び、エディタがダーティな場合はモーダルな `QMessageBox` を
+表示します — そしてテストはエディタをダーティなまま残します。応答する者がいないため、実行は失敗では
+なく *ハング* します。さらに `closeEvent` はセッションレイアウトとウィンドウサイズを設定に書き戻します。
+`hide()` で十分です。`closeEvent` が行うパネル固有のシャットダウンは、各 fixture が既に実施しています。
+
+**`QApplication.topLevelWidgets()` から無差別に削除してはいけません。** このリストは所有関係の
+ルートではなく *フラグ上のウィンドウ* の一覧です。`Qt::Popup` は `Qt::Window` ビットを持つため、
+`MainWindow` 1 個につき約 10 個の `QMenu` が含まれ、その親は生ポインタでそれらを参照しています。
+所有者が生きているまま子を削除するとポインタが宙に浮き、プロセスは segfault します。`QComboBox` の
+ポップアップコンテナ、`QToolTip` の static、QtWebEngine の delegate ウィジェット、そして pyvistaqt の
+`QtInteractor`（VTK のレンダーウィンドウは QWidget が存在するうちに閉じる必要があるため、
+`BlockMeshPanel.shutdown()` を破棄より *前* に実行）も同じ分類です。
+
+いずれも 1 つの原則から導かれます: **fixture 自身が生成したものだけを、生成した fixture から破棄する**。
+これがグローバルな `pytest_runtest_teardown` フックではなく fixture 単位にしている理由でもあります。
+フックの場合、`trylast` を付けない限り fixture のファイナライザより *前* に走り、上記の `shutdown()`
+より先に破棄が実行されてしまいます。
+
 ## Lint と型チェック
 
 設定は `pyproject.toml` にあります。`ruff` はリポジトリ全体を対象とします（`.venv/` などの ruff 自身の既定の除外を除き、`include`/`exclude` 制限はありません）。リポジトリ全体がクリーンなので、スコープ指定なしで実行します。
@@ -1374,7 +1567,7 @@ ruff check
 
 `i18n/ja.py` の翻訳文字列リテラル（英語の `tr()` キーとその日本語訳文）は、`pyproject.toml` の `[tool.ruff.lint.per-file-ignores]` により `E501`（行長超過）の対象から除外されています。どちらを折り返しても、キーの参照が壊れるか、翻訳文が変わってしまうおそれがあるためです。
 
-`pyproject.toml` の `[tool.mypy] files` には `foam/`、`model/`、`app_config/`、`schemas/`、`services/`、`ui/`(すべて)に加えて `main.py` と `i18n/` が列挙されています — `tools/` を除く、トップレベルのソースパッケージすべてです。`ui/` 内の PySide6 属性アクセスはすべて、スタブが要求する完全修飾形の enum(`Qt.Horizontal` のようなフラット形ではなく `Qt.Orientation.Horizontal`)を使用しています — この2つのスタイルを混在させることが、PySide6 コードベースにおける `mypy` ノイズの最大の原因になります。
+`pyproject.toml` の `[tool.mypy] files` には `foam/`、`model/`、`app_config/`、`schemas/`、`services/`、`ui/`(すべて)に加えて `main.py`・`i18n/`・`tools/` が列挙されています — トップレベルのソースパッケージすべてです。`tools/` は当初除外されていましたが、実測して方針を変えました。未チェックの 3407 行に 6 件のエラーがあり、そのうち 1 件はローカル名が一方の分岐では `str`、他方では `list` に束縛されているもの（`capture_screenshots.py` の `themes`）で、前者の分岐が return するおかげでたまたま無害だったにすぎません。これらのツールは手動実行で実ディスプレイを必要とするため、型エラーはキーボードの前ではなくキャプチャ実行の途中で表面化します。`ui/` 内の PySide6 属性アクセスはすべて、スタブが要求する完全修飾形の enum(`Qt.Horizontal` のようなフラット形ではなく `Qt.Orientation.Horizontal`)を使用しています — この2つのスタイルを混在させることが、PySide6 コードベースにおける `mypy` ノイズの最大の原因になります。
 
 ```bash
 mypy
@@ -1384,7 +1577,7 @@ mypy
 
 ### `ui/mixins/` 分割の型付け
 
-`ui/main_window.py` の `MainWindow` は 13 個の mixin と `QMainWindow` から構成されています(上記「プロジェクト構成」の `ui/mixins/` の項目を参照)。各 mixin はランタイム上は共通の基底クラスを持たないただのクラスであり、実際の合成は `MainWindow` がそれらすべてを継承した時点で初めて成立します。これは `mypy` にとって問題です。`mypy` は各 mixin モジュールを単独で型チェックするため、素の `class _FileOpsMixin:` では `self` がいずれ `.tree` や `.state`、`._load_tree()` を持つことを知る術がありません。
+`ui/main_window.py` の `MainWindow` は 15 個の mixin と `QMainWindow` から構成されています(上記「プロジェクト構成」の `ui/mixins/` の項目を参照)。各 mixin はランタイム上は共通の基底クラスを持たないただのクラスであり、実際の合成は `MainWindow` がそれらすべてを継承した時点で初めて成立します。これは `mypy` にとって問題です。`mypy` は各 mixin モジュールを単独で型チェックするため、素の `class _FileOpsMixin:` では `self` がいずれ `.tree` や `.state`、`._load_tree()` を持つことを知る術がありません。
 
 `ui/mixins/_protocol.py` の `MainWindowProtocol`(`QMainWindow` を継承する通常のクラスであり、`typing.Protocol` ではありません — mypy は非 protocol を基底に持つ protocol を拒否します)が、その結合済みの全体像を宣言しています。`MainWindow.__init__`/`_build_ui()` が設定するすべてのウィジェット/状態属性、そしてどの mixin が定義するメソッドも、実物と一致するシグネチャで宣言されています。各 mixin は次のようにします:
 
@@ -1409,9 +1602,9 @@ class _FileOpsMixin(_Base):
 
 - **`schemas/turbulence_structure.py` にファイル別のバージョンタグを与える。** 誤ったファイルに出る問題のほうは*完了しました* — `KeySchema.only_in_files` と当該モジュール内の導出により、そのキーを支持するどのリリースも読まない辞書には現れなくなりました。残っているのはタグ自体です。 このモジュールは `TARGET_FILES = ("turbulenceProperties", "momentumTransport")` を宣言しているため、`_build_file_key_schemas` が同一のテーブルを両ファイルへマージします。これは `docs/foamlore-schema-spec.md` の項目 2 が記録している落とし穴そのものであり、*生成側*の乱流モジュールが共有の `_turbulence_coeffs.py` の上に薄いファイル別モジュールとして分割されている理由でもあります。手書きモジュールには同じ処置が施されないままでした。影響は実測できます。バージョンタグのオラクルによるファイル別の範囲は、`constant/turbulenceProperties` について `Foundation v7` と OpenCFD、`constant/momentumTransport` について `Foundation v8-v14` ですが、ここのキーはすべて `BOTH` を持ちます。108 キーが該当し、完了したバージョンタグ・オラクルの測定（`docs/foamlore-schema-spec.md` 項目 11）による数字です。つまり Foundation v12 の利用者が古い `constant/turbulenceProperties` を開くと、そのキーが v12 で使えると表示されます。v12 は代わりに `momentumTransport` を読み、このファイルを読みません。修正はモジュールの分割でも 108 件の手作業による再タグ付けでもありません。ラベルをリリースの*集合*に変え、`_turbulence_coeffs.build_schemas` が `_TARGET_CHECKOUTS` から既に行っているのと同じ方式でファイルごとに導出する必要があります。ラベルからラベルへの手書き対応表も検討しましたが却下しました。275 箇所のタグにわたって交差を手で符号化することになり、次のリリースで陳腐化するからです。
 
-- **一覧済み辞書のサフィックス付き派生ファイルを glob で拾う** — `services/case_loader.py` は完全一致の名前を並べているため、`topoSetDict.1`、`decomposeParDict.4`、`controlDict.orig` などは見えません。これらはチュートリアルツリーの `system/`+`constant/` ファイルの約 9% を占め、未収録グループとしては最大です。`PHASE_FILE_BASES` が `constant/` に対してすでに行っているように、`TARGET_FILES` の各要素について `<name>.*` を glob すれば、数行でほぼ全部拾えます。あえて行っていないのは、同じ glob が `blockMeshDict.m4`（25 ケース）も拾ってしまうためです。これは辞書ではない m4 テンプレートで、解析できません。したがってこの変更には除外規則か、スクリプトやログにすでに与えているテキスト専用扱いが必要であり、1 行の拡張では済みません。
+- **残りの一覧済み辞書のサフィックス付き派生ファイルを glob で拾う** — 半分は済んでいます。3-D ビューアの 4 つの辞書は対応済みで、`VARIANT_FILE_BASES` + `_list_variant_files`（`services/case_loader.py`）が `system/<blockMeshDict|topoSetDict|snappyHexMeshDict|setFieldsDict>*` をすべて接頭辞で一覧します。この項目が当初見送った理由である `blockMeshDict.m4` テンプレートもここに含まれます。まだ見えないのは、それ以外の名前の同種のファイル — `decomposeParDict.4`、`controlDict.orig` など、チュートリアルツリーの `system/`+`constant/` ファイルのうちサフィックス付きで置かれている約 9% — です。接頭辞一致を `TARGET_FILES` 全体に広げると 398 行増えると測定されており、その多くは `_list_phase_files` がすでに扱うフェーズ派生ファイルです。したがって残る課題は、どのサフィックスを拾うかの規則（あるいは辞書でないものに対する、スクリプトやログと同じテキスト専用扱い）であり、1 行の拡張では済みません。
 
-- **未カバーの辞書のスキーマモジュール** — 一覧している 105 個の名前のうち、モジュールがあるのは 6 個です。`docs/SCHEMA_CANDIDATES.md` が残りを実測の出現頻度とキー数で順位付けし、FoDE で手書きするものと foamlore で生成するものに理由付きで分けています。最も安いのは `meshQualityDict` で、`schemas/snappy_hex_mesh_dict/_mesh_quality.py` がすでにキーを記述しており、単独ファイルにも応答させるには `TARGET_FILES` タプルを足すだけです。
+- **未カバーの辞書のスキーマモジュール** — 一覧している 105 個の名前のうち、モジュールがあるのは 9 個です（フォークで改名された辞書は綴りごとに数えます）。`docs/SCHEMA_CANDIDATES.md` が残りを実測の出現頻度とキー数で順位付けし、FoDE で手書きするものと foamlore で生成するものに理由付きで分けています。最も安いのは `meshQualityDict` で、`schemas/snappy_hex_mesh_dict/_mesh_quality.py` がすでにキーを記述しており、単独ファイルにも応答させるには `TARGET_FILES` タプルを足すだけです。
 
 - **ケースのフォークとリリースを判定して活用する** — 辞書の先頭バナーは両方を書いています（`Version: v2606` / `www.openfoam.com`）。`docs/OPENFOAM_VERSIONS.md` にその間で何が変わるかを記録しました。使い道が 2 つあります。Detail ペインが、ケース自身のリリースを含まない `supported_in` をグレーアウトすれば、ユーザが文字列を突き合わせる必要がなくなります。また `include_scan.foam_etc_dirs()` が `#includeEtc` を最新ではなく該当インストールに対して解決できます（後者は下の「インクルードの etc 選択をバージョン対応にする」項目を逆側から見たものです）。
 
@@ -1445,12 +1638,14 @@ class _FileOpsMixin(_Base):
 
 - **`shape_mesh.make_shape_mesh` のジオメトリ振り分けの型付け**(Qt に依存しないジオメトリが `ui/panels/shape_mesh.py` へ分離された際に `block_mesh_renderer._make_shape_mesh` から移動)— 現状は呼び出し側で dict のキー（`box`、`boxes`、`centre`+`radius`、`p1`+`p2`+`radius`、`origin`+`i`+`j`+`k`、`stl_path`、`planePoint`+`planeNormal` など）に対して duck-typing で振り分けており、両方のリファクタで意図的にそのままにした。型付きのジオメトリ共用体（例: 種類ごとの dataclass）があれば、実行時のキーの有無に頼らず mypy で振り分けをチェックできる。
 
+- **開いているファイルがアプリの外で変更されたことを検知する** — `_case_dir_watcher`（ファイル一覧を更新するための、ケースディレクトリと `constant/` に対する `QFileSystemWatcher`）が反応するのはディレクトリの*エントリ*が変わったときだけで、既存ファイルがその場で書き換えられても反応しません。そのため、すでにバッファを持つファイルを別のプログラム（`foamDictionary -set`、`sed`、別のエディタ、ターミナルで実行した任意のスクリプト）が書き換えても、エディタ・ツリー・3-D ビューは古い内容のままで、その後そのファイルを **Save File**/**Save Case** すると外部の変更を黙って上書きしてしまいます。自動的な振る舞いを一切加えずにデータ消失の側を塞ぐには、小さな 2 つの部品で足ります。(1) *保存時のガード* — バッファをディスクから読んだとき（`load_selected_file`、`_cache_parsed_root`）と書いたとき（`save_file`、`save_all_files`）に `(st_mtime_ns, st_size)` を `AppState` に記録し、書き込みの直前にファイルのスタンプと内容がともに読んだ時点と異なっていれば、上書きしてよいか確認する。`_load_case_dir` でクリアし、`_purge_file_caches` で取り除く。(2) 現在のファイルに対する手動の **Reload from Disk**（ファイル一覧のコンテキストメニューとショートカット） — ファイルを読み直し（バッファが未保存なら先に確認）、エディタ・ツリー（`_parse_and_update`）・3-D ビュー（`_refresh_include_dependents`、および `_viewer_kind_for` が種別を返す場合は `_update_block_mesh_viewer`）を更新する。*自動*リロード（バッファを持つ各ファイルの `fileChanged` を監視する 2 つ目の `QFileSystemWatcher` と、ウィンドウがアクティブになった時点のチェック）も検討しましたが、見送りました。コード量が数倍になり（読み込み・保存・ケース切り替えへのフック、アトミックな書き込みとリネームで監視から外れたパスの再登録、Undo スナップショットとの相互作用）、しかも利用者の操作なしに行われるリロードはツリーの展開状態と選択をリセットし、利用者がウィンドウに戻った瞬間にダイアログを出しかねないためです。手動リロードが実際に面倒だと分かった場合にのみ再検討する価値があります。
+
 
 ### 保留中のレビュー指摘（Undo/Redo・サンプリング）
 
 Undo/Redo とサンプリング機能のコードレビューで挙がったが、その時点では未修正のまま残した軽微な項目（いずれも「確定」ではなく「可能性あり」— トリガーが狭い、潜在的、または設計の堅牢化にとどまる、と判断）。これらの領域に次に手を入れる変更に合わせて取り込む価値がある:
 
-- **`_restored_dirty` がダーティ判定のためにディスクを再読み込みしている**（`ui/mixins/_undo_ops.py`）— 当初は「`state.parsed_roots` にキャッシュされた root はノードに `raw_text` がないため、再シリアライズするとディスクと差が出る」という前提で実在の不具合として挙げられた。しかしこの前提は成り立たない: `parsed_roots` への書き込みはすべて `OpenFoamParser.parse()` の結果であり `raw_text` は設定されるうえ、`tools/roundtrip_corpus.py` の実測では v2512 tutorials の 9620/9620 件がバイト単位で一致して再シリアライズされる。加えて `_undo_text_for` は `file_buffers` を優先するため、シリアライズ結果とディスクの比較に到達するのはディスクから直接パースしたファイルのみ。設計上のメモに格下げ: メモリ上のバッファと比較すれば I/O も round-trip 100% への依存も無くせるが、現状のコードが誤動作する入力は確認されていない。
+- **`_restored_dirty` がダーティ判定のためにディスクを再読み込みしている**（`ui/mixins/_undo_ops.py`）— 当初は「`state.parsed_roots` にキャッシュされた root はノードに `raw_text` がないため、再シリアライズするとディスクと差が出る」という前提で実在の不具合として挙げられた。しかしこの前提は成り立たない: `parsed_roots` への書き込みはすべて `OpenFoamParser.parse()` の結果であり `raw_text` は設定されるうえ、`tools/roundtrip_corpus.py` の実測では v2512 tutorials の 9620/9620 件がバイト単位で一致して再シリアライズされる。加えて `_current_text` は `file_buffers` を優先するため、シリアライズ結果とディスクの比較に到達するのはディスクから直接パースしたファイルのみ。設計上のメモに格下げ: メモリ上のバッファと比較すれば I/O も round-trip 100% への依存も無くせるが、現状のコードが誤動作する入力は確認されていない。
 - **`UndoState.op_active` のリセットタイミングが脆い**（`ui/mixins/_undo_ops.py`）— 二重チェックポイント防止ガードを `QTimer.singleShot(0, ...)` でクリアしているが、これはネストしたイベントループ（`QMessageBox`/`QDialog.exec`）内で発火する。現状、`_checkpoint_for_undo` とその変更の間にダイアログを開く呼び出し箇所はないため潜在的だが、将来そのような操作があるとモデルの `about_to_change` が変更途中の 2 つ目のスナップショットを積み（1 回の編集に 2 回の Undo が必要になる）。ガードを同期的な操作スコープに限定（例: コンテキストマネージャ）すればタイミング依存を除去できる。
 - **変更パスが Undo チェックポイントを取ることを強制する仕組みがない**（`ui/mixins/_tree_crud_ops.py`・`_tree_sync_ops.py`・`_boundary_ops.py`）— Undo のカバレッジは手動で配置した約 18 個の `_checkpoint_for_undo` 呼び出しと、`setData` 経由編集の `about_to_change` シグナルに依存している。将来、明示的な呼び出しを忘れた直接変更パスは静かに Undo 不可になる（後の Ctrl+Z がそれを飛び越す）。変更後の 1 箇所のチョークポイントで直前のシリアライズ済みテキストを差分比較するか、カバレッジテストを設ければ堅牢になる。
 

@@ -94,6 +94,11 @@ class SimpleTerminalWidget(QWidget):
         if self._process.state() != QProcess.ProcessState.NotRunning:
             self._execute(f"cd {shlex.quote(path)}")
 
+    def shell_pid(self) -> int | None:
+        """The shell's process id, for TerminalPanel.running_commands."""
+        pid = self._process.processId()
+        return int(pid) if pid else None
+
     def run_command(self, cmd: str) -> None:
         self._execute(cmd)
 

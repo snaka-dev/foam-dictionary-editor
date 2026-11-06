@@ -27,10 +27,10 @@ import dataclasses
 from foam.nodes import FoamNode
 from foam.shapes import SourceShape
 from foam.tree_utils import (
+    child_vector,
     find_child,
     resolve_plane_geometry,
     resolve_point_list,
-    resolve_vector,
 )
 from foam.var_resolver import build_var_map
 
@@ -43,11 +43,13 @@ _PLANE_SURFACE_TYPES = frozenset({"plane", "cuttingPlane"})
 
 @dataclasses.dataclass
 class SamplingShape(SourceShape):
-    # Inherits label/kind/geometry from SourceShape (see foam/shapes.py):
-    # label = entry name, or "entry.member" for nested set/surface members;
-    # kind = e.g. "probes", "lineUniform", "plane", "patch"; geometry =
-    # {"points": …} | {"start": …, "end": …} | {"planePoint": …, "planeNormal": …}.
-    source_file: str = ""  # basename of the defining file; filled by the UI layer
+    """A sampling shape. Adds no fields of its own.
+
+    Inherits label/kind/geometry/source_file from SourceShape (see foam/shapes.py):
+    label = entry name, or "entry.member" for nested set/surface members; kind = e.g.
+    "probes", "lineUniform", "plane", "patch"; geometry = {"points": …} |
+    {"start": …, "end": …} | {"planePoint": …, "planeNormal": …}.
+    """
 
 
 @dataclasses.dataclass
@@ -70,12 +72,8 @@ def _entry_label(entry: FoamNode) -> str:
 
 def _resolve_line(entry: FoamNode, var_map: dict[str, str]) -> dict:
     """Return {"start", "end"} when the entry carries a resolvable line."""
-    start_node = find_child(entry, "start")
-    end_node = find_child(entry, "end")
-    if start_node is None or end_node is None:
-        return {}
-    start = resolve_vector(start_node, var_map)
-    end = resolve_vector(end_node, var_map)
+    start = child_vector(entry, var_map, "start")
+    end = child_vector(entry, var_map, "end")
     if start is None or end is None:
         return {}
     return {"start": start, "end": end}

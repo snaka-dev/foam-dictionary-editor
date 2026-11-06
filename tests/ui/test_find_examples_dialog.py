@@ -36,7 +36,7 @@ def fake_install(tmp_path):
 
 
 @pytest.fixture
-def dialog(qapp, fake_install, monkeypatch):
+def dialog(qapp, fake_install, monkeypatch, destroy_widget):
     installation = installation_from_dir(fake_install)
     assert installation is not None
     monkeypatch.setattr(
@@ -44,8 +44,8 @@ def dialog(qapp, fake_install, monkeypatch):
     )
     dlg = FindExamplesDialog()
     yield dlg
-    dlg.close()
-    dlg.deleteLater()
+    dlg.close()  # closeEvent cancels and joins the search QThread
+    destroy_widget(dlg)
 
 
 def _run_search(qapp, dlg: FindExamplesDialog, query: str) -> None:

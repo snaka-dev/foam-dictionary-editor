@@ -32,18 +32,20 @@ def shell_cwd(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def simple_widget(qapp, shell_cwd):
+def simple_widget(qapp, shell_cwd, destroy_widget):
     widget = SimpleTerminalWidget()
     yield widget
-    widget._cleanup()
+    widget._cleanup()  # owns a PTY; must run while the widget lives
+    destroy_widget(widget)
 
 
 @pytest.fixture
-def terminal_panel(qapp, shell_cwd):
+def terminal_panel(qapp, shell_cwd, destroy_widget):
     panel = TerminalPanel()
     yield panel
     if not _XTERM_AVAILABLE:
-        panel._widget._cleanup()
+        panel._widget._cleanup()  # owns a PTY; must run while the widget lives
+    destroy_widget(panel)
 
 
 # ── SimpleTerminalWidget: initial state ───────────────────────────────────────
@@ -189,3 +191,86 @@ class TestTerminalPanelRunCommand:
         """run_command does not raise when XtermTerminalWidget is active"""
         if _XTERM_AVAILABLE:
             terminal_panel.run_command("blockMesh")
+
+
+# ── running-command guard (closing / switching mode ends the shell) ──────────
+
+
+def test_a_command_sent_to_the_shell_is_reported_running(simple_widget, qapp):
+    import sys
+    import time
+
+    from services.process_tree import running_command_names
+
+    if not sys.platform.startswith("linux"):
+        pytest.skip("reads /proc")
+    simple_widget.run_command("sleep 30")
+    deadline = time.monotonic() + 5
+    names: list[str] = []
+    while time.monotonic() < deadline and not names:
+        qapp.processEvents()
+        names = running_command_names(simple_widget.shell_pid())
+        time.sleep(0.05)
+    assert names == ["sleep"]
+
+
+def test_confirm_does_not_ask_when_idle(terminal_panel, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(terminal_panel, "running_commands", lambda: [])
+    asked = []
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: asked.append(a))
+    assert terminal_panel.confirm_stop_running(terminal_panel, "Closing FoDE")
+    assert asked == []
+
+
+@pytest.mark.parametrize("answer, expected", [("Yes", True), ("No", False)])
+def test_confirm_names_the_command_and_defaults_to_no(
+    terminal_panel, monkeypatch, answer, expected
+):
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(terminal_panel, "running_commands", lambda: ["simpleFoam"])
+    seen = {}
+
+    def fake_question(parent, title, text, buttons, default):
+        seen.update(text=text, default=default)
+        return getattr(QMessageBox.StandardButton, answer)
+
+    monkeypatch.setattr(QMessageBox, "question", fake_question)
+    assert terminal_panel.confirm_stop_running(terminal_panel, "Closing FoDE") is expected
+    assert "simpleFoam" in seen["text"] and "Closing FoDE" in seen["text"]
+    assert seen["default"] == QMessageBox.StandardButton.No
+
+
+def test_declined_mode_switch_keeps_the_shell(terminal_panel, monkeypatch):
+    monkeypatch.setattr(terminal_panel, "confirm_stop_running", lambda *a: False)
+    widget = terminal_panel._widget
+    was_xterm = terminal_panel.use_xterm
+    terminal_panel._xterm_chk.setChecked(not was_xterm)
+    assert terminal_panel._widget is widget
+    assert terminal_panel.use_xterm == was_xterm
+    assert terminal_panel._xterm_chk.isChecked() == was_xterm
+
+
+@pytest.mark.skipif(not _XTERM_AVAILABLE, reason="needs the PTY backend")
+def test_the_xterm_shell_reports_a_running_command(qapp, shell_cwd):
+    """The xterm path runs an interactive bash on a PTY -- check it for real."""
+    import time
+
+    from services.process_tree import running_command_names
+    from ui.widgets._xterm_widget import PtyBackend
+
+    backend = PtyBackend()
+    backend.start_shell(str(shell_cwd))
+    try:
+        backend.write(b"sleep 30\n")
+        deadline = time.monotonic() + 5
+        names: list[str] = []
+        while time.monotonic() < deadline and not names:
+            qapp.processEvents()
+            names = running_command_names(backend.pid, job_control=True)
+            time.sleep(0.05)
+        assert names == ["sleep"]
+    finally:
+        backend.stop()

@@ -46,19 +46,43 @@ def _camera_buttons(panel: BlockMeshPanel) -> list[QPushButton]:
 
 
 @pytest.fixture
-def panel(qapp):  # noqa: ARG001 (qapp required by PySide6)
+def panel(qapp, destroy_widget):  # noqa: ARG001 (qapp required by PySide6)
     previous = QApplication.font()
     QApplication.setFont(QFont("Sans Serif", 16))
+    p = BlockMeshPanel()
     try:
-        yield BlockMeshPanel()
+        yield p
     finally:
+        destroy_widget(p)
         QApplication.setFont(previous)
 
 
 @pytest.fixture
-def default_font_panel(qapp):  # noqa: ARG001 (qapp required by PySide6)
-    """A panel at the platform default font, not the enlarged 16 pt above."""
-    return BlockMeshPanel()
+def default_font_panel(qapp, destroy_widget, platform_default_font):  # noqa: ARG001
+    """A panel at the platform default font, not the enlarged 16 pt above.
+
+    Sets the font *and* the style rather than assuming either is still in place. The test
+    using this asserts exact pixel widths, which depend on both: five fixtures across
+    tests/ui/ enlarge the application font (each restores it), and `apply_theme` switches
+    the style to Fusion permanently, restoring nothing.
+
+    This test failed once under `-n 8` after the suite went parallel, and I could not
+    reproduce it in twelve further runs, so the exact trigger is unconfirmed. Pinning both
+    halves of "the platform default" is cheap and makes the fixture honest about what it
+    promises, whichever of the two was the one that moved.
+    """
+    font, style_name = platform_default_font
+    previous_font = QApplication.font()
+    previous_style = QApplication.style().objectName()
+    QApplication.setFont(font)
+    QApplication.setStyle(style_name)
+    p = BlockMeshPanel()
+    try:
+        yield p
+    finally:
+        destroy_widget(p)
+        QApplication.setFont(previous_font)
+        QApplication.setStyle(previous_style)
 
 
 class TestSecondaryLabels:

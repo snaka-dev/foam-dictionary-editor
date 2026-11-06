@@ -54,6 +54,11 @@ if _XTERM_AVAILABLE:
         def is_running(self) -> bool:
             return self._pid is not None
 
+        @property
+        def pid(self) -> int | None:
+            """The shell's process id, while it runs."""
+            return self._pid
+
         def start_shell(self, cwd: str | None = None) -> None:
             master_fd, slave_fd = pty.openpty()
             self._master_fd = master_fd
@@ -214,6 +219,10 @@ if _XTERM_AVAILABLE:
                 self._backend.write(f"cd {shlex.quote(path)}\n".encode())
             else:
                 self._bridge.set_pending_cwd(path)
+
+        def shell_pid(self) -> int | None:
+            """The shell's process id, for TerminalPanel.running_commands."""
+            return self._backend.pid
 
         def run_command(self, cmd: str) -> None:
             if self._backend.is_running:

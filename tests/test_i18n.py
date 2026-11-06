@@ -37,54 +37,17 @@ def test_ja_translations_has_no_duplicate_keys():
 #
 # The reverse of the duplicate-key check above: every English string passed
 # to tr() should have a matching i18n/ja.py entry, so the language actually
-# changes instead of silently falling back to English. _UNTRANSLATED is a
-# seeded exception list, measured directly off the tree (not carried forward
-# by assumption) rather than a target to grow — a *new* tr() call must ship
-# with its translation, and this list can only get shorter as old gaps are
-# closed. It intentionally does not check the opposite direction (every
+# changes instead of silently falling back to English. _UNTRANSLATED is now
+# **empty**: it was a seeded exception list measured off the tree, it only ever
+# shrank, and the last 36 entries were translated together. Keep it that way —
+# a new tr() call ships with its translation, and adding a name here to get a
+# commit through puts an English string in front of a Japanese user with
+# nothing to say so. The empty frozenset is kept rather than deleted because it
+# is the statement. It intentionally does not check the opposite direction (every
 # ja.py key has a call site): ~40 keys legitimately reach tr() only through
 # a data table (e.g. keyboard_shortcuts_dialog.py's _SECTIONS_DATA), so that
 # direction is noise, not signal.
 _UNTRANSLATED: frozenset[str] = frozenset({
-    "Additional options (e.g. -y [0:1])",
-    "Cancelling …",
-    "Click to stop foamMonitor and close the gnuplot window",
-    "Could not create file:\n{e}",
-    "Could not read file: {error}",
-    "Extra:",
-    "File not found",
-    "File not found:",
-    "Formerly {0}.",
-    "Generate",
-    "Generate OpenFOAM Keywords",
-    "Grid  (-g)",
-    "Has no effect — OpenFOAM reads '{0}' instead.",
-    "Has no effect — no OpenFOAM reader consumes this entry.",
-    "Historical name — OpenFOAM reads '{0}'{1}.",
-    "Idle timeout (-i):",
-    "Key Status",
-    "Launch",
-    "Log file:",
-    "Log scale  (-l)",
-    "New file name (in {dir}/):)",  # pre-existing typo: the stray ")" also means
-                                     # this key never matches ja.py's correctly
-                                     # spelled "New file name (in {dir}/):" entry
-    "Raw Log",
-    "Refresh (-r):",
-    "Refresh file list from disk",
-    "Save As — Partial Failure",
-    "Select a log file to summarize.",
-    "Select file to monitor",
-    "Select log file",
-    "Summary",
-    "View Log Summary",
-    "e.g. log.icoFoam or postProcessing/residuals/0/residuals.dat",
-    "foamMonitor",
-    "foamMonitor could not be found on PATH.",
-    "foamMonitor error",
-    "foamMonitor not found",
-    "foamMonitor…",
-    "■ foamMonitor",
 })
 
 

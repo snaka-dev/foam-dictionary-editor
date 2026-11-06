@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from foam.boundary_patch import get_patch_type, patch_inner_text, value_complexity
 from foam.nodes import FoamNode
 from i18n import tr
+from ui.label_fit import fit_wrapped_labels
 
 
 class BoundaryEditDialog(QDialog):
@@ -93,6 +94,25 @@ class BoundaryEditDialog(QDialog):
         ok_btn.clicked.connect(self.accept)
         cancel_btn.clicked.connect(self.reject)
 
+        self._labels_fitted = False
+
+    def showEvent(self, event):
+        """Give the wrapped labels their real heights, once.
+
+        A wrapped QLabel's sizeHint is measured at a width Qt guesses, not the one it gets,
+        so a fixed-width dialog under-allocates and the last lines are never drawn -- see
+        ui/label_fit.py. Only after the first layout pass does a label know its real width.
+        """
+        super().showEvent(event)
+        if self._labels_fitted:
+            return
+        self._labels_fitted = True
+        fit_wrapped_labels(self)
+        # activate() first, so the new minimum heights travel back up through the layout
+        # before the dialog's own size hint reflects them. Then resize() rather than
+        # adjustSize(), which clamps a window to two thirds of the screen height.
+        self.layout().activate()
+        self.resize(self.width(), self.sizeHint().height())
     @property
     def is_complex_mode(self) -> bool:
         return self._is_complex

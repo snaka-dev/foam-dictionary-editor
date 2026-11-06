@@ -17,10 +17,14 @@ for its whole life.
 
 ## Where coverage stands
 
-Six dictionaries have modules: `controlDict`, `fvSchemes`, `fvSolution`,
-`blockMeshDict`, `snappyHexMeshDict`, and `turbulenceProperties` +
-`momentumTransport` (the last two from foamlore's generator). FoDE's file list
-offers 105 names, so most of what a user can open has no schema behind it.
+Nine of the listed names have modules: `controlDict`, `fvSchemes`,
+`fvSolution`, `blockMeshDict` and `snappyHexMeshDict`, hand-written here; and,
+from foamlore's generator, `turbulenceProperties` + `momentumTransport` (the
+turbulence models) and `transportProperties` + `physicalProperties` (the
+viscosity models, which is the incompressible half of those files — a
+compressible case's `thermoType` is not covered). Each pair is one dictionary
+under the two forks' spellings. FoDE's file list offers 105 names, so most of
+what a user can open has no schema behind it.
 
 ## How this list was ranked
 
@@ -78,7 +82,7 @@ covering 29 turbulence models across 19 releases, which nobody was going to hand
 
 | dictionary | OF12 | v2606 | why generated |
 |---|---:|---:|---|
-| `constant/physicalProperties` / `transportProperties` + `thermophysicalProperties` | 165 | 491 | the top of the list by a distance. `thermoType` is a seven-slot runtime-selection combination (`type`/`mixture`/`transport`/`thermo`/`equationOfState`/`specie`/`energy`); the valid combinations are what a user actually gets wrong, and they are only knowable from `src/thermophysicalModels` |
+| `constant/thermophysicalProperties`, and the `thermoType` half of `physicalProperties` | 165 | 491 | the top of the list by a distance (the counts include the incompressible `transportProperties`/`physicalProperties` cases, whose viscosity models are already generated). `thermoType` is a seven-slot runtime-selection combination (`type`/`mixture`/`transport`/`thermo`/`equationOfState`/`specie`/`energy`); the valid combinations are what a user actually gets wrong, and they are only knowable from `src/thermophysicalModels` |
 | `constant/dynamicMeshDict` | 40 | 118 | motion solvers and topology changers by RTS, and Foundation restructured the mechanism after v10 — a hand-written module would be stale within a release |
 | `constant/fvOptions` / `fvModels` | 72 | 43 | one fork's `fvOptions` is the other's `fvModels` + `fvConstraints` ([OPENFOAM_VERSIONS.md](OPENFOAM_VERSIONS.md)), and each source type is its own class with its own keys |
 | `constant/radiationProperties` | 8 | 72 | radiation model + scatter/absorption sub-models, all RTS |

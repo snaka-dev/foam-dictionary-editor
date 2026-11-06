@@ -24,6 +24,11 @@ class TestTheSingletonIsRedirected:
         assert get_app_config()._config_path == config_path
 
     def test_it_does_not_point_at_the_repository_config(self):
+        # Implied by the test above -- a tmp_path is never the repo root -- and kept
+        # anyway, because this is the sentence that says what the suite is protecting.
+        # The cost of a redundant assertion here is one line; the cost of the property
+        # silently going away is the developer's window size, case directory and saved
+        # session, and nothing in the test that broke it would say so.
         assert get_app_config()._config_path != REPO_CONFIG
 
     def test_saving_writes_the_throwaway_file(self, config_path):

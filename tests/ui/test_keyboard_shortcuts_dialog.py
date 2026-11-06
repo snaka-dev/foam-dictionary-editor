@@ -141,11 +141,11 @@ class TestColumns:
 
 class TestFitsASmallDisplay:
     @pytest.fixture
-    def dialog(self, qapp):  # noqa: ARG002
+    def dialog(self, qapp, destroy_widget):  # noqa: ARG002
         dialog = KeyboardShortcutsDialog()
         dialog.show()
         yield dialog
-        dialog.close()
+        destroy_widget(dialog)
 
     def test_it_can_be_resized_far_below_its_content(self, dialog):
         """The point of the scroll area.

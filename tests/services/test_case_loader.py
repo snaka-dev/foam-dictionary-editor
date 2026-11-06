@@ -21,22 +21,6 @@ from services.case_loader import (
     list_region_files,
 )
 
-
-def test_list_case_files(tmp_path):  # legacy top-level test kept for compatibility
-    (tmp_path / "system").mkdir()
-    (tmp_path / "constant").mkdir()
-
-    (tmp_path / "system" / "controlDict").write_text("application interFoam;", encoding="utf-8")
-    (tmp_path / "system" / "fvSchemes").write_text("ddtSchemes { default Euler; }", encoding="utf-8")
-    (tmp_path / "constant" / "transportProperties").write_text("transportModel Newtonian;", encoding="utf-8")
-
-    files = list_case_files(str(tmp_path))
-
-    assert str(tmp_path / "system" / "controlDict") in files
-    assert str(tmp_path / "system" / "fvSchemes") in files
-    assert str(tmp_path / "constant" / "transportProperties") in files
-
-
 # ── TARGET_FILES: files that exist are returned ───────────────────────────────
 
 class TestTargetFiles:
@@ -861,3 +845,71 @@ class TestDetectPolyMesh:
         os.utime(owner, (now, now))
         info = detect_poly_mesh(str(tmp_path))
         assert info.stale is False
+
+
+class TestVariantDictFiles:
+    """Extra copies of a viewer dictionary are listed without being added by hand.
+
+    `topoSet -dict system/topoSetDict-slices` runs one of several, and the tutorials use
+    `topoSetDict.1` / `.2` / `.3` for the same reason. A fixed name list cannot enumerate
+    those, so each previously had to go through the Add files dialog.
+    """
+
+    @pytest.fixture
+    def case(self, tmp_path):
+        # Its own directory, not tmp_path itself: the copy test needs a destination that
+        # is not inside the source.
+        case_dir = tmp_path / "case"
+        (case_dir / "system").mkdir(parents=True)
+        (case_dir / "system" / "topoSetDict").write_text("actions ();", encoding="utf-8")
+        return case_dir
+
+    def _system_names(self, case):
+        return sorted(
+            Path(p).name for p in list_case_files(str(case)) if f"{os.sep}system{os.sep}" in p
+        )
+
+    @pytest.mark.parametrize("name", [
+        "topoSetDict-slices", "topoSetDict.1", "topoSetDict2", "topoSetDict.patches",
+    ])
+    def test_a_variant_spelling_is_listed(self, case, name):
+        # The separator varies and is sometimes absent, which is why this is a prefix
+        # match rather than the `<stem>.*` the phase files use.
+        (case / "system" / name).write_text("actions ();", encoding="utf-8")
+        assert name in self._system_names(case)
+
+    @pytest.mark.parametrize("base", [
+        "blockMeshDict", "setFieldsDict", "snappyHexMeshDict", "topoSetDict",
+    ])
+    def test_every_viewer_dictionary_gets_the_same_treatment(self, case, base):
+        (case / "system" / f"{base}-variant").write_text("// x\n", encoding="utf-8")
+        assert f"{base}-variant" in self._system_names(case)
+
+    def test_the_base_name_is_not_duplicated(self, case):
+        # TARGET_FILES has already added it; the glob matches it again.
+        assert self._system_names(case).count("topoSetDict") == 1
+
+    def test_an_unrelated_name_is_not_swept_in(self, case):
+        # The rule is scoped to the four dictionaries a case may legitimately hold several
+        # of, not to every file whose name resembles a target.
+        (case / "system" / "controlDict.backup").write_text("// x\n", encoding="utf-8")
+        (case / "system" / "myNotes").write_text("// x\n", encoding="utf-8")
+        names = self._system_names(case)
+        assert "controlDict.backup" not in names
+        assert "myNotes" not in names
+
+    def test_a_directory_named_like_a_variant_is_not_listed(self, case):
+        (case / "system" / "topoSetDict.d").mkdir()
+        assert "topoSetDict.d" not in self._system_names(case)
+
+    def test_a_case_with_no_variants_is_unchanged(self, case):
+        assert self._system_names(case) == ["topoSetDict"]
+
+    def test_variants_are_copied_with_the_case(self, case, tmp_path):
+        # list_case_files is what case_copier copies, so a duplicate keeps them.
+        from services.case_copier import copy_visible_files
+
+        (case / "system" / "topoSetDict-slices").write_text("actions ();", encoding="utf-8")
+        dest = tmp_path / "copy"
+        copy_visible_files(str(case), dest)   # dest is a Path, not a str
+        assert (dest / "system" / "topoSetDict-slices").is_file()

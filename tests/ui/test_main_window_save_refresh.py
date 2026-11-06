@@ -178,3 +178,46 @@ class TestVanishedCaseDirectory:
 
         assert win.state.file_dirty.get(str(dict_path)) is True
         assert "edited but never saved" in win.editor_panel.editor.toPlainText()
+
+
+# ── closing while a command runs in the Terminal tab ─────────────────────────
+
+
+class _BusyTerminal:
+    def __init__(self, answer):
+        self.answer = answer
+        self.asked = []
+        self.cleaned = False
+
+    def confirm_stop_running(self, parent, action):
+        self.asked.append(action)
+        return self.answer
+
+    def cleanup(self):
+        self.cleaned = True
+
+
+def test_close_is_refused_when_the_user_keeps_the_run(main_window):
+    from PySide6.QtGui import QCloseEvent
+
+    term = _BusyTerminal(answer=False)
+    main_window.terminal_panel = term
+    event = QCloseEvent()
+    main_window.closeEvent(event)
+    assert not event.isAccepted()
+    assert term.asked == ["Closing FoDE"]
+    assert not term.cleaned
+    main_window.terminal_panel = None
+
+
+def test_close_proceeds_when_the_user_agrees(main_window, monkeypatch):
+    from PySide6.QtGui import QCloseEvent
+
+    term = _BusyTerminal(answer=True)
+    main_window.terminal_panel = term
+    monkeypatch.setattr(main_window, "_confirm_discard_if_needed", lambda: True)
+    event = QCloseEvent()
+    main_window.closeEvent(event)
+    assert event.isAccepted()
+    assert term.cleaned
+    main_window.terminal_panel = None

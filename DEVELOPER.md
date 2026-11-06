@@ -20,6 +20,9 @@ foam-dictionary-editor/
 │   ├── make_paraview_demo_profile.sh  # regenerate that profile by driving a throwaway ParaView. Needed when the ParaView version changes: its settings file is named for the version, so another build ignores one written by a different one
 │   ├── demo_specs.json            # the movies' scene list: a start state per scene, plus the steps, narration and dwell times that drive it
 │   ├── generate_foam_keywords.py  # CLI wrapper around app_config/keyword_generator.py; --dir picks an installation root (default: sourced environment)
+│   ├── gen_reader_paths.py        # emit tools/fode-reader-paths.json, FoDE's half of the version-tag oracle: where each schema dictionary's keys are read, for foamlore to measure supported_in
+│   ├── fode-reader-paths.json     # that map (generated; tests/tools/test_reader_paths.py keeps it in step with the registry)
+│   ├── scan_foundation14_keys.py  # differential scan of the collectively tagged Foundation keys against a newer checkout — the measurement behind extending FOUNDATION_SERIES
 │   └── roundtrip_corpus.py        # parse+write every dictionary of an installation's tutorials and count the byte-identical ones; the measurement behind the release-note round-trip figure
 ├── tutorials/               # bundled example cases (GPL-3.0, see tutorials/README.md)
 ├── main.py
@@ -27,6 +30,9 @@ foam-dictionary-editor/
 ├── requirements.txt
 ├── requirements-dev.txt
 ├── requirements-packaging.txt
+├── build_linux.sh           # PyInstaller build of foam-dictionary-editor.spec
+├── foam-dictionary-editor.spec, foam_dict_editor.spec, main.spec  # PyInstaller specs
+├── package.json, package-lock.json  # pins the xterm.js packages the terminal downloads at runtime (never bundled)
 ├── README.md
 ├── README_ja.md
 ├── USER_GUIDE.md
@@ -47,7 +53,9 @@ foam-dictionary-editor/
 │   ├── constants.py
 │   ├── defaults.py
 │   ├── foam_env.py          # foam_env_dirs(env) → FoamEnvDirs: single source of truth for reading $WM_PROJECT_DIR/$FOAM_TUTORIALS/$FOAM_ETC/$FOAM_SRC/$FOAM_APP (fields None unless the dir exists; project-dir fallbacks); pure stdlib, no services/ dependency, so it lives here rather than in services/ despite being consumed by services/example_search.py too; shared by example_search, keyword_generator, and AppConfigManager.foam_tutorials_dir
-│   └── keyword_generator.py  # scans an OpenFOAM installation (etc/caseDicts templates; TypeName/ClassName + addNamedTo* macros and dictionary-read calls — lookup("…"), get<…>("…"), readEntry("…"), … — in src/ and applications/ sources) to build foam_keywords.json (user-generated, gitignored; overrides the tracked foam_keywords.default.json baseline). Installation root via generate(project_dir=…) or the sourced environment (read through foam_env.foam_env_dirs); the output is written atomically via json_io.atomic_write_text; payload carries provenance metadata (source, version, generated, note — identifier names only, no OpenFOAM source code). Shared by tools/generate_foam_keywords.py and the Settings menu action
+│   ├── json_io.py           # load_json/save_json (atomic: sibling .tmp + os.replace) and atomic_write_text, shared by app_config.json, .foam-editor-files.json and the keyword generator
+│   ├── keyword_generator.py  # scans an OpenFOAM installation (etc/caseDicts templates; TypeName/ClassName + addNamedTo* macros and dictionary-read calls — lookup("…"), get<…>("…"), readEntry("…"), … — in src/ and applications/ sources) to build foam_keywords.json (user-generated, gitignored; overrides the tracked foam_keywords.default.json baseline). Installation root via generate(project_dir=…) or the sourced environment (read through foam_env.foam_env_dirs); the output is written atomically via json_io.atomic_write_text; payload carries provenance metadata (source, version, generated, note — identifier names only, no OpenFOAM source code). Shared by tools/generate_foam_keywords.py and the Settings menu action
+│   └── foam_keywords.default.json  # the shipped highlighter keyword baseline; a generated foam_keywords.json (gitignored) overrides it
 ├── foam/
 │   ├── block_mesh_extractor.py  # extracts vertices/blocks/boundary from blockMeshDict FoamNode tree; _HEX_FACE_VERTICES + _expand_compact_faces convert compact (blockIdx, faceIdx) boundary entries to 4-vertex lists; _compute_default_faces collects exterior block faces unclaimed by any patch (blockMesh's implicit defaultFaces — what quasi-2-D cases leave unlisted) into BlockMeshData.default_faces; parse_vertices() is public; delegates variable resolution to var_resolver
 │   ├── var_resolver.py          # shared variable resolution: build_var_map(root, skip_keys) iteratively resolves $vars (including negated-macro word nodes like -$xMax) and #eval{} chains of arbitrary depth; substitute_vars() and eval_foam_expr() are public helpers used by both extractors. eval_foam_expr() whitelists the #eval *grammar* with an AST walk (_EVAL_NODES) over a fixed name table (_EVAL_NAMES: round/floor/ceil/sqrt/min/max/mag/pow/abs, the trig family, exp/log/log10, degToRad/radToDeg, pi) rather than a character-class regex — which is what lets round($x/$y) through while refusing attribute access and subscripts structurally
@@ -55,10 +63,10 @@ foam-dictionary-editor/
 │   ├── topo_set_extractor.py    # extracts renderable geometry (box incl. min/max and multi-box `boxes` forms, rotated box, sphere incl. origin alias + innerRadius, cylinder, cone, point sets: nearestTo*/insidePoints/nearPoint, planeToFaceZone plane) from topoSetDict action_entry nodes; resolves $var and #eval inside raw_list / macro geometry values via var_resolver; returns TopoSetData(shapes=[TopoShape(...)]), TopoShape subclassing shapes.SourceShape. The per-source geometry dispatch is exposed as resolve_source_geometry() / is_non_geometric_source(), shared with set_fields_extractor.py
 │   ├── set_fields_extractor.py  # extracts renderable region geometry from setFieldsDict's regions ( … ) list (region_block → region_entry nodes; the entry NAME is the source type — boxToCell, sphereToCell, … — there is no `source` child); reuses topo_set_extractor.resolve_source_geometry(); labels each shape with a fieldValues summary (e.g. "alpha.water=1"); returns SetFieldsData(shapes=[SetFieldsShape(...)]), SetFieldsShape subclassing shapes.SourceShape with no extra fields
 │   ├── sampling_extractor.py    # extracts renderable sampling geometry — probes probeLocations (point markers), sets-type sample lines (start/end), surfaces-type plane/cuttingPlane discs — from controlDict's functions {} block or a standalone sampling dict (system/sample, probes, surfaces, singleGraph incl. the .org root-level start/end style); both nested member-list syntaxes are structural parser nodes: the dictionary form sets {}/surfaces {} and the classic parenthesised list form sets ( name {…} ) as a named_dict_list; reuses tree_utils.resolve_plane_geometry; returns SamplingData(shapes=[SamplingShape(...)]), SamplingShape subclassing shapes.SourceShape (extra field: source_file)
-│   ├── snappy_hex_mesh_extractor.py  # extracts geometry {} primitives (box, sphere incl. ellipsoid via vector radius, cylinder, cone, triSurfaceMesh/distributedTriSurfaceMesh resolved against constant/triSurface/ incl. transparent .gz sibling resolution, and box-based collection members) from snappyHexMeshDict; cross-references castellatedMeshControls.refinementSurfaces/refinementRegions (incl. regex-pattern surface names) to classify each shape surface/region/geometry; extracts locationInMesh/locationsInMesh; returns SnappyHexMeshData(shapes=[SnappyShape(...)]), SnappyShape subclassing shapes.SourceShape (extra fields: category/level/mode)
+│   ├── snappy_hex_mesh_extractor.py  # extracts geometry {} primitives (box, sphere incl. ellipsoid via vector radius, cylinder, cone, triSurfaceMesh/distributedTriSurfaceMesh/closedTriSurfaceMesh (the last subclasses triSurfaceMesh in both forks and reads the same entries) resolved against constant/triSurface/ incl. transparent .gz sibling resolution, and box-based collection members) from snappyHexMeshDict -- each type accepted under BOTH forks' spellings (searchableBox/box, searchableSphere/sphere, searchableCylinder/cylinder, searchableCone/cone, searchableSurfaceCollection/collection) via _GEOMETRY_TYPE_ALIASES, while the shape's kind keeps whichever the dict used; cross-references castellatedMeshControls.refinementSurfaces/refinementRegions (incl. regex-pattern surface names) to classify each shape surface/region/geometry; extracts keep-points at the castellatedMeshControls level only -- insidePoints (list) then insidePoint then locationInMesh, mirroring Foundation's own precedence, plus OpenCFD's locationsInMesh pair list; the level is what keeps them apart from the per-surface cellZone selector OpenCFD also spells insidePoint(s); returns SnappyHexMeshData(shapes=[SnappyShape(...)]), SnappyShape subclassing shapes.SourceShape (extra fields: category/level/mode)
 │   ├── include_resolver.py      # Qt-free, stdlib-only: parse_include_directive() turns a directive_entry's raw text into an IncludeRef (#include/#sinclude/#includeIfPresent/#includeEtc/#includeFunc), rejecting C++ headers pulled in by a #codeStream body; resolve_include() resolves it to a ResolvedInclude, expanding $VARs and a leading <case>/<system>/<constant>/<etc> token. Takes etc_dirs as a parameter so foam/ keeps its no-dependency rule
 │   ├── include_expand.py        # expand_includes(root, source_file=…, case_dir=…, etc_dirs=…, read_text=…) splices each resolvable #include's entries into a read-only COPY of a dictionary tree, in document order, so the 3-D extractors see variables defined in another file; transitive within a depth cap, cycle-guarded, copy-on-write (the original tree is never mutated), #includeFunc deliberately skipped, parse memoised on (mtime, size) via clear_expand_cache(). Qt-free: etc_dirs is a parameter, same rule as include_resolver.py
-│   ├── tree_utils.py            # generic FoamNode helpers shared by the topo_set / snappy_hex_mesh / set_fields extractors: find_child, find_child_any, resolve_scalar, resolve_vector, resolve_point_list, expand_evals, and the shared box/sphere/cylinder/cone geometry resolvers (resolve_box_geometry covers the min/max, `box (min) (max)` pair, and multi-box `boxes` forms behind opt-in flags)
+│   ├── tree_utils.py            # generic FoamNode helpers shared by the topo_set / snappy_hex_mesh / set_fields extractors: find_child, find_child_any, child_vector/child_scalar (first present key wins, never retried past an unresolvable one), resolve_scalar, resolve_vector, resolve_point_list, expand_evals, and the shared box/sphere/cylinder/cone geometry resolvers (resolve_box_geometry covers the min/max, `box (min) (max)` pair, and multi-box `boxes` forms behind opt-in flags)
 │   ├── diff.py                  # diff_trees(a, b) and diff_trees_reverse(b, a) — compare two FoamNode trees by key name; return dict[FoamNode, DiffEntry]
 │   ├── boundary_patch.py        # Qt-free FoamNode operations for boundary patches: value_complexity/get_patch_type/patch_inner_text/parse_patch_content (patch content read/parse for the edit dialog) and find_rename_targets (scans a set of parsed roots for boundary_entry / boundaryField-dict nodes matching a name). Moved out of ui/dialogs/boundary_edit_dialog.py and ui/dialogs/rename_boundary_dialog.py — they were Qt-free logic living in QDialog modules, imported across packages as underscore-privates; shared by ui/panels/boundary_view_panel.py and ui/mixins/_boundary_ops.py too
 │   ├── lexer.py                 # OpenFoamLexer; _read_directive stops at '{' so #eval{...} braces become LBRACE/RBRACE tokens for correct depth tracking
@@ -82,6 +90,8 @@ foam-dictionary-editor/
 │   ├── fv_schemes.py
 │   ├── fv_solution.py
 │   ├── _turbulence_coeffs.py    # generated, vendored from foamlore: the coefficient facts for all 29 models + build_schemas(target_file)
+│   ├── _transport.py, _generalised_newtonian.py, _laminar_models.py, _delta_models.py  # generated, vendored from foamlore: the viscosity, generalised-Newtonian, laminar-model and LES-delta families
+│   ├── transport_properties.py, physical_properties.py, *_viscosity.py  # generated, vendored from foamlore: thin per-file bodies over _transport / _generalised_newtonian
 │   ├── momentum_transport.py    # generated, vendored from foamlore: thin, TARGET_FILE = constant/momentumTransport (Foundation v8-v14)
 │   ├── snappy_hex_mesh_dict/    # package: split by subdomain (geometry, castellated mesh, snap, layers, mesh quality)
 │   │   ├── __init__.py          # merges submodule SCHEMAS dicts, re-exports TARGET_FILE
@@ -101,7 +111,7 @@ foam-dictionary-editor/
 │   ├── backup_files.py      # find_backup_files(case_dir): [(abs_path, rel_path, size_bytes)] for every <name>.bak_YYYYMMDD_HHMMSS file under a case; ui/dialogs/clean_backups_dialog.py's delete-checklist, invoked from ui/mixins/_file_mgmt_ops.py
 │   ├── case_files_config.py
 │   ├── case_fs_ops.py       # Qt-free move/rename/copy/delete/new-folder for case directories, with the safety rules in front of them: check_*() return a Refusal *code* (never prose -- tests/test_i18n.py scans ui/ only, so a message here would ship untranslated), perform_*() do the work; perform_delete takes an injected remover because the real one is Qt's QFile.moveToTrash()
-│   ├── case_loader.py       # also detect_poly_mesh() -- PolyMeshInfo(n_points, n_cells, n_faces, stale) from constant/polyMesh/owner's FoamFile note field
+│   ├── case_loader.py       # VARIANT_FILE_BASES/_list_variant_files list system/<viewerDict>* automatically, so a case holding topoSetDict-slices and topoSetDict-background needs no manual Add files; also detect_poly_mesh() -- PolyMeshInfo(n_points, n_cells, n_faces, stale) from constant/polyMesh/owner's FoamFile note field
 │   ├── case_scan.py         # Qt-free directory listing for the case navigator: list_subdirectories() -> DirEntry(path, name, is_case, is_symlink, readable, has_subdirs), directories only, hidden excluded, OSError-safe; case_summary() wraps case_loader's time-dir and polyMesh probes for the row tooltip
 │   ├── include_scan.py      # the disk half of include support: foam_etc_dirs() builds the OpenFOAM etc search path, scan_includes()/included_files() run foam/include_resolver over a case's already-listed files (a cheap regex line scan, memoised on mtime+size, one level deep and not transitive), copy_destination_for() picks where "Copy into case" puts an out-of-case include
 │   ├── example_search.py    # discover_installations()/search_examples(): find OpenFOAM installs (app_config/foam_env env reading → well-known paths) and scan their tutorials/ + etc/caseDicts/ for a keyword, returning SearchHits (matched lines, enclosing tutorial case root)
@@ -113,27 +123,39 @@ foam-dictionary-editor/
 │   │   ├── _topo_set.py         # topoSet grammar: per-set source/size collapsing
 │   │   ├── _solver.py           # solver grammar: time-loop steps, residuals, Courant number, timing
 │   │   └── _generic.py          # fallback grammar: tail of an unrecognised log
-│   └── tool_options.py      # ToolSpec/ToolOption specs (TOOL_SPECS) + build_args()/build_command() for the Tools-menu "Run *" options dialogs; always tees to log.<tool>
+│   ├── process_tree.py      # Qt-free, Linux /proc: child_processes(pid) and running_command_names(shell_pid, job_control=…) — what the Terminal tab's shell is still running, for the close / mode-switch warning
+│   ├── solver_run.py        # Qt-free reads behind Run Solver/decomposePar: controlDict application/solver/regionSolvers/startFrom, decomposeParDict numberOfSubdomains, processor* dirs and count, unreconstructed processor times, stale-decomposition check (0/, constant/polyMesh), mesh presence, solver-name and kept-log-suffix validation, next partN, check_processor_deletion (may processor* go without losing data: every time, every file, sets/, and the mesh's total cell count)
+│   └── tool_options.py      # ToolSpec/ToolOption specs (TOOL_SPECS, SOLVER_SPEC) + build_args()/build_command() for the Tools-menu "Run *" options dialogs; always tees to log.<tool>, optionally wrapped as mpirun -np N … -parallel
 ├── i18n/
 │   ├── __init__.py             # tr(), set_language(), get_language(), available_languages()
 │   └── ja.py                   # Japanese translations (LANGUAGE_NAME + TRANSLATIONS dict)
 ├── ui/
-│   ├── app_state.py            # AppState dataclass: all 16 shared mutable fields (diff is a nested DiffState, undo a nested UndoState holding the global UndoSnapshot undo/redo stacks); MainWindow sets self.state = AppState()
+│   ├── fonts.py                # every font size the UI draws, derived from QApplication.font() — see "Font sizes and display scaling"
+│   ├── icons.py                # icon(name) → QIcon: the ui/assets/icons/ SVGs, tinted through an alpha mask with the live ButtonText colour
+│   ├── label_fit.py            # fit_wrapped_labels(root): give word-wrapped QLabels the height their real width needs
+│   ├── assets/icons/           # the nine hand-authored, black-only toolbar/menu SVGs
+│   ├── xterm_terminal.html     # the xterm.js page the xterm terminal loads; font size injected at <!--XTERM_FONT_SIZE-->
+│   ├── app_state.py            # AppState dataclass: every shared mutable field (diff is a nested DiffState, undo a nested UndoState holding the global UndoSnapshot undo/redo stacks); MainWindow sets self.state = AppState()
 │   ├── case_navigation.py      # CaseNavigator(QObject): the shared controller behind the Cases tab and the Case Browser window -- one CaseTreeModel, one current location, and every signal the two views raise. Also the tr()-using layer over the lower ones: refusal_message() turns a services/case_fs_ops Refusal code into a sentence, describe_entry() builds the row tooltip
+│   ├── viewer_dicts.py        # viewer_dict_kind(path, root): which 3-D overlay a file feeds, or None. Name first, then the FoamFile `object` header, so a non-default `topoSetDict-slices` / `topoSetDict.1` still reaches the viewer; NOT a filename-prefix match, because blockMeshDict.resolvedBlocks and friends are #include fragments that must not be routed. Shared by _model_ops (dispatch) and _panel_ops (side-by-side button)
 │   ├── theme.py               # Theme mode (system/light/dark), the readable_selection_pair() contrast rule that repairs Qt's desktop-inherited Highlight/HighlightedText pair, and the ThemeColors table every semantic UI colour resolves through via colors()
 │   ├── pane_minimize.py       # PaneMinimizer: one-click collapse/restore of one QSplitter pane, plus the handle double-click filter. Two styles: `sizes` (collapse to 0 — file list, Detail pane) and `strip` (pin the widget's maximum, leaving a sliver — the Editor/Terminal row, whose splitter sets setCollapsible(False), under which setSizes clamps to QTabWidget's minimumSizeHint instead of collapsing; the sliver is its tab bar, so the tabs and the sync buttons stay reachable). The whole size row is remembered so a collapse/restore cycle does not lose a pixel per cycle; a size set from outside (a restored session) drops it
+│   ├── menu_builder.py        # MenuBuilder/exec_menu: a context menu as (QMenu, {QAction: handler}), so the blocking QMenu.exec() is one line and which row raises which signal is testable without it — used by the file list, Cases tab and tree menus
+│   ├── processor_deletion.py   # run_deletion_with_progress(): a verified processor* deletion on a worker thread behind an application-modal QProgressDialog with Stop
 │   ├── window_state.py         # WindowState/BlockMeshViewState dataclasses plus capture_window_state()/apply_window_state(): the parts of the layout that are a choice rather than a consequence (geometry, splitters, tabs, open file, tree selection, 3-D toggles and camera, plus `minimized_panes` — which panes are minimized and the size each should come back to, the half a splitter blob cannot carry), JSON-serialisable so a state survives between processes; the strict/lenient split (from_dict + apply_window_state's `strict` flag, load_saved_state) exists because its two consumers disagree: a screenshot spec must fail loudly, a restored session must degrade quietly
 │   ├── session_restore.py      # the between-runs wire over window_state.py: save_session() from MainWindow.closeEvent (before the panels are torn down, no auto-save), restore_session() from main.py after show(); layouts stored per feature set via AppConfigManager.session_key(), the 3-D camera re-applied on a timer because the case-load renders end in reset_camera(), skipped parts reported in the status bar
 │   ├── mixins/
 │   │   ├── _boundary_ops.py        # mixin: boundary view patch operations
 │   │   ├── _case_ops.py            # mixin: open/reload/duplicate/save-as case, settings
+│   │   ├── _case_nav_ops.py        # mixin: Case Browser / Cases-tab handlers — every CaseNavigator signal lands here, plus _close_case(). Split out of _case_ops.py; see "Case navigation" below
 │   │   ├── _diff_ops.py            # mixin: side-by-side comparison, diff compute/clear; _reset_diff_for_case_dir reconciles an active comparison after _load_case_dir (clear on a case switch, re-arm on a same-dir reload); reference-file parse failures are reported in the status bar (per-file in _recompute_diff, a skipped-count summary at the end of the precompute scan)
 │   │   ├── _file_mgmt_ops.py       # mixin: create/add/backup/delete/duplicate/clean file operations
 │   │   ├── _file_ops.py            # mixin: per-file load/save, directory scan helpers
 │   │   ├── _foam_monitor_ops.py    # mixin: foamMonitor launch/stop/poll, gnuplot reread patch
+│   │   ├── _menu_bar_ops.py        # mixin: builds the Case/Settings/View/Tools/Help menus. Split out of main_window.py; build-time only, and the tr() literals stay in ui/ so the i18n scans still see them
 │   │   ├── _model_ops.py           # mixin: buffer/tree state, dirty tracking, parse cache
 │   │   ├── _panel_ops.py           # mixin: BlockMesh panel and terminal mode toggle handlers
-│   │   ├── _tools_ops.py           # mixin: Tools-menu actions — restore 0/ from 0.orig, run blockMesh/snappyHexMesh/topoSet/setFields/checkMesh via _run_tool_with_options (RunToolDialog per tool; pre-flight warnings embedded — time-dir results for the mesh tools via _rerun_over_results_warning, a default-checked "Restore 0/ from 0.orig/ first" prefix checkbox for setFields since it rewrites 0/ in place and re-runs compound; checkMesh is read-only so gets no warning; last-used option values kept in state.run_tool_options), run Allrun/Allclean scripts, clean case via foamCleanTutorials (Allrun offers "clean, then run" when log.* files exist, since runApplication skips already-logged steps), open ParaView, view log summary (non-modal LogSummaryDialog, kept alive via self._log_summary_dialog), find OpenFOAM examples (non-modal FindExamplesDialog, kept alive via self._find_examples_dialog; its compare_requested feeds _diff_ops._start_comparison_with, its duplicate_requested feeds _case_ops._duplicate_case_from with the home dir as the fallback destination)
+│   │   ├── _tools_ops.py           # mixin: Tools-menu actions — restore 0/ from 0.orig, run blockMesh/snappyHexMesh/topoSet/setFields/checkMesh via _run_tool_with_options (RunToolDialog per tool; pre-flight warnings embedded — time-dir results for the mesh tools via _rerun_over_results_warning, a default-checked "Restore 0/ from 0.orig/ first" prefix checkbox for setFields since it rewrites 0/ in place and re-runs compound; checkMesh is read-only so gets no warning; last-used option values kept in state.run_tool_options), run decomposePar (-force pre-ticked when processor* dirs exist), run the solver (_on_run_solver_clicked: RunSolverDialog with an editable ExecutableChoice pre-filled from controlDict via services/solver_run.read_solver_info — the in-memory text, so unsaved edits count —, a parallel checkbox from decomposeParDict's numberOfSubdomains, a save-all-first checkbox when anything is dirty; the solver name is never remembered, only the options), run Allrun/Allclean scripts, clean case via foamCleanTutorials (Allrun offers "clean, then run" when log.* files exist, since runApplication skips already-logged steps), open ParaView, view log summary (non-modal LogSummaryDialog, kept alive via self._log_summary_dialog), find OpenFOAM examples (non-modal FindExamplesDialog, kept alive via self._find_examples_dialog; its compare_requested feeds _diff_ops._start_comparison_with, its duplicate_requested feeds _case_ops._duplicate_case_from with the home dir as the fallback destination)
 │   │   ├── _tree_crud_ops.py       # mixin: tree entry CRUD (copy/paste, add, duplicate, comment out, delete, restore) and _apply_comparison_value
 │   │   ├── _tree_sync_ops.py       # mixin: editor↔tree sync (apply text to tree, reload from tree)
 │   │   ├── _undo_ops.py            # mixin: snapshot-based tree undo/redo (Ctrl+Z / Ctrl+Shift+Z scoped to the tree; one global timeline of serialized-text snapshots)
@@ -160,11 +182,14 @@ foam-dictionary-editor/
 │   │   ├── openfoam_resources_dialog.py
 │   │   ├── rename_boundary_dialog.py  # Rename Boundary dialog + find_rename_targets() scanner
 │   │   ├── reset_settings_dialog.py
-│   │   ├── run_tool_dialog.py  # RunToolDialog: generic Tools-menu "Run *" options dialog built from services/tool_options.TOOL_SPECS — curated flag widgets, free-text extra options, live command preview, optional pre-flight warning and shell-prefix checkbox
+│   │   ├── run_tool_dialog.py  # RunToolDialog: generic Tools-menu "Run *" options dialog built from services/tool_options.TOOL_SPECS — curated flag widgets, free-text extra options, live command preview, optional pre-flight warning and shell-prefix checkbox; subclass hooks _build_extra_sections/_resolved_spec/_run_prefix/_parallel_np
+│   │   ├── run_solver_dialog.py  # RunSolverDialog(RunToolDialog) + ExecutableChoice: editable solver field, save-all-first and mpirun -parallel checkboxes, keep-or-overwrite choice for an existing log.<solver> (invalid/colliding suffix disables Run)
 │   │   ├── save_as_new_case_dialog.py  # SaveAsNewCaseDialog(_CaseDestDialogBase): "_new" name suffix, "Copy app-visible files only" checked by default, extra italic note about unsaved edits
 │   │   ├── schema_manager_dialog.py
 │   │   └── _worker_thread.py  # _CancellableWorkerThread(QThread): shared progress/finished_err signals + cancel() flag for _SearchThread (find_examples_dialog) and _GeneratorThread (generate_keywords_dialog); each subclass adds its own finished_ok signal and run()
 │   ├── panels/
+│   │   ├── _shape_overlay_menu.py  # the checkable per-shape overlay menu (_ShapeOverlayMenu, _StaysOpenMenu and the helpers they share), split out of block_mesh_panel.py; refers to no panel, only to the shapes it is handed
+│   │   ├── _view_image_export.py    # the Save Image dialog and the screenshot write, split out of block_mesh_panel.py; needs only a parent, the plotter and a starting path, so it is a function rather than a controller (unlike the STL-overlay code, which is stateful panel machinery and stays put)
 │   │   ├── block_mesh_panel.py     # 3-D viewer for blockMeshDict (pyVista/VTK, lazy init); also overlays topoSetDict (topoSet ▾ menu), snappyHexMeshDict (snappyHexMesh ▾ menu), setFieldsDict regions (setFields ▾ menu), and sampling definitions (sample ▾ menu; union of controlDict functions {} plus standalone system/sample-style dicts, kept per source basename in _sampling_by_file) geometry, each with per-shape visibility toggles, Show all/Hide all actions, and a "Non-geometric sources (N)" submenu for entries with no drawable geometry; delegates actor setup to block_mesh_renderer.BlockMeshRenderer; STL ▾ menu holds the same per-file rows for loaded STL/OBJ surfaces (block_mesh_renderer.LoadedSurface, one palette colour each, with an Unload submenu) plus "Export Shapes as STL…", which opens dialogs/export_stl_dialog.ExportStlDialog; the Save Image… button writes the rendered scene itself via plotter.screenshot() (QWidget.grab() returns black for this native child window), on a QAction MainWindow also adds to the View menu
 │   │   ├── block_mesh_renderer.py  # BlockMeshRenderer: VTK render pipeline for blockMeshDict/topoSetDict/snappyHexMeshDict/setFieldsDict geometry via RenderSettings dataclass; colour tables (_PATCH_COLORS, _ACTION_COLORS, _SNAPPY_CATEGORY_COLORS, _SET_FIELDS_REGION_COLOR, _SURFACE_COLORS) and _opacity() (theme-scaled alpha) stay here — they depend on ui.theme; per-shape render methods call shape_mesh.make_shape_mesh()/_clip_to_bounds()/_mark_label() for the Qt-free geometry/clipping/labelling half; _render_boundary_faces also draws BlockMeshData.default_faces in fainter "empty" grey; only imported after the pyvista guard passes
 │   │   ├── boundary_view_panel.py
@@ -188,10 +213,13 @@ foam-dictionary-editor/
     ├── test_lint.py             # runs ruff (whole-repo) + mypy (source packages, see "Linting and type-checking") as part of the pytest suite
     ├── test_version.py          # _version.get_version(): git-describe formatting (exact tag, ahead-of-tag, dirty, bare hash, no-git fallback)
     ├── test_i18n.py             # i18n/ja.py's TRANSLATIONS has no duplicate keys; every tr() call under ui/ has a ja.py entry or is in a measured _UNTRANSLATED allowlist (both AST walks)
+    ├── test_config_isolation.py # the autouse temp_config fixture keeps every test away from the repository's app_config.json
+    ├── test_main_ui_scale.py    # main._apply_ui_scale: the UI Scale setting written as QT_SCALE_FACTOR before the QApplication exists
     ├── foam/
     │   ├── test_block_mesh_extractor.py
     │   ├── test_boundary_patch.py
     │   ├── test_diff.py
+    │   ├── _parser_helpers.py     # shared find_child for the test_parser_*.py grammar tests (a module, not a fixture)
     │   ├── test_lexer.py
     │   ├── test_parser_block_mesh_dict.py
     │   ├── test_parser_control_dict.py
@@ -236,13 +264,16 @@ foam-dictionary-editor/
     │   ├── test_block_mesh_renderer_colors.py
     │   ├── test_block_mesh_selected_block.py
     │   ├── test_bm_side_by_side_multi_dict.py
+    │   ├── test_boundary_ops.py
     │   ├── test_boundary_view_copy.py
+    │   ├── test_case_ops.py
     │   ├── test_case_switch_clears_block_mesh_panel.py
     │   ├── test_code_editor.py
     │   ├── test_code_editor_zoom.py
     │   ├── test_comparison_tree_panel.py
     │   ├── test_detail_panel_fit.py
     │   ├── test_dialog_fonts.py
+    │   ├── test_current_text.py
     │   ├── test_dialog_label_fit.py
     │   ├── test_diff_state_reset_on_case_change.py
     │   ├── test_drag_drop_open_case.py
@@ -253,6 +284,7 @@ foam-dictionary-editor/
     │   ├── test_case_browser_dialog.py
     │   ├── test_case_browser_state.py
     │   ├── test_case_nav_panel.py
+    │   ├── test_file_mgmt_ops.py
     │   ├── test_file_list_panel.py
     │   ├── test_find_examples_dialog.py
     │   ├── test_flow_layout.py
@@ -266,16 +298,20 @@ foam-dictionary-editor/
     │   ├── test_main_window_save_refresh.py
     │   ├── test_main_window_split.py
     │   ├── test_manage_extra_files_dialog.py
+    │   ├── test_multi_dict_overlays.py
     │   ├── test_pane_minimize.py
     │   ├── test_reset_all_settings.py
     │   ├── test_run_tool_dialog.py
     │   ├── test_shape_mesh.py
     │   ├── test_stays_open_menu.py
+    │   ├── test_supported_in_caveat.py
     │   ├── test_terminal_panel.py
     │   ├── test_theme.py
     │   ├── test_tools_ops_mesh_actions.py
+    │   ├── test_tools_busy_terminal.py
     │   ├── test_translatable_strings.py
     │   ├── test_tree_block_crud.py
+    │   ├── test_tree_context_menu.py
     │   ├── test_tree_color_lexer_dispatch.py
     │   ├── test_tree_copy_paste.py
     │   ├── test_tree_inline_edit_dirty.py
@@ -283,6 +319,8 @@ foam-dictionary-editor/
     │   ├── test_tree_text_sync_bar.py
     │   ├── test_update_viewer_panels.py
     │   ├── test_view_log_summary_action.py
+    │   ├── test_viewer_dicts.py
+    │   ├── test_viewer_kind_override.py
     │   ├── test_session_restore.py
     │   └── test_window_state.py
     ├── services/
@@ -295,17 +333,26 @@ foam-dictionary-editor/
     │   ├── test_case_scan.py
     │   ├── test_example_search.py
     │   ├── test_log_summary.py
+    │   ├── test_process_tree.py
+    │   ├── _processor_cases.py
+    │   ├── test_solver_run.py
     │   └── test_tool_options.py
     ├── app_config/
     │   ├── test_app_config.py
+    │   ├── test_config_failure_reporting.py
     │   ├── test_foam_env.py
     │   ├── test_json_io.py
     │   └── test_keyword_generator.py
     ├── schemas/
     │   ├── test_schemas.py
-    │   └── test_turbulence_schemas.py
+    │   ├── test_default_and_required.py
+    │   ├── test_schema_coverage.py
+    │   ├── test_turbulence_schemas.py
+    │   └── test_vendored_modules.py
     └── tools/
         ├── test_capture_dialog.py
+        ├── test_demo_driver_isolation.py
+        ├── test_reader_paths.py
         └── test_demo_specs.py
 ```
 
@@ -321,8 +368,12 @@ foam-dictionary-editor/
 | `docs/DEMO_SCRIPTS.md` | Shot-by-shot scripts for the demo movies, and how to record them. Each is a runnable scene in `tools/demo_specs.json`, so a script and the take it produces cannot drift apart. |
 | `docs/OPENFOAM_VERSIONS.md` | User-facing: the dictionary-file renames between OpenFOAM releases and between the forks, measured from the tutorial trees. The source of the both-spellings rule in `services/case_loader.py`. |
 | `docs/SCHEMA_CANDIDATES.md` | Which dictionary to write a schema for next, ranked by measured frequency and key count, and whether each should be hand-written here or generated by foamlore. |
+| `docs/foamlore-schema-spec.md` | The settled half of the exchange with foamlore: every request FoDE made of the generator, numbered, with what was measured and decided. New requests go in foamlore's `HANDOFF.md`, not here. |
+| `THIRD-PARTY.md` | Credits for the OpenFOAM documentation the generated schema modules quote. Copied from foamlore by `revendor.sh`; do not edit here. |
+| `tutorials/README.md` | Where each bundled example case comes from and what it exercises. |
+| `CLAUDE.md` | The architecture map for AI coding agents. Excluded from the public release copy. |
 
-Every English document has a Japanese counterpart (`*_ja.md`); any edit to one must be mirrored in the other. Japanese docs keep menu labels and other UI strings in English.
+Every English document has a Japanese counterpart (`*_ja.md`) except `THIRD-PARTY.md`, `tutorials/README.md` and `CLAUDE.md`, which are English only; any edit to one must be mirrored in the other. Japanese docs keep menu labels and other UI strings in English.
 
 ### Test coverage notes
 
@@ -356,6 +407,7 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 - `test_include_expand.py` — `expand_includes`: the top-level splice and its document order (a later definition shadowing an earlier one), the included `FoamFile` header being dropped, the original tree left unmutated, a file with no includes getting its *own root object* back, an include inside a dictionary, transitive expansion and the depth cap, a missing include left in place and reported while a missing `#sinclude` is not, self- and mutual-include cycles broken, `#includeFunc` skipped, `read_text` winning over disk and falling back when it returns `None`, and the end-to-end case that motivated it — a `blockMeshDict` whose `scale` and every vertex variable live in the include, yielding nothing before expansion and eight correctly scaled vertices after.
 - `test_var_resolver.py` — `build_var_map`, `substitute_vars`, `eval_foam_expr`: scalar/int seeding, macro chains, `#eval` expressions, negated-macro word nodes, unresolvable vars staying absent, `skip_keys` exclusion, dictionary node non-collection. Also `eval_foam_expr`'s function table — `round`/`floor`/`ceil`/`sqrt`/`min`/`max`/`mag`/`pow`/`abs`/`degToRad`/`radToDeg`/`pi` and `**` — against the rejection set that keeps the AST walk honest: an unresolved `$var`, `__import__`, `open`, `().__class__`, a subscript, an undefined name and a string literal.
 - `test_writer_roundtrip.py` — `write_root`/`write_node` broadly: unmodified nodes reproduced via `raw_text`, modified word/int/scalar/vector nodes regenerated, directive/unknown-raw/macro entries preserved, nested dictionaries, blank-line runs preserved verbatim, `field_value_block`/`region_block` round-tripping (including a field value edited inside a region), and the regression where regenerating one region entry dropped unmodified siblings' names (entry `raw_text` now starts at the name token). Also the byte-identical round-trip group over `_CORPUS_SHAPED_DICT`, a fixture shaped like a real tutorial `blockMeshDict`: the `// * * *` banner keeps its following blank line, multi-blank gaps between entries survive, the trailing `// ****` footer banner is re-emitted from `root.trailing_trivia`, a missing final newline is not invented, `x1 14; x2 6;` stays on one line, editing one entry changes only that entry's line, a node added without trivia still gets its own line, a stray `;` after a `}` stays on the brace's line rather than being broken onto its own (indented) one, and regenerating a nested node of any type reproduces its source indentation instead of doubling it (parametrized over dictionary/simple/directive/macro/region/action/field-value/deeply-nested), with a left-margin case pinning that the writer still supplies an indent when the trivia does not. A `macro_entry` group covers the two spellings that used to be parse failures: a braced `${../_bladeForces}` and a bare `$minX` with no `;` both become `macro_entry` nodes, a bare macro is not a parse error and does not swallow the trivia belonging to the entry after it, all five spellings round-trip byte-identical, `_macro_suffix` reproduces whichever terminator the source had when the node is regenerated (including alongside an inline comment), and a node the app builds with no `raw_text` still gets a `;`.
+- `_parser_helpers.py` — not a test: the `find_child` the `test_parser_*.py` grammar tests share, a module rather than a fixture because it is called 65 times and a fixture would add a parameter to every one of those tests.
 
 **`tests/model/`**
 - `test_bool_nonuniform.py` — `bool`/`nonuniform_list` parsing and round-tripping, `FoamTreeModel` bool editing (case-insensitive, rejection signal), `nonuniform_list` display/non-editability, parser error collection for bad entries.
@@ -370,7 +422,7 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 - `test_block_mesh_panel_fonts.py` — the panel's two secondary labels (the hint line and the `⚙ Variable-based` badge) sizing from the desktop font at 9, 11 and 16 pt. Both used to pin `font-size: 11px` in their stylesheet, which stayed 11 px however large the desktop font was set — see "Font sizes and display scaling" below. Also covers the Label size spin box and the seven camera-view buttons, whose pinned `setFixedWidth` used to cap rather than floor: at 16 pt the spin box's own `minimumSizeHint()` already exceeds its 52 px cap, and the camera buttons' 36 px cap is short of `button_pixel_width()` for their own text; a `default_font_panel` fixture pins that both figures still hold, unchanged, at the platform default.
 - `test_block_mesh_panel_load_stl.py` — the `STL ▾` menu's loaded surfaces: multi-file selection in one `getOpenFileNames` invocation, an unreadable file leaving the readable ones loaded (one warning naming the failures), a cancelled dialog as a no-op; then the per-file rows — one row and one palette colour per file (first is `lightgray`), individual hide vs. unload, per-row checked state surviving an unload or a re-load of the same path (which refreshes in place rather than duplicating), and a surface loaded with no `blockMeshDict` reaching the renderer (via a stub renderer) including the clearing render when the last one is unloaded.
 - `test_block_mesh_panel_sampling_select.py` — the `sample ▾` per-shape visibility menu: population from a controlDict `functions {}` block (rows tagged with the source basename), individual/master toggling, greyed-out non-geometric entries, the multi-file union (controlDict + system/sample) with per-file replacement on reload, two dicts sharing a basename in different directories staying separate (`_sampling_by_file` is keyed by full path, labelled by basename), and `clear()` resetting `_sampling_by_file`.
-- `test_block_mesh_panel_save_image.py` — the **Save Image…** action: it starts disabled (the plotter is built lazily on the first `showEvent`, so there is nothing to capture yet) and `shutdown()` disables it again; the toolbar button and the View-menu item are one `QAction`, not two; the chosen path reaches `screenshot()` verbatim, and `_writable_image_path` corrects one pyvista would reject — `.JPG` lowered, `.txt` given a `.png` — with a paired check that every suffix it can emit is actually in pyvista's live `SUPPORTED_FORMATS`, since the stub cannot validate what the real writer would; the dialog offers exactly one image filter, covering every supported suffix (a per-format dropdown would be silently ignored by the native GTK chooser); a corrected name that collides with an existing file prompts before replacing it (the file dialog only ever checked the *uncorrected* name), while an unchanged one does not prompt twice; a cancelled dialog and a missing plotter write nothing; a failing write raises one warning and reports nothing saved; and the default filename tracks `set_case_dir()`/`clear()`. A recording stub stands in for the plotter — the capture itself is VTK's, and needs a real display.
+- `test_block_mesh_panel_save_image.py` — the **Save Image…** action: it starts disabled (the plotter is built lazily on the first `showEvent`, so there is nothing to capture yet) and `shutdown()` disables it again; the toolbar button and the View-menu item are one `QAction`, not two; the chosen path reaches `screenshot()` verbatim, and `_view_image_export.writable_image_path` corrects one pyvista would reject — `.JPG` lowered, `.txt` given a `.png` — with a paired check that every suffix it can emit is actually in pyvista's live `SUPPORTED_FORMATS`, since the stub cannot validate what the real writer would; the dialog offers exactly one image filter, covering every supported suffix (a per-format dropdown would be silently ignored by the native GTK chooser); a corrected name that collides with an existing file prompts before replacing it (the file dialog only ever checked the *uncorrected* name), while an unchanged one does not prompt twice; a cancelled dialog and a missing plotter write nothing; a failing write raises one warning and reports nothing saved; and the default filename tracks `set_case_dir()`/`clear()`. A recording stub stands in for the plotter — the capture itself is VTK's, and needs a real display.
 - `test_block_mesh_panel_set_fields_select.py` — the `setFields ▾` per-shape visibility menu: population from the bundled damBreak tutorial's `setFieldsDict` (rows labelled with the `fieldValues` summary), individual/master toggling, greyed-out non-geometric sources, inclusion in STL export, and clearing on reload.
 - `test_block_mesh_panel_snappy_select.py` — the `snappyHexMesh ▾` per-shape visibility menu: population, individual/master toggling, the surface/region/geometry category-colour legend, greyed-out non-geometric sources, `locationInMesh`/`locationsInMesh` keep-point toggles.
 - `test_block_mesh_panel_topo_select.py` — the `topoSet ▾` per-shape visibility menu: population, individual/master toggling, Show all/Hide all, the action-colour legend, the "Non-geometric sources (N)" submenu of greyed-out entries, and the exclusion of point/plane shapes from STL export.
@@ -380,6 +432,9 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 - `test_block_mesh_selected_block.py` — the tree → 3-D block highlight: no block highlighted initially, `set_selected_block` reaching `RenderSettings.selected_block`, clearing it, a new mesh dropping it; `_highlight_selected_block` forwarding a `block_entry` row index and clearing on any other row; and `_render_selected_block` drawing nothing for `None` or an out-of-range index (proved by passing a `None` plotter, which any `add_mesh` call would blow up on).
 - `test_bm_side_by_side_multi_dict.py` — the `⊞` side-by-side corner button (`_update_bm_side_by_side_btn`): enabled for `blockMeshDict`, `topoSetDict`, `snappyHexMeshDict`, and `controlDict` (sampling overlay); disabled for an unrelated dict (e.g. `fvSchemes`). Also asserts the tree/BlockMesh splitter panes are non-collapsible and the panel keeps its 150-px minimum width.
 - `test_flow_layout.py` — `FlowLayout` (ui/widgets/flow_layout.py): minimum width equals the widest single item, `heightForWidth` wrapping when narrowed, item order/positions after a wrap, and `takeAt` bookkeeping.
+- `test_case_ops.py` — opening, reloading, duplicating and saving-as a whole case (16% covered to 66%). The destructive half first: `_confirm_and_remove_existing_dir` runs `shutil.rmtree` on a directory the user named, and `save_as_new_case` writes every dirty editor buffer into the copy. Then the flows around them — the not-an-OpenFOAM-case warning, reload confirming before it discards unsaved work, the case library picker (empty, one entry, several, cancelled), and **Reset Window Size** clearing the stored geometry as well as `window_size`. That last one is the cautionary tale: the first version of the test was *named* for the geometry and asserted only the size, and passed happily with `clear_session_geometry()` deleted — a reset that would have been undone by the next launch.
+- `test_file_mgmt_ops.py` — the whole of `ui/mixins/_file_mgmt_ops.py` (28% covered to 80%), starting with backup, delete-file and delete-directory: the operations that remove things from disk. Pins two rules that are invisible at the call site and easy to lose in a refactor: `_on_delete_dir_requested` refuses `0/` unless `0.orig/` exists (a solver run's only copy of the initial conditions), and **Backup & Delete** aborts the delete when the backup fails, which is otherwise strictly worse than either button alone. `_create_backup` copies the *buffer* when there are unsaved edits, not the stale file on disk — the point of offering a backup before a destructive action is to keep what the user is looking at. All three verified by injecting the corresponding bug. Also covers the flows either side of them: the new-name prompt every create and duplicate goes through (empty, path separators, already-exists), the `object` rewrite that makes a duplicated dictionary name itself correctly, the three-way prompt when duplicating a file with unsaved edits, clean-backups continuing past a file it cannot delete, and the extra-files dialog's add/remove/toggle arithmetic. Six bugs injected across the file, each failing only its own test.
+- `test_boundary_ops.py` — `ui/mixins/_boundary_ops.py`'s cross-file operations, which write several field files from one click: delete-from-all, add-to-all, and the single-file edit/create/paste/delete behind the table's context menu. Two assertions here were written twice: counting patches through `extract_boundary` cannot see a duplicate (it returns a dict keyed by patch name), and the "affected files" set is observable *only* in the confirmation text, since the write loop skips a file with no matching patch either way. Both were verified by injecting the corresponding bug and watching them fail.
 - `test_boundary_view_copy.py` — `BoundaryViewPanel._table_data()` and Copy Table: Markdown export, and both CSV actions (flattened and multi-line).
 - `test_case_switch_clears_block_mesh_panel.py` — `_load_case_dir()` fully resets `BlockMeshPanel` state via `clear()` (not just the `_topo_shapes`/`_snappy_shapes` lists) when switching to a different case: per-shape menu actions, `non_geometric` lists, `locationInMesh`/`locationsInMesh` markers, and the `Export Shapes as STL…` action's enabled state all clear.
 - `test_code_editor.py` — `CodeEditor` fold-map computation, collapse/expand toggling, automatic folding of the `FoamFile { … }` header and the top-of-file comment banner on load.
@@ -387,6 +442,7 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 - `test_comparison_tree_panel.py` — `ComparisonTreePanel`: `load` sets the header label, populates the proxy, collapses the FoamFile node, re-applies Type column visibility; `clear` resets model and header; `set_type_column_visible` hides/shows the Type column and persists across `load` calls; `use_value_requested` signal is connectable.
 - `test_detail_panel_fit.py` — the Detail pane's own wrapped-label clipping fix (see "Repeated fitting: the Detail pane" under "Font sizes and display scaling" below): `_choice_hint_label` reaching the bottom of the scroll area's reachable range at three font sizes, every wrapped label on the normal page getting the height it needs, and narrowing after populate (exercising `resizeEvent`'s own re-fit, not just the populate-time one).
 - `test_dialog_fonts.py` — the About and Resources dialogs' labels sizing from the desktop font at 9, 11 and 16 pt. Six of them used to pin a `font-size` in pixels (16, 12, 12, 12, 13, 13), which ignored the desktop font entirely — the same fault as `test_block_mesh_panel_fonts.py` above.
+- `test_current_text.py` — `_current_text`'s precedence (editor for the open file, then buffer, parse cache, disk; `fallback=False` stopping after the buffer; a differently spelled path to the open file still matching) and `_dirty_paths` (read-only excluded, the open file counted through `text_dirty`).
 - `test_dialog_label_fit.py` — `ui/label_fit.py`: both dialogs built at 9, 11 and 16 pt, asserting no wrapped label is allocated less than its text needs. Both are a fixed width full of wrapped labels, and a wrapped `QLabel`'s `sizeHint` is measured at a width Qt guesses rather than the one it gets — optimistically enough to cut the last lines off the About dialog's acknowledgements and the second paragraph off both disclaimer boxes, at a desktop font as ordinary as 11 pt. Compare `test_detail_panel_fit.py` above, which covers the same helper applied to a panel that is re-fitted rather than fitted once.
 - `test_diff_state_reset_on_case_change.py` — `_reset_diff_for_case_dir` regression: opening a different case clears the active comparison (diff state, bar, panel, parse cache); reloading the same case keeps it armed; no-op without an active comparison.
 - `test_drag_drop_open_case.py` — `MainWindow` drag-and-drop case opening: `dragEnterEvent`, `dropEvent`, and the `eventFilter` that makes every child widget a valid drop target.
@@ -394,7 +450,7 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 - `test_editor_panel.py` — `EditorPanel`'s `user_text_changed` gating: not emitted by the programmatic paths (`set_text()`, `reload_highlighting()` — `QSyntaxHighlighter.rehighlight()` fires `textChanged` even though only formatting changed, which used to mark the file dirty after Generate OpenFOAM Keywords), emitted by direct document edits.
 - `test_export_stl_action_state.py` — the `STL ▾` menu's "Export Shapes as STL…" action (`_export_stl_act`): disabled by default, enabled after `update_topo_set`/`update_snappy_hex_mesh` loads geometric shapes, disabled again after `clear()` or reloading an empty dict.
 - `test_export_stl_dialog.py` — `ExportStlDialog`: row count and labelling for combined topoSet+snappyHexMesh shapes, default checked state mirrors the passed-in visibility sets, Select All/Deselect All, writing one `.stl` per checked shape (round-tripped via `pyvista.read()`), filename de-duplication on label collision, skipping (not raising on) degenerate geometry, and `_safe_filename` sanitization.
-- `test_file_list_panel.py` — the diff filter: `set_diff_filter_enabled` shows/hides and unchecks the checkbox; the filter hides zero-diff file items while always showing headers; `mark_diff` updates item visibility immediately when the filter is active.
+- `test_file_list_panel.py` — the context menus built through `_build_context_menu` (each file-row action emitting its signal, extra-file-only Remove, the Show-in-3-D-view-as checks, a read-only row offering only Copy into case, header New/Add, the 0/ ↔ 0.orig duplicate/delete rules, no menu without a case); the diff filter: `set_diff_filter_enabled` shows/hides and unchecks the checkbox; the filter hides zero-diff file items while always showing headers; `mark_diff` updates item visibility immediately when the filter is active.
 - `test_case_browser_dialog.py` — `CaseBrowserDialog`: non-modal window modality, the two panes sharing one model, tree-click navigation and list double-click (a case opens, a folder descends), action-row enablement per selection kind, and a second view over the same navigator moving with it.
 - `test_case_browser_state.py` — the integration rules: an operation on an *ancestor* of the open case refused with no modal shown at all, renaming the open case reloading it at the new path with the watcher repointed, deleting it closing the case and clearing the path-keyed state, foamMonitor stopped *before* the removal, `.foam-editor-files.json` surviving a move because its paths are case-relative, and `_close_case()` clearing each field it owns.
 - `test_case_nav_panel.py` — `CaseNavPanel`: re-rooting and the path label, double-click opening a case rather than descending, one test per navigator signal and its payload, the remembered location and its fallback chain, and long names eliding instead of growing a horizontal scrollbar.
@@ -405,19 +461,20 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 - `test_keyboard_shortcuts_dialog.py` — **Help > Keyboard Shortcuts** stays honest and stays on screen. The list is a hand-written table, so nothing stopped it drifting from the shortcuts the window actually installs — `Ctrl+S` was bound with no menu item and no entry here for several releases. `TestCoverage` walks every live `QShortcut` and `QAction` shortcut under a built `MainWindow` and fails naming any key sequence the dialog omits, which is why a new shortcut must be added to `_SECTIONS_DATA` or the suite breaks. The rest guards the layout (the table had grown taller than a small display could show, and a `QDialog` with no scroll area cannot be resized below its content) and that no section or row label is left untranslated.
 - `test_log_summary_dialog.py` — `LogSummaryDialog`: non-modal window modality, defaulting to the most-recently-modified `log.*` file in the case directory and showing its summary, re-parsing when the file field changes, and the empty-case-directory fallback message.
 - `test_demo_driver_isolation.py` — that a take keeps to itself: `XDG_CONFIG_HOME` redirected into the take's scratch directory and `$HOME` left alone, the shipped ParaView profile present and suppressing the Getting Started splash and copied in where ParaView will find it, and — in a subprocess, because QSettings caches its path the first time one is built — a file dialog coming up with no Home shortcut and the recorder's own `QtProject.conf` left unwritten.
-- `test_main_window_save_refresh.py` — first behavior-level `MainWindow` test (vs. `test_main_window_split.py`'s structural checks only): editing without saving leaves the `constant/polyMesh` mesh indicator unchanged; `save_file()`/`save_all_files()` both refresh the file list immediately so the staleness indicator updates without a full "Reload Case". Also `TestVanishedCaseDirectory`: a reload whose case directory has been renamed or deleted outside the app leaves the file list and the dirty buffers alone and warns, rather than silently blanking the panel (two of its three cases fail without the guard).
+- `test_main_window_save_refresh.py` — first behavior-level `MainWindow` test (vs. `test_main_window_split.py`'s structural checks only): editing without saving leaves the `constant/polyMesh` mesh indicator unchanged; `save_file()`/`save_all_files()` both refresh the file list immediately so the staleness indicator updates without a full "Reload Case". Also `TestVanishedCaseDirectory`: a reload whose case directory has been renamed or deleted outside the app leaves the file list and the dirty buffers alone and warns, rather than silently blanking the panel (two of its three cases fail without the guard). Also `closeEvent` asking the terminal first: declining keeps the window open and the shell alive, agreeing proceeds to cleanup.
 - `test_main_window_split.py` — the mixin structure: each mixin owns the right methods (including `_on_patch_selected` in `_BoundaryOpsMixin`, `_apply_comparison_value` in `_TreeCrudOpsMixin`, and the foamMonitor methods in `_FoamMonitorOpsMixin`), no cross-mixin duplicates, `MainWindow` inherits from all mixins.
 - `test_manage_extra_files_dialog.py` — `ManageExtraFilesDialog`: display of registered extra files/directories and removal actions.
 - `test_reset_all_settings.py` — what `app_config.json` looks like after **Reset All Settings**, where deleting the file is only half the job: the application keeps running, and `closeEvent` used to capture the session layout and window size on the way out, recreating the file and handing back the settings the user had just asked to be rid of. Pins the close writing nothing once the config has been deleted, and writing as before when it has not.
 - `test_run_tool_dialog.py` — `RunToolDialog`: the live preview matching `get_command()` from a pristine dialog, checkbox/value edits updating the command, `last_values` restoration and `get_values()` round-tripping into a new dialog, the Run button disabling on unparseable extra text, the prefix checkbox prepending its shell prefix, and Browse inserting case-relative paths (absolute when outside the case).
 - `test_stays_open_menu.py` — the toolbar dropdown menus (`Vertices ▾`, `Blocks ▾`, `Scale ▾`, `topoSet ▾`, `snappyHexMesh ▾`) staying open on checkable-item clicks while still closing for non-checkable actions.
-- `test_terminal_panel.py` — `SimpleTerminalWidget` and `TerminalPanel`: initial state, working-directory switching, cleanup, command history, the tab label, `run_command()` (including queuing before the shell is ready).
+- `test_terminal_panel.py` — `SimpleTerminalWidget` and `TerminalPanel`: initial state, working-directory switching, cleanup, command history, the tab label, `run_command()` (including queuing before the shell is ready). Plus the running-command guard: a real `sleep` sent through the Simple terminal, and through the xterm PTY backend, is reported; the prompt is skipped when idle, names the command and defaults to No; a declined mode switch keeps the shell and reverts the checkbox.
 - `test_theme.py` — `ui/theme.py`'s colour tables as data: the contrast maths, the convention rule for the selected-row pair (with a regression test naming the Windows accent `#0078d4` explicitly, since picking the higher-contrast of black/white reproduces the bug), a sweep asserting no accent can produce an illegible pair, a 3:1 floor for every foreground in both tables against that theme's `Base`, the diff-swatch versus legend-fill separation, and a 3:1 floor for the viewport's text against `viewport_bg`. Table-level checks: they catch a colour that cannot work, not one that merely looks wrong. See "Theming and colours".
 - `test_fonts.py` — `ui/fonts.py`: the monospace sizes the editor and both terminals derive from the application font, including `ui_point_size`'s fall back to `QFontInfo` only for a pixel-specified platform font (`QFontInfo` quantises to whole pixels, so 13 pt at 96 dpi comes back as 12.75) and `css_pixel_size`'s fixed 96/72 conversion for the xterm page. `TestButtonPixelWidth` covers `button_pixel_width`: it leaves room for chrome beyond the text's own advance, grows with the application font, a longer label needs more room, and — the reason the helper exists at all — stays well under `QPushButton.sizeHint()`.
 - `test_icons.py` — `ui/icons.py`: `ICON_NAMES` matches the asset directory both directions, every declared name loads a non-null icon with non-empty pixels, an unknown name degrades to a null icon rather than raising, every SVG asset parses and carries the SPDX header, `icon_pixel_size()` growing with the application font, and the dark-mode guard — an icon's mean luminance over its alpha-masked opaque pixels is high under `apply_theme(app, "dark")` and low under `"light"`, which is the one check that actually catches a regression back to a string-substitution tint rather than the alpha-mask composite. See "Icon tinting" below.
-- `test_tools_ops_mesh_actions.py` — the Tools-menu "Run *" actions and Run Allrun/Run Allclean/Clean Case: the exact command string sent to a fake terminal panel after accepting the (real, exec-patched) `RunToolDialog` for blockMesh/snappyHexMesh/topoSet/setFields/checkMesh, nothing sent on cancel, the rerun warning text passed to the dialog when time dirs exist, last-used options restored from `state.run_tool_options`, the setFields restore-0/ prefix checkbox (present + checked by default with `0.orig/`, absent without, uncheckable to "run anyway"); missing-script warnings for Allrun/Allclean; the three-way Allrun pre-flight when `log.*` files exist — clean-then-run, run-anyway, cancel; the Clean Case dialog mentioning Allclean delegation or `-auto` 0/ removal; and `_update_tools_actions()`'s enablement for all these actions plus View Log Summary (which needs a case but not a terminal).
+- `test_tools_ops_mesh_actions.py` — the Tools-menu "Run *" actions and Run Allrun/Run Allclean/Clean Case: the exact command string sent to a fake terminal panel after accepting the (real, exec-patched) `RunToolDialog` for blockMesh/snappyHexMesh/topoSet/setFields/checkMesh, nothing sent on cancel, the rerun warning text passed to the dialog when time dirs exist, last-used options restored from `state.run_tool_options`, the setFields restore-0/ prefix checkbox (present + checked by default with `0.orig/`, absent without, uncheckable to "run anyway"); Run Solver — pre-fill from controlDict (and from unsaved editor text), a retyped name used once and not remembered, an invalid name disabling Run, the foamRun module note, the parallel checkbox (absent without decomposeParDict, pre-ticked when decomposed, unticked + warned when not), the save-first checkbox (absent when clean; saves before sending), the no-mesh and `startFrom latestTime` warnings; the existing-log choice (hidden without a log; next `partN` one past the highest; a typed suffix; overwrite sends no `mv`; invalid or colliding suffixes disable Run; the suffix following an edited solver name; the `mv` prefix in front of `mpirun`); the parallel safeguards (subdomain mismatch, stale `0/`, an unsaved `0/` field counting as stale — each unticks the box and warns); Run decomposePar — refused without decomposeParDict, `-force` pre-ticked when `processor*` exists, never pre-ticked (even when remembered) over unreconstructed processor times, reconstructed times not flagged; missing-script warnings for Allrun/Allclean; the three-way Allrun pre-flight when `log.*` files exist — clean-then-run, run-anyway, cancel; the Clean Case dialog mentioning Allclean delegation or `-auto` 0/ removal; and `_update_tools_actions()`'s enablement for all these actions plus View Log Summary (which needs a case but not a terminal).
 - `test_tree_block_crud.py` — Add/Duplicate/Delete on `block_entry` rows: `_new_sibling_for` producing a `block_entry` whose default value reparses as a real block (and a `word` entry for a dictionary parent), `_delete_label` naming a block by position, the written file after a block is deleted or added (siblings verbatim, list still closing on its own line, remaining blocks renumbered by position), and the end-to-end delete → editor text → Ctrl+Z round trip through a MainWindow.
-- `test_tree_color_lexer_dispatch.py` — `unknown_raw_entry` amber colouring, the parser `_PAREN_DISPATCH` table.
+- `test_tree_context_menu.py` — the tree's right-click menu through `_build_tree_context_menu`: sibling operations on a plain entry, CRUD but no Comment Out on a `block_entry`, Rename Boundary on a boundary entry, a disabled Open Included File for an unresolvable `#include`, everything but Copy Value disabled for a read-only file, and each row calling its operation.
+- `test_tree_color_lexer_dispatch.py` — `unknown_raw_entry` amber colouring, the parser's parenthesized-block dispatch tables (`_FIELD_VALUE_KEYS`, `_NAMED_BLOCK_PARAMS`, `_OPTIONAL_NAMED_BLOCK_PARAMS`) and which keys share a handler.
 - `test_tree_copy_paste.py` — tree Copy/Paste Value: round-tripping a copied value, pasting across differently-typed nodes, guards that reject unsupported node types.
 - `test_tree_undo_redo.py` — snapshot-based tree undo/redo: an inline edit undone restores the value, editor text, and clean dirty flag (and redo re-applies it); multi-step undo; a new edit clearing the redo branch; rejected edits' stray snapshots being skipped; delete/add-entry round-trips; one CRUD operation producing exactly one snapshot (no signal double-checkpoint); a multi-file snapshot restoring every file; stacks cleared on case reload; and the depth cap.
 - `test_update_viewer_panels.py` — `MainWindow._update_viewer_panels`: the file-name → 3-D viewer dispatch, parametrised over each dictionary that drives an overlay, an unrelated dictionary dispatching to nothing, and Apply Text to Tree refreshing the snappyHexMesh overlay. That last one is why the helper exists: the dispatch was copy-pasted into the load, save and tree-edit paths, and the apply copy had no snappyHexMeshDict case, so applying edited snappy text never refreshed the 3-D view.
@@ -428,6 +485,11 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 - `test_action_toolbar.py` — the main action toolbar: it is a real `QToolBar` docked via `addToolBar` (not a child of `centralWidget()`), its icon size follows `icon_pixel_size()`, `createPopupMenu()` returns `None` (Qt's built-in hide-this-toolbar menu would have no way back), the current-case/current-file labels still update after moving onto the toolbar, `"Save All Files"` survives nowhere (not a `QAction` text, an `QAbstractButton` text, a `QLabel` text, or a tooltip), and — the identity check that buys the label/enabled-state sync for free — the toolbar's `Open Case…`/`Save File`/`Save Case`/`Reload Case` actions are the *same objects*, not merely equal, as the Case menu's.
 - `test_window_state.py` — `ui/window_state.py` and the screenshot spec it feeds: JSON round-trip of every field, unknown keys and malformed cameras rejected, the defaults merge (including `False` overriding a `True` default, which is what `side_by_side` needs), key-path addressing by name and by row number for anonymous entries, capture from a live `MainWindow`, the lenient counterparts of all of that (unknown fields dropped, malformed cameras/sizes/splitter sizes dropped, an unusable blob giving `None`; a missing case dir, missing file, large non-dictionary file, unknown tab, unknown splitter and vanished tree row each skipped and named in the returned notes instead of raising), and structural checks on `tools/screenshot_specs.json` (valid states, no two shots writing the same file, known path placeholders, and a compare shot naming both its cases outside `$HOME` — the diff bar prints the reference's full path into the image). The capture tool itself is not covered — it needs a real X display.
 - `test_session_restore.py` — `ui/session_restore.py`: that a close stores a layout under the right key and stores nothing when the setting is off, that restore reports honestly when there is nothing to apply, that a damaged blob (a renamed field, a changed field shape, a truncated camera, a moved case, a tab label from another language) never raises, and a full round-trip of the case, the open file and the selected tree row from one real `MainWindow` into a second one.
+- `test_multi_dict_overlays.py` — several files feeding one overlay (`topoSetDict-slices` beside `topoSetDict-background`): both are drawn rather than the last one loaded replacing the first, rows carry their file name only when more than one file contributes, and a per-shape toggle survives an edit to a different file.
+- `test_supported_in_caveat.py` — the Detail pane's qualifier for a `supported_in` span that stops where the measurement stopped. `OPEN_ENDED_SERIES` is empty now that every span is measured, so no label earns the caveat today; the tests keep the mechanism working for the next unmeasured release.
+- `test_viewer_dicts.py` — `ui/viewer_dicts.viewer_dict_kind`: the default name first, then the `FoamFile` `object` header for a hand-named variant (`topoSetDict-slices`, `topoSetDict.1`), and no overlay for a headerless `#include` fragment such as `blockMeshDict.resolvedBlocks`.
+- `test_viewer_kind_override.py` — the **Show in 3-D view as** override: it wins over detection, an unknown key in a hand-edited config is ignored, the choice persists case-relative in `.foam-editor-files.json`, setting a file back to Automatic removes its rows at once, and a file outside the case is refused.
+- `test_tools_busy_terminal.py` — every terminal action (the Run tools, Run Solver, Allrun, Allclean, Clean Case, Restore 0/) refusing while the terminal is busy and sending nothing; Run reconstructPar… (refused without `processor*`, the pending times in its warning, `-newTimes` by default, refused while running); Delete processor\* Directories… (keep-latest ticked by default and leaving `<latest>` + `constant/`, unticking deletes everything, starting unticked when the root is ahead, ticked and locked — and enforced in the handler, not just the widget — when the mesh exists only in `processor*`, whole deletion only when the processors hold no time; nothing on No, refuses without asking when data exists only in `processor*` and caps the list at 12, refuses while running, works without a terminal, a sentence for every problem kind). The test file also holds two regressions for a SIGBUS crash after a confirmed deletion: the checkbox must not be owned by Python (`setCheckBox` does not transfer ownership in PySide6), and the real menu action, real dialog and a forced `gc.collect()` must survive in a subprocess — both fail on the original code.
 
 **`tests/services/`**
 - `test_backup.py` — backup-file naming (`.bak_<timestamp>`) and content (captures the in-memory buffer when the file is open, the on-disk version otherwise).
@@ -439,28 +501,35 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 - `test_case_loader.py` — `detect_time_dirs` and `TestExtraDirs`: flat and recursive extra-directory scanning, missing-directory tolerance, duplicate suppression.
 - `test_example_search.py` — `example_search`: `installation_from_dir` on an install root / bare tutorials dir / non-install dir; `discover_installations` env-mapping injection, `extra_roots` precedence, and de-duplication; `case_root_for` ancestor walking with the `stop` boundary; `search_examples` hits in both sources (source/case_root/line_numbers/snippet fields), case-insensitivity, `file_name` and `sources` filters, `max_hits` cap, `cancelled` early exit, binary/oversized-file skipping, the 50-line-number cap, blank-query `ValueError`, and the `progress` callback.
 - `test_log_summary.py` — `parse_log`/`format_summary`: `blockMesh` Mesh Information/Patches extraction and fatal-error detection; `snappyHexMesh` phase splitting on `Wrote mesh in` markers, per-category refinement iteration counts, the final per-patch layer table, and warning de-duplication with a repeat count; `topoSet` multi-source set collapsing (a `Read set` checkpoint continuing the same set rather than starting a new one); solver logs — steady converged (Run/Residuals phases, converged line, total time), transient with per-name Courant lines and the ESI `Time = 0.005s` unit suffix, fatal-error and no-`End` runs marked FAILED, and a `checkMesh`-style log with `Time =` lines but no residuals staying on the generic path; the generic tail fallback for an unrecognized utility.
-- `test_tool_options.py` — `tool_options`: the expected `TOOL_SPECS` set and default commands (snappyHexMesh's default-on `-overwrite`), `build_args` bool/value/file handling in spec order, empty-value omission, shlex splitting of the extra text (unbalanced quote → `ValueError`), stale unknown flags ignored, and `build_command`'s quoting, raw prefix, and `tee log.<tool>` suffix.
+- `test_tool_options.py` — `tool_options`: the expected `TOOL_SPECS` set and default commands (snappyHexMesh's default-on `-overwrite`), `build_args` bool/value/file handling in spec order, empty-value omission, shlex splitting of the extra text (unbalanced quote → `ValueError`), stale unknown flags ignored, and `build_command`'s quoting, raw prefix, `mpirun -np N … -parallel` wrapping, and `tee log.<tool>` suffix.
+- `test_solver_run.py` — `solver_run`: controlDict `application` (plain, quoted, missing, unparseable), foamRun's `solver` module (only under foamRun), foamMultiRun's `regionSolvers`, `numberOfSubdomains` (non-positive and `$var` → unknown), solver-name validation (shell metacharacters, paths and a leading `-` refused), `processor*` dirs incl. collated `processorsN` sorted numerically, mesh presence for single-region, multi-region and decomposed-only cases, kept-log suffix validation and `next_part_suffix` (one past the highest, not into a gap), `decomposed_count` (uncollated/collated), `unreconstructed_times`, and `stale_decomposition` (stale mesh, reconstructed time dirs deliberately not flagged, pending saves counting as stale). Plus `check_processor_deletion`: a fully reconstructed case is safe; each way data can exist only in `processor*` is refused with its own problem — a time left behind (`-latestTime`), fields left behind (`-fields`), nested `lagrangian/` data, sets (`-noSets`), a parallel mesh never reconstructed (cell counts differ), a mesh only in the processors, an unreadable cell count, collated data — while `*ProcAddressing` files are not required at the root. And keep-latest mode: the latest processor time and `constant/` survive `delete_processor_data`, it frees less than whole deletion, the kept time and the mesh/sets are not checked (they stay) while earlier times still are, the newest root time is reported, and keep mode with no time to keep never falls back to deleting everything.
+- `test_process_tree.py` — `child_processes`/`running_command_names` over a fake `/proc` (a `comm` containing spaces and parentheses, a grandchild not reported, `tee` left out of the names but still counting as busy, the interactive shell's own helpers ignored under `job_control` while a job in its own process group is reported, no `/proc` → nothing) and against a real `bash` running `sleep`.
+- `_processor_cases.py` — not a test: builders for a decomposed case whose layout mirrors what decomposePar, a parallel run and reconstructPar leave on disk (checked against a real v2606 cavity run); shared by `test_solver_run.py` and `tests/ui/test_tools_busy_terminal.py`.
 
 **`tests/app_config/`**
 - `test_app_config.py` — `AppConfigManager`: window size, default case dir, Case Library dirs (incl. the `$WM_PROJECT_DIR/tutorials` fallback), `save()`/`reset()` semantics, fallbacks when `app_config.json` is absent, combined settings, JSON structure, feature-flag handling (`set_feature`/`set_features`).
 - `test_foam_env.py` — `foam_env_dirs`: explicit `FOAM_*` variables winning over `WM_PROJECT_DIR` fallbacks, per-subdirectory fallback only when the dir exists, invalid/blank variables treated as unset, version resolution.
 - `test_json_io.py` — `load_json` missing/corrupt/valid handling; `save_json` round-trips and parent creation; `atomic_write_text` leaves no `.tmp` sibling on success and keeps the original file intact (temp cleaned up) when the final rename or serialization fails.
 - `test_keyword_generator.py` — `keyword_generator`: `scan_src_lookup_keywords()` collecting dictionary-read calls (`lookup`/`get<…>`/`readEntry`/`found`/…) from `*.C`/`*.H` with non-keyword forms rejected; `generate(project_dir=…)` over a fixture install tree — environment ignored, `version` from the dir name, provenance metadata in the payload, `RuntimeError` when nothing is collected.
+- `test_config_failure_reporting.py` — what the user is told when the settings file cannot be read, written or deleted: failures are recorded and drained by `take_warnings()` rather than printed, and an unparseable file is moved aside to `.json.bad` instead of being overwritten with defaults on close.
 
 **`tests/schemas/`**
 - `test_schemas.py` — `ChoiceItem`/`KeySchema`, `schema_config.json` load/save/reset/delete, `SchemaRegistry` plain/parent-qualified/grandparent-qualified lookup, the closed-namespace rule that withholds the flat fallback inside a foreign namespace (over a synthetic two-model module, plus the check that a real `snappyHexMeshDict` namespace does not over-suppress), the `snappyHexMeshDict` schema module, the configured module list.
 - `test_schema_coverage.py` — the test that would have caught a whole module going dark. Parses the real dictionaries in `tests/fixtures/schemas/` (copied unmodified from the v2606 tutorials, so they are not curated to fit the schema) and walks them exactly as `DetailPanel` does — `node.name`, `node.parent.name`, `node.parent.parent.name` — asserting a per-dictionary coverage floor. `fv_schemes.py` once spelled its keys `"<key>.<parent>"` while the registry looked up `"<parent>.<key>"`, so every entry was unreachable and 0% of a real fvSchemes resolved, yet the unit tests passed because they asserted the internal table shape rather than the call the UI makes. Also checks two table invariants — a dotted key's suffix must equal its `KeySchema.key` (the exact rule that module broke), and every `use_instead`/`renamed_from` target must itself be a documented key — plus the provenance cases end to end: motorBike's `minFlatness` reports as `ineffective`, `minMedianAxisAngle` as `renamed` with a successor and version, and `mergeType` never offers the invalid `merge`.
 - `test_turbulence_schemas.py` — the foamlore-generated `turbulence_properties`/`momentum_transport` modules: `TARGET_FILE` and `SCHEMAS` shape (every value a `KeySchema`, every choice a `ChoiceItem`), both registered by default in `schemas/builtin.py`'s module list, `SchemaRegistry` lookup through the parent-qualified form (`kOmegaSSTCoeffs.beta1`) and the plain `RAS`-dict fallback, per-version `supported_in` tags and source-default choices (including `decayControl`'s OpenCFD-only note), and that the `GENERATED` banner survives intact — these files must be regenerated in foamlore, never hand-edited. Plus the seam with the hand-written module: the `RAS`/`LES` model selectors are looked up the way `DetailPanel` does — real file path, real parent key, no `<Model>Coeffs` dictionary anywhere — and their choices must carry `MODEL_DOCS`' description and citation, which is the check the change itself was written against, since the registry API alone had been reporting the prose as reachable while a normal case showed nothing.
+- `test_default_and_required.py` — `KeySchema.default` / `.required`, the two answers to "what happens when this key is omitted": no schema may claim both a default and that there is none, since the Detail pane shows them as one row; plus how that row renders each case (a default wins over `required`; neither renders nothing).
+- `test_vendored_modules.py` — every module carrying the `GENERATED by foamlore` banner is present, **tracked in git** and byte-identical to `../foamlore/fode-schemas/` (the comparison skips without a foamlore checkout). The git check exists because `_laminar_models.py` once sat vendored, correct and untracked.
 
 **`tests/tools/`**
 - `test_capture_dialog.py` — `tools/capture_dialog.py`'s shot list as plain data, the counterpart of `test_window_state.py`'s screenshot-spec checks: names matching their keys, no two shots writing the same file, every shot referenced by both gallery pages and its image present, and `requires()` naming what is missing rather than raising a traceback. Shots are split by where their inputs come from — the capture machine, or the repository — and a third test asserts every shot is classified as one or the other, so adding one forces the choice. It also pins the private `FindExamplesDialog` attributes the `find-examples` shot drives, and asserts the run-tool shot's warning and prefix text still appear in `ui/mixins/_tools_ops.py`, so the gallery cannot end up showing a dialog the app never produces. The capture itself is not covered — it needs a real X display.
 - `test_demo_specs.py` — `tools/demo_specs.json`'s scenes as plain data, and the check that earns its keep most: a take needs a real X display, an OpenFOAM installation and about a minute of wall clock, so a scene naming a renamed menu item would otherwise fail halfway through a recording. Covers the spec loading through the strict `WindowState` path, every step's kind and required payload, a targeted step naming exactly one target (and an untargeted one naming none), path and typed-text placeholders being ones `_expand` knows, scratch workdirs living outside the repository, and — for bundled cases only, since a `{cases}` scene depends on the recording machine — the case existing and holding every file the scene opens. Labels are checked against the UI source in the same spirit as the run-tool shot above: menu-bar titles, ellipsis-carrying menu items (the convention for an action that opens a dialog, and so a literal in the source, unlike a shape row read out of a case), button labels and widget attribute names. One test exists purely for a bug that happened: a step's mouse button is `with`, because `button` is already a target, and `"button": "left"` parses as a target named "left" and fails only at record time. The step vocabulary is read off `Runner`'s `_step_*` methods rather than listed, so a new step kind cannot be added to the driver and leave this stale. Driving and recording are not covered — they need a display.
+- `test_reader_paths.py` — `tools/fode-reader-paths.json`, FoDE's half of the version-tag oracle: it is current against the live registry (its `keys` go stale the moment a tag changes), it has the shape agreed with foamlore, its reader paths exist in a real OpenFOAM tree (`lnInclude` excluded), and runtime-assembled and structural keys are flagged rather than silently dropped.
 
 ## Parser and data model
 
 ### Node types
 
-**Leaf value types** — set by `_classify_value` in `foam/parser.py:387` and `classify_parenthesized_value` in `foam/utils.py:113`:
+**Leaf value types** — set by `_classify_value` in `foam/parser.py` and `classify_parenthesized_value` in `foam/utils.py`:
 
 | `node_type` | `value` Python type | Condition |
 |---|---|---|
@@ -477,6 +546,7 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 | `scalar_list` | `list[float]` | `(a b …)` — all numeric tokens in parens, not exactly 3 |
 | `raw_list` | `str` (inner text) | `(…)` with mixed or nested content |
 | `box_pair` | `list[list[float]]` (2×3) | `(x y z) (x y z)` — only for the `box` key |
+| `valueless` | `None` | a key followed directly by `;` — `fluxRequired { p; pcorr; }`, `cache { grad(U); }` — where OpenFOAM reads the names as a set and the key carries the whole meaning. Decided in `_parse_entry` before `_classify_value` runs; written back as `key;` |
 
 **Structural types** — set by `_parse_entry` / `_parse_dictionary_entry` / `_parse_named_dict_block`:
 
@@ -501,10 +571,10 @@ One line per test file, grouped by directory. Keep this in sync when adding or r
 
 ### Classification logic
 
-`_classify_value(key, text)` (`foam/parser.py:387`) is called for every non-brace, non-special-paren entry. Priority order:
+`_classify_value(key, text)` (`foam/parser.py`) is called for every non-brace, non-special-paren entry. Priority order:
 
 1. **`box_pair`** — only when `key == "box"` and `parse_box_pair(text)` in `foam/utils.py` succeeds.
-2. **Parenthesised** — delegates to `classify_parenthesized_value` (`foam/utils.py:113`): returns `vector` (exactly 3 floats), `int_list` (all integers), `scalar_list` (all floats, not 3), or `raw_list` (anything else).
+2. **Parenthesised** — delegates to `classify_parenthesized_value` (`foam/utils.py`): returns `vector` (exactly 3 floats), `int_list` (all integers), `scalar_list` (all floats, not 3), or `raw_list` (anything else).
 3. **`string`** — starts and ends with `"`.
 4. **`macro`** — starts with `$`.
 5. **Space-containing** — `nonuniform_list` if it begins `nonuniform List…`, otherwise `compound`.
@@ -552,7 +622,7 @@ When `_parse_entry` raises a `ParseError`, the parser backtracks to `start_index
 
 ### Writer raw_text passthrough
 
-`_write_node` (`foam/writer.py:61`) skips regeneration entirely when three conditions hold:
+`_write_node` (`foam/writer.py`) skips regeneration entirely when three conditions hold:
 
 ```python
 if not node.modified and node.raw_text and not _has_modified_descendant(node):
@@ -596,7 +666,7 @@ It walks every file under a tutorial case's `system/`, `constant/`, `0/` and `0.
 
 ### `field_value_block` children in `value`
 
-`field_value_block` is the only structural type that stores its child nodes in `node.value` (a `list[FoamNode]`) rather than `node.children`. `FoamTreeModel._child_list` (`model/tree_model.py:159`) handles this special case:
+`field_value_block` is the only structural type that stores its child nodes in `node.value` (a `list[FoamNode]`) rather than `node.children`. `FoamTreeModel._child_list` (`model/tree_model.py`) handles this special case:
 
 ```python
 if node.node_type == "field_value_block":
@@ -604,7 +674,7 @@ if node.node_type == "field_value_block":
 return node.children
 ```
 
-`node.children` is always an empty list for `field_value_block` nodes. Code that recurses over a tree generically must iterate `node.value` for this type. The writer (`foam/writer.py:72`) and `_has_modified_descendant` both do this explicitly.
+`node.children` is always an empty list for `field_value_block` nodes. Code that recurses over a tree generically must iterate `node.value` for this type. The writer (`foam/writer.py`) and `_has_modified_descendant` both do this explicitly.
 
 ### Legacy `"list"` type
 
@@ -932,6 +1002,68 @@ A refused operation reports to the status bar at `STATUS_WARNING` (`_refuse_case
 
 The last browsed location is the `case_browser_dir` key in `app_config.json`, not a `WindowState` field. It is a preference, sibling to `default_case_dir` — not layout. `WindowState` would also have been wrong twice over: it is keyed per *feature set* via `session_key()`, so `--variant no-terminal` would remember a different directory, and it is only written when session restore is on, whereas the browser should remember where it was regardless. The start-location chain is `case_browser_dir` → `default_case_dir` → the open case's parent → `Path.home()` (`CaseNavigator.initial_location`).
 
+## Several copies of one dictionary
+
+A case can hold the same dictionary more than once under a non-default name —
+`topoSetDict-slices` beside `topoSetDict-background`, or the `topoSetDict.1` / `.2` / `.3` form
+the tutorials use — and `topoSet -dict <name>` runs each in turn. Supporting that in the
+3-D view takes two separate things, and the second is easy to miss.
+
+**Recognising the file.** `ui/viewer_dicts.py`'s `viewer_dict_kind(path, root)` tries the
+file name first, then the `object` entry of the file's `FoamFile` header — OpenFOAM's own
+statement of what a dictionary *is*, regardless of what it is called. Measured over both
+forks' tutorial trees, of 138 files named like a viewer dictionary but not exactly so, 118
+carry an `object` naming the base dictionary and 12 more name the variant
+(`object topoSetDict.1`), which a separator-guarded prefix test covers.
+
+The remaining 4 are why this is not a filename-prefix match. `blockMeshDict.resolvedBlocks`
+and its siblings are `#include` *fragments* — a bare list of `hex (…)` entries with no
+enclosing dictionary — and routing one to the block-mesh extractor would replace the real
+scene with an empty one. They carry no `FoamFile` header precisely because they are not
+dictionaries, so reading the header finds the files that should render and skips the ones
+that should not, in one test.
+
+Sampling is matched by name only: a standalone `sample`/`probes`/`surfaces` file is a single
+function-object entry with no `FoamFile` header at all, so there is nothing to read. A
+renamed one still has to be added under a known name.
+
+**Merging what it finds.** Recognition alone would have introduced a bug rather than fixed
+one. Every overlay except sampling used to rebuild from whichever file was handed to it
+last, so a second `topoSetDict` erased the first — the two would take turns. Each overlay
+now keeps a `dict[path, Data]` (`_topo_by_file` and friends, mirroring the older
+`_sampling_by_file`) and rebuilds the union, via `BlockMeshPanel._merge_by_file`. Keyed by
+full path rather than basename, so an extra directory holding a second `topoSetDict` works.
+A file that yields nothing is dropped from the store rather than kept as an empty entry, so
+emptying one dictionary removes its rows and leaves the others alone.
+
+Rows carry a `[filename]` suffix **only when more than one file feeds that overlay** —
+`_ShapeOverlayMenu._attribution`, which is the only place that knows how many contributed.
+Almost every case has a single `topoSetDict`, and stamping its name onto every row there
+would be noise. This also changed sampling, which used to show the suffix unconditionally.
+
+**When detection cannot help.** A file's right-click menu carries a **Show in 3-D view as**
+submenu — Automatic, or one of the four dictionaries, or Sampling. It exists for the case
+the header cannot settle: a renamed sampling dict is a single function-object entry with no
+`FoamFile` header at all, so there is nothing to read. It also covers a file whose header is
+simply wrong, where the user can see what the file is and the program cannot.
+
+The override wins outright over both tests. An unrecognised key is ignored rather than
+dispatched, so a hand-edited `.foam-editor-files.json` cannot name an overlay that does not
+exist. It is stored per case in that file's `viewer_kinds` map, case-relative like the
+extra-file list, so it travels with a case directory the Case Browser moves — the choice is
+a fact about the case's files, not about this session.
+
+Changing or clearing one goes through `BlockMeshPanel.forget_file(path)` first. Re-rendering
+alone cannot clean up after it: the overlay a file used to feed is not the one being written
+now, and clearing back to Automatic dispatches nothing at all, so the old rows would sit
+there with nothing to remove them.
+
+One thing the merged view does *not* claim: `topoSet` actions are sequential, and a
+dictionary can end with `action invert`. The overlay draws the source geometry of every
+action from every loaded file at once; it is not a picture of the cell set you end up with
+after running them. That was already true of a single `topoSetDict` — it is just easier to
+over-read with two files side by side.
+
 ## Tree-to-editor sync
 
 Selecting a tree node highlights its source span in the text editor (amber background) and optionally scrolls the editor to that line. The mechanism works as follows.
@@ -940,7 +1072,7 @@ Selecting a tree node highlights its source span in the text editor (amber backg
 
 **UI side** — `CodeEditor` holds `_span_start_line` / `_span_end_line`. `set_span_highlight(start, end)` stores the range and triggers `highlight_current_line`, which renders the amber span first (behind) and the blue current-line highlight on top via `setExtraSelections`. `EditorPanel` exposes `jump_to_node(start, end, scroll=True)` (highlight + optional scroll) and `clear_node_highlight()`.
 
-**State guard** — `MainWindow._source_lines_valid` is `True` after any `_load_tree` call (file load or Apply Text to Tree) and `False` as soon as the user edits the editor text (`_on_user_text_changed`). `on_tree_selection` skips jump and highlight when this flag is `False`, preventing jumps to stale line numbers. `_update_sync_checkbox` reflects the valid/stale state in the checkbox label, style, and tooltip.
+**State guard** — `state.source_lines_valid` is `True` after any `_load_tree` call (file load or Apply Text to Tree) and `False` as soon as the user edits the editor text (`_on_user_text_changed`). `on_tree_selection` skips jump and highlight when this flag is `False`, preventing jumps to stale line numbers. `_update_sync_checkbox` reflects the valid/stale state in the checkbox label, style, and tooltip.
 
 **Editor → tree** — `_sync_tree_to_editor_line` reads the current editor cursor line and calls `_find_deepest(root, line)` to find the innermost node whose `source_line ≤ line ≤ source_end_line`. The tree is scrolled to the result. If the matched node is filtered out by the proxy model, the code walks up to the nearest visible ancestor. This method is triggered by the **Find in Tree** button in the Editor toolbar and by the `Ctrl+Shift+T` shortcut.
 
@@ -963,17 +1095,17 @@ The **Auto-scroll editor** checkbox in the Boundary panel toolbar gates the `pat
 - `state.text_dirty: bool` — whether the currently open file's in-memory editor content differs from what is on disk. Set by `_mark_dirty()` and cleared by `save_file()`, Apply Text to Tree, and Reload from Disk.
 - `state.file_dirty: dict[str, bool]` — per-file dirty state for every file that has been loaded in the current session. Persists across file switches so unsaved edits are not lost when the user selects a different file.
 
-`_mark_dirty()` (`ui/mixins/_model_ops.py:102`) sets both values to `True`, adds the `*` suffix to the window title, and calls `file_list_panel.mark_dirty()` to show the indicator in the file list. It is called from `_after_model_edit()` (after any tree edit that regenerates text via `write_root()`) and from `_on_user_text_changed()` (on any human keystroke in the editor).
+`_mark_dirty()` (`ui/mixins/_model_ops.py`) sets both values to `True`, adds the `*` suffix to the window title, and calls `file_list_panel.mark_dirty()` to show the indicator in the file list. It is called from `_after_model_edit()` (after any tree edit that regenerates text via `write_root()`) and from `_on_user_text_changed()` (on any human keystroke in the editor).
 
 `_after_model_edit()` itself is reached two ways: explicitly, by the Detail-panel "Apply" handlers and the tree CRUD operations (`_tree_crud_ops.py`) right after they call `FoamTreeModel.setData()` / `insert_node()` / `remove_node()`; and via `_load_tree()`, which connects `FoamTreeModel.dataChanged` to `_on_tree_data_changed()` (`ui/mixins/_model_ops.py`), filtered to emissions carrying `Qt.EditRole`. The signal connection is what catches edits made directly in the Tree panel's inline cell editor — Qt's item delegate calls `setData()` straight from the view, with no explicit `_after_model_edit()` call anywhere in that path. Without the `dataChanged` hook, inline tree edits change the node but never regenerate the editor text or mark the file dirty. The `Qt.EditRole` filter excludes the diff-highlight refresh (`set_diff()` / `clear_diff()`), which emits `dataChanged` with `BackgroundRole` only.
 
-`_save_current_buffer()` (`ui/mixins/_model_ops.py:29`) flushes `editor_panel.get_text()` to `state.file_buffers[state.current_file]` and writes `state.text_dirty` back into `state.file_dirty[state.current_file]` before a file switch. This preserves unsaved edits in memory across switches.
+`_save_current_buffer()` (`ui/mixins/_model_ops.py`) flushes `editor_panel.get_text()` to `state.file_buffers[state.current_file]` and writes `state.text_dirty` back into `state.file_dirty[state.current_file]` before a file switch. This preserves unsaved edits in memory across switches.
 
 `_mark_path_dirty(path)` marks a specific path dirty regardless of which file is currently open. Used by operations that modify non-current files (e.g. renaming a boundary patch across multiple field files).
 
 ## Tree copy/paste shortcuts
 
-`_setup_tree_copy_paste()` (`ui/mixins/_tree_crud_ops.py:27`) attaches Ctrl+C and Ctrl+V `QShortcut` instances directly to the `tree` widget using `Qt.WidgetShortcut` scope:
+`_setup_tree_copy_paste()` (`ui/mixins/_tree_crud_ops.py`) attaches Ctrl+C and Ctrl+V `QShortcut` instances directly to the `tree` widget using `Qt.WidgetShortcut` scope:
 
 ```python
 copy_sc = QShortcut(QKeySequence.Copy, self.tree)
@@ -1066,6 +1198,14 @@ If the selected directory does not contain a `system/` or `constant/` subdirecto
 ## Application configuration
 
 `AppConfigManager` (`app_config/app_config_manager.py`) manages persistent application settings. A single instance is obtained via `get_app_config()` and reused throughout the session. Its load/save methods delegate the actual JSON I/O to `app_config/json_io.py` (`load_json`/`save_json`), the same helper used by `services/case_files_config.py`. `save_json` writes atomically (`atomic_write_text`: sibling `.tmp` file + `os.replace`, so a failed write never truncates the existing config; a named temp file rather than `tempfile.mkstemp` keeps umask-default permissions).
+
+### When settings cannot be read or written
+
+`AppConfigManager` reports failures by appending to `_warnings`, which `take_warnings()` drains and `main.py` shows on the status bar after `restore_session`. It cannot do anything more direct: `app_config/` is below `ui/` in the layering and has no way to raise a dialog, and the four `print()` calls this replaced went to a stdout that does not exist when FoDE is started from a desktop entry.
+
+The load path does one thing beyond reporting. A file that will not parse is **renamed to `app_config.json.bad`** before the defaults are loaded. Without that the file is quietly destroyed: parsing fails, `reset()` puts defaults in memory, and `closeEvent` — which always saves — writes those defaults straight over it. The user sees every setting revert for no visible reason and has nothing left to recover from. Renaming rather than deleting, because the JSON around the damage is usually still readable by eye and a case library is tedious to rebuild from memory.
+
+`delete_config_file()` returns a bool for the same reason its per-case twin in `services/case_files_config.py` does: both are called by code that has just promised the user the file will be deleted. `reset_file_list` used to report success either way, and since it reloads the case straight afterwards, a failed delete put every entry back in the list a moment after the user was told they were gone.
 
 ### save() semantics
 
@@ -1193,17 +1333,17 @@ The application uses two subsystems that both access the GPU on Linux:
 These two cannot safely coexist on the same GPU context. The workarounds applied in `main.py` are:
 
 1. `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu --disable-vulkan --log-level=2` forces WebEngine to use SwiftShader (CPU software rendering), leaving the GPU free for VTK. `--log-level=2` suppresses the "GPUInfo not initialized on GpuInfoUpdate" Chromium warning that appears as a side-effect of `--disable-gpu`.
-2. At startup, if `block_mesh_panel` is not `None` and the terminal is absent or in Simple mode, `QTimer.singleShot(0, block_mesh_panel._init_plotter)` eagerly initialises VTK so it claims the OpenGL context before any user interaction.
+2. At startup, if `block_mesh_panel` is not `None` and the terminal is absent or in Simple mode, `QTimer.singleShot(0, block_mesh_panel.init_plotter)` eagerly initialises VTK so it claims the OpenGL context before any user interaction.
 
 The terminal mode toggle (`TerminalPanel.mode_changed` signal) shuts down VTK before xterm starts, and re-initialises it (after a 300 ms delay) when switching back to Simple mode. This signal is connected only when both `terminal` and `blockmesh` features are enabled.
 
 **View menu action** — `_blockmesh_action` (`QAction`, checkable) in `_build_menu_bar` provides a second way to show/hide the BlockMesh tab independently of the terminal mode. When xterm is active the action is disabled and its text changes to `"BlockMesh 3-D Panel  (unavailable: xterm active)"` so the reason is visible without hovering. `_on_terminal_mode_changed` keeps the action's enabled state and label in sync with the terminal mode. `_on_toggle_blockmesh_panel` handles the actual tab add/remove when the user clicks the action.
 
-**Axes widget** — `add_axes()` creates a `vtkOrientationMarkerWidget` that persists across `plotter.clear()` calls (it is a widget, not an actor). It is therefore called once in `_init_plotter()`. `_render()` calls `show_axes()` / `hide_axes()` to toggle it, rather than re-adding it each frame.
+**Axes widget** — `add_axes()` creates a `vtkOrientationMarkerWidget` that persists across `plotter.clear()` calls (it is a widget, not an actor). It is therefore called once in `init_plotter()`. `_render()` calls `show_axes()` / `hide_axes()` to toggle it, rather than re-adding it each frame.
 
 **Text drawn by VTK, not Qt** — the 3-D scene's own text (shape name badges, vertex and block numbers, the bounds readout, the orientation triad's letters, the grid's tick labels) goes through VTK's built-in label font, which is not the desktop font stack Qt draws with. That font silently draws **nothing** for a character it has no glyph for — no placeholder box — so a symbol that looks right in a Qt menu can vanish inside a 3-D label while still taking up its width. Two shipped that way until 2026-07-30: `✂`/`⚠` in `_CLIP_MARK_SUFFIX` (now `ui/panels/shape_mesh.py`), and the `→` separating the two numbers of each axis in the **Dimensions** bounds readout (`block_mesh_renderer.py`), which reached the screen as `X  0   3  (3 m)`. Square brackets are no better — they render as parentheses. Keep every string in `shape_mesh.py` and `block_mesh_renderer.py` to ASCII; `tests/ui/test_shape_mesh.py` and `tests/ui/test_block_mesh_renderer_colors.py` each walk their module's AST and assert exactly that, docstrings excepted, because the bounds readout was an inline f-string that a per-constant check walked straight past. The test catches a character that *cannot* be drawn, not one that merely looks wrong, so new scene text still wants a look on screen — a missing glyph is invisible to `assert`. `block_mesh_panel.py`'s `▾`, `·`, `📍` and `…` are unaffected: those are Qt widget text.
 
-**Side-by-side mode** — A `⊞` toggle button (`_bm_side_by_side_btn`) is added as a `QTabWidget` corner widget. When enabled, `_on_toggle_bm_side_by_side` reparents `block_mesh_panel` from the `upper_tabs` `QTabWidget` into `_tree_bm_splitter` (a `QSplitter(Qt.Horizontal)` that wraps `right_upper_splitter` and is itself the content of the Tree tab). The Tree tab is switched to first so the splitter is visible before reparenting; `setSizes([1,1])` and `_init_plotter()` are deferred to the next event-loop tick via `QTimer.singleShot(0, ...)`. When side-by-side mode is turned off, `block_mesh_panel` is moved back into `upper_tabs` as a normal tab. `_update_bm_side_by_side_btn` (`ui/mixins/_panel_ops.py`) enables the button when the current file's name is `blockMeshDict`, `topoSetDict`, `snappyHexMeshDict`, `setFieldsDict`, or one of the sampling names (`SAMPLING_DICT_NAMES`: `controlDict`, `sample`, `probes`, `surfaces`, `singleGraph`) — all render into the same 3-D view (see `block_mesh_extractor.py`, `topo_set_extractor.py`, `snappy_hex_mesh_extractor.py`, `set_fields_extractor.py`, `sampling_extractor.py`), the BlockMesh tab itself is on, and xterm is not active; it is disabled (and side-by-side mode force-exited) otherwise.
+**Side-by-side mode** — A `⊞` toggle button (`_bm_side_by_side_btn`) is added as a `QTabWidget` corner widget. When enabled, `_on_toggle_bm_side_by_side` reparents `block_mesh_panel` from the `upper_tabs` `QTabWidget` into `_tree_bm_splitter` (a `QSplitter(Qt.Horizontal)` that wraps `right_upper_splitter` and is itself the content of the Tree tab). The Tree tab is switched to first so the splitter is visible before reparenting; `setSizes([1,1])` and `init_plotter()` are deferred to the next event-loop tick via `QTimer.singleShot(0, ...)`. When side-by-side mode is turned off, `block_mesh_panel` is moved back into `upper_tabs` as a normal tab. `_update_bm_side_by_side_btn` (`ui/mixins/_panel_ops.py`) enables the button when the current file's name is `blockMeshDict`, `topoSetDict`, `snappyHexMeshDict`, `setFieldsDict`, or one of the sampling names (`SAMPLING_DICT_NAMES`: `controlDict`, `sample`, `probes`, `surfaces`, `singleGraph`) — all render into the same 3-D view (see `block_mesh_extractor.py`, `topo_set_extractor.py`, `snappy_hex_mesh_extractor.py`, `set_fields_extractor.py`, `sampling_extractor.py`), the BlockMesh tab itself is on, and xterm is not active; it is disabled (and side-by-side mode force-exited) otherwise.
 
 **Comparison panel visibility** — `comparison_panel` is added to `right_upper_splitter` at startup but immediately hidden (`comparison_panel.hide()`). Qt `QSplitter` ignores hidden children, so no handle or gap appears. `_on_side_by_side_toggled(True)` calls `comparison_panel.show()` before `setSizes`; `_on_side_by_side_toggled(False)` and `_clear_diff` call `comparison_panel.hide()` after.
 
@@ -1221,6 +1361,8 @@ DISPLAY=:1 python3 tools/capture_screenshots.py <shot> --interactive     # adjus
 ```
 
 **A real X display is required, and so is ImageMagick's `import` command** (`apt install imagemagick` / `brew install imagemagick` — a system package, not something `requirements-dev.txt` can pin). Offscreen Qt aborts VTK, so there is no headless mode. `--out` defaults to `docs/images/`, so aim a first run somewhere else.
+
+**A capture cannot change your settings.** `_sandbox_app_config()` copies `app_config.json` to a throwaway file and points the config singleton at the copy before `MainWindow` is built. The copy rather than an empty file is deliberate: the capture *reads* the real config — the `terminal`/`blockmesh` feature flags decide which panels exist at all — so starting empty would change what gets photographed. Not closing the window (see below) already blocks `closeEvent`, which is the only writer of `window_size`; the sandbox covers the save paths that do not go through it — duplicating a case, editing the case library, and changing the theme, language, UI scale or syntax highlighting each call `cfg.save()` on their own, and `--interactive` leaves the window open for you to reach any of them. `tools/demo_driver.py`'s `seed_app_config` does the same thing for a take.
 
 **Capture goes through ImageMagick, not Qt.** `QWidget.grab()` returns black for the BlockMesh panel's native child window (same root cause as the GPU notes above), so the window is captured with `import -frame -window <winId()>`. `-frame` also keeps the title bar and borders that every existing gallery image has, and yields the same 1228×866 for a 1200×800 window. The window id comes from `QWidget.winId()`, so no window-manager query or title matching is involved — but `import` reads the *screen*, so the window is moved to (0, 0) and raised, and anything overlapping it would be captured instead.
 
@@ -1364,6 +1506,129 @@ An explicit `config_path=` still wins over the variable, and the variable is rea
 
 Two things to know if you touch that fixture. It is written with plain save/restore rather than `monkeypatch`: an autouse fixture that requests `monkeypatch` makes it the earliest-created fixture in every test, which moves its undo to the very end of teardown — and `tests/ui/test_included_files.py` patches `include_scan.foam_etc_dirs` (an `lru_cache`) and clears that cache in its own teardown, so it needs its patches undone first. And `main_window` requests `temp_config` explicitly rather than trusting autouse ordering, because the window it builds is one of the things that saves.
 
+### Running it in parallel
+
+`pytest-xdist` is installed (requirements-dev.txt) but **not** switched on by default, and
+the invocation matters more than it looks:
+
+```bash
+python3 -m pytest -q -n 16          # ~10 s   <- the one to use on a many-core machine
+python3 -m pytest -q -n auto        # ~17 s   on a 64-core box: worse, see below
+python3 -m pytest -q                # ~96 s   serial
+```
+
+**`-n auto` is not the fastest setting here.** It takes one worker per core, and each
+worker pays the import cost of PySide6 plus pyvista and pyvistaqt (~1 s) before running
+anything. At 64 workers that startup dominates; measured on this machine, `-n auto` (17.1 s)
+is slower than `-n 16` (10.9 s) and barely faster than `-n 8` (12.2 s). Pick a middle number
+rather than the core count.
+
+Both distribution modes work. `--dist load` (xdist's default, round-robin per test) passes,
+which says the suite is independent test by test and not merely file by file;
+`--dist loadfile` keeps a file's tests on one worker and is the safer default if any
+order-dependence ever creeps in. The difference is about a second.
+
+It is left off by default deliberately. The only machine-independent setting, `-n auto`, is
+the wrong one here; a fixed number is wrong on a smaller machine; and parallel runs
+interleave output and make `-s` and breakpoints awkward for every run, to save a minute and
+a half that is no longer painful. Add `addopts = -n 16` to `pytest.ini` if you want it
+always on -- `-n0` turns it off again for a debugging run.
+
+The `real_config_untouched` guard still works under xdist: each worker is its own session,
+so each one snapshots and checks `app_config.json` independently (verified by making a test
+write it and watching every worker fail).
+
+### Measuring coverage
+
+`coverage` is in requirements-dev.txt. Nothing in the suite uses it and no threshold is
+enforced — it is here to answer "what is not tested?", which guesswork answers badly:
+
+```bash
+python3 -m coverage run --source=foam,model,services,ui,app_config -m pytest -q
+python3 -m coverage report --sort=cover | head -20      # least-covered first
+python3 -m coverage report --skip-covered               # only what has gaps
+python3 -m coverage html && xdg-open htmlcov/index.html # line by line
+```
+
+Two things to know before reading the numbers. `ui/mixins/_protocol.py` reports 0% and
+always will: it is mypy-only stubs that never execute, so exclude it rather than chasing
+it. And `-n` from the parallel section above needs `coverage`'s own combine step to give a
+correct total, so measure serially unless you want to deal with that.
+
+The number is not a target. When this was first measured the total was 75%, and the useful
+part was not the total at all — it was that `ui/mixins/_boundary_ops.py` sat at 17% while
+its panel's copy helpers were well covered, i.e. the tests were on the part that was easy
+to test rather than the part that writes several field files at once.
+
+### Stubbing dialogs
+
+`tests/conftest.py`'s autouse `no_unstubbed_modals` replaces every blocking dialog call --
+`QDialog.exec`, `QMessageBox.exec`/`question`/`warning`/`information`/`critical`,
+`QFileDialog.get*` and `QInputDialog.getText`/`getItem` -- with one that raises. A handler
+that reaches a dialog the test forgot to stub therefore *fails*, naming the class and
+method, instead of hanging the run with nothing to point at. Five hangs in one afternoon
+were all that same mistake, and a hang names no test at all: finding it means bisecting by
+hand, and in CI it is just a timeout. The whole suite passes with these raising, which is
+the same statement as "no test legitimately opens a dialog".
+
+`tests/ui/conftest.py` has the other half -- the fixtures for answering one:
+
+| fixture | answers |
+|---|---|
+| `stub_dialog("pkg.mod.DialogClass", accepted=…, **attrs)` | a whole dialog class, by name as the handler sees it |
+| `answer_message_box(button)` | every `QMessageBox` static at once; returns the list of prompt texts |
+| `choose_directory(path)` | `QFileDialog.getExistingDirectory` |
+| `answer_input(value, ok=…)` | `QInputDialog.getText`/`getItem` |
+
+`answer_message_box` patches all four statics together on purpose: a handler often reaches
+more than one, and stubbing only the one you were thinking of hangs on the other.
+
+A dialog with hand-built buttons still needs a local stub, because the handler compares
+`clickedButton()` against its own objects by identity -- `tests/ui/test_file_mgmt_ops.py`'s
+`_answer_delete_dialog` is the one such case.
+
+### Destroying widgets in tests
+
+A fixture that builds a Qt widget must destroy it. The suite has no event loop, and without
+one nothing reclaims a widget on its own:
+
+- `deleteLater()` does nothing. At loop level 0 `processEvents()` never delivers
+  `DeferredDelete`, so a widget is still in `QApplication.allWidgets()` afterwards.
+- `del` plus `gc.collect()` does nothing either — the Python wrapper goes, the C++ object
+  stays. One `MainWindow` is 237 live `QWidget`s.
+- `shiboken6.delete()` is what actually frees it. `tests/conftest.py`'s `_destroy_widget`
+  wraps that; take the `destroy_widget` fixture in a widget-owning fixture's signature, or
+  `qt_widget` for a widget a test body builds. `tests/test_lint.py` has a guard that fails
+  if a widget fixture forgets.
+
+This is not tidiness. `apply_theme()` → `setStyle`/`setPalette`/`setStyleSheet` are
+*broadcasts*: Qt walks every live widget in the process and re-polishes it, at roughly half a
+millisecond each. With one leaked window per test the suite reached tens of thousands of live
+widgets, and `tests/ui/test_theme.py` plus `tests/ui/test_icons.py` — **0.31 s when run on
+their own** — cost about 1300 s of a 1700 s run, entirely in teardowns of tests that never
+touched a palette. Fixing the leak took the suite from **28 minutes to under two**.
+
+Two rules that are not optional, both learned by doing the other thing:
+
+**Never `close()` a `MainWindow` in a test.** `closeEvent` calls
+`_confirm_discard_if_needed()`, which raises a modal `QMessageBox` when the editor is dirty —
+and tests leave it dirty. Nothing is there to answer it, so the run *hangs* rather than fails.
+It also writes the session layout and window size back to the config. `hide()` is enough;
+each fixture already does the panel-specific shutdown `closeEvent` would have done.
+
+**Never blind-delete from `QApplication.topLevelWidgets()`.** That list is *windows by flag*,
+not ownership roots: `Qt::Popup` carries the `Qt::Window` bit, so one `MainWindow` contributes
+about ten live `QMenu`s whose parents hold raw back-pointers to them. Deleting a child while
+its owner lives dangles that pointer, and the process segfaults. The same applies to
+`QComboBox` popup containers, `QToolTip`'s statics, QtWebEngine's delegate widget, and
+pyvistaqt's `QtInteractor` (whose VTK render window must close while its QWidget still
+exists — hence `BlockMeshPanel.shutdown()` running *before* the destroy).
+
+Both follow from one principle: **destroy only what the fixture itself constructed, from the
+fixture that constructed it** — which is also why this is per-fixture rather than a global
+`pytest_runtest_teardown` hook. A hook would additionally run *before* fixture finalizers
+unless marked `trylast`, putting the destroy ahead of those `shutdown()` calls.
+
 ## Linting and type-checking
 
 Configuration lives in `pyproject.toml`. `ruff` covers the whole repository (no `include`/`exclude` restriction beyond its own default excludes, e.g. `.venv/`) and the whole tree is clean, so it runs unscoped:
@@ -1374,7 +1639,7 @@ ruff check
 
 `i18n/ja.py`'s translation string literals (the English `tr()` keys and their Japanese values) are exempted from `E501` (line-too-long) via `[tool.ruff.lint.per-file-ignores]` in `pyproject.toml` — wrapping either one risks silently breaking the key lookup or corrupting the translated text.
 
-`mypy`'s `[tool.mypy] files` in `pyproject.toml` lists `foam/`, `model/`, `app_config/`, `schemas/`, `services/`, `ui/` (all of it), plus `main.py` and `i18n/` — every top-level source package except `tools/`, which is deliberately left out. Every PySide6 attribute access in `ui/` uses the fully-qualified enum form the stubs require (e.g. `Qt.Orientation.Horizontal`, not the flattened `Qt.Horizontal`) — mixing the two styles is otherwise the single largest source of `mypy` noise in a PySide6 codebase.
+`mypy`'s `[tool.mypy] files` in `pyproject.toml` lists `foam/`, `model/`, `app_config/`, `schemas/`, `services/`, `ui/` (all of it), plus `main.py`, `i18n/` and `tools/` — every top-level source package. `tools/` was excluded until it was measured: 3407 unchecked lines held six errors, one of them a local name bound to a `str` in one branch and a `list` in another (`capture_screenshots.py`'s `themes`), harmless only because the first branch returns. These tools are run by hand and need a real display, so a type error there surfaces halfway through a capture run rather than at the keyboard. Every PySide6 attribute access in `ui/` uses the fully-qualified enum form the stubs require (e.g. `Qt.Orientation.Horizontal`, not the flattened `Qt.Horizontal`) — mixing the two styles is otherwise the single largest source of `mypy` noise in a PySide6 codebase.
 
 ```bash
 mypy
@@ -1384,7 +1649,7 @@ A `[[tool.mypy.overrides]]` entry relaxes `numpy.*`/`numpy` to `follow_imports =
 
 ### Typing the `ui/mixins/` split
 
-`ui/main_window.py`'s `MainWindow` is built from thirteen mixins plus `QMainWindow` (see the `ui/mixins/` entries in "Project structure" above); each mixin is a plain class with no common base at runtime; the composition only happens once `MainWindow` inherits from all of them. That is a problem for `mypy`, which type-checks each mixin module on its own — a bare `class _FileOpsMixin:` has no way to know that `self` will ever have a `.tree`, a `.state`, or a `._load_tree()`.
+`ui/main_window.py`'s `MainWindow` is built from fifteen mixins plus `QMainWindow` (see the `ui/mixins/` entries in "Project structure" above); each mixin is a plain class with no common base at runtime; the composition only happens once `MainWindow` inherits from all of them. That is a problem for `mypy`, which type-checks each mixin module on its own — a bare `class _FileOpsMixin:` has no way to know that `self` will ever have a `.tree`, a `.state`, or a `._load_tree()`.
 
 `ui/mixins/_protocol.py`'s `MainWindowProtocol` (a plain class inheriting `QMainWindow`, not `typing.Protocol` — mypy rejects a protocol with a non-protocol base) declares that whole combined surface: every widget/state attribute `MainWindow.__init__`/`_build_ui()` sets, and every method any mixin defines, with a signature matching the real one. Each mixin does:
 
@@ -1407,9 +1672,9 @@ so `_Base` is `MainWindowProtocol` while mypy is looking (giving every method in
 
 Ideas noted for a later release, not currently scheduled:
 
-- **Glob the suffixed variants of every listed dictionary** — `services/case_loader.py` lists exact names, so `topoSetDict.1`, `decomposeParDict.4`, `controlDict.orig` and the rest are invisible; they are ~9% of the `system/`+`constant/` files in the tutorial trees, the largest single group still unlisted. A `<name>.*` glob per `TARGET_FILES` entry, like `PHASE_FILE_BASES` already does for `constant/`, would sweep up nearly all of them in a few lines. It was consciously not done because the same glob catches `blockMeshDict.m4` (25 cases), an m4 template that is not a dictionary and will not parse — so the change needs a rule for what to exclude, or the text-only treatment scripts and logs already get, rather than being a one-line widening.
+- **Glob the suffixed variants of the remaining listed dictionaries** — half done. The four viewer dictionaries are covered: `VARIANT_FILE_BASES` + `_list_variant_files` (`services/case_loader.py`) list every `system/<blockMeshDict|topoSetDict|snappyHexMeshDict|setFieldsDict>*` by prefix, which includes the `blockMeshDict.m4` template this item originally held back over. What is still invisible is the same thing for every other name — `decomposeParDict.4`, `controlDict.orig` and the rest of the ~9% of `system/`+`constant/` files the tutorial trees keep under a suffix. Widening the prefix match to all of `TARGET_FILES` was measured at 398 extra rows, mostly phase variants `_list_phase_files` already handles, so the open question is still a rule for which suffixes to take — or the text-only treatment scripts and logs already get for the non-dictionaries — rather than a one-line widening.
 
-- **Schema modules for the uncovered dictionaries** — six of the 105 listed names have one. `docs/SCHEMA_CANDIDATES.md` ranks the rest by measured tutorial frequency and key count and splits them into hand-write-here and generate-with-foamlore, with the reasoning; the cheapest is `meshQualityDict`, where `schemas/snappy_hex_mesh_dict/_mesh_quality.py` already describes the keys and needs only a `TARGET_FILES` tuple to answer for the standalone file too.
+- **Schema modules for the uncovered dictionaries** — nine of the 105 listed names have one (counting each fork's spelling of a renamed dictionary separately). `docs/SCHEMA_CANDIDATES.md` ranks the rest by measured tutorial frequency and key count and splits them into hand-write-here and generate-with-foamlore, with the reasoning; the cheapest is `meshQualityDict`, where `schemas/snappy_hex_mesh_dict/_mesh_quality.py` already describes the keys and needs only a `TARGET_FILES` tuple to answer for the standalone file too.
 
 - **Detect the case's fork and release, and act on it** — the banner at the top of every dictionary names both (`Version: v2606` / `www.openfoam.com`), and `docs/OPENFOAM_VERSIONS.md` now records what changes between them. Two things could use that: the Detail pane could grey out a `supported_in` that excludes the case's own release instead of leaving the user to compare strings, and `include_scan.foam_etc_dirs()` could resolve `#includeEtc` against the matching installation rather than the newest (which is the "Version-aware `etc` selection" item below, from the other end).
 
@@ -1445,11 +1710,13 @@ Ideas noted for a later release, not currently scheduled:
 
 - **Retype `shape_mesh.make_shape_mesh`'s geometry dispatch** (moved from `block_mesh_renderer._make_shape_mesh` when the Qt-free geometry split into `ui/panels/shape_mesh.py`) — it currently dispatches on dict keys (`box`, `boxes`, `centre`+`radius`, `p1`+`p2`+`radius`, `origin`+`i`+`j`+`k`, `stl_path`, `planePoint`+`planeNormal`, ...) duck-typed at the call site; this was deliberately left as-is in both refactors. A typed geometry union (e.g. per-kind dataclasses) would let mypy check the dispatch instead of relying on key presence at runtime.
 
+- **Notice when an open file is changed outside the app** — `_case_dir_watcher` (the `QFileSystemWatcher` on the case directory and `constant/` that refreshes the file list) fires only when a directory's *entries* change, never when an existing file is rewritten in place, so when another program rewrites a file that already has a buffer — `foamDictionary -set`, `sed`, another editor, any script run in a terminal — the editor, tree and 3-D view keep the stale text, and a later **Save File**/**Save Case** of that file silently overwrites the external change. Two small pieces would close the data-loss half without any automatic behaviour: (1) a *save guard* — record `(st_mtime_ns, st_size)` in `AppState` whenever a buffer is read from disk (`load_selected_file`, `_cache_parsed_root`) or written (`save_file`, `save_all_files`), and before each write, if the file's stamp and text both differ from what was read, ask before overwriting; cleared in `_load_case_dir`, popped in `_purge_file_caches`; (2) a manual **Reload from Disk** for the current file (file-list context menu plus a shortcut) that re-reads it — confirming first when the buffer is dirty — and refreshes the editor, tree (`_parse_and_update`) and 3-D view (`_refresh_include_dependents`, plus `_update_block_mesh_viewer` when `_viewer_kind_for` names a kind). *Automatic* reload — a second `QFileSystemWatcher` on each buffered file's `fileChanged` plus a check on window activation — was considered and deferred: it is several times the code (hooks in load/save/case switch, re-adding a path after an atomic write-and-rename drops it from the watcher, the interaction with undo snapshots), and an unprompted reload resets tree expansion and selection and can raise a dialog just as the user switches back to the window. Worth revisiting only if the manual reload proves tedious in practice.
+
 ### Deferred review findings (undo/redo, sampling)
 
 Low-severity items surfaced by a code review of the undo/redo and sampling work and left unfixed at the time (each was judged *plausible* rather than confirmed — narrow trigger, latent, or design-hardening). Worth folding into the next change that touches these areas:
 
-- **`_restored_dirty` re-reads disk to settle dirtiness** (`ui/mixins/_undo_ops.py`) — originally filed as a live defect on the theory that a root cached in `state.parsed_roots` has no `raw_text` and so re-serializes to text differing from disk. That theory does not hold: every writer of `parsed_roots` populates it from `OpenFoamParser.parse()`, which sets `raw_text`, and `tools/roundtrip_corpus.py` measures 9620/9620 v2512 tutorial files re-serializing byte-identical. `_undo_text_for` also prefers `file_buffers`, so the serialize-vs-disk comparison is only reached for files parsed straight from disk. Downgraded to a design note: comparing against the in-memory buffer would remove the I/O and the dependence on a 100% round-trip, but there is no known input that makes the current code wrong.
+- **`_restored_dirty` re-reads disk to settle dirtiness** (`ui/mixins/_undo_ops.py`) — originally filed as a live defect on the theory that a root cached in `state.parsed_roots` has no `raw_text` and so re-serializes to text differing from disk. That theory does not hold: every writer of `parsed_roots` populates it from `OpenFoamParser.parse()`, which sets `raw_text`, and `tools/roundtrip_corpus.py` measures 9620/9620 v2512 tutorial files re-serializing byte-identical. `_current_text` also prefers `file_buffers`, so the serialize-vs-disk comparison is only reached for files parsed straight from disk. Downgraded to a design note: comparing against the in-memory buffer would remove the I/O and the dependence on a 100% round-trip, but there is no known input that makes the current code wrong.
 - **`UndoState.op_active` reset timing is fragile** (`ui/mixins/_undo_ops.py`) — the double-checkpoint guard is cleared by `QTimer.singleShot(0, ...)`, which fires inside a nested event loop (`QMessageBox`/`QDialog.exec`). No current call site opens a dialog between its `_checkpoint_for_undo` and the mutation, so this is latent; a future op that does would let the model's `about_to_change` push a second, mid-mutation snapshot (one edit then needing two undos). Bounding the guard to the synchronous op scope (e.g. a context manager) would remove the timing coupling.
 - **No enforcement that a mutation path checkpoints for undo** (`ui/mixins/_tree_crud_ops.py`, `_tree_sync_ops.py`, `_boundary_ops.py`) — undo coverage rests on ~18 hand-placed `_checkpoint_for_undo` calls plus the `about_to_change` signal for `setData`-driven edits. A future direct-mutation path that forgets its explicit call is silently non-undoable (a later Ctrl+Z jumps past it). A single post-mutation choke point that diffs the prior serialized text, or a coverage test, would make this robust.
 

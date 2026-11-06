@@ -25,3 +25,14 @@ class SourceShape:
     label: str      # display name (entry/action name, or a summary for setFields)
     kind: str       # geometry/source keyword, e.g. "boxToCell", "sphere", "plane"
     geometry: dict  # parsed geometry: keys depend on `kind`
+    # Basename of the file this shape came from, stamped by the UI layer rather than the
+    # extractor -- an extractor is handed a tree, not a path. Empty until then.
+    #
+    # Every one of these dictionaries can be present more than once in a case under a
+    # non-default name (`topoSetDict-slices`, `topoSetDict.1`), and the panel merges all
+    # loaded files into one overlay menu, so a shape has to be able to say which file it
+    # came from. Sampling needed this first and carried the field alone; it moved here when
+    # the other three gained the same ability.
+    # kw_only so the subclasses' own required fields (TopoShape.action,
+    # SnappyShape.category) can still follow a field that has a default.
+    source_file: str = dataclasses.field(default="", kw_only=True)

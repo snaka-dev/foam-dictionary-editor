@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 from app_config import get_app_config
 from app_config.defaults import DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH
 from i18n import tr
+from ui.label_fit import fit_wrapped_labels
 from ui.theme import colors
 
 _DIALOG_WIDTH = 500
@@ -79,6 +80,25 @@ class ResetSettingsDialog(QDialog):
         cancel_btn.clicked.connect(self.reject)
         reset_btn.clicked.connect(self._perform_reset)
 
+        self._labels_fitted = False
+
+    def showEvent(self, event):
+        """Give the wrapped labels their real heights, once.
+
+        A wrapped QLabel's sizeHint is measured at a width Qt guesses, not the one it gets,
+        so a fixed-width dialog under-allocates and the last lines are never drawn -- see
+        ui/label_fit.py. Only after the first layout pass does a label know its real width.
+        """
+        super().showEvent(event)
+        if self._labels_fitted:
+            return
+        self._labels_fitted = True
+        fit_wrapped_labels(self)
+        # activate() first, so the new minimum heights travel back up through the layout
+        # before the dialog's own size hint reflects them. Then resize() rather than
+        # adjustSize(), which clamps a window to two thirds of the screen height.
+        self.layout().activate()
+        self.resize(self.width(), self.sizeHint().height())
     def _perform_reset(self) -> None:
         if not self._app_cb.isChecked() and not self._schema_cb.isChecked():
             QMessageBox.warning(self, tr("No Selection"), tr("Please select at least one option to reset."))

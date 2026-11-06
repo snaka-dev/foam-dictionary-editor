@@ -77,6 +77,37 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         "setFields",
         (_DICT_OPTION, _REGION_OPTION),
     ),
+    "decomposePar": ToolSpec(
+        "decomposePar",
+        (
+            ToolOption(
+                "-force",
+                "Remove existing processor* directories first",
+            ),
+            ToolOption("-copyZero", "Copy 0/ as-is instead of decomposing the fields"),
+            ToolOption("-latestTime", "Decompose the latest time directory only"),
+            _REGION_OPTION,
+        ),
+    ),
+    # Flags common to both forks only: the "skip fields/sets/lagrangian"
+    # switches are spelt -noFields on Foundation and -no-fields on OpenCFD,
+    # so they go through the extra-options field.
+    "reconstructPar": ToolSpec(
+        "reconstructPar",
+        (
+            ToolOption(
+                "-newTimes",
+                "Only reconstruct times not already at the case root",
+                "bool",
+                True,
+            ),
+            ToolOption("-latestTime", "Reconstruct the latest time only"),
+            ToolOption("-time", "Times to reconstruct", "value", "", "e.g. 0.5:1 or 0.1,0.2"),
+            ToolOption("-fields", "Fields to reconstruct", "value", "", "e.g. (U p)"),
+            ToolOption("-withZero", "Include the 0/ directory"),
+            _REGION_OPTION,
+        ),
+    ),
     "checkMesh": ToolSpec(
         "checkMesh",
         (
@@ -97,6 +128,13 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         ),
     ),
 }
+
+
+# Tools > Run Solver…: the executable is whatever the user picks in the dialog
+# (pre-filled from controlDict's ``application``), so this spec is never used
+# with its own empty name -- RunToolDialog substitutes the chosen one. It
+# stays out of TOOL_SPECS for that reason: every entry there is runnable as is.
+SOLVER_SPEC = ToolSpec("", ())
 
 
 def default_values(spec: ToolSpec) -> dict[str, OptionValue]:
@@ -138,6 +176,7 @@ def build_command(
     values: dict[str, OptionValue],
     extra: str = "",
     prefix: str = "",
+    parallel_np: int | None = None,
 ) -> str:
     """Compose the full shell command sent to the terminal panel.
 
@@ -145,6 +184,10 @@ def build_command(
     the Allrun "logs already exist" pre-flight rely on those exact filenames,
     so the log redirection is composed here rather than left to the user.
     ``prefix`` is an optional raw shell prefix (e.g. ``"rm -rf 0 && … && "``).
+    ``parallel_np`` runs the tool as ``mpirun -np N <tool> … -parallel``; the
+    log keeps the plain ``log.<tool>`` name, as Allrun's ``runParallel`` does.
     """
     tokens = [spec.name, *build_args(spec, values, extra)]
+    if parallel_np is not None:
+        tokens = ["mpirun", "-np", str(parallel_np), *tokens, "-parallel"]
     return f"{prefix}{shlex.join(tokens)} 2>&1 | tee log.{spec.name}"

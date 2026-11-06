@@ -3,20 +3,12 @@
 from __future__ import annotations
 
 from functools import partial
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QAction, QKeySequence
 
 from i18n import tr
-from ui.layout_constants import (
-    BLOCKMESH_DICT_NAME,
-    SAMPLING_DICT_NAMES,
-    SETFIELDS_DICT_NAME,
-    SNAPPY_HEX_MESH_DICT_NAME,
-    TOPOSET_DICT_NAME,
-)
 from ui.pane_minimize import PANE_BOTTOM, PANE_DETAIL, PANE_FILE_LIST
 
 if TYPE_CHECKING:
@@ -72,16 +64,12 @@ class _PanelOpsMixin(_Base):
     def _update_bm_side_by_side_btn(self) -> None:
         if self._bm_side_by_side_btn is None:
             return
+        # Same recogniser the viewer dispatch uses, so the button is enabled for exactly
+        # the files that actually render -- a hand-named topoSetDict included.
         is_3d_viewable_file = bool(
             self.state.current_file
-            and Path(self.state.current_file).name
-            in (
-                BLOCKMESH_DICT_NAME,
-                TOPOSET_DICT_NAME,
-                SNAPPY_HEX_MESH_DICT_NAME,
-                SETFIELDS_DICT_NAME,
-                *SAMPLING_DICT_NAMES,
-            )
+            and self._viewer_kind_for(self.state.current_file, self.state.current_root)
+            is not None
         )
         xterm_active = (
             self.terminal_panel is not None and self.terminal_panel.use_xterm

@@ -68,7 +68,7 @@ from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 # Same reason as main.py: must be set before QApplication exists.
 os.environ.setdefault(
@@ -79,6 +79,7 @@ os.environ.setdefault(
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from model.case_tree_model import CaseTreeModel  # noqa: E402
 from ui.window_state import (  # noqa: E402
     WindowState,
     apply_block_mesh_view,
@@ -755,7 +756,9 @@ def _case_row_point(window, name: str):
     ]
     view = browsers[0]._list if browsers else window.case_nav_panel._tree
     root = view.rootIndex()
-    model = view.model()
+    # Both views above are backed by the shared CaseTreeModel; view.model() is typed as
+    # the Qt base class, which has no entry_for_index.
+    model = cast(CaseTreeModel, view.model())
     for row in range(model.rowCount(root)):
         index = model.index(row, 0, root)
         entry = model.entry_for_index(index)

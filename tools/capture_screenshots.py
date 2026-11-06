@@ -32,9 +32,11 @@ returns black for the 3-D panel's native child window, and `-frame` keeps the
 title bar and borders every existing gallery image has.
 
 Each shot runs in its own process (this script re-executes itself), so no shot
-can inherit stray state from the one before it. Nothing is written back to
-app_config.json: the theme comes from --theme rather than the saved setting,
-and the window is never closed, so MainWindow.closeEvent never runs.
+can inherit stray state from the one before it. Nothing is written back to the
+developer's app_config.json: the theme comes from --theme rather than the saved
+setting, the window is never closed so MainWindow.closeEvent never runs, and
+_sandbox_app_config() points the singleton at a throwaway copy so the save paths
+that do not go through closeEvent cannot reach it either.
 """
 from __future__ import annotations
 
@@ -45,6 +47,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -57,6 +60,7 @@ os.environ.setdefault(
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from ui.theme import ThemeMode  # noqa: E402
 from ui.window_state import WindowState, capture_window_state  # noqa: E402
 
 DEFAULT_SPEC = ROOT / "tools" / "screenshot_specs.json"
@@ -66,8 +70,10 @@ DEFAULT_CASES = Path.home() / "OpenFOAM" / "nakagawa-v2512" / "run"
 # window inherits the capture machine's desktop palette, which is the one thing
 # about a shot that cannot be reproduced elsewhere. "system" is still accepted,
 # for capturing what a default install actually looks like.
-THEMES = ("light", "dark", "system")
-GALLERY_THEMES = ("light", "dark")
+# ThemeMode rather than a bare str: apply_theme takes a Literal, and typing these
+# lets mypy check the value that reaches it instead of trusting argparse choices.
+THEMES: tuple[ThemeMode, ...] = ("light", "dark", "system")
+GALLERY_THEMES: tuple[ThemeMode, ...] = ("light", "dark")
 
 # How long to let the window settle before capturing. The 3-D panel is what
 # needs it: VTK re-initialises 300 ms after the terminal switches out of xterm
@@ -150,7 +156,36 @@ def _resolve_case_dir(state: WindowState, cases_dir: Path) -> WindowState:
 # ── the worker: one window, one theme, one capture ─────────────────────────────
 
 
-def capture_one(shot: Shot, theme: str, out_path: Path | None, settle_ms: int) -> int:
+def _sandbox_app_config() -> None:
+    """Point the config singleton at a throwaway copy of the developer's own config.
+
+    The capture reads the real config -- feature flags decide whether the BlockMesh panel
+    and terminal exist at all -- so this copies it rather than starting empty: what gets
+    captured is unchanged, only where a write would land moves.
+
+    Not closing the window blocks ``MainWindow.closeEvent``, which is the only thing that
+    writes ``window_size``. But it is not the only thing that writes: duplicating a case,
+    editing the case library, and changing the theme, language, UI scale or syntax
+    highlighting each call ``cfg.save()`` on their own. An interactive run (``out_path``
+    None) leaves the window open for the user to drive, so any of those is reachable. This
+    makes the guarantee structural instead of a rule about one code path, which is what
+    tools/demo_driver.py's ``seed_app_config`` already does for a take.
+
+    Must run before anything touches ``get_app_config()``: whichever call comes first is
+    what fixes the singleton's path.
+    """
+    from app_config import get_app_config
+    from app_config.app_config_manager import CONFIG_PATH_ENV
+
+    real = Path(__file__).resolve().parent.parent / "app_config.json"
+    scratch = Path(tempfile.mkdtemp(prefix="fode-capture-")) / "app_config.json"
+    if real.exists():
+        shutil.copy2(real, scratch)
+    os.environ[CONFIG_PATH_ENV] = str(scratch)
+    get_app_config(str(scratch))
+
+
+def capture_one(shot: Shot, theme: ThemeMode, out_path: Path | None, settle_ms: int) -> int:
     """Build a window in the shot's state and capture it. Returns an exit code.
 
     ``out_path`` of None is interactive mode: the window is left open instead,
@@ -163,6 +198,7 @@ def capture_one(shot: Shot, theme: str, out_path: Path | None, settle_ms: int) -
     from ui.theme import apply_theme
     from ui.window_state import apply_block_mesh_view, apply_window_state
 
+    _sandbox_app_config()
     app = QApplication([sys.argv[0]])
     apply_theme(app, theme)
     # Gallery images are English; the saved language setting must not leak in.
@@ -284,7 +320,7 @@ def capture_window(window_id: int, out_path: Path) -> None:
 # ── the driver: one process per shot per theme ─────────────────────────────────
 
 
-def run_shots(shots: list[Shot], themes: list[str], out_dir: Path, args) -> int:
+def run_shots(shots: list[Shot], themes: list[ThemeMode], out_dir: Path, args) -> int:
     failures = 0
     for shot in shots:
         for theme in themes:
@@ -344,8 +380,8 @@ def main() -> None:
 
     if args.list:
         for shot in spec:
-            themes = ", ".join(f"{t}→{f}" for t, f in sorted(shot.outputs.items()))
-            print(f"{shot.name}\n    {themes}" + (f"\n    {shot.note}" if shot.note else ""))
+            listed = ", ".join(f"{t}→{f}" for t, f in sorted(shot.outputs.items()))
+            print(f"{shot.name}\n    {listed}" + (f"\n    {shot.note}" if shot.note else ""))
         return
 
     by_name = {shot.name: shot for shot in spec}

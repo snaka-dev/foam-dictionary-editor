@@ -51,24 +51,24 @@ def _capture_warnings(monkeypatch) -> list[str]:
     return seen
 
 
-def test_loads_every_selected_file(qapp, tmp_path, monkeypatch):
+def test_loads_every_selected_file(qapp, qt_widget, tmp_path, monkeypatch):
     _select(monkeypatch, [
         _write_stl(tmp_path, "a.stl"),
         _write_stl(tmp_path, "b.stl"),
     ])
-    panel = BlockMeshPanel()
+    panel = qt_widget(BlockMeshPanel())
     panel._load_stl()
     assert len(panel._surfaces) == 2
     assert panel._clear_stl_act.isEnabled()
 
 
-def test_unreadable_file_does_not_discard_the_others(qapp, tmp_path, monkeypatch):
+def test_unreadable_file_does_not_discard_the_others(qapp, qt_widget, tmp_path, monkeypatch):
     _select(monkeypatch, [
         _write_stl(tmp_path, "good.stl"),
         str(tmp_path / "missing.stl"),
     ])
     warnings = _capture_warnings(monkeypatch)
-    panel = BlockMeshPanel()
+    panel = qt_widget(BlockMeshPanel())
     panel._load_stl()
     assert len(panel._surfaces) == 1
     assert panel._clear_stl_act.isEnabled()
@@ -76,10 +76,10 @@ def test_unreadable_file_does_not_discard_the_others(qapp, tmp_path, monkeypatch
     assert "missing.stl" in warnings[0]
 
 
-def test_cancelled_dialog_loads_nothing(qapp, monkeypatch):
+def test_cancelled_dialog_loads_nothing(qapp, qt_widget, monkeypatch):
     _select(monkeypatch, [])
     warnings = _capture_warnings(monkeypatch)
-    panel = BlockMeshPanel()
+    panel = qt_widget(BlockMeshPanel())
     panel._load_stl()
     assert panel._surfaces == []
     assert not panel._clear_stl_act.isEnabled()
@@ -89,12 +89,12 @@ def test_cancelled_dialog_loads_nothing(qapp, monkeypatch):
 # ── per-file rows ─────────────────────────────────────────────────────────────
 
 
-def test_each_file_gets_its_own_row_and_colour(qapp, tmp_path, monkeypatch):
+def test_each_file_gets_its_own_row_and_colour(qapp, qt_widget, tmp_path, monkeypatch):
     _select(monkeypatch, [
         _write_stl(tmp_path, "a.stl"),
         _write_stl(tmp_path, "b.obj"),
     ])
-    panel = BlockMeshPanel()
+    panel = qt_widget(BlockMeshPanel())
     panel._load_stl()
 
     assert [s.label for s in panel._surfaces] == ["a.stl", "b.obj"]
@@ -108,12 +108,12 @@ def test_each_file_gets_its_own_row_and_colour(qapp, tmp_path, monkeypatch):
     assert [a.text() for a in panel._unload_stl_menu.actions()] == ["a.stl", "b.obj"]
 
 
-def test_unchecking_a_row_hides_only_that_surface(qapp, tmp_path, monkeypatch):
+def test_unchecking_a_row_hides_only_that_surface(qapp, qt_widget, tmp_path, monkeypatch):
     _select(monkeypatch, [
         _write_stl(tmp_path, "a.stl"),
         _write_stl(tmp_path, "b.stl"),
     ])
-    panel = BlockMeshPanel()
+    panel = qt_widget(BlockMeshPanel())
     panel._load_stl()
 
     panel._loaded_surfaces.shape_actions[0].setChecked(False)
@@ -127,11 +127,11 @@ def test_unchecking_a_row_hides_only_that_surface(qapp, tmp_path, monkeypatch):
     assert panel._loaded_surfaces.visible_shapes() == []
 
 
-def test_unloading_one_surface_leaves_the_others_alone(qapp, tmp_path, monkeypatch):
+def test_unloading_one_surface_leaves_the_others_alone(qapp, qt_widget, tmp_path, monkeypatch):
     a = _write_stl(tmp_path, "a.stl")
     b = _write_stl(tmp_path, "b.stl")
     _select(monkeypatch, [a, b])
-    panel = BlockMeshPanel()
+    panel = qt_widget(BlockMeshPanel())
     panel._load_stl()
     panel._loaded_surfaces.shape_actions[1].setChecked(False)
 
@@ -150,11 +150,11 @@ def test_unloading_one_surface_leaves_the_others_alone(qapp, tmp_path, monkeypat
     assert not panel._clear_stl_act.isEnabled()
 
 
-def test_reloading_a_loaded_path_refreshes_it_in_place(qapp, tmp_path, monkeypatch):
+def test_reloading_a_loaded_path_refreshes_it_in_place(qapp, qt_widget, tmp_path, monkeypatch):
     a = _write_stl(tmp_path, "a.stl")
     b = _write_stl(tmp_path, "b.stl")
     _select(monkeypatch, [a, b])
-    panel = BlockMeshPanel()
+    panel = qt_widget(BlockMeshPanel())
     panel._load_stl()
     panel._loaded_surfaces.shape_actions[0].setChecked(False)
     color = panel._surfaces[0].color
@@ -187,12 +187,12 @@ class _SpyRenderer:
 
 
 def test_surface_alone_is_drawn_and_unloading_it_clears_the_scene(
-    qapp, tmp_path, monkeypatch
+    qapp, tmp_path, monkeypatch, qt_widget
 ):
     """A surface loaded with no blockMeshDict open used to draw nothing."""
     path = _write_stl(tmp_path, "a.stl")
     _select(monkeypatch, [path])
-    panel = BlockMeshPanel()
+    panel = qt_widget(BlockMeshPanel())
     spy = _SpyRenderer()
     panel._renderer = spy
 

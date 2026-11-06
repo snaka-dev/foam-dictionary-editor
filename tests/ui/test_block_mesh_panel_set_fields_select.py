@@ -47,15 +47,15 @@ regions
 """
 
 
-def _panel_with(qapp, text: str) -> BlockMeshPanel:
-    panel = BlockMeshPanel()
+def _panel_with(qapp, qt_widget, text: str) -> BlockMeshPanel:
+    panel = qt_widget(BlockMeshPanel())
     root = OpenFoamParser(text).parse()
     panel.update_set_fields("setFieldsDict", root)
     return panel
 
 
-def test_menu_populated_from_dam_break_tutorial(qapp):
-    panel = _panel_with(qapp, _SET_FIELDS_DICT.read_text())
+def test_menu_populated_from_dam_break_tutorial(qapp, qt_widget):
+    panel = _panel_with(qapp, qt_widget, _SET_FIELDS_DICT.read_text())
     assert len(panel._set_fields.shape_actions) == 1
     assert len(panel._set_fields.visible_shapes()) == 1
     # Rows are labelled "<fieldValues summary>  ·  <source>".
@@ -64,8 +64,8 @@ def test_menu_populated_from_dam_break_tutorial(qapp):
     assert "boxToCell" in text
 
 
-def test_unchecking_one_hides_only_that_shape(qapp):
-    panel = _panel_with(qapp, _MULTI_REGION)
+def test_unchecking_one_hides_only_that_shape(qapp, qt_widget):
+    panel = _panel_with(qapp, qt_widget, _MULTI_REGION)
     assert len(panel._set_fields.shape_actions) == 2
     sphere_idx = next(
         i for i, s in enumerate(panel._set_fields.shapes)
@@ -77,8 +77,8 @@ def test_unchecking_one_hides_only_that_shape(qapp):
     assert visible[0].kind == "boxToCell"
 
 
-def test_master_toggle_hides_all(qapp):
-    panel = _panel_with(qapp, _MULTI_REGION)
+def test_master_toggle_hides_all(qapp, qt_widget):
+    panel = _panel_with(qapp, qt_widget, _MULTI_REGION)
     panel._set_fields.master.setChecked(False)
     assert panel._set_fields.visible_shapes() == []
     assert all(not a.isEnabled() for a in panel._set_fields.shape_actions)
@@ -86,8 +86,8 @@ def test_master_toggle_hides_all(qapp):
     assert len(panel._set_fields.visible_shapes()) == 2
 
 
-def test_non_geometric_source_listed_disabled(qapp):
-    panel = _panel_with(qapp, _MULTI_REGION)
+def test_non_geometric_source_listed_disabled(qapp, qt_widget):
+    panel = _panel_with(qapp, qt_widget, _MULTI_REGION)
     assert len(panel._set_fields.info_actions) == 1
     act = panel._set_fields.info_actions[0]
     assert "zoneToCell" in act.text()
@@ -96,18 +96,18 @@ def test_non_geometric_source_listed_disabled(qapp):
     assert panel._set_fields.info_menu is not None
 
 
-def test_shapes_included_in_stl_export(qapp):
-    panel = _panel_with(qapp, _MULTI_REGION)
+def test_shapes_included_in_stl_export(qapp, qt_widget):
+    panel = _panel_with(qapp, qt_widget, _MULTI_REGION)
     exportable = panel._exportable_set_fields_shapes()
     assert [s.kind for s in exportable] == ["boxToCell", "sphereToCell"]
     assert panel._export_stl_act.isEnabled()
 
 
-def test_reload_empty_clears_actions(qapp):
-    panel = _panel_with(qapp, _MULTI_REGION)
+def test_reload_empty_clears_actions(qapp, qt_widget):
+    panel = _panel_with(qapp, qt_widget, _MULTI_REGION)
     assert panel._set_fields.shape_actions
     empty_root = OpenFoamParser(_HEADER_ONLY).parse()
-    panel.update_set_fields("empty", empty_root)
+    panel.update_set_fields("setFieldsDict", empty_root)
     assert panel._set_fields.shape_actions == []
     assert panel._set_fields.info_actions == []
     assert panel._set_fields.visible_shapes() == []

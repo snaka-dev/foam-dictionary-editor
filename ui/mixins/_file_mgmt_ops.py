@@ -37,44 +37,61 @@ else:
 class _FileManagementOpsMixin(_Base):
     """File-management operations: create, add, backup, delete, duplicate, clean."""
 
+    def _prompt_new_filename(
+        self, title: str, prompt: str, dest_dir: str | Path, default: str = ""
+    ) -> Path | None:
+        """Ask for a new file name in *dest_dir*; None if cancelled or rejected.
+
+        The three refusals -- empty, contains a path separator, already exists -- are
+        reported on the status bar rather than in a dialog, and each returns None, so a
+        caller only has to check for that. Deliberately not shared with
+        `_on_copy_into_case_requested`, which *accepts* separators because it takes a
+        case-relative path and does its own containment check.
+        """
+        name, ok = QInputDialog.getText(self, title, prompt, text=default)
+        if not ok:
+            return None
+        name = name.strip()
+        if not name:
+            self.statusBar().showMessage(tr("File name must not be empty."), STATUS_WARNING)
+            return None
+        if "/" in name or "\\" in name:
+            self.statusBar().showMessage(
+                tr("File name must not contain path separators."), STATUS_WARNING
+            )
+            return None
+        dest = Path(dest_dir) / name
+        if dest.exists():
+            self.statusBar().showMessage(
+                tr("File already exists: {name}").format(name=dest.name), STATUS_WARNING
+            )
+            return None
+        return dest
+
     def _on_create_file_requested(self, case_dir: str, group: str) -> None:
-        filename, ok = QInputDialog.getText(
-            self,
+        target = self._prompt_new_filename(
             tr("New File"),
             tr("File name (will be created in {group}/):").format(
                 group=group_display_name(group)
             ),
+            Path(case_dir) / group,
         )
-        if not ok:
-            return
-        filename = filename.strip()
-        if not filename:
-            self.statusBar().showMessage(tr("File name must not be empty."), STATUS_WARNING)
-            return
-        if "/" in filename or "\\" in filename:
-            self.statusBar().showMessage(tr("File name must not contain path separators."), STATUS_WARNING)
-            return
-
-        target = Path(case_dir) / group / filename
-        if target.exists():
-            self.statusBar().showMessage(
-                tr("File already exists: {name}").format(name=target.name), STATUS_WARNING
-            )
+        if target is None:
             return
 
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(_foamfile_template(group, filename), encoding="utf-8")
+            target.write_text(_foamfile_template(group, target.name), encoding="utf-8")
         except OSError as e:
-            QMessageBox.critical(self, tr("Create File Error"), tr("Could not create file:\n{e}").format(e=e))
+            self._error(tr("Create File Error"), tr("Could not create file:\n{e}").format(e=e))
             return
 
         if not self._is_auto_scan_group(group) and self.state.case_files_config:
-            self.state.case_files_config.add_file(str(Path(group) / filename))
+            self.state.case_files_config.add_file(str(Path(group) / target.name))
             self.state.case_files_config.save()
 
         self._reload_file_list()
-        created_rel = str(Path(group) / filename)  # normalizes './x' to 'x' for case root
+        created_rel = str(Path(group) / target.name)  # normalizes './x' to 'x' for case root
         self.statusBar().showMessage(tr("Created: {name}").format(name=created_rel), STATUS_SHORT)
         self.file_list_panel.select_file(str(target))
 
@@ -138,14 +155,14 @@ class _FileManagementOpsMixin(_Base):
             try:
                 content = read_foam_file(p)
             except Exception as e:
-                QMessageBox.critical(self, tr("Backup Error"), tr("Could not read file:\n{e}").format(e=e))
+                self._error(tr("Backup Error"), tr("Could not read file:\n{e}").format(e=e))
                 return False
             has_unsaved = False
 
         try:
             backup_path.write_text(content, encoding="utf-8")
         except Exception as e:
-            QMessageBox.critical(self, tr("Backup Error"), tr("Could not write backup:\n{e}").format(e=e))
+            self._error(tr("Backup Error"), tr("Could not write backup:\n{e}").format(e=e))
             return False
 
         rel = display_file_name(str(backup_path))
@@ -208,12 +225,47 @@ class _FileManagementOpsMixin(_Base):
                 parts.append(f"{toggled_n} directory(s) updated")
             self.statusBar().showMessage(", ".join(parts) + ".", STATUS_SHORT)
 
-    def _on_remove_extra_file(self, abs_path: str) -> None:
-        if not self.state.case_files_config or not self.state.current_case_dir:
+    def _on_viewer_kind_requested(self, abs_path: str, kind: str) -> None:
+        """Pin *abs_path* to a 3-D overlay, or return it to automatic when *kind* is "".
+
+        Stored per case rather than per session: the choice is a fact about the case's
+        files (this `sample-extra` is a sampling dict), so it belongs beside the extra-file
+        list in .foam-editor-files.json and travels with the case directory.
+        """
+        config = self.state.case_files_config
+        case_dir = self.state.current_case_dir
+        if config is None or not case_dir:
             return
         try:
-            rel = str(Path(abs_path).relative_to(Path(self.state.current_case_dir)))
+            rel = str(Path(abs_path).relative_to(case_dir))
         except ValueError:
+            # An out-of-case include: nothing to write it to, and the file is read-only.
+            return
+        if config.get_viewer_kind(rel) == kind:
+            return
+        config.set_viewer_kind(rel, kind)
+        config.save()
+
+        # Drop the file's old contribution before re-dispatching. Re-rendering alone
+        # cannot remove it: the overlay it used to feed is not the one being written now,
+        # and when the override is cleared to "automatic" there may be no dispatch at all.
+        if self.block_mesh_panel is not None:
+            self.block_mesh_panel.forget_file(abs_path)
+        root = self.state.parsed_roots.get(abs_path) or self._cache_parsed_root(abs_path)
+        if root is not None:
+            self._update_block_mesh_viewer(abs_path, root)
+        self._update_bm_side_by_side_btn()
+        self._reload_file_list()
+        self.statusBar().showMessage(
+            tr("3-D view: {name} is now shown as {kind}.").format(
+                name=Path(abs_path).name, kind=kind or tr("automatic")
+            ),
+            STATUS_NORMAL,
+        )
+
+    def _on_remove_extra_file(self, abs_path: str) -> None:
+        rel = self._case_relative(abs_path)
+        if not self.state.case_files_config or rel is None:
             return
         self.state.case_files_config.remove_file(rel)
         self.state.case_files_config.save()
@@ -257,16 +309,13 @@ class _FileManagementOpsMixin(_Base):
         try:
             Path(path).unlink()
         except OSError as e:
-            QMessageBox.critical(self, tr("Delete Error"), tr("Could not delete file:\n{e}").format(e=e))
+            self._error(tr("Delete Error"), tr("Could not delete file:\n{e}").format(e=e))
             return
 
-        if self.state.case_files_config and self.state.current_case_dir:
-            try:
-                rel = str(Path(path).relative_to(Path(self.state.current_case_dir)))
-                self.state.case_files_config.remove_file(rel)
-                self.state.case_files_config.save()
-            except ValueError:
-                pass
+        rel = self._case_relative(path)
+        if self.state.case_files_config and rel is not None:
+            self.state.case_files_config.remove_file(rel)
+            self.state.case_files_config.save()
 
         if path == self.state.current_file:
             self._clear_current_file()
@@ -282,29 +331,13 @@ class _FileManagementOpsMixin(_Base):
         if self._read_only_refused(path):
             return  # the copy would land beside the source, outside the case
         p = Path(path)
-        new_name, ok = QInputDialog.getText(
-            self,
+        dest = self._prompt_new_filename(
             tr("Duplicate File"),
-            tr("New file name (in {dir}/):)").format(dir=p.parent.name),
-            text=p.name,
+            tr("New file name (in {dir}/):").format(dir=p.parent.name),
+            p.parent,
+            default=p.name,
         )
-        if not ok:
-            return
-        new_name = new_name.strip()
-        if not new_name:
-            self.statusBar().showMessage(tr("File name must not be empty."), STATUS_WARNING)
-            return
-        if "/" in new_name or "\\" in new_name:
-            self.statusBar().showMessage(
-                tr("File name must not contain path separators."), STATUS_WARNING
-            )
-            return
-
-        dest = p.parent / new_name
-        if dest.exists():
-            self.statusBar().showMessage(
-                tr("File already exists: {name}").format(name=new_name), STATUS_WARNING
-            )
+        if dest is None:
             return
 
         if self.state.file_dirty.get(path, False):
@@ -327,30 +360,27 @@ class _FileManagementOpsMixin(_Base):
             try:
                 content = read_foam_file(p)
             except Exception as e:
-                QMessageBox.critical(self, tr("Duplicate Error"), tr("Could not read file:\n{e}").format(e=e))
+                self._error(tr("Duplicate Error"), tr("Could not read file:\n{e}").format(e=e))
                 return
 
-        content = re.sub(r'(object\s+)\S+;', rf'\g<1>{new_name};', content, count=1)
+        content = re.sub(r'(object\s+)\S+;', rf'\g<1>{dest.name};', content, count=1)
 
         try:
             dest.write_text(content, encoding="utf-8")
         except OSError as e:
-            QMessageBox.critical(self, tr("Duplicate Error"), tr("Could not write file:\n{e}").format(e=e))
+            self._error(tr("Duplicate Error"), tr("Could not write file:\n{e}").format(e=e))
             return
 
-        if self.state.current_case_dir and self.state.case_files_config:
-            try:
-                rel = dest.relative_to(Path(self.state.current_case_dir))
-                group = str(rel.parent) if rel.parent.parts else ""
-                if not self._is_auto_scan_group(group):
-                    self.state.case_files_config.add_file(str(rel))
-                    self.state.case_files_config.save()
-            except ValueError:
-                pass
+        rel_str = self._case_relative(dest)
+        if self.state.case_files_config and rel_str is not None:
+            group = str(Path(rel_str).parent) if Path(rel_str).parent.parts else ""
+            if not self._is_auto_scan_group(group):
+                self.state.case_files_config.add_file(rel_str)
+                self.state.case_files_config.save()
 
         self._reload_file_list()
         self.statusBar().showMessage(
-            tr("Duplicated: {src} → {dst}").format(src=p.name, dst=new_name), STATUS_SHORT
+            tr("Duplicated: {src} → {dst}").format(src=p.name, dst=dest.name), STATUS_SHORT
         )
         self.file_list_panel.select_file(str(dest))
 
@@ -405,9 +435,7 @@ class _FileManagementOpsMixin(_Base):
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dest)
         except OSError as e:
-            QMessageBox.critical(
-                self, tr("Copy Error"), tr("Could not copy file:\n{e}").format(e=e)
-            )
+            self._error(tr("Copy Error"), tr("Could not copy file:\n{e}").format(e=e))
             return
 
         # Register explicitly: the include scan would re-surface the copy, but
@@ -448,22 +476,19 @@ class _FileManagementOpsMixin(_Base):
     def _on_duplicate_dir_requested(self, case_dir: str, src: str, dst: str) -> None:
         src_path = Path(case_dir) / src
         dst_path = Path(case_dir) / dst
-        reply = QMessageBox.question(
-            self,
+        if not self._confirm(
             tr("Duplicate Directory"),
             tr(
                 "Duplicate '{src}/' to '{dst}/'?\n\nSource:      {src_path}\nDestination: {dst_path}"
             ).format(src=src, dst=dst, src_path=src_path, dst_path=dst_path),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
+        ):
             return
         try:
             shutil.copytree(str(src_path), str(dst_path))
         except Exception as e:
-            QMessageBox.critical(
-                self, tr("Duplicate Error"), tr("Failed to duplicate directory:\n{e}").format(e=e)
+            self._error(
+                tr("Duplicate Error"),
+                tr("Failed to duplicate directory:\n{e}").format(e=e)
             )
             return
         self._reload_file_list()
@@ -504,7 +529,7 @@ class _FileManagementOpsMixin(_Base):
         try:
             shutil.rmtree(str(dir_path))
         except OSError as e:
-            QMessageBox.critical(self, tr("Delete Error"), tr("Could not delete directory:\n{e}").format(e=e))
+            self._error(tr("Delete Error"), tr("Could not delete directory:\n{e}").format(e=e))
             return
 
         self._reload_file_list()
@@ -535,12 +560,9 @@ class _FileManagementOpsMixin(_Base):
 
         for path in paths:
             self._purge_file_caches(path)
-            if self.state.case_files_config and self.state.current_case_dir:
-                try:
-                    rel = str(Path(path).relative_to(Path(self.state.current_case_dir)))
-                    self.state.case_files_config.remove_file(rel)
-                except ValueError:
-                    pass
+            rel = self._case_relative(path)
+            if self.state.case_files_config and rel is not None:
+                self.state.case_files_config.remove_file(rel)
             if path == self.state.current_file:
                 self._clear_current_file()
 

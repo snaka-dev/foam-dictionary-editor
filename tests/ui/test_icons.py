@@ -14,7 +14,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QPalette
 from PySide6.QtWidgets import QApplication
 
 from ui import theme
@@ -43,10 +43,22 @@ def _app_font(font: QFont):
 
 @pytest.fixture(autouse=True)
 def restore_theme(qapp):
-    """Leave the process-wide theme/palette state as this module found it."""
+    """Leave the process-wide theme/palette state as this module found it -- but only if a
+    test actually moved it.
+
+    Only TestDarkModeGuard changes the mode; for every other test this was a full
+    palette+stylesheet broadcast over every live widget to reinstate a value nothing had
+    changed. See tests/ui/test_theme.py's restore_theme.
+    """
     previous_mode = theme.active_mode()
+    previous_is_dark = theme.is_dark()
+    saved_palette = QPalette(qapp.palette())
     yield
-    apply_theme(qapp, previous_mode)
+    # Darkness is tracked separately from the mode and, under ``system``, is re-derived from
+    # the live palette -- so the palette goes back first. See tests/ui/test_theme.py.
+    if theme.active_mode() != previous_mode or theme.is_dark() != previous_is_dark:
+        qapp.setPalette(saved_palette)
+        apply_theme(qapp, previous_mode)
 
 
 # ── the icon set matches the asset directory, both directions ─────────────────

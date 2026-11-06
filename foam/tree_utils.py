@@ -84,6 +84,31 @@ def resolve_vector(node: FoamNode, var_map: dict[str, str]) -> list[float] | Non
     return None
 
 
+def child_vector(
+    entry: FoamNode, var_map: dict[str, str], *keys: str
+) -> list[float] | None:
+    """Resolve the first of ``keys`` present in ``entry`` as a vector.
+
+    None when no key is present *or* the first one present does not resolve:
+    like :func:`find_child_any`, a later alias is never tried just because an
+    earlier one failed, matching how OpenFOAM reads a keyword and its compat
+    spelling.
+    """
+    node = find_child_any(entry, *keys)
+    return resolve_vector(node, var_map) if node is not None else None
+
+
+def child_scalar(
+    entry: FoamNode, var_map: dict[str, str], *keys: str
+) -> float | None:
+    """Resolve the first of ``keys`` present in ``entry`` as a scalar.
+
+    Same lookup rule as :func:`child_vector`.
+    """
+    node = find_child_any(entry, *keys)
+    return resolve_scalar(node, var_map) if node is not None else None
+
+
 def _scan_vectors(text: str) -> list[list[float]] | None:
     """Parse every top-level '(x y z)' group in *text* into a float triple."""
     vectors: list[list[float]] = []
@@ -177,26 +202,21 @@ def resolve_sphere_geometry(
     ``allow_inner_radius`` reads topoSet's hollow-sphere innerRadius.
     Returns {} when any required part is missing or unresolvable.
     """
-    geometry: dict = {}
-    c_node = find_child_any(entry, "origin", "centre")
+    centre = child_vector(entry, var_map, "origin", "centre")
     r_node = find_child(entry, "radius")
-    if c_node is None or r_node is None:
-        return geometry
-    centre = resolve_vector(c_node, var_map)
+    if centre is None or r_node is None:
+        return {}
     if allow_vector_radius and r_node.node_type == "vector":
         radius: list[float] | float | None = resolve_vector(r_node, var_map)
     else:
         radius = resolve_scalar(r_node, var_map)
-    if centre is None or radius is None:
-        return geometry
-    geometry["centre"] = centre
-    geometry["radius"] = radius
+    if radius is None:
+        return {}
+    geometry: dict = {"centre": centre, "radius": radius}
     if allow_inner_radius:
-        inner_node = find_child(entry, "innerRadius")
-        if inner_node is not None:
-            inner = resolve_scalar(inner_node, var_map)
-            if inner is not None:
-                geometry["innerRadius"] = inner
+        inner = child_scalar(entry, var_map, "innerRadius")
+        if inner is not None:
+            geometry["innerRadius"] = inner
     return geometry
 
 
@@ -208,25 +228,15 @@ def resolve_cylinder_geometry(entry: FoamNode, var_map: dict[str, str]) -> dict:
     snappyHexMesh's searchableCylinder with an inner shell).
     Returns {} when any required part is missing or unresolvable.
     """
-    geometry: dict = {}
-    p1_node = find_child_any(entry, "point1", "p1")
-    p2_node = find_child_any(entry, "point2", "p2")
-    r_node = find_child(entry, "radius")
-    if p1_node is None or p2_node is None or r_node is None:
-        return geometry
-    p1 = resolve_vector(p1_node, var_map)
-    p2 = resolve_vector(p2_node, var_map)
-    radius = resolve_scalar(r_node, var_map)
+    p1 = child_vector(entry, var_map, "point1", "p1")
+    p2 = child_vector(entry, var_map, "point2", "p2")
+    radius = child_scalar(entry, var_map, "radius")
     if p1 is None or p2 is None or radius is None:
-        return geometry
-    geometry["p1"] = p1
-    geometry["p2"] = p2
-    geometry["radius"] = radius
-    inner_node = find_child(entry, "innerRadius")
-    if inner_node is not None:
-        inner = resolve_scalar(inner_node, var_map)
-        if inner is not None:
-            geometry["innerRadius"] = inner
+        return {}
+    geometry: dict = {"p1": p1, "p2": p2, "radius": radius}
+    inner = child_scalar(entry, var_map, "innerRadius")
+    if inner is not None:
+        geometry["innerRadius"] = inner
     return geometry
 
 
@@ -254,12 +264,8 @@ def resolve_plane_geometry(
     point_keys = ("point", "basePoint") if allow_aliases else ("point",)
     normal_keys = ("normal", "normalVector") if allow_aliases else ("normal",)
     for holder in holders:
-        pt_node = find_child_any(holder, *point_keys)
-        n_node = find_child_any(holder, *normal_keys)
-        if pt_node is None or n_node is None:
-            continue
-        point = resolve_vector(pt_node, var_map)
-        normal = resolve_vector(n_node, var_map)
+        point = child_vector(holder, var_map, *point_keys)
+        normal = child_vector(holder, var_map, *normal_keys)
         if point is not None and normal is not None:
             return {"planePoint": point, "planeNormal": normal}
     return {}
@@ -277,30 +283,17 @@ def resolve_cone_geometry(
     pair (added only when both resolve). Returns {} when any required part is
     missing or unresolvable.
     """
-    geometry: dict = {}
-    p1_node = find_child_any(entry, "point1", "p1")
-    p2_node = find_child_any(entry, "point2", "p2")
-    r1_node = find_child(entry, "radius1")
-    r2_node = find_child(entry, "radius2")
-    if p1_node is None or p2_node is None or r1_node is None or r2_node is None:
-        return geometry
-    p1 = resolve_vector(p1_node, var_map)
-    p2 = resolve_vector(p2_node, var_map)
-    r1 = resolve_scalar(r1_node, var_map)
-    r2 = resolve_scalar(r2_node, var_map)
+    p1 = child_vector(entry, var_map, "point1", "p1")
+    p2 = child_vector(entry, var_map, "point2", "p2")
+    r1 = child_scalar(entry, var_map, "radius1")
+    r2 = child_scalar(entry, var_map, "radius2")
     if p1 is None or p2 is None or r1 is None or r2 is None:
-        return geometry
-    geometry["p1"] = p1
-    geometry["p2"] = p2
-    geometry["radius1"] = r1
-    geometry["radius2"] = r2
+        return {}
+    geometry: dict = {"p1": p1, "p2": p2, "radius1": r1, "radius2": r2}
     if allow_inner_radii:
-        i1_node = find_child(entry, "innerRadius1")
-        i2_node = find_child(entry, "innerRadius2")
-        if i1_node is not None and i2_node is not None:
-            i1 = resolve_scalar(i1_node, var_map)
-            i2 = resolve_scalar(i2_node, var_map)
-            if i1 is not None and i2 is not None:
-                geometry["innerRadius1"] = i1
-                geometry["innerRadius2"] = i2
+        i1 = child_scalar(entry, var_map, "innerRadius1")
+        i2 = child_scalar(entry, var_map, "innerRadius2")
+        if i1 is not None and i2 is not None:
+            geometry["innerRadius1"] = i1
+            geometry["innerRadius2"] = i2
     return geometry

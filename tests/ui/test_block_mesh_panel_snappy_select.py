@@ -51,15 +51,15 @@ _HEADER_ONLY = (
 )
 
 
-def _panel_with_demo(qapp) -> BlockMeshPanel:
-    panel = BlockMeshPanel()
+def _panel_with_demo(qapp, qt_widget) -> BlockMeshPanel:
+    panel = qt_widget(BlockMeshPanel())
     root = OpenFoamParser(_SNAPPY_DEMO_DICT).parse()
     panel.update_snappy_hex_mesh("/fake/system/snappyHexMeshDict", root)
     return panel
 
 
-def test_menu_populated_per_shape(qapp):
-    panel = _panel_with_demo(qapp)
+def test_menu_populated_per_shape(qapp, qt_widget):
+    panel = _panel_with_demo(qapp, qt_widget)
     assert len(panel._snappy.shape_actions) == 4
     assert len(panel._snappy.visible_shapes()) == 4
     # Menu entries are labelled "<name>  ·  <geo_type>  <level/mode>".
@@ -68,8 +68,8 @@ def test_menu_populated_per_shape(qapp):
     assert any(t.startswith("pipe") and "inside" in t for t in texts)
 
 
-def test_unchecking_one_hides_only_that_shape(qapp):
-    panel = _panel_with_demo(qapp)
+def test_unchecking_one_hides_only_that_shape(qapp, qt_widget):
+    panel = _panel_with_demo(qapp, qt_widget)
     # Hide the "pipe" cylinder.
     pipe_idx = next(
         i for i, s in enumerate(panel._snappy.shapes) if s.label == "pipe"
@@ -81,8 +81,8 @@ def test_unchecking_one_hides_only_that_shape(qapp):
     assert all(s.label != "pipe" for s in visible)
 
 
-def test_master_toggle_hides_all(qapp):
-    panel = _panel_with_demo(qapp)
+def test_master_toggle_hides_all(qapp, qt_widget):
+    panel = _panel_with_demo(qapp, qt_widget)
     panel._snappy.master.setChecked(False)
     assert panel._snappy.visible_shapes() == []
     assert panel._snappy.visible_locations() == []
@@ -94,8 +94,8 @@ def test_master_toggle_hides_all(qapp):
     assert all(a.isEnabled() for a in panel._snappy.shape_actions)
 
 
-def test_action_colour_legend_present(qapp):
-    panel = _panel_with_demo(qapp)
+def test_action_colour_legend_present(qapp, qt_widget):
+    panel = _panel_with_demo(qapp, qt_widget)
     labels = [a.text() for a in panel._snappy.legend_actions]
     assert labels == ["surface", "region", "geometry"]
     # Legend rows are informational (disabled) and each carries a colour swatch.
@@ -103,14 +103,14 @@ def test_action_colour_legend_present(qapp):
     assert all(not a.icon().isNull() for a in panel._snappy.legend_actions)
 
 
-def test_per_shape_rows_have_colour_swatches(qapp):
-    panel = _panel_with_demo(qapp)
+def test_per_shape_rows_have_colour_swatches(qapp, qt_widget):
+    panel = _panel_with_demo(qapp, qt_widget)
     assert panel._snappy.shape_actions
     assert all(not a.icon().isNull() for a in panel._snappy.shape_actions)
 
 
-def test_non_geometric_source_listed_disabled(qapp):
-    panel = _panel_with_demo(qapp)
+def test_non_geometric_source_listed_disabled(qapp, qt_widget):
+    panel = _panel_with_demo(qapp, qt_widget)
     # The demo's geom.stl reference resolves no file: shown greyed-out.
     assert len(panel._snappy.info_actions) == 1
     act = panel._snappy.info_actions[0]
@@ -121,8 +121,8 @@ def test_non_geometric_source_listed_disabled(qapp):
     assert all(s.label != "geom" for s in panel._snappy.shapes)
 
 
-def test_location_actions_populated_and_toggle(qapp):
-    panel = _panel_with_demo(qapp)
+def test_location_actions_populated_and_toggle(qapp, qt_widget):
+    panel = _panel_with_demo(qapp, qt_widget)
     assert len(panel._snappy.location_actions) == 2
     texts = [a.text() for a in panel._snappy.location_actions]
     assert texts == ["📍 heater", "📍 rightSolid"]
@@ -133,13 +133,13 @@ def test_location_actions_populated_and_toggle(qapp):
     assert visible[0][1] == "rightSolid"
 
 
-def test_reload_empty_clears_actions(qapp):
-    panel = _panel_with_demo(qapp)
+def test_reload_empty_clears_actions(qapp, qt_widget):
+    panel = _panel_with_demo(qapp, qt_widget)
     assert panel._snappy.shape_actions     # populated
     assert panel._snappy.info_actions      # populated
     assert panel._snappy.location_actions  # populated
     empty_root = OpenFoamParser(_HEADER_ONLY).parse()
-    panel.update_snappy_hex_mesh("empty", empty_root)
+    panel.update_snappy_hex_mesh("/fake/system/snappyHexMeshDict", empty_root)
     assert panel._snappy.shape_actions == []
     assert panel._snappy.info_actions == []
     assert panel._snappy.location_actions == []

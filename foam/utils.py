@@ -139,27 +139,15 @@ def format_scalar(value) -> str:
 
 
 def parse_box_pair(text: str) -> list[list[float]] | None:
-    """Parse '(x y z) (x y z)' into two float vectors, or return None on failure."""
-    parts = []
-    i, n = 0, len(text)
-    while i < n:
-        while i < n and text[i].isspace():
-            i += 1
-        if i >= n:
-            break
-        if text[i] != "(":
-            return None
-        start, depth = i, 0
-        while i < n:
-            if text[i] == "(":
-                depth += 1
-            elif text[i] == ")":
-                depth -= 1
-                if depth == 0:
-                    i += 1
-                    break
-            i += 1
-        parts.append(text[start:i].strip())
+    """Parse '(x y z) (x y z)' into two float vectors, or return None on failure.
+
+    The splitting is `split_block_entry_tokens`, which was already doing the same
+    depth-counting scan a few functions down. It is more permissive than this needs --
+    it also yields bare words as tokens -- but the `startswith("(")` test below rejects
+    those anyway, so the two agree on every input (checked differentially over a fuzzed
+    corpus when the hand-rolled scanner here was removed).
+    """
+    parts = split_block_entry_tokens(text)
     if len(parts) != 2:
         return None
     vectors = []
@@ -373,3 +361,14 @@ def format_embedded_value(value_type: NodeType, value, raw_value) -> str:
     if value_type in {"int", "scalar"}:
         return format_scalar(value)
     return str(raw_value if raw_value is not None else value)
+
+
+def format_size(n: int) -> str:
+    """A byte count for display: ``512 B``, ``3.4 KB``, ``12.0 MB``, ``2.31 GB``."""
+    if n < 1024:
+        return f"{n} B"
+    if n < 1024 ** 2:
+        return f"{n / 1024:.1f} KB"
+    if n < 1024 ** 3:
+        return f"{n / 1024 ** 2:.1f} MB"
+    return f"{n / 1024 ** 3:.2f} GB"

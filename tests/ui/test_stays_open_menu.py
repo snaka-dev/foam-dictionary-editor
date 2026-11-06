@@ -6,7 +6,7 @@ from __future__ import annotations
 from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import QAction, QMouseEvent
 
-from ui.panels.block_mesh_panel import _StaysOpenMenu
+from ui.panels._shape_overlay_menu import _StaysOpenMenu
 
 
 def _release_event() -> QMouseEvent:
@@ -20,7 +20,7 @@ def _release_event() -> QMouseEvent:
     )
 
 
-def test_checkable_enabled_action_toggles_without_closing(qapp):
+def test_checkable_enabled_action_toggles_without_closing(qapp, destroy_widget):
     menu = _StaysOpenMenu()
     action = QAction("Shape", menu, checkable=True, checked=True)
     menu.addAction(action)
@@ -32,10 +32,10 @@ def test_checkable_enabled_action_toggles_without_closing(qapp):
 
     assert action.isChecked() is False
     assert menu.isVisible()
-    menu.close()
+    destroy_widget(menu)
 
 
-def test_repeated_clicks_toggle_each_time_without_closing(qapp):
+def test_repeated_clicks_toggle_each_time_without_closing(qapp, destroy_widget):
     menu = _StaysOpenMenu()
     a = QAction("A", menu, checkable=True, checked=True)
     b = QAction("B", menu, checkable=True, checked=True)
@@ -51,10 +51,10 @@ def test_repeated_clicks_toggle_each_time_without_closing(qapp):
     assert a.isChecked() is False
     assert b.isChecked() is False
     assert menu.isVisible()
-    menu.close()
+    destroy_widget(menu)
 
 
-def test_disabled_action_does_not_toggle(qapp):
+def test_disabled_action_does_not_toggle(qapp, destroy_widget):
     menu = _StaysOpenMenu()
     action = QAction("Legend", menu, checkable=True, checked=True)
     action.setEnabled(False)
@@ -65,10 +65,10 @@ def test_disabled_action_does_not_toggle(qapp):
     menu.mouseReleaseEvent(_release_event())
 
     assert action.isChecked() is True
-    menu.close()
+    destroy_widget(menu)
 
 
-def test_non_checkable_action_falls_back_to_default_handling(qapp):
+def test_non_checkable_action_falls_back_to_default_handling(qapp, destroy_widget):
     menu = _StaysOpenMenu()
     triggered = []
     action = QAction("Load STL", menu)
@@ -80,4 +80,4 @@ def test_non_checkable_action_falls_back_to_default_handling(qapp):
     # Default QMenu handling applies here (our override only special-cases
     # checkable, enabled actions); this should not raise.
     menu.mouseReleaseEvent(_release_event())
-    menu.close()
+    destroy_widget(menu)

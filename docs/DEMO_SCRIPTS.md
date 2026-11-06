@@ -24,7 +24,7 @@ Short movies rather than one long one, because they answer different questions a
 
 Each scene prefers a case from the repository's own `tutorials/` over one from an OpenFOAM installation. A bundled case makes the movie **replayable by anyone who clones the repository**, and it makes the recording reproducible: the driver copies the case to a scratch directory before every take, so a movie that runs `blockMesh` starts from a case with no mesh, every time.
 
-## Movie 1 — Edit, see, run (`damBreak`, ~65 s)
+## Movie 1 — Edit, see, run (`damBreak`, ~74 s)
 
 **Scene:** `damBreak-end-to-end`. **Case:** bundled `tutorials/damBreak`. **What it argues:** the dictionary, the geometry it describes and the tool that consumes it are one loop, and FoDE closes it.
 

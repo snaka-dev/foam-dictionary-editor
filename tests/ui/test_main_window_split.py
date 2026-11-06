@@ -10,64 +10,10 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 MIXINS_DIR = REPO_ROOT / "ui" / "mixins"
 
 # ── import guards ─────────────────────────────────────────────────────────────
-
-def test_case_ops_importable():
-    from ui.mixins._case_ops import _CaseOpsMixin  # noqa: F401
-
-
-def test_foam_monitor_ops_importable():
-    from ui.mixins._foam_monitor_ops import _FoamMonitorOpsMixin  # noqa: F401
-
-
-def test_tools_ops_importable():
-    from ui.mixins._tools_ops import _ToolsOpsMixin  # noqa: F401
-
-
-def test_file_ops_importable():
-    from ui.mixins._file_ops import _FileOpsMixin  # noqa: F401
-
-
-def test_file_mgmt_ops_importable():
-    from ui.mixins._file_mgmt_ops import _FileManagementOpsMixin  # noqa: F401
-
-
-def test_tree_crud_ops_importable():
-    from ui.mixins._tree_crud_ops import _TreeCrudOpsMixin  # noqa: F401
-
-
-def test_tree_sync_ops_importable():
-    from ui.mixins._tree_sync_ops import _TreeSyncOpsMixin  # noqa: F401
-
-
-def test_boundary_ops_importable():
-    from ui.mixins._boundary_ops import _BoundaryOpsMixin  # noqa: F401
-
-
-def test_diff_ops_importable():
-    from ui.mixins._diff_ops import _DiffOpsMixin  # noqa: F401
-
-
-def test_panel_ops_importable():
-    from ui.mixins._panel_ops import _PanelOpsMixin  # noqa: F401
-
-
-def test_model_ops_importable():
-    from ui.mixins._model_ops import _ModelOpsMixin  # noqa: F401
-
-
-def test_ui_ops_importable():
-    from ui.mixins._ui_ops import _UiOpsMixin  # noqa: F401
-
-
-def test_undo_ops_importable():
-    from ui.mixins._undo_ops import _UndoOpsMixin  # noqa: F401
-
 
 # ── method ownership ──────────────────────────────────────────────────────────
 
@@ -88,6 +34,18 @@ CASE_OPS_METHODS = [
     "manage_case_library",
     "reset_window_size",
     "reset_all_settings",
+]
+
+MENU_BAR_OPS_METHODS = [
+    "_build_menu_bar",
+    "_build_case_menu",
+    "_build_settings_menu",
+    "_build_view_menu",
+    "_build_tools_menu",
+    "_build_help_menu",
+]
+
+CASE_NAV_OPS_METHODS = [
     "_on_open_case_browser",
     "_on_case_nav_open_requested",
     "_on_case_nav_compare_requested",
@@ -122,6 +80,16 @@ TOOLS_OPS_METHODS = [
     "_on_run_topo_set_clicked",
     "_on_run_setfields_clicked",
     "_on_run_checkmesh_clicked",
+    "_on_run_decomposepar_clicked",
+    "_solver_dialog_notes",
+    "_parallel_setup",
+    "_on_run_solver_clicked",
+    "_refuse_while_running",
+    "_on_run_reconstructpar_clicked",
+    "_on_delete_processor_dirs_clicked",
+    "_problem_lines",
+    "_processor_delete_box",
+    "_describe_deletion_problem",
     "_on_run_allrun_clicked",
     "_on_run_allclean_clicked",
     "_on_clean_case_clicked",
@@ -137,6 +105,7 @@ TOOLS_OPS_METHODS = [
 FILE_OPS_METHODS = [
     "_load_case_dir",
     "_case_file_paths",
+    "_case_relative",
     "_reload_file_list",
     "_on_case_dir_changed_on_disk",
     "_open_included_target",
@@ -153,12 +122,14 @@ FILE_OPS_METHODS = [
 ]
 
 FILE_MGMT_OPS_METHODS = [
+    "_prompt_new_filename",
     "_on_create_file_requested",
     "_on_add_file_requested",
     "_read_only_refused",
     "_create_backup",
     "_on_backup_file_requested",
     "_on_manage_extra_files",
+    "_on_viewer_kind_requested",
     "_on_remove_extra_file",
     "_on_delete_file_requested",
     "_on_duplicate_file_requested",
@@ -174,6 +145,7 @@ TREE_CRUD_OPS_METHODS = [
     "_resolve_tree_include",
     "_on_tree_double_clicked",
     "_on_tree_context_menu",
+    "_build_tree_context_menu",
     "_tree_copy_value",
     "_tree_paste_value",
     "_tree_add_entry_after",
@@ -251,7 +223,6 @@ UNDO_OPS_METHODS = [
     "_end_undo_op",
     "_trim_undo_stack",
     "_undo_snapshot_of",
-    "_undo_text_for",
     "_clear_undo_stacks",
     "_tree_undo",
     "_tree_redo",
@@ -261,70 +232,82 @@ UNDO_OPS_METHODS = [
 ]
 
 
-@pytest.mark.parametrize("method", CASE_OPS_METHODS)
-def test_case_ops_owns_method(method):
+def test_case_ops_owns_its_methods():
     from ui.mixins._case_ops import _CaseOpsMixin
-    assert method in _CaseOpsMixin.__dict__, f"_CaseOpsMixin missing {method}"
+    missing = [m for m in CASE_OPS_METHODS if m not in _CaseOpsMixin.__dict__]
+    assert missing == [], f"_CaseOpsMixin is missing {missing}"
 
 
-@pytest.mark.parametrize("method", FOAM_MONITOR_OPS_METHODS)
-def test_foam_monitor_ops_owns_method(method):
+def test_menu_bar_ops_owns_its_methods():
+    from ui.mixins._menu_bar_ops import _MenuBarOpsMixin
+    missing = [m for m in MENU_BAR_OPS_METHODS if m not in _MenuBarOpsMixin.__dict__]
+    assert missing == [], f"_MenuBarOpsMixin is missing {missing}"
+
+
+def test_case_nav_ops_owns_its_methods():
+    from ui.mixins._case_nav_ops import _CaseNavOpsMixin
+    missing = [m for m in CASE_NAV_OPS_METHODS if m not in _CaseNavOpsMixin.__dict__]
+    assert missing == [], f"_CaseNavOpsMixin is missing {missing}"
+
+
+def test_foam_monitor_ops_owns_its_methods():
     from ui.mixins._foam_monitor_ops import _FoamMonitorOpsMixin
-    assert method in _FoamMonitorOpsMixin.__dict__, f"_FoamMonitorOpsMixin missing {method}"
+    missing = [m for m in FOAM_MONITOR_OPS_METHODS if m not in _FoamMonitorOpsMixin.__dict__]
+    assert missing == [], f"_FoamMonitorOpsMixin is missing {missing}"
 
 
-@pytest.mark.parametrize("method", TOOLS_OPS_METHODS)
-def test_tools_ops_owns_method(method):
+def test_tools_ops_owns_its_methods():
     from ui.mixins._tools_ops import _ToolsOpsMixin
-    assert method in _ToolsOpsMixin.__dict__, f"_ToolsOpsMixin missing {method}"
+    missing = [m for m in TOOLS_OPS_METHODS if m not in _ToolsOpsMixin.__dict__]
+    assert missing == [], f"_ToolsOpsMixin is missing {missing}"
 
 
-@pytest.mark.parametrize("method", FILE_OPS_METHODS)
-def test_file_ops_owns_method(method):
+def test_file_ops_owns_its_methods():
     from ui.mixins._file_ops import _FileOpsMixin
-    assert method in _FileOpsMixin.__dict__, f"_FileOpsMixin missing {method}"
+    missing = [m for m in FILE_OPS_METHODS if m not in _FileOpsMixin.__dict__]
+    assert missing == [], f"_FileOpsMixin is missing {missing}"
 
 
-@pytest.mark.parametrize("method", FILE_MGMT_OPS_METHODS)
-def test_file_mgmt_ops_owns_method(method):
+def test_file_mgmt_ops_owns_its_methods():
     from ui.mixins._file_mgmt_ops import _FileManagementOpsMixin
-    assert method in _FileManagementOpsMixin.__dict__, f"_FileManagementOpsMixin missing {method}"
+    missing = [m for m in FILE_MGMT_OPS_METHODS if m not in _FileManagementOpsMixin.__dict__]
+    assert missing == [], f"_FileManagementOpsMixin is missing {missing}"
 
 
-@pytest.mark.parametrize("method", TREE_CRUD_OPS_METHODS)
-def test_tree_crud_ops_owns_method(method):
+def test_tree_crud_ops_owns_its_methods():
     from ui.mixins._tree_crud_ops import _TreeCrudOpsMixin
-    assert method in _TreeCrudOpsMixin.__dict__, f"_TreeCrudOpsMixin missing {method}"
+    missing = [m for m in TREE_CRUD_OPS_METHODS if m not in _TreeCrudOpsMixin.__dict__]
+    assert missing == [], f"_TreeCrudOpsMixin is missing {missing}"
 
 
-@pytest.mark.parametrize("method", TREE_SYNC_OPS_METHODS)
-def test_tree_sync_ops_owns_method(method):
+def test_tree_sync_ops_owns_its_methods():
     from ui.mixins._tree_sync_ops import _TreeSyncOpsMixin
-    assert method in _TreeSyncOpsMixin.__dict__, f"_TreeSyncOpsMixin missing {method}"
+    missing = [m for m in TREE_SYNC_OPS_METHODS if m not in _TreeSyncOpsMixin.__dict__]
+    assert missing == [], f"_TreeSyncOpsMixin is missing {missing}"
 
 
-@pytest.mark.parametrize("method", BOUNDARY_OPS_METHODS)
-def test_boundary_ops_owns_method(method):
+def test_boundary_ops_owns_its_methods():
     from ui.mixins._boundary_ops import _BoundaryOpsMixin
-    assert method in _BoundaryOpsMixin.__dict__, f"_BoundaryOpsMixin missing {method}"
+    missing = [m for m in BOUNDARY_OPS_METHODS if m not in _BoundaryOpsMixin.__dict__]
+    assert missing == [], f"_BoundaryOpsMixin is missing {missing}"
 
 
-@pytest.mark.parametrize("method", DIFF_OPS_METHODS)
-def test_diff_ops_owns_method(method):
+def test_diff_ops_owns_its_methods():
     from ui.mixins._diff_ops import _DiffOpsMixin
-    assert method in _DiffOpsMixin.__dict__, f"_DiffOpsMixin missing {method}"
+    missing = [m for m in DIFF_OPS_METHODS if m not in _DiffOpsMixin.__dict__]
+    assert missing == [], f"_DiffOpsMixin is missing {missing}"
 
 
-@pytest.mark.parametrize("method", PANEL_OPS_METHODS)
-def test_panel_ops_owns_method(method):
+def test_panel_ops_owns_its_methods():
     from ui.mixins._panel_ops import _PanelOpsMixin
-    assert method in _PanelOpsMixin.__dict__, f"_PanelOpsMixin missing {method}"
+    missing = [m for m in PANEL_OPS_METHODS if m not in _PanelOpsMixin.__dict__]
+    assert missing == [], f"_PanelOpsMixin is missing {missing}"
 
 
-@pytest.mark.parametrize("method", UNDO_OPS_METHODS)
-def test_undo_ops_owns_method(method):
+def test_undo_ops_owns_its_methods():
     from ui.mixins._undo_ops import _UndoOpsMixin
-    assert method in _UndoOpsMixin.__dict__, f"_UndoOpsMixin missing {method}"
+    missing = [m for m in UNDO_OPS_METHODS if m not in _UndoOpsMixin.__dict__]
+    assert missing == [], f"_UndoOpsMixin is missing {missing}"
 
 
 # ── no cross-mixin duplicates ─────────────────────────────────────────────────
@@ -387,19 +370,24 @@ def test_no_duplicate_methods_across_mixins():
 def test_main_window_inherits_all_mixins(qapp):
     from ui.main_window import MainWindow
     from ui.mixins._boundary_ops import _BoundaryOpsMixin
+    from ui.mixins._case_nav_ops import _CaseNavOpsMixin
     from ui.mixins._case_ops import _CaseOpsMixin
     from ui.mixins._diff_ops import _DiffOpsMixin
     from ui.mixins._file_mgmt_ops import _FileManagementOpsMixin
     from ui.mixins._file_ops import _FileOpsMixin
     from ui.mixins._foam_monitor_ops import _FoamMonitorOpsMixin
+    from ui.mixins._menu_bar_ops import _MenuBarOpsMixin
     from ui.mixins._model_ops import _ModelOpsMixin
     from ui.mixins._panel_ops import _PanelOpsMixin
     from ui.mixins._tools_ops import _ToolsOpsMixin
     from ui.mixins._tree_crud_ops import _TreeCrudOpsMixin
     from ui.mixins._tree_sync_ops import _TreeSyncOpsMixin
     from ui.mixins._ui_ops import _UiOpsMixin
+    from ui.mixins._undo_ops import _UndoOpsMixin
 
     assert issubclass(MainWindow, _CaseOpsMixin)
+    assert issubclass(MainWindow, _CaseNavOpsMixin)
+    assert issubclass(MainWindow, _MenuBarOpsMixin)
     assert issubclass(MainWindow, _FileOpsMixin)
     assert issubclass(MainWindow, _FileManagementOpsMixin)
     assert issubclass(MainWindow, _TreeCrudOpsMixin)
@@ -411,6 +399,7 @@ def test_main_window_inherits_all_mixins(qapp):
     assert issubclass(MainWindow, _ToolsOpsMixin)
     assert issubclass(MainWindow, _ModelOpsMixin)
     assert issubclass(MainWindow, _UiOpsMixin)
+    assert issubclass(MainWindow, _UndoOpsMixin)
 
 
 def test_main_window_mixins_before_qmainwindow(qapp):
@@ -435,7 +424,6 @@ CORE_METHODS = [
     "_build_feature_panels",
     "_build_splitters",
     "_connect_signals",
-    "_build_menu_bar",
     "closeEvent",
     "_build_diff_bar",
 ]
@@ -444,6 +432,7 @@ MODEL_OPS_METHODS = [
     "_save_current_buffer",
     "_after_model_edit",
     "_update_viewer_panels",
+    "_viewer_kind_for",
     "_update_block_mesh_viewer",
     "_expand_includes_for_viewer",
     "_refresh_include_dependents",
@@ -453,12 +442,15 @@ MODEL_OPS_METHODS = [
     "_write_root_to_buffer",
     "_cache_parsed_root",
     "_is_read_only",
+    "_current_text",
+    "_dirty_paths",
     "_mark_dirty",
     "_mark_path_dirty",
     "_confirm_discard_if_needed",
 ]
 
 UI_OPS_METHODS = [
+    "_error",
     "_confirm",
     "_build_radio_menu",
     "_build_language_menu",
@@ -489,22 +481,22 @@ UI_OPS_METHODS = [
 ]
 
 
-@pytest.mark.parametrize("method", CORE_METHODS)
-def test_core_method_in_main_window(method):
+def test_core_methods_stay_in_main_window():
     from ui.main_window import MainWindow
-    assert method in MainWindow.__dict__, f"MainWindow missing core method: {method}"
+    missing = [m for m in CORE_METHODS if m not in MainWindow.__dict__]
+    assert missing == [], f"MainWindow is missing core methods: {missing}"
 
 
-@pytest.mark.parametrize("method", MODEL_OPS_METHODS)
-def test_model_ops_owns_method(method):
+def test_model_ops_owns_its_methods():
     from ui.mixins._model_ops import _ModelOpsMixin
-    assert method in _ModelOpsMixin.__dict__, f"_ModelOpsMixin missing {method}"
+    missing = [m for m in MODEL_OPS_METHODS if m not in _ModelOpsMixin.__dict__]
+    assert missing == [], f"_ModelOpsMixin is missing {missing}"
 
 
-@pytest.mark.parametrize("method", UI_OPS_METHODS)
-def test_ui_ops_owns_method(method):
+def test_ui_ops_owns_its_methods():
     from ui.mixins._ui_ops import _UiOpsMixin
-    assert method in _UiOpsMixin.__dict__, f"_UiOpsMixin missing {method}"
+    missing = [m for m in UI_OPS_METHODS if m not in _UiOpsMixin.__dict__]
+    assert missing == [], f"_UiOpsMixin is missing {missing}"
 
 
 # ── AST-level structural guards ─────────────────────────────────────────────
@@ -589,8 +581,8 @@ def test_every_mixin_method_is_declared_in_protocol():
 
 
 def test_all_mixin_methods_are_assigned_to_a_list():
-    """The 13 hand-maintained ``*_METHODS`` lists must, together, name every
-    method actually defined across the 13 mixin classes -- exactly.
+    """The 15 hand-maintained ``*_METHODS`` lists must, together, name every
+    method actually defined across the 15 mixin classes -- exactly.
 
     This deliberately stays a two-way equality check against the hand lists
     rather than regenerating them from the AST: the lists document which
@@ -604,6 +596,8 @@ def test_all_mixin_methods_are_assigned_to_a_list():
     """
     all_lists = {
         "CASE_OPS_METHODS": CASE_OPS_METHODS,
+        "CASE_NAV_OPS_METHODS": CASE_NAV_OPS_METHODS,
+        "MENU_BAR_OPS_METHODS": MENU_BAR_OPS_METHODS,
         "FOAM_MONITOR_OPS_METHODS": FOAM_MONITOR_OPS_METHODS,
         "TOOLS_OPS_METHODS": TOOLS_OPS_METHODS,
         "FILE_OPS_METHODS": FILE_OPS_METHODS,

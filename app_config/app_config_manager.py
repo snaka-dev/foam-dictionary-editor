@@ -81,13 +81,18 @@ class AppConfigManager:
         self._restore_session: bool = DEFAULT_RESTORE_SESSION
         self._sessions: dict[str, dict] = {}
         self._settings_were_reset = False
+        # What went wrong, in words the UI can show. Recorded rather than printed:
+        # app_config/ is below ui/ and cannot raise a dialog, and a print() from a GUI
+        # launched off a desktop icon goes nowhere at all. MainWindow drains this onto
+        # the status bar at startup, the way session_restore reports what it skipped.
+        self._warnings: list[str] = []
         self._load()
 
     def _load(self) -> None:
         data = load_json(self._config_path)
         if data is None:
             if self._config_path.exists():
-                print("Warning: Failed to load config file: invalid JSON")
+                self._preserve_unreadable_config()
             self.reset()
             return
         self._window_size = data.get("window_size", None)
@@ -106,6 +111,43 @@ class AppConfigManager:
         # state looks like, and ui/window_state.py is where a bad one is
         # forgiven (see load_saved_state).
         self._sessions = sessions if isinstance(sessions, dict) else {}
+
+    def _preserve_unreadable_config(self) -> None:
+        """Move a config file that will not parse aside, and say where it went.
+
+        Without this the file is quietly replaced: loading fails, `reset()` puts the
+        defaults in memory, and the next `save()` -- `closeEvent` always calls one --
+        writes those defaults straight over it. Whatever was in there, a half-written
+        file from a crash or a hand-edit with a trailing comma, is then gone for good,
+        and the user is left with settings that reverted for no visible reason.
+
+        Renaming rather than deleting: it is the user's file, the JSON around the damage
+        is usually still readable by eye, and a case library or a default case directory
+        is tedious to reconstruct from memory.
+        """
+        spare = self._config_path.with_suffix(self._config_path.suffix + ".bad")
+        try:
+            self._config_path.replace(spare)
+        except OSError as e:
+            self._warnings.append(
+                f"Settings file could not be read and could not be moved aside: {e}. "
+                f"Default settings are in use and {self._config_path} may be overwritten."
+            )
+            return
+        self._warnings.append(
+            f"Settings file could not be read, so default settings are in use. "
+            f"The previous file was kept as {spare}."
+        )
+
+    def take_warnings(self) -> list[str]:
+        """Warnings recorded since the last call, and clear them.
+
+        Draining rather than reading keeps a warning from being reported twice when the
+        UI checks more than once, and means a manager that is never asked simply carries
+        them harmlessly -- which is what happens in tests.
+        """
+        held, self._warnings = self._warnings, []
+        return held
 
     def save(self) -> None:
         try:
@@ -133,7 +175,7 @@ class AppConfigManager:
                 data["sessions"] = self._sessions
             save_json(self._config_path, data)
         except OSError as e:
-            print(f"Warning: Failed to save config file: {e}")
+            self._warnings.append(f"Settings could not be saved: {e}")
 
     def reset(self) -> None:
         self._window_size = None
@@ -149,14 +191,22 @@ class AppConfigManager:
         self._restore_session = DEFAULT_RESTORE_SESSION
         self._sessions = {}
 
-    def delete_config_file(self) -> None:
+    def delete_config_file(self) -> bool:
+        """Delete the settings file. False when it is still there.
+
+        The return value exists because the caller promises the user the file will be
+        deleted, and used to report success whether or not it was.
+        """
+        ok = True
         try:
             if self._config_path.exists():
                 self._config_path.unlink()
         except OSError as e:
-            print(f"Warning: Failed to delete config file: {e}")
+            self._warnings.append(f"Settings file could not be deleted: {e}")
+            ok = False
         self.reset()
         self._settings_were_reset = True
+        return ok
 
     @property
     def settings_were_reset(self) -> bool:

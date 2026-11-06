@@ -15,7 +15,6 @@ _WROTE_MESH_RE = re.compile(r"^Wrote mesh in = .* s\.\s*$")
 _MORPH_ITERATION_RE = re.compile(r"^Morph iteration (\d+)\s*$")
 _LAYER_TABLE_HEADER_RE = re.compile(r"^patch\s+faces\s+layers")
 _LAYER_MESH_RE = re.compile(r"^(Layer mesh|Mesh with layers)\s*:\s*(.*)$")
-_CELLS_PER_LEVEL_HEADER_RE = re.compile(r"^Cells per refinement level:\s*$")
 _FINISHED_TIME_RE = re.compile(r"^Finished meshing in = (.*)\.\s*$")
 _FINISHED_OK_RE = re.compile(r"^Finished meshing without any errors\s*$")
 

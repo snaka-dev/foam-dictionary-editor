@@ -8,7 +8,7 @@ FoDE の Detail ペインは、カーソル位置のキーが何を意味し、�
 
 ## 現在のカバレッジ
 
-モジュールがある辞書は 6 つです。`controlDict`、`fvSchemes`、`fvSolution`、`blockMeshDict`、`snappyHexMeshDict`、そして `turbulenceProperties` + `momentumTransport`（後の 2 つは foamlore のジェネレータ製）。FoDE のファイル一覧は 105 個の名前を提示するので、ユーザが開けるもののほとんどには背後にスキーマがありません。
+一覧にある名前のうち、モジュールがあるのは 9 つです。ここで手書きしている `controlDict`、`fvSchemes`、`fvSolution`、`blockMeshDict`、`snappyHexMeshDict` と、foamlore のジェネレータ製の `turbulenceProperties` + `momentumTransport`（乱流モデル）および `transportProperties` + `physicalProperties`（粘性モデル。これらのファイルの非圧縮側にあたり、圧縮性ケースの `thermoType` は対象外）です。各ペアは、両フォークでの綴りが異なる同じ辞書です。FoDE のファイル一覧は 105 個の名前を提示するので、ユーザが開けるもののほとんどには背後にスキーマがありません。
 
 ## 順位付けの方法
 
@@ -49,7 +49,7 @@ FoDE の Detail ペインは、カーソル位置のキーが何を意味し、�
 
 | 辞書 | OF12 | v2606 | 生成すべき理由 |
 |---|---:|---:|---|
-| `constant/physicalProperties` / `transportProperties` + `thermophysicalProperties` | 165 | 491 | ぶっちぎりの筆頭。`thermoType` は 7 スロットの実行時選択の組み合わせ（`type`/`mixture`/`transport`/`thermo`/`equationOfState`/`specie`/`energy`）で、ユーザが実際に間違えるのはその有効な組み合わせであり、それは `src/thermophysicalModels` からしか分からない |
+| `constant/thermophysicalProperties`、および `physicalProperties` の `thermoType` 側 | 165 | 491 | ぶっちぎりの筆頭（件数には非圧縮の `transportProperties`/`physicalProperties` のケースも含まれますが、その粘性モデルはすでに生成済みです）。`thermoType` は 7 スロットの実行時選択の組み合わせ（`type`/`mixture`/`transport`/`thermo`/`equationOfState`/`specie`/`energy`）で、ユーザが実際に間違えるのはその有効な組み合わせであり、それは `src/thermophysicalModels` からしか分からない |
 | `constant/dynamicMeshDict` | 40 | 118 | 移動ソルバとトポロジ変更が RTS。しかも Foundation が v10 以降で仕組みを再編したため、手書きモジュールは 1 リリースで陳腐化する |
 | `constant/fvOptions` / `fvModels` | 72 | 43 | 一方のフォークの `fvOptions` が他方の `fvModels` + `fvConstraints`（[OPENFOAM_VERSIONS_ja.md](OPENFOAM_VERSIONS_ja.md)）で、ソース種別ごとに独自のクラスと独自のキーを持つ |
 | `constant/radiationProperties` | 8 | 72 | 輻射モデルと散乱・吸収のサブモデルがすべて RTS |

@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 
 from i18n import tr
 from services.tool_options import OptionValue, ToolSpec, build_command
+from ui.label_fit import fit_wrapped_labels
 
 _DIALOG_WIDTH = 560
 
@@ -39,6 +40,12 @@ class RunToolDialog(QDialog):
     ``(label, shell_prefix, default_checked)`` tuple rendered as a checkbox
     that prepends ``shell_prefix`` to the command (e.g. restoring 0/ before
     setFields).
+
+    Subclasses extend it through three hooks, all no-ops here:
+    :meth:`_build_extra_sections` adds rows above the options,
+    :meth:`_resolved_spec` may replace the spec (or refuse to run), and
+    :meth:`_run_prefix` / :meth:`_parallel_np` shape the composed command.
+    See ``ui/dialogs/run_solver_dialog.py``.
     """
 
     def __init__(
@@ -49,12 +56,15 @@ class RunToolDialog(QDialog):
         warning_text: str = "",
         prefix_option: tuple[str, str, bool] | None = None,
         parent: QWidget | None = None,
+        *,
+        title: str = "",
     ) -> None:
         super().__init__(parent)
         self._spec = spec
         self._case_dir = case_dir
         self._prefix_cmd = prefix_option[1] if prefix_option else ""
-        self.setWindowTitle(tr("Run {tool}").format(tool=spec.name))
+        self._labels_fitted = False
+        self.setWindowTitle(title or tr("Run {tool}").format(tool=spec.name))
         self.setMinimumWidth(_DIALOG_WIDTH)
 
         values = last_values or {}
@@ -67,6 +77,9 @@ class RunToolDialog(QDialog):
             warning.setWordWrap(True)
             layout.addWidget(warning)
             layout.addSpacing(4)
+
+        # ── subclass sections (Run Solver…'s solver field, checkboxes, log) ──
+        self._build_extra_sections(layout)
 
         # ── prefix checkbox (e.g. "Restore 0/ first") ─────────────────────────
         self._prefix_chk: QCheckBox | None = None
@@ -149,6 +162,24 @@ class RunToolDialog(QDialog):
 
         self._update_preview()
 
+    def showEvent(self, event):
+        """Give the wrapped labels their real heights, once.
+
+        A wrapped QLabel's sizeHint is measured at a width Qt guesses, not the one it gets,
+        so a fixed-width dialog under-allocates and the last lines are never drawn -- see
+        ui/label_fit.py. Only after the first layout pass does a label know its real width.
+        """
+        super().showEvent(event)
+        if self._labels_fitted:
+            return
+        self._labels_fitted = True
+        fit_wrapped_labels(self)
+        # activate() first, so the new minimum heights travel back up through the layout
+        # before the dialog's own size hint reflects them. Then resize() rather than
+        # adjustSize(), which clamps a window to two thirds of the screen height.
+        self.layout().activate()
+        self.resize(self.width(), self.sizeHint().height())
+
     # ── results ───────────────────────────────────────────────────────────────
 
     def get_values(self) -> dict:
@@ -164,31 +195,54 @@ class RunToolDialog(QDialog):
 
     def get_command(self) -> str:
         """The full shell command to send to the terminal panel."""
-        command = self._compose()
-        assert command is not None  # Run is disabled while the extra text is invalid
+        command, _problem = self._compose()
+        assert command is not None  # Run is disabled while the command is invalid
         return command
+
+    # ── subclass hooks ────────────────────────────────────────────────────────
+
+    def _build_extra_sections(self, layout: QVBoxLayout) -> None:
+        """Add rows between the warning and the options; none by default."""
+
+    def _resolved_spec(self) -> tuple[ToolSpec | None, str]:
+        """The spec to compose from, or None plus why Run is disabled."""
+        return self._spec, ""
+
+    def _run_prefix(self, spec: ToolSpec) -> tuple[str, str]:
+        """Shell prefix for ``spec``'s run, plus a problem that blocks it ("" if none)."""
+        return "", ""
+
+    def _parallel_np(self) -> int | None:
+        """``-np`` to wrap the command in ``mpirun … -parallel``; None for serial."""
+        return None
 
     # ── internals ─────────────────────────────────────────────────────────────
 
-    def _compose(self) -> str | None:
+    def _compose(self) -> tuple[str | None, str]:
+        """The command, or None plus the reason it cannot be run."""
         values = self.get_values()
         extra = str(values.pop("extra", ""))
         prefix = ""
         if self._prefix_chk is not None and self._prefix_chk.isChecked():
             prefix = self._prefix_cmd
+        spec, problem = self._resolved_spec()
+        if spec is None:
+            return None, problem
+        run_prefix, problem = self._run_prefix(spec)
+        if problem:
+            return None, problem
         try:
-            return build_command(self._spec, values, extra, prefix)
+            command = build_command(
+                spec, values, extra, run_prefix + prefix, self._parallel_np()
+            )
         except ValueError:
-            return None
+            return None, tr("(invalid extra options — unbalanced quote?)")
+        return command, ""
 
     def _update_preview(self) -> None:
-        command = self._compose()
-        if command is None:
-            self._preview.setText(tr("(invalid extra options — unbalanced quote?)"))
-            self._run_btn.setEnabled(False)
-            return
-        self._preview.setText(command)
-        self._run_btn.setEnabled(True)
+        command, problem = self._compose()
+        self._preview.setText(command if command is not None else problem)
+        self._run_btn.setEnabled(command is not None)
 
     def _browse(self, edit: QLineEdit) -> None:
         path, _ = QFileDialog.getOpenFileName(

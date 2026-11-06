@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import gzip
 
+import pytest
+
 from foam.parser import OpenFoamParser
 from foam.snappy_hex_mesh_extractor import extract_snappy_hex_mesh_data
 
@@ -451,3 +453,199 @@ def test_box_with_variables_resolved():
     data = extract_snappy_hex_mesh_data(root)
     shape = _shape_by_name(data, "box1")
     assert shape.geometry["box"] == [[-1.0, -1.0, -1.0], [1.0, 1.0, 1.0]]
+
+
+# ── both forks' spellings of the same geometry types ──────────────────────────
+#
+# The two forks' tutorials do not overlap at all: OpenCFD's use the short form
+# exclusively (37 `box`, 6 `sphere`, 4 `cylinder`), Foundation's the long one
+# exclusively (12 `searchableBox`, 3 `searchableSphere`, 1 `searchableCylinder`).
+# The long form is canonical in *both* -- each fork's searchableBox.H declares
+# `TypeName("searchableBox")` -- so a dict written either way is valid. Handling
+# only the short form meant no Foundation case drew any geometry: every entry was
+# filed as non-geometric, which reads as an empty dictionary rather than a bug.
+
+class TestSearchableTypeSpellings:
+    @pytest.mark.parametrize(("long_name", "short_name", "body"), [
+        ("searchableBox", "box", "min (0 0 0); max (1 2 3);"),
+        ("searchableSphere", "sphere", "centre (1 2 3); radius 0.5;"),
+        ("searchableCylinder", "cylinder", "point1 (0 0 0); point2 (0 0 1); radius 0.5;"),
+    ])
+    def test_long_and_short_spellings_resolve_the_same_geometry(self, long_name, short_name, body):
+        long_data = extract_snappy_hex_mesh_data(
+            _parse(f"geometry {{ g {{ type {long_name}; {body} }} }}")
+        )
+        short_data = extract_snappy_hex_mesh_data(
+            _parse(f"geometry {{ g {{ type {short_name}; {body} }} }}")
+        )
+        assert len(long_data.shapes) == 1, f"{long_name} produced no shape"
+        assert long_data.shapes[0].geometry == short_data.shapes[0].geometry
+
+    def test_the_kind_shown_is_the_spelling_the_dict_used(self):
+        # kind reaches the user verbatim in the overlay menu row, so a dict saying
+        # searchableBox must not read "box" there.
+        data = extract_snappy_hex_mesh_data(
+            _parse("geometry { g { type searchableBox; min (0 0 0); max (1 1 1); } }")
+        )
+        assert data.shapes[0].kind == "searchableBox"
+
+    def test_a_searchable_type_is_not_filed_as_non_geometric(self):
+        data = extract_snappy_hex_mesh_data(
+            _parse("geometry { g { type searchableSphere; centre (0 0 0); radius 1; } }")
+        )
+        assert [s.label for s in data.non_geometric] == []
+
+
+class TestKeepPointSpellings:
+    def test_inside_point_is_read_as_a_keep_point(self):
+        # Foundation's spelling of locationInMesh, and the only one its tutorials use.
+        data = extract_snappy_hex_mesh_data(
+            _parse("castellatedMeshControls { insidePoint (1 2 3); }")
+        )
+        assert data.location_points == [([1.0, 2.0, 3.0], "insidePoint")]
+
+    def test_location_in_mesh_still_works(self):
+        data = extract_snappy_hex_mesh_data(
+            _parse("castellatedMeshControls { locationInMesh (1 2 3); }")
+        )
+        assert data.location_points == [([1.0, 2.0, 3.0], "locationInMesh")]
+
+    def test_a_per_surface_inside_point_is_not_a_keep_point(self):
+        # OpenCFD spells a refinementSurfaces entry's cellZone selector `insidePoint`
+        # too, and that is a different thing. Reading the keep-point at the
+        # castellatedMeshControls level only is what keeps the two apart.
+        data = extract_snappy_hex_mesh_data(_parse("""
+            geometry { g { type box; min (0 0 0); max (1 1 1); } }
+            castellatedMeshControls
+            {
+                refinementSurfaces
+                {
+                    g { level (1 1); cellZoneInside insidePoint; insidePoint (9 9 9); }
+                }
+            }
+        """))
+        assert data.location_points == []
+
+
+# ── closedTriSurfaceMesh ──────────────────────────────────────────────────────
+#
+# `class closedTriSurfaceMesh : public triSurfaceMesh` in both forks, so it reads exactly
+# the same entries and differs only in promising the surface is closed. Naming only the
+# other two types meant every one of its uses -- 4 across the two tutorial trees, in both
+# the `file "x.obj"` and the entry-name-is-the-filename spellings -- was filed as having
+# no geometry and never drawn.
+
+class TestClosedTriSurfaceMesh:
+    @pytest.fixture
+    def case_dir(self, tmp_path):
+        tri_dir = tmp_path / "constant" / "triSurface"
+        tri_dir.mkdir(parents=True)
+        (tri_dir / "pipe.obj").write_text("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
+        return tmp_path
+
+    def test_the_explicit_file_form_resolves(self, case_dir):
+        # Foundation's spelling: `file "pipe.obj";`
+        root = _parse('geometry { pipe { type closedTriSurfaceMesh; file "pipe.obj"; } }')
+        data = extract_snappy_hex_mesh_data(root, case_dir=str(case_dir))
+        shape = _shape_by_name(data, "pipe")
+        assert shape.geometry["stl_path"] == str(case_dir / "constant" / "triSurface" / "pipe.obj")
+        assert data.non_geometric == []
+
+    def test_the_entry_name_form_resolves(self, case_dir):
+        # OpenCFD's spelling: the entry key is the filename, `name` renames the shape.
+        root = _parse("geometry { pipe.obj { type closedTriSurfaceMesh; name pipe; } }")
+        data = extract_snappy_hex_mesh_data(root, case_dir=str(case_dir))
+        shape = _shape_by_name(data, "pipe")
+        assert shape.geometry["stl_path"] == str(case_dir / "constant" / "triSurface" / "pipe.obj")
+
+    def test_the_kind_shown_is_the_type_the_dict_used(self, case_dir):
+        root = _parse('geometry { pipe { type closedTriSurfaceMesh; file "pipe.obj"; } }')
+        data = extract_snappy_hex_mesh_data(root, case_dir=str(case_dir))
+        assert _shape_by_name(data, "pipe").kind == "closedTriSurfaceMesh"
+
+    def test_a_missing_file_is_still_non_geometric(self, case_dir):
+        # Same failure mode as triSurfaceMesh: recognised, but nothing to draw.
+        root = _parse('geometry { gone { type closedTriSurfaceMesh; file "gone.obj"; } }')
+        data = extract_snappy_hex_mesh_data(root, case_dir=str(case_dir))
+        assert data.shapes == []
+        assert [s.label for s in data.non_geometric] == ["gone"]
+
+    def test_it_is_classified_like_any_other_surface(self, case_dir):
+        root = _parse("""
+            geometry { pipe { type closedTriSurfaceMesh; file "pipe.obj"; } }
+            castellatedMeshControls { refinementSurfaces { pipe { level (2 3); } } }
+        """)
+        data = extract_snappy_hex_mesh_data(root, case_dir=str(case_dir))
+        shape = _shape_by_name(data, "pipe")
+        assert shape.category == "surface"
+        assert shape.level == (2.0, 3.0)
+
+
+class TestInsidePointsPlural:
+    """Foundation's list form of the keep-point.
+
+    Rare: it appears zero times in Foundation's own tutorials and once in OpenCFD's, and
+    that one is the *other* `insidePoints` -- a per-surface cellZone selector inside a
+    refinementSurfaces entry, which must not be drawn as a keep-point. Handled because
+    Foundation's reader does accept it at this level, so a hand-written multi-region case
+    can legitimately use it; scoped to castellatedMeshControls so the per-surface one
+    cannot be picked up by mistake.
+    """
+
+    def test_a_list_of_points_becomes_several_keep_points(self):
+        data = extract_snappy_hex_mesh_data(_parse("""
+            castellatedMeshControls { insidePoints ( (1 2 3) (4 5 6) ); }
+        """))
+        assert data.location_points == [
+            ([1.0, 2.0, 3.0], "insidePoints"),
+            ([4.0, 5.0, 6.0], "insidePoints"),
+        ]
+
+    def test_it_wins_over_the_singular_forms(self):
+        # Foundation's reader takes the first of insidePoints / insidePoint /
+        # locationInMesh that is present; reading all three would invent keep-points the
+        # mesher never uses.
+        data = extract_snappy_hex_mesh_data(_parse("""
+            castellatedMeshControls
+            {
+                insidePoints ( (1 1 1) );
+                insidePoint (9 9 9);
+                locationInMesh (7 7 7);
+            }
+        """))
+        assert data.location_points == [([1.0, 1.0, 1.0], "insidePoints")]
+
+    def test_an_empty_list_falls_through_to_the_singular(self):
+        data = extract_snappy_hex_mesh_data(_parse("""
+            castellatedMeshControls { insidePoints ( ); insidePoint (9 9 9); }
+        """))
+        assert data.location_points == [([9.0, 9.0, 9.0], "insidePoint")]
+
+    def test_a_per_surface_insidePoints_is_not_a_keep_point(self):
+        # OpenCFD's tutorials/mesh/snappyHexMesh/insidePoints, reduced: the plural sits
+        # inside a refinementSurfaces entry beside `cellZoneInside insidePoint;` and means
+        # something else entirely.
+        data = extract_snappy_hex_mesh_data(_parse("""
+            geometry { box { type box; min (0 0 0); max (1 1 1); } }
+            castellatedMeshControls
+            {
+                refinementSurfaces
+                {
+                    box
+                    {
+                        level (1 1);
+                        cellZone boxCz;
+                        cellZoneInside insidePoint;
+                        insidePoints ( (2.01 0.75 1.13) (2.01 1.25 1.1) );
+                    }
+                }
+            }
+        """))
+        assert data.location_points == []
+
+    def test_variables_in_the_list_resolve(self):
+        data = extract_snappy_hex_mesh_data(_parse("""
+            x 5;
+            castellatedMeshControls { insidePoints ( ($x 0 0) ); }
+        """))
+        assert data.location_points == [([5.0, 0.0, 0.0], "insidePoints")]

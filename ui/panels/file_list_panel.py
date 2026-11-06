@@ -2,6 +2,7 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
@@ -11,7 +12,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QListWidget,
     QListWidgetItem,
-    QMenu,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -27,7 +27,9 @@ from services.case_loader import (
     detect_time_dirs,
     list_directory_files,
 )
+from ui import viewer_dicts
 from ui.fonts import button_pixel_width
+from ui.menu_builder import BuiltMenu, MenuBuilder, exec_menu
 from ui.theme import colors
 
 # Stored in headers to carry the clean group name for context-menu use.
@@ -106,6 +108,19 @@ def _item_label(
 
 
 
+# Menu labels for the "Show in 3-D view as" submenu. The names are the dictionaries'
+# own, so they are not translated; the wrappers are lambdas because tr() applied at import
+# time would freeze to whatever language was active before main.py sets it (see
+# DEVELOPER.md's "Internationalisation").
+_VIEWER_KIND_LABELS = (
+    (viewer_dicts.BLOCK_MESH, lambda: "blockMeshDict"),
+    (viewer_dicts.TOPO_SET, lambda: "topoSetDict"),
+    (viewer_dicts.SNAPPY_HEX_MESH, lambda: "snappyHexMeshDict"),
+    (viewer_dicts.SET_FIELDS, lambda: "setFieldsDict"),
+    (viewer_dicts.SAMPLING, lambda: tr("Sampling (probes / sets / surfaces)")),
+)
+
+
 class FileListPanel(QWidget):
     file_selected = Signal(str)
     # Emitted when the user requests to create a new file: (case_dir, group_name)
@@ -131,6 +146,8 @@ class FileListPanel(QWidget):
     # Emitted when the user requests to delete a directory: (case_dir, group_name)
     delete_dir_requested = Signal(str, str)
     save_file_requested = Signal()
+    # (path, overlay key); an empty key returns the file to automatic detection.
+    viewer_kind_requested = Signal(str, str)
     # Emitted when the user clicks the manual refresh button
     refresh_requested = Signal()
     # Emitted to copy a read-only included file into the case: absolute source path
@@ -138,6 +155,7 @@ class FileListPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._viewer_kind_overrides: dict[str, str] = {}
         self._model = FileListModel()
         self._show_changed_only = False
 
@@ -194,6 +212,14 @@ class FileListPanel(QWidget):
         layout.addWidget(self._extra_btn)
         layout.addLayout(filter_row)
         layout.addWidget(self._list)
+
+    def set_viewer_kind_overrides(self, overrides: dict[str, str]) -> None:
+        """The case's "show in 3-D view as" choices, keyed by absolute path.
+
+        Pushed in rather than read here: the panel draws the file list, it does not own
+        the case configuration. Used only to tick the right row in the context submenu.
+        """
+        self._viewer_kind_overrides = dict(overrides)
 
     def load_files(
         self,
@@ -383,105 +409,124 @@ class FileListPanel(QWidget):
         item = self._list.itemAt(pos)
         if item is None:
             return
+        exec_menu(self._build_context_menu(item), self._list.viewport().mapToGlobal(pos))
 
-        # Results indicator row: offer to add a time dir.
+    def _build_context_menu(self, item: QListWidgetItem) -> BuiltMenu | None:
+        """The menu for *item*, paired with what each of its actions does.
+
+        None when the row has no menu. Split from _on_context_menu, the same
+        way as CaseNavPanel's, so the wiring between a menu row and the signal
+        it raises can be tested without QMenu.exec(), which blocks waiting for
+        a mouse an offscreen test has no way to supply.
+        """
         time_dirs = item.data(_TIME_DIRS_ROLE)
         if time_dirs is not None:
-            if self._model.case_dir is None:
-                return
-            menu = QMenu(self.window())
-            action_map: dict = {}
-            for d in time_dirs:
-                action = menu.addAction(tr("Add '{d}' to file list").format(d=d))
-                if self._model.is_extra_dir(d):
-                    action.setEnabled(False)
-                action_map[action] = d
-            chosen = menu.exec(self._list.viewport().mapToGlobal(pos))
-            if chosen in action_map:
-                self.add_time_dir_requested.emit(action_map[chosen])
-            return
-
+            return self._time_dirs_menu(time_dirs)
         group = item.data(_HEADER_GROUP_ROLE)
         if group is not None:
-            # Header row: offer to create or add files in this directory.
-            if self._model.case_dir is None:
-                return
-            if group == INCLUDED_GROUP:
-                return  # not a directory: "New file in '<included>'" has no meaning
-            shown = group_display_name(group)
-            menu = QMenu(self.window())
-            new_action = menu.addAction(tr("New file in '{group}'...").format(group=shown))
-            add_action = menu.addAction(tr("Add files from '{group}'...").format(group=shown))
-
-            remove_dir_action = None
-            if item.data(_EXTRA_DIR_HEADER_ROLE):
-                menu.addSeparator()
-                remove_dir_action = menu.addAction(tr("Remove '{group}' from file list").format(group=shown))
-
-            dup_dir_action = None
-            counterpart = None
-            if group in ("0", "0.orig"):
-                counterpart = "0.orig" if group == "0" else "0"
-                if not (Path(self._model.case_dir) / counterpart).exists():
-                    dup_dir_action = menu.addAction(
-                        tr("Duplicate '{src}' → '{dst}'...").format(src=group, dst=counterpart)
-                    )
-
-            delete_0_action = None
-            if group == "0" and (Path(self._model.case_dir) / "0.orig").exists():
-                menu.addSeparator()
-                delete_0_action = menu.addAction(tr("Delete '0' directory..."))
-
-            if menu.isEmpty():
-                return
-            chosen = menu.exec(self._list.viewport().mapToGlobal(pos))
-            if new_action is not None and chosen == new_action:
-                self.create_file_requested.emit(self._model.case_dir, group)
-            elif add_action is not None and chosen == add_action:
-                self.add_file_requested.emit(self._model.case_dir, group)
-            elif remove_dir_action is not None and chosen == remove_dir_action:
-                self.remove_extra_dir_requested.emit(group)
-            elif dup_dir_action is not None and chosen == dup_dir_action:
-                self.duplicate_dir_requested.emit(self._model.case_dir, group, counterpart)
-            elif delete_0_action is not None and chosen == delete_0_action:
-                self.delete_dir_requested.emit(self._model.case_dir, group)
-            return
-
+            return self._header_menu(item, group)
         path = item.data(Qt.ItemDataRole.UserRole)
         if path:
-            if item.data(_READ_ONLY_ROLE):
-                # Everything else on this menu writes to the file or beside it,
-                # which for an out-of-case include means the OpenFOAM install.
-                menu = QMenu(self.window())
-                copy_action = menu.addAction(tr("Copy into case..."))
-                if menu.exec(self._list.viewport().mapToGlobal(pos)) == copy_action:
-                    self.copy_into_case_requested.emit(path)
-                return
+            return self._file_menu(item, path)
+        return None
 
-            is_extra = bool(item.data(_EXTRA_FILE_ROLE))
-            menu = QMenu(self.window())
-            save_action = menu.addAction(tr("Save File\tCtrl+S"))
+    def _time_dirs_menu(self, time_dirs: list[str]) -> BuiltMenu | None:
+        """Results indicator row: offer to add a time dir to the list."""
+        if self._model.case_dir is None:
+            return None
+        b = MenuBuilder(self.window())
+        for d in time_dirs:
+            b.add(
+                tr("Add '{d}' to file list").format(d=d),
+                partial(self.add_time_dir_requested.emit, d),
+                enabled=not self._model.is_extra_dir(d),
+            )
+        return b.built()
+
+    def _header_menu(self, item: QListWidgetItem, group: str) -> BuiltMenu | None:
+        """Group header row: create or add files in this directory, and more."""
+        case_dir = self._model.case_dir
+        if case_dir is None or group == INCLUDED_GROUP:
+            # <included> is not a directory: "New file in" it has no meaning.
+            return None
+        shown = group_display_name(group)
+        b = MenuBuilder(self.window())
+        menu, add = b.menu, b.add
+        add(
+            tr("New file in '{group}'...").format(group=shown),
+            lambda: self.create_file_requested.emit(case_dir, group),
+        )
+        add(
+            tr("Add files from '{group}'...").format(group=shown),
+            lambda: self.add_file_requested.emit(case_dir, group),
+        )
+        if item.data(_EXTRA_DIR_HEADER_ROLE):
             menu.addSeparator()
-            remove_action = None
-            if is_extra:
-                remove_action = menu.addAction(tr("Remove from extra files"))
-                menu.addSeparator()
-            duplicate_action = menu.addAction(tr("Duplicate..."))
+            add(
+                tr("Remove '{group}' from file list").format(group=shown),
+                lambda: self.remove_extra_dir_requested.emit(group),
+            )
+        if group in ("0", "0.orig"):
+            counterpart = "0.orig" if group == "0" else "0"
+            if not (Path(case_dir) / counterpart).exists():
+                add(
+                    tr("Duplicate '{src}' → '{dst}'...").format(src=group, dst=counterpart),
+                    lambda: self.duplicate_dir_requested.emit(case_dir, group, counterpart),
+                )
+        if group == "0" and (Path(case_dir) / "0.orig").exists():
             menu.addSeparator()
-            backup_action = menu.addAction(tr("Create Backup"))
+            add(
+                tr("Delete '0' directory..."),
+                lambda: self.delete_dir_requested.emit(case_dir, group),
+            )
+        return b.built()
+
+    def _file_menu(self, item: QListWidgetItem, path: str) -> BuiltMenu:
+        """File row: save, duplicate, back up, delete, and the 3-D view kind."""
+        b = MenuBuilder(self.window())
+        menu, add = b.menu, b.add
+        if item.data(_READ_ONLY_ROLE):
+            # Everything else on this menu writes to the file or beside it,
+            # which for an out-of-case include means the OpenFOAM install.
+            add(tr("Copy into case..."), lambda: self.copy_into_case_requested.emit(path))
+            return b.built()
+
+        add(tr("Save File\tCtrl+S"), self.save_file_requested.emit)
+        menu.addSeparator()
+        if item.data(_EXTRA_FILE_ROLE):
+            add(
+                tr("Remove from extra files"),
+                lambda: self.remove_extra_file_requested.emit(path),
+            )
             menu.addSeparator()
-            delete_action = menu.addAction(tr("Delete file..."))
-            action = menu.exec(self._list.viewport().mapToGlobal(pos))
-            if action == save_action:
-                self.save_file_requested.emit()
-            elif action == backup_action:
-                self.backup_file_requested.emit(path)
-            elif remove_action is not None and action == remove_action:
-                self.remove_extra_file_requested.emit(path)
-            elif action == duplicate_action:
-                self.duplicate_file_requested.emit(path)
-            elif action == delete_action:
-                self.delete_file_requested.emit(path)
+        add(tr("Duplicate..."), lambda: self.duplicate_file_requested.emit(path))
+        menu.addSeparator()
+        add(tr("Create Backup"), lambda: self.backup_file_requested.emit(path))
+        menu.addSeparator()
+        add(tr("Delete file..."), lambda: self.delete_file_requested.emit(path))
+        menu.addSeparator()
+        # Escape hatch for a file the name and the FoamFile header cannot identify --
+        # a renamed sampling dict has no header at all -- and for one whose header is
+        # simply wrong. See ui/viewer_dicts.py.
+        view_menu = menu.addMenu(tr("Show in 3-D view as"))
+        current = self._viewer_kind_overrides.get(path, "")
+        auto = add(
+            tr("Automatic"),
+            lambda: self.viewer_kind_requested.emit(path, ""),
+            into=view_menu,
+        )
+        auto.setCheckable(True)
+        auto.setChecked(not current)
+        view_menu.addSeparator()
+        for key, label in _VIEWER_KIND_LABELS:
+            act = add(
+                label(),
+                partial(self.viewer_kind_requested.emit, path, key),
+                into=view_menu,
+            )
+            act.setCheckable(True)
+            act.setChecked(current == key)
+        return b.built()
 
 
 

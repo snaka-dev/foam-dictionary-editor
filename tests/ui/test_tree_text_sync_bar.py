@@ -58,7 +58,7 @@ class TestTreeTextSyncBar:
             assert main_window.bottom_tabs.cornerWidget(Qt.Corner.TopRightCorner) is corner
             assert all(not b.isHidden() for b in buttons)
 
-    def test_buttons_are_wired_to_the_sync_commands(self, qapp, monkeypatch):
+    def test_buttons_are_wired_to_the_sync_commands(self, qapp, monkeypatch, destroy_widget):
         # The connections are bound during __init__, so the methods have to be
         # patched on the class before the window is built for the click to be a
         # real test of the wiring rather than of a re-connection made here.
@@ -83,7 +83,7 @@ class TestTreeTextSyncBar:
             assert called == ["apply", "reload"]
         finally:
             win._file_list_refresh_timer.stop()
-            win.close()
+            destroy_widget(win)
             for name, value in original.items():
                 cfg.set_feature(name, value)
 

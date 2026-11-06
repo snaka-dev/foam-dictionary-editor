@@ -19,17 +19,17 @@ from ui.panels.case_nav_panel import CaseNavPanel
 
 
 @pytest.fixture
-def navigator(qapp):
+def navigator(qapp, destroy_widget):
     nav = CaseNavigator()
     yield nav
-    nav.deleteLater()
+    destroy_widget(nav)
 
 
 @pytest.fixture
-def dialog(navigator, qapp):
+def dialog(navigator, qapp, destroy_widget):
     d = CaseBrowserDialog(navigator)
     yield d
-    d.deleteLater()
+    destroy_widget(d)
 
 
 @pytest.fixture
@@ -142,7 +142,9 @@ class TestActionRowEnablement:
 # ── one navigator, two views ──────────────────────────────────────────────────
 
 class TestSharedNavigatorMovesBothViews:
-    def test_navigating_in_the_dialog_moves_the_cases_tab_too(self, navigator, sample_tree, qapp):
+    def test_navigating_in_the_dialog_moves_the_cases_tab_too(
+        self, navigator, sample_tree, qapp, destroy_widget
+    ):
         panel = CaseNavPanel(navigator)
         dialog = CaseBrowserDialog(navigator)
         try:
@@ -155,5 +157,5 @@ class TestSharedNavigatorMovesBothViews:
             assert panel._path_text == str(plain)
             assert panel._tree.rootIndex() == navigator.model.index_for_path(plain)
         finally:
-            panel.deleteLater()
-            dialog.deleteLater()
+            destroy_widget(panel)
+            destroy_widget(dialog)

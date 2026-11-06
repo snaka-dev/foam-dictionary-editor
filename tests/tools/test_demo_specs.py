@@ -53,7 +53,12 @@ TARGETED = frozenset({"click", "move", "drag", "scroll"})
 # that opens a dialog — are held to this.
 LABEL_SOURCES = (
     ROOT / "ui" / "main_window.py",
+    # The menu-bar builders moved out of main_window.py; the menu titles and the
+    # "…" menu-item labels this checks against are literals in there now.
+    ROOT / "ui" / "mixins" / "_menu_bar_ops.py",
     ROOT / "ui" / "panels" / "block_mesh_panel.py",
+    # ...as did the shape-overlay menus the BlockMesh panel builds.
+    ROOT / "ui" / "panels" / "_shape_overlay_menu.py",
 )
 
 STEP_KINDS = frozenset(

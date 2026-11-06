@@ -24,14 +24,6 @@ from schemas.builtin import get_default_schema_config
 MODULES = get_default_schema_config()["schema_modules"]
 
 
-def _all_schemas():
-    """Every registered `KeySchema`, as (module, table key, schema) triples."""
-    for mod_name in MODULES:
-        mod = importlib.import_module(mod_name)
-        for table_key, schema in getattr(mod, "SCHEMAS", {}).items():
-            yield mod_name, table_key, schema
-
-
 class TestFieldContract:
     def test_defaults_are_backward_compatible(self):
         # Every pre-existing entry was built without these fields, so the

@@ -30,6 +30,7 @@ from app_config.defaults import (
     MIN_UI_SCALE,
 )
 from i18n import set_language
+from ui.layout_constants import STATUS_WARNING
 from ui.main_window import MainWindow
 from ui.session_restore import restore_session
 from ui.theme import apply_theme
@@ -135,6 +136,13 @@ def main():
     # must see the terminal mode the restore chose rather than the default.
     if not args.no_restore:
         restore_session(app, window)
+
+    # After the restore, so its own status message is not the one overwritten: a settings
+    # file that would not parse is the more important of the two to say out loud, and it
+    # is the last message that stays on screen. Status bar rather than a dialog, for the
+    # reason session_restore gives -- a modal is no way to greet someone at startup.
+    for warning in get_app_config().take_warnings():
+        window.statusBar().showMessage(warning, STATUS_WARNING)
 
     # Eagerly initialise VTK so it claims the OpenGL context before WebEngine's
     # GPU process can grab it.  Skip when xterm is the default (VTK stays idle

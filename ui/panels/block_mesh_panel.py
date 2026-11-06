@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any, TypeVar
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction, QColor, QIcon, QKeySequence, QPixmap
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
     QFileDialog,
@@ -31,13 +29,20 @@ from PySide6.QtWidgets import (
 from foam.block_mesh_extractor import BlockMeshData, extract_block_mesh_data
 from foam.nodes import FoamNode
 from foam.sampling_extractor import SamplingData, extract_sampling_data
-from foam.set_fields_extractor import SetFieldsShape, extract_set_fields_data
-from foam.shapes import SourceShape
-from foam.snappy_hex_mesh_extractor import extract_snappy_hex_mesh_data
-from foam.topo_set_extractor import TopoShape, extract_topo_set_data
+from foam.set_fields_extractor import SetFieldsData, SetFieldsShape, extract_set_fields_data
+from foam.snappy_hex_mesh_extractor import SnappyHexMeshData, extract_snappy_hex_mesh_data
+from foam.topo_set_extractor import TopoSetData, TopoShape, extract_topo_set_data
 from i18n import tr
 from ui.dialogs.export_stl_dialog import ExportStlDialog
 from ui.fonts import button_pixel_width, small_font
+from ui.panels._shape_overlay_menu import (
+    _color_swatch,
+    _exportable,
+    _menu_button,
+    _ShapeOverlayMenu,
+    _StaysOpenMenu,
+)
+from ui.panels._view_image_export import save_view_image
 from ui.panels.block_mesh_renderer import (
     _ACTION_COLORS,
     _SAMPLING_COLOR,
@@ -70,15 +75,6 @@ _MAX_VERTEX_TABLE_ROWS = 500
 _LABEL_SPIN_MIN_WIDTH = 52
 _VIEW_BUTTON_MIN_WIDTH = 36
 
-# Mirrors pyvista's BasePlotter.screenshot() SUPPORTED_FORMATS; anything else
-# raises ValueError there, which _save_view_image() turns into a warning dialog.
-_IMAGE_SUFFIXES = frozenset({".png", ".jpeg", ".jpg", ".bmp", ".tif", ".tiff"})
-# The Save Image dialog's one file filter, derived from the set above so the
-# two cannot drift; .png leads because it is the default the panel offers.
-_IMAGE_FILTER_PATTERNS = " ".join(
-    "*" + s for s in [".png"] + sorted(_IMAGE_SUFFIXES - {".png"})
-)
-
 _MOUSE_HINT = (
     "Mouse:  drag = rotate  |  Shift+drag = pan  "
     "|  scroll / right-drag = zoom  |  R = reset camera  |  F = fly to point"
@@ -92,267 +88,6 @@ _MOUSE_HINT_TOOLTIP = (
 )
 
 
-def _shape_key(shape) -> tuple[str, str, str]:
-    """Stable identity for an overlay shape across re-extraction.
-
-    Uses the shared label/kind fields plus the sampling-only source_file (blank
-    for the other overlays) so per-shape visibility toggles can be preserved
-    when the menu is rebuilt.
-    """
-    return (
-        getattr(shape, "source_file", ""),
-        getattr(shape, "label", ""),
-        getattr(shape, "kind", ""),
-    )
-
-
-def _color_swatch(color_name: str, size: int = 12) -> QIcon:
-    """A small filled square icon; stays vivid on disabled (greyed) menu rows."""
-    pm = QPixmap(size, size)
-    pm.fill(QColor(color_name))
-    icon = QIcon(pm)
-    icon.addPixmap(pm, QIcon.Mode.Disabled)
-    return icon
-
-
-def _writable_image_path(path: str) -> str:
-    """*path* adjusted so plotter.screenshot() will accept its extension.
-
-    pyvista compares the suffix against its SUPPORTED_FORMATS list *without*
-    case-folding, so ".JPG" is rejected as readily as ".txt" even though the
-    format itself is supported. A suffix it cannot use is therefore lowered
-    when that is enough, and otherwise given a ".png" -- the alternative is
-    a ValueError from inside the writer, after the user has already chosen
-    where to save.
-    """
-    suffix = Path(path).suffix
-    if suffix.lower() not in _IMAGE_SUFFIXES:
-        return path + ".png"
-    if suffix != suffix.lower():
-        return str(Path(path).with_suffix(suffix.lower()))
-    return path
-
-
-def _menu_button(text: str, menu: QMenu, tooltip: str | None = None) -> QToolButton:
-    """Build a QToolButton that instant-pops *menu*; used by the geometry toolbar.
-
-    *text* is expected to already be translated (via ``tr()``) by the caller;
-    the trailing " ▾" marker is appended here rather than baked into a
-    translation key, since it is chrome, not prose (see DEVELOPER.md's i18n
-    section). The composed labels — "Vertices ▾", "Blocks ▾", "topoSet ▾",
-    "snappyHexMesh ▾", "setFields ▾", "sample ▾", "Scale ▾", "STL ▾" — are
-    each named here in full so tools/demo_specs.json's button-label targets
-    still resolve to a literal in ui/ (tests/tools/test_demo_specs.py scans
-    for a quoted string, not the rendered widget text).
-    """
-    btn = QToolButton()
-    btn.setText(text + " ▾")
-    btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-    btn.setMenu(menu)
-    if tooltip is not None:
-        btn.setToolTip(tooltip)
-    return btn
-
-
-_T = TypeVar("_T", bound=SourceShape)
-
-
-def _exportable(shapes: list[_T]) -> list[_T]:
-    """Shapes from *shapes* that produce a meaningful STL surface.
-
-    Point markers have no surface and a planeToFaceZone disc's extent is
-    display-only, so neither is offered for export. Generic over the concrete
-    SourceShape subclass so callers keep their specific return type.
-    """
-    return [s for s in shapes if not ({"points", "planePoint"} & s.geometry.keys())]
-
-
-class _StaysOpenMenu(QMenu):
-    """A QMenu whose checkable items toggle without closing the popup.
-
-    Qt closes a menu on any mouse-click activation, checkable or not, which
-    makes multi-selecting a checklist-style menu tedious. Clicking a checkable,
-    enabled item here toggles it and keeps the menu open; everything else
-    (clicking outside, Escape, disabled rows) behaves like a stock QMenu.
-    """
-
-    def mouseReleaseEvent(self, event) -> None:
-        action = self.activeAction()
-        if action is not None and action.isCheckable() and action.isEnabled():
-            action.trigger()
-            return
-        super().mouseReleaseEvent(event)
-
-
-class _ShapeOverlayMenu:
-    """One checkable shape-overlay menu (`topoSet ▾` / `snappyHexMesh ▾`).
-
-    Owns the master toggle, the Show/Hide-all actions, a static colour legend,
-    and the rebuildable per-shape (and optional location-point) toggles plus
-    the "Non-geometric sources" submenu. ``on_changed`` runs after every
-    visibility change so the owner can re-render.
-    """
-
-    def __init__(
-        self,
-        parent: QWidget,
-        *,
-        master_label: str,
-        legend_title: str,
-        legend: dict[str, str],
-        shape_row: Callable[[Any], tuple[QIcon, str]],
-        info_row: Callable[[Any], str],
-        on_changed: Callable[[], None],
-        location_row: Callable[[tuple], str] | None = None,
-        menu: QMenu | None = None,
-        item_noun: str = "shapes",
-    ) -> None:
-        self._shape_row = shape_row
-        self._info_row = info_row
-        self._location_row = location_row
-        self._on_changed = on_changed
-
-        self.shapes: list = []
-        self.non_geometric: list = []
-        self.locations: list = []
-        self.shape_actions: list[QAction] = []
-        self.location_actions: list[QAction] = []
-        self.info_actions: list[QAction] = []
-        self.info_menu: QMenu | None = None
-
-        # An existing menu can be adopted so the owner's own actions sit above
-        # the toggles; rebuild() only ever appends and only removes rows it
-        # created, so foreign actions in the same menu are left alone.
-        self.menu = menu if menu is not None else _StaysOpenMenu(parent)
-        self.master = QAction(master_label, self.menu, checkable=True, checked=True)
-        self.menu.addAction(self.master)
-        # item_noun ("shapes" / "surfaces") is itself tr()'d here rather than at
-        # the call site, since it is folded into the sentence below.
-        self.show_all = QAction(tr("Show all {noun}").format(noun=tr(item_noun)), self.menu)
-        self.hide_all = QAction(tr("Hide all {noun}").format(noun=tr(item_noun)), self.menu)
-        self.menu.addAction(self.show_all)
-        self.menu.addAction(self.hide_all)
-        self.menu.addSeparator()
-
-        # Static legend mapping each row label to its overlay colour. Menus
-        # whose rows carry their own colour pass no legend, making it redundant.
-        self.legend_actions: list[QAction] = []
-        if legend:
-            legend_header = QAction(legend_title, self.menu)
-            legend_header.setEnabled(False)
-            self.menu.addAction(legend_header)
-            for label, color in legend.items():
-                act = QAction(_color_swatch(color), label, self.menu)
-                act.setEnabled(False)
-                self.menu.addAction(act)
-                self.legend_actions.append(act)
-            self.menu.addSeparator()
-
-        self.master.toggled.connect(self._on_master_toggled)
-        self.show_all.triggered.connect(lambda: self.set_all(True))
-        self.hide_all.triggered.connect(lambda: self.set_all(False))
-
-    def _on_master_toggled(self, on: bool) -> None:
-        for act in (
-            self.shape_actions + self.location_actions + [self.show_all, self.hide_all]
-        ):
-            act.setEnabled(on)
-        self._on_changed()
-
-    def set_all(self, checked: bool) -> None:
-        """Check/uncheck every per-shape toggle with a single change callback."""
-        for act in self.shape_actions + self.location_actions:
-            act.blockSignals(True)
-            act.setChecked(checked)
-            act.blockSignals(False)
-        self._on_changed()
-
-    def rebuild(
-        self, shapes: list, non_geometric: list, locations: list | None = None
-    ) -> None:
-        """Repopulate the per-shape toggles from freshly extracted data.
-
-        The master action, Show/Hide all, legend, and separator persist; the
-        per-shape/location toggles and the "Non-geometric sources" submenu are
-        rebuilt so each renderable entry can be shown or hidden individually.
-        Non-geometric sources are listed for awareness but never rendered;
-        they are collapsed into a submenu so a source-rich dict (60+ actions)
-        keeps the renderable toggles readable at the top level.
-        """
-        # Remember which shapes/locations the user had hidden so a rebuild
-        # (fired on every edit of a contributing dict) does not silently
-        # re-show them. Keyed by a stable identity that survives re-extraction;
-        # this matters most for the sampling overlay, whose menu is the union
-        # of several files, so editing one must not reset another's toggles.
-        prior_shape_checked = {
-            _shape_key(s): a.isChecked()
-            for s, a in zip(self.shapes, self.shape_actions)
-        }
-        prior_loc_checked = {
-            self._location_row(loc): a.isChecked()
-            for loc, a in zip(self.locations, self.location_actions)
-        } if self._location_row is not None else {}
-
-        for act in self.shape_actions + self.location_actions:
-            self.menu.removeAction(act)
-            act.deleteLater()
-        self.shape_actions = []
-        self.location_actions = []
-        self.info_actions = []
-        if self.info_menu is not None:
-            self.menu.removeAction(self.info_menu.menuAction())
-            self.info_menu.deleteLater()
-            self.info_menu = None
-
-        self.shapes = list(shapes)
-        self.non_geometric = list(non_geometric)
-        self.locations = list(locations or [])
-
-        master_on = self.master.isChecked()
-        for shape in self.shapes:
-            icon, text = self._shape_row(shape)
-            checked = prior_shape_checked.get(_shape_key(shape), True)
-            act = QAction(icon, text, self.menu, checkable=True, checked=checked)
-            act.setEnabled(master_on)
-            act.toggled.connect(self._on_changed)
-            self.menu.addAction(act)
-            self.shape_actions.append(act)
-
-        if self._location_row is not None:
-            for location in self.locations:
-                row = self._location_row(location)
-                act = QAction(
-                    row, self.menu, checkable=True,
-                    checked=prior_loc_checked.get(row, True),
-                )
-                act.setEnabled(master_on)
-                act.toggled.connect(self._on_changed)
-                self.menu.addAction(act)
-                self.location_actions.append(act)
-
-        if self.non_geometric:
-            self.info_menu = QMenu(
-                tr("Non-geometric sources ({n})").format(n=len(self.non_geometric)),
-                self.menu,
-            )
-            for shape in self.non_geometric:
-                act = QAction(self._info_row(shape), self.info_menu)
-                act.setEnabled(False)
-                self.info_menu.addAction(act)
-                self.info_actions.append(act)
-            self.menu.addMenu(self.info_menu)
-
-    def visible_shapes(self) -> list:
-        """Return the shapes currently selected for display."""
-        if not self.master.isChecked():
-            return []
-        return [s for s, a in zip(self.shapes, self.shape_actions) if a.isChecked()]
-
-    def visible_locations(self) -> list:
-        """Return the location points currently selected for display."""
-        if not self.master.isChecked():
-            return []
-        return [p for p, a in zip(self.locations, self.location_actions) if a.isChecked()]
 
 
 @dataclasses.dataclass
@@ -428,10 +163,17 @@ class BlockMeshPanel(QWidget):
         self._set_fields: _ShapeOverlayMenu | None = None
         self._sampling: _ShapeOverlayMenu | None = None
         self._loaded_surfaces: _ShapeOverlayMenu | None = None
-        # Sampling definitions can come from several files at once (controlDict
-        # functions{} plus standalone system/sample etc.), so shapes are kept
-        # per source basename and the menu shows their union.
+        # Every overlay's shapes are kept per source file and the menu shows their union.
+        # Sampling needed this first -- controlDict's functions{} plus a standalone
+        # system/sample are two files feeding one overlay -- but the other three need it
+        # too: a case can hold `topoSetDict-slices` and `topoSetDict-background` side by side,
+        # and rebuilding from just the file being viewed made whichever was opened last
+        # erase the other. Keyed by full path, not basename, so two files sharing a
+        # basename in different directories do not overwrite each other.
         self._sampling_by_file: dict[str, SamplingData] = {}
+        self._topo_by_file: dict[str, TopoSetData] = {}
+        self._snappy_by_file: dict[str, SnappyHexMeshData] = {}
+        self._set_fields_by_file: dict[str, SetFieldsData] = {}
         self._export_stl_act: QAction | None = None
         self._clear_stl_act: QAction | None = None
         self._view_splitter: QSplitter | None = None
@@ -688,10 +430,10 @@ class BlockMeshPanel(QWidget):
             legend={tr("probes / lines / planes"): _SAMPLING_COLOR},
             shape_row=lambda s: (
                 _color_swatch(_SAMPLING_COLOR),
-                f"{s.label or tr('(unnamed)')}  ·  {s.kind}  [{s.source_file}]",
+                f"{s.label or tr('(unnamed)')}  ·  {s.kind}",
             ),
             info_row=lambda s: (
-                f"{s.label or tr('(unnamed)')}  ·  {s.kind}  [{s.source_file}]"
+                f"{s.label or tr('(unnamed)')}  ·  {s.kind}"
                 f"  {tr('(no geometry)')}"
             ),
             on_changed=self._render,
@@ -1022,12 +764,82 @@ class BlockMeshPanel(QWidget):
         assert menu is not None  # built in _build_controls() when _PYVISTA_OK
         return menu
 
+    @staticmethod
+    def _merge_by_file(store, path, data, shapes, non_geometric, extra=None):
+        """Record one file's shapes in *store* and return the union across all files.
+
+        Stamps each shape with the file's basename, which is what lets a merged menu say
+        which of several `topoSetDict-*` a row came from. A file that yields nothing is
+        dropped from the store rather than kept as an empty entry, so closing or emptying
+        one dictionary removes its rows instead of leaving a dead source behind.
+
+        `extra` is for an overlay with a second per-file list to keep alive alongside the
+        shapes -- snappyHexMesh's keep-points -- so that a file contributing only those is
+        still stored.
+        """
+        for shape in list(shapes) + list(non_geometric):
+            shape.source_file = Path(path).name
+        if shapes or non_geometric or extra:
+            store[path] = data
+        else:
+            store.pop(path, None)
+        merged = [s for d in store.values() for s in d.shapes]
+        merged_info = [s for d in store.values() for s in d.non_geometric]
+        return merged, merged_info
+
+    def forget_file(self, path: str) -> None:
+        """Drop *path*'s contribution from every overlay and redraw.
+
+        Needed when a file stops feeding the overlay it used to. Re-dispatching alone
+        cannot do it: changing a "show as" override from topoSet to setFields calls
+        update_set_fields, which has no reason to touch the topoSet store, so the old
+        rows would sit there forever. Clearing the override entirely is worse -- nothing
+        is dispatched at all, so nothing would remove them.
+        """
+        if not _PYVISTA_OK:
+            return
+        removed = False
+        for store in (
+            self._topo_by_file, self._snappy_by_file,
+            self._set_fields_by_file, self._sampling_by_file,
+        ):
+            removed |= store.pop(path, None) is not None
+        if not removed:
+            return
+        if self._topo is not None:
+            self._topo.rebuild(
+                [s for d in self._topo_by_file.values() for s in d.shapes],
+                [s for d in self._topo_by_file.values() for s in d.non_geometric],
+            )
+        if self._snappy is not None:
+            self._snappy.rebuild(
+                [s for d in self._snappy_by_file.values() for s in d.shapes],
+                [s for d in self._snappy_by_file.values() for s in d.non_geometric],
+                [p for d in self._snappy_by_file.values() for p in d.location_points],
+            )
+        if self._set_fields is not None:
+            self._set_fields.rebuild(
+                [s for d in self._set_fields_by_file.values() for s in d.shapes],
+                [s for d in self._set_fields_by_file.values() for s in d.non_geometric],
+            )
+        if self._sampling is not None:
+            self._sampling.rebuild(
+                [s for d in self._sampling_by_file.values() for s in d.shapes],
+                [s for d in self._sampling_by_file.values() for s in d.non_geometric],
+            )
+        self._update_export_stl_enabled()
+        if self._plotter is not None:
+            self._render()
+
     def update_topo_set(self, path: str, root: FoamNode) -> None:
         if not _PYVISTA_OK:
             return
         assert self._topo is not None  # built in _build_controls() when _PYVISTA_OK
         data = extract_topo_set_data(root)
-        self._topo.rebuild(data.shapes, data.non_geometric)
+        shapes, non_geometric = self._merge_by_file(
+            self._topo_by_file, path, data, data.shapes, data.non_geometric
+        )
+        self._topo.rebuild(shapes, non_geometric)
         self._update_export_stl_enabled()
         if self._plotter is not None:
             self._render()
@@ -1038,7 +850,14 @@ class BlockMeshPanel(QWidget):
         assert self._snappy is not None  # built in _build_controls() when _PYVISTA_OK
         case_dir = str(Path(path).parent.parent)
         data = extract_snappy_hex_mesh_data(root, case_dir)
-        self._snappy.rebuild(data.shapes, data.non_geometric, data.location_points)
+        shapes, non_geometric = self._merge_by_file(
+            self._snappy_by_file, path, data, data.shapes, data.non_geometric,
+            extra=data.location_points,
+        )
+        points = [
+            pt for d in self._snappy_by_file.values() for pt in d.location_points
+        ]
+        self._snappy.rebuild(shapes, non_geometric, points)
         self._update_export_stl_enabled()
         if self._plotter is not None:
             self._render()
@@ -1048,7 +867,10 @@ class BlockMeshPanel(QWidget):
             return
         assert self._set_fields is not None  # built in _build_controls() when _PYVISTA_OK
         data = extract_set_fields_data(root)
-        self._set_fields.rebuild(data.shapes, data.non_geometric)
+        shapes, non_geometric = self._merge_by_file(
+            self._set_fields_by_file, path, data, data.shapes, data.non_geometric
+        )
+        self._set_fields.rebuild(shapes, non_geometric)
         self._update_export_stl_enabled()
         if self._plotter is not None:
             self._render()
@@ -1058,19 +880,9 @@ class BlockMeshPanel(QWidget):
             return
         assert self._sampling is not None  # built in _build_controls() when _PYVISTA_OK
         data = extract_sampling_data(root)
-        # Keyed by full path, labelled by basename: two loaded sampling dicts
-        # can share a basename (an extra directory holding a second `sample`),
-        # and keying by the name alone made them overwrite each other.
-        for shape in data.shapes + data.non_geometric:
-            shape.source_file = Path(path).name
-        if data.shapes or data.non_geometric:
-            self._sampling_by_file[path] = data
-        else:
-            self._sampling_by_file.pop(path, None)
-        shapes = [s for d in self._sampling_by_file.values() for s in d.shapes]
-        non_geometric = [
-            s for d in self._sampling_by_file.values() for s in d.non_geometric
-        ]
+        shapes, non_geometric = self._merge_by_file(
+            self._sampling_by_file, path, data, data.shapes, data.non_geometric
+        )
         self._sampling.rebuild(shapes, non_geometric)
         if self._plotter is not None:
             self._render()
@@ -1097,6 +909,9 @@ class BlockMeshPanel(QWidget):
         if self._set_fields is not None:
             self._set_fields.rebuild([], [])
         self._sampling_by_file.clear()
+        self._topo_by_file.clear()
+        self._snappy_by_file.clear()
+        self._set_fields_by_file.clear()
         if self._sampling is not None:
             self._sampling.rebuild([], [])
         self._update_export_stl_enabled()
@@ -1452,61 +1267,10 @@ class BlockMeshPanel(QWidget):
         return "3Dview.png"
 
     def _save_view_image(self) -> None:
-        """Write the 3-D view to an image file, exactly as it is on screen.
-
-        Capture goes through VTK's own render window rather than Qt: the
-        plotter is a native child window, and QWidget.grab() returns black
-        for it (see DEVELOPER.md's "Text drawn by VTK, not Qt" neighbourhood,
-        and tools/capture_screenshots.py, which shells out to ImageMagick for
-        the same reason). screenshot() with no size or background arguments
-        captures the live framebuffer, which is what "as shown" means here.
-
-        One combined image filter, deliberately, rather than one per format.
-        The written format comes from the file name's extension (Pillow picks
-        it there), while a native GTK chooser -- which is what Qt hands this
-        off to on a GNOME desktop -- treats a name filter as a *view* filter
-        and never rewrites the name to match it. Per-format entries therefore
-        let the user pick "JPEG image", leave the name ending in .png, and get
-        a PNG: a choice offered and then silently ignored. With nothing to
-        choose there is nothing to contradict.
-
-        The formats are spelled out in the filter's *name* rather than left to
-        its "(*.png ...)" half, because that half never reaches the screen
-        under GTK: Qt's gtk3 helper builds the GTK filter's label as
-        ``filter.left(filter.indexOf(u'('))``, dropping the patterns. Naming
-        them ahead of the parenthesis is the one place both dialogs show.
-        """
+        """Write the 3-D view to an image file. The dialog and the writing live in
+        ui/panels/_view_image_export.py; what stays here is the panel's own state."""
         if not _PYVISTA_OK or self._plotter is None:
             return
-        path, _ = QFileDialog.getSaveFileName(
-            self,
-            tr("Save 3-D View as Image"),
-            self._default_image_path(),
-            f"{tr('Image files - PNG, JPEG, BMP, TIFF')} ({_IMAGE_FILTER_PATTERNS});;"
-            f"{tr('All files')} (*)",
-        )
-        if not path:
-            return
-        chosen = path
-        path = _writable_image_path(path)
-        # The dialog checked for an existing file under the name the user gave,
-        # so a corrected name has not been checked at all -- and writing it
-        # would clobber a real file with no prompt of any kind.
-        if path != chosen and Path(path).exists():
-            answer = QMessageBox.question(
-                self,
-                tr("Overwrite File?"),
-                tr("{path} already exists.\nReplace it?").format(path=path),
-            )
-            if answer != QMessageBox.StandardButton.Yes:
-                return
-        try:
-            self._plotter.screenshot(path)
-        except Exception as exc:  # unwritable path, unsupported format, ...
-            QMessageBox.warning(
-                self,
-                tr("Save Image Error"),
-                tr("Could not save the image:\n{error}").format(error=exc),
-            )
-            return
-        self.image_saved.emit(path)
+        path = save_view_image(self, self._plotter, self._default_image_path())
+        if path:
+            self.image_saved.emit(path)

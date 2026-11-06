@@ -143,6 +143,57 @@ Some dictionaries exist on one side only: `system/optimisationDict` and
 `faMeshDefinition` are OpenCFD; `system/createZonesDict`,
 `system/setWavesDict` and `constant/cloudProperties` are Foundation.
 
+### Names that differ *inside* a file, too
+
+The table above is about file names. The same split happens to names written
+inside a dictionary, and two cases turned up while making FoDE's 3-D view work
+with Foundation cases. Both have the same practical shape — **one spelling works
+in both forks and the other does not** — and in both cases the non-portable
+spelling is the one that fork's own tutorials use, which is how a case picks it
+up: by being copied from a tutorial.
+
+**snappyHexMeshDict `geometry` types.** Write `searchableBox`; it works
+everywhere. The short `box` is an OpenCFD-only alias:
+
+| `type` in `geometry { … }` | Foundation | OpenCFD |
+|---|---|---|
+| `searchableBox`, `searchableSphere`, `searchableCylinder`, `searchableCone`, `searchableSurfaceCollection`, … | yes | yes |
+| `box`, `sphere`, `cylinder`, `cone`, `collection`, `disk`, `plane`, `plate`, `rotatedBox`, `extrudedCircle` | **no** | yes |
+
+This is not two forks choosing different names — it is one fork adding aliases.
+Each `searchable*.C` in *both* forks registers the long name with
+`addToRunTimeSelectionTable`; OpenCFD's then registers the short one as well
+with `addNamedToRunTimeSelectionTable(..., box)`, for ten types. Foundation's
+`searchableSurfaces/` has no `addNamedToRunTimeSelectionTable` at all. The
+tutorials follow their own fork exactly: OpenCFD's use the short form 47 times
+and the long form never; Foundation's the long form 16 times and the short form
+never.
+
+**The snappyHexMesh keep-point.** Here the portable spelling is the *other* one —
+write `locationInMesh`:
+
+| in `castellatedMeshControls` | Foundation | OpenCFD |
+|---|---|---|
+| `locationInMesh` | yes (last fallback) | yes |
+| `insidePoint` | yes (preferred) | **no** — see below |
+
+Foundation's `refinementParameters.C` tries `insidePoints`, then `insidePoint`,
+then `locationInMesh`. OpenCFD's reads `locationInMesh` / `locationsInMesh` and
+nothing else *at this level* — it does use the word `insidePoint`, but inside a
+`refinementSurfaces` entry, where it names a per-surface cellZone selector rather
+than the global keep-point. Two different things sharing a spelling, which is
+worth knowing before grepping for it.
+
+Note the plurals are not interchangeable either, and not for a naming reason:
+`locationsInMesh` is a list of `((x y z) zoneName)` pairs, `insidePoints` a plain
+list of points.
+
+*Checked against OpenCFD v2606 and Foundation 12 only* — by reading each fork's
+registration tables and reader source, not by counting tutorials, except for the
+usage counts above. Unlike the release tables elsewhere in this document, this
+pair has not been traced across every release.
+
+
 ## Renames inside a file
 
 Keys move too, and far more often than files do — scanning both forks' sources
@@ -362,6 +413,11 @@ reads `processorAgglomerator` as a word, exactly as Foundation 13 did.
 - **The file list offers both spellings.** Every dictionary listed above is in
   FoDE's file list under both its old and its new name; only the one your case
   actually contains is shown. Nothing has to be configured.
+- **Both spellings render in the 3-D view.** The `searchable*` / short-name pairs
+  above are accepted either way, and so is `insidePoint` alongside
+  `locationInMesh`, so a Foundation case's refinement boxes and keep-point draw
+  the same as an OpenCFD one's. The overlay menu shows whichever spelling your
+  file actually uses rather than a normalised one.
 - **Version labels on keys are measured, not guessed.** The *Supported in* line
   in the Detail pane comes from reading every release of both forks, so
   "OpenCFD v2106-v2606" means the key is in all of them, not that it is in the

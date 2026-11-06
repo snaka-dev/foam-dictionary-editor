@@ -54,6 +54,8 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 | Run blockMesh or restore 0/ without leaving FoDE | [Run blockMesh](#run-blockmesh) / [Restore 0/ from 0.orig](#restore-0-from-0orig) |
 | Run snappyHexMesh or topoSet without leaving FoDE | [Run snappyHexMesh](#run-snappyhexmesh) / [Run topoSet](#run-toposet) |
 | Set initial field regions, or validate the mesh | [Run setFields](#run-setfields) / [Run checkMesh](#run-checkmesh) |
+| Split the case for a parallel run, run the solver alone, or bring the results back | [Run decomposePar](#run-decomposepar) / [Run Solver](#run-solver) / [Run reconstructPar](#run-reconstructpar) |
+| Free the disk space of a reconstructed parallel run | [Delete processor\* Directories](#delete-processor-directories) |
 | Run the case's whole workflow, or clean it back to a pristine state | [Run Allrun Script](#run-allrun-script) / [Run Allclean Script](#run-allclean-script) / [Clean Case](#clean-case-foamcleantutorials) |
 | Plot residuals while a solver is running | [foamMonitor launcher](#foammonitor-launcher) |
 | Read a long log.snappyHexMesh log without scrolling through thousands of lines | [View Log Summary](#view-log-summary) |
@@ -164,6 +166,10 @@ This is the full feature reference for FoDE. It covers every panel, menu, dialog
 - [Run topoSet](#run-toposet)
 - [Run setFields](#run-setfields)
 - [Run checkMesh](#run-checkmesh)
+- [Run decomposePar](#run-decomposepar)
+- [Run Solver](#run-solver)
+- [Run reconstructPar](#run-reconstructpar)
+- [Delete processor* Directories](#delete-processor-directories)
 - [Run Allrun Script](#run-allrun-script)
 - [Open Mesh in ParaView](#open-mesh-in-paraview)
 - [Run Allclean Script](#run-allclean-script)
@@ -279,7 +285,7 @@ The **Editor** tab has its own toolbar row with text search operations — the s
 - Highlight — toggleable button; click to turn syntax highlighting on or off. The setting is saved to `app_config.json` and restored on the next launch.
 - Line: N — current cursor line number (right side of the toolbar).
 
-The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, a **Tools** menu, and a **Help** menu.
+The menu bar provides a **Case** menu, a **Settings** menu, a **View** menu, a **Tools** menu, and a **Help** menu.
 
 **Case menu:**
 
@@ -308,6 +314,7 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, a *
 - View > File List `Ctrl+1`, View > Detail Pane `Ctrl+2`, View > Editor / Terminal Pane `Ctrl+3` — checkable; unticking one minimizes that pane. See [Minimizing panes](#minimizing-panes).
 - View > Reset Window Size — moved here from the Settings menu, alongside the pane-toggle items above it: all of them are about the window's on-screen geometry. See [Window size](#window-size).
 - View > BlockMesh 3-D Panel (checkable; shows or hides the BlockMesh tab. Grayed out — with the label "BlockMesh 3-D Panel  (unavailable: xterm active)" — while xterm terminal mode is active due to the GPU conflict).
+- View > Save Image… `Ctrl+Shift+I` — the same action as the **Save Image…** button in the BlockMesh panel; present only when that panel is available. See [BlockMesh panel](#blockmesh-panel).
 - View > View Log Summary… — the same action as Tools > View Log Summary…, listed here too for discoverability. See [View Log Summary](#view-log-summary).
 
 **Settings menu:**
@@ -316,6 +323,7 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, a *
 - Settings > Manage Case Library…
 - Settings > Manage Schema Modules…
 - Settings > Generate OpenFOAM Keywords… — rebuild the syntax-highlighter keyword list from a selected OpenFOAM installation. See [Generate OpenFOAM Keywords](#generate-openfoam-keywords).
+- Settings > Restore Last Session on Startup (checkable; ticked by default) and Settings > Forget Saved Session. See [Session restore](#session-restore).
 - Settings > Reset All Settings…
 - Settings > Appearance — select the colour theme: **Follow System** (default), **Light**, or **Dark**. Takes effect after restarting the application. See [Appearance and colours](#appearance-and-colours).
 - Settings > UI Scale — scale the whole interface by 100 % (default), 125 %, 150 %, 175 % or 200 %. Takes effect after restarting the application. See [Text size and display scaling](#text-size-and-display-scaling).
@@ -332,8 +340,12 @@ The menu bar provides a **Case** menu, a **View** menu, a **Settings** menu, a *
 - Tools > Run topoSet… — choose options and run `topoSet` in the case directory. See [Run topoSet](#run-toposet).
 - Tools > Run setFields… — choose options and run `setFields` in the case directory, offering to restore `0/` from `0.orig/` first. See [Run setFields](#run-setfields).
 - Tools > Run checkMesh… — choose options and run `checkMesh` in the case directory. See [Run checkMesh](#run-checkmesh).
+- Tools > Run decomposePar… — choose options and split the case for a parallel run. See [Run decomposePar](#run-decomposepar).
+- Tools > Run Solver… — run the solver named in `system/controlDict`, or another one you type, optionally in parallel. See [Run Solver](#run-solver).
+- Tools > Run reconstructPar… — merge a parallel run's results back into the case. See [Run reconstructPar](#run-reconstructpar).
+- Tools > Delete processor\* Directories… — delete the `processor*/` directories, only after checking nothing in them would be lost. See [Delete processor\* Directories](#delete-processor-directories).
 
-  A separator follows the mesh/field utilities above, and another follows each of the next two entries — **Run Allrun Script** is a whole workflow rather than one more per-utility action, and **Open Mesh in ParaView…** is a viewer rather than a run, so each gets its own group in the menu.
+  A separator follows the mesh/field utilities above, another follows the parallel-run entries (**Run decomposePar…** through **Delete processor\* Directories…**), and another follows each of the next two entries — **Run Allrun Script** is a whole workflow rather than one more per-utility action, and **Open Mesh in ParaView…** is a viewer rather than a run, so each gets its own group in the menu.
 - Tools > Run Allrun Script — run the case's `./Allrun` script, including the solver. See [Run Allrun Script](#run-allrun-script).
 - Tools > Open Mesh in ParaView… — open the current case in ParaView. See [Open Mesh in ParaView](#open-mesh-in-paraview).
 - Tools > Run Allclean Script — run the case's `./Allclean` script. See [Run Allclean Script](#run-allclean-script).
@@ -558,6 +570,8 @@ Clicking **Delete Selected** deletes the checked files from disk immediately, wi
 
 If no backup files are found, the dialog shows a message and offers only a **Close** button.
 
+**This cannot be undone.** See [Disclaimer](#disclaimer).
+
 ### Deleting a file
 
 Right-click any file in the file list and select **Delete file...**. A confirmation dialog shows the file name and three choices.
@@ -770,7 +784,7 @@ All controls sit in a single toolbar at the top of the panel. The toolbar *wraps
 | **Refresh** | Re-extract geometry from the current tree and redraw. In Preview mode, also discards all preview edits and resets vertex coordinates to the tree values. |
 | **Preview** | Appears only when the `vertices` block contains variable references (`$varName`). This button is shown inside the **Vertices** panel (not in the main toolbar). Click to enter Preview mode: table cells become editable and each change immediately updates the 3-D view, but the tree and file are not modified. A yellow banner is shown while Preview mode is active. Click **Refresh** to leave Preview mode and restore the original values. |
 | **STL ▾** | Drop-down menu: **Load STL / OBJ…** loads STL or OBJ files and displays them as translucent overlays (several files can be selected together in the file dialog, and further loads add to what is already shown; if one of the selected files cannot be read, the rest are still loaded and a single warning names the ones that failed); gzip-compressed files (`.stl.gz`, `.obj.gz`) load directly, no manual gunzip needed. Each loaded file gets its own checkable row at the bottom of the menu, coloured with the swatch shown beside it so several surfaces stay apart in the view, and the master **Show loaded surfaces** toggle plus **Show all surfaces** / **Hide all surfaces** switch them together — the same arrangement as the overlay menus above. Loading a file that is already loaded re-reads it into its existing row instead of adding a second one, which is how you refresh a surface edited outside FoDE. **Unload ▸** removes a single file; **Clear STL** removes all of them (both greyed out when none are loaded; opening another case also clears them, since they were loaded for the case you left). A surface is drawn even with no `blockMeshDict` open; **Export Shapes as STL…** opens a dialog listing every renderable `topoSetDict`/`snappyHexMeshDict`/`setFieldsDict` shape currently loaded, with a checkbox per shape (defaulting to its current visibility in the 3-D view) and a Select All / Deselect All pair. Choose an output folder and click Export to write each checked shape as its own `.stl` file, named after its label/name (greyed out when no topoSet/snappyHexMesh/setFields geometry is loaded). Point-marker shapes (e.g. `nearestToCell`) and `planeToFaceZone` discs are not offered — they have no meaningful STL surface. Exported geometry is always the full, unclipped shape, even when the 3-D view shows it clipped. |
-| **Save Image…** | Save the 3-D view exactly as shown — same pixel size, same background colour — to a PNG, JPEG, BMP, or TIFF file. **The extension you type in the Name field chooses the format** — the dialog offers a single combined image filter, named **Image files - PNG, JPEG, BMP, TIFF** so the accepted formats are readable in the dialog itself, rather than one filter per format, because a native GTK file chooser treats the filter as a view filter and will not rewrite the name to match it, so a per-format dropdown could be set to JPEG while the name still said `.png` and a PNG was written. An extension the writer cannot use, including a supported one spelled in capitals such as `.JPG`, is corrected before writing, and you are asked first if that correction would overwrite an existing file (also available as **Save 3-D View as Image** in the **View** menu and via `Ctrl+Shift+I`). Greyed out until the 3-D view has been shown at least once, since there is nothing yet to capture. The default filename is `<caseName>-3Dview.png` in the current case directory. Unlike **Export Shapes as STL…**, this captures the rendered picture — overlays, colours, camera angle, and all — rather than raw geometry. |
+| **Save Image…** | Save the 3-D view exactly as shown — same pixel size, same background colour — to a PNG, JPEG, BMP, or TIFF file. **The extension you type in the Name field chooses the format** — the dialog offers a single combined image filter, named **Image files - PNG, JPEG, BMP, TIFF** so the accepted formats are readable in the dialog itself, rather than one filter per format, because a native GTK file chooser treats the filter as a view filter and will not rewrite the name to match it, so a per-format dropdown could be set to JPEG while the name still said `.png` and a PNG was written. An extension the writer cannot use, including a supported one spelled in capitals such as `.JPG`, is corrected before writing, and you are asked first if that correction would overwrite an existing file (also available as **Save Image…** in the **View** menu and via `Ctrl+Shift+I`). Greyed out until the 3-D view has been shown at least once, since there is nothing yet to capture. The default filename is `<caseName>-3Dview.png` in the current case directory. Unlike **Export Shapes as STL…**, this captures the rendered picture — overlays, colours, camera angle, and all — rather than raw geometry. |
 
 Both the traditional 4-vertex face notation `(v0 v1 v2 v3)` and the newer compact notation `(blockIndex faceIndex)` are supported and can coexist in the same file. The compact form is automatically expanded to 4-vertex lists using the standard hex block face numbering before display.
 
@@ -1194,6 +1208,14 @@ The xterm.js library files are downloaded automatically from jsDelivr on first u
 - If the shell process exits unexpectedly, it is restarted automatically.
 - The shell process is terminated cleanly when the application closes.
 
+### Closing FoDE while a command runs
+
+The Terminal tab's shell ends when FoDE closes, and so does anything it is running. A solver stopped that way does not write its current time step. So if a command is still running — a solver, `./Allrun`, anything typed by hand — closing the window asks first, naming what is running, with **No** as the default answer. Switching between xterm and Simple mode replaces the shell too, so the mode checkbox asks the same question and stays as it was if you answer No. Nothing is asked when the shell is idle.
+
+For the same reason, every Tools-menu action that sends a command refuses while one is still running: the new command would only queue behind it — or, in xterm mode, be typed into it, where `mpirun` would swallow it as input.
+
+The check reads the shell's child processes from `/proc`, so it works on Linux; elsewhere it stays silent and closing behaves as before. To keep a run going after FoDE closes, start it outside FoDE for now (for example `nohup simpleFoam > log.simpleFoam 2>&1 < /dev/null &` in a terminal of your own).
+
 ## foamMonitor launcher
 
 **Tools > foamMonitor…** launches `foamMonitor` to plot residuals or other time-series data with gnuplot — without leaving FoDE.
@@ -1232,9 +1254,11 @@ Opening a different case while foamMonitor is running stops the current instance
 
 Select **Tools > Restore 0/ from 0.orig** to recreate the `0/` field directory from `0.orig/`. A confirmation dialog warns that `0/` will be deleted and replaced with a fresh copy of `0.orig/`, discarding any edits made directly to `0/`; click **Yes** to proceed. The command runs in the Terminal tab (`rm -rf 0 && cp -r 0.orig 0`), which is switched to automatically. The action is available only when a case is open, a `0.orig/` directory exists, and a terminal panel is present (absent in the `no-terminal` variant).
 
+**This cannot be undone.** See [Disclaimer](#disclaimer).
+
 ## Run blockMesh
 
-Select **Tools > Run blockMesh…** to run `blockMesh` in the case directory. An options dialog opens first — all five "Run *" actions share the same dialog layout:
+Select **Tools > Run blockMesh…** to run `blockMesh` in the case directory. An options dialog opens first — every "Run *" action shares the same dialog layout ([Run Solver](#run-solver) adds rows of its own on top):
 
 - **Curated options** — the tool's most common flags as checkboxes and fields. For blockMesh: an alternative dictionary (`-dict`, with a **Browse…** button that inserts a case-relative path) and a mesh region (`-region`).
 - **Extra options** — a free-text field for any other flags (e.g. `-verbose`), appended to the command as typed.
@@ -1260,6 +1284,44 @@ Select **Tools > Run setFields…** to run `setFields` in the case directory, re
 
 Select **Tools > Run checkMesh…** to run `checkMesh` in the case directory — typically after **Run blockMesh** or **Run snappyHexMesh** — to validate mesh quality (non-orthogonality, skewness, aspect ratio, …). The [options dialog](#run-blockmesh) offers `-allGeometry` and `-allTopology` (the extended non-standard check sets), `-writeSets` with a surface format (e.g. `vtk`, writing the faulty cell/face sets for inspection in ParaView), and `-region`; `checkMesh` only reads the mesh, so the dialog carries no pre-flight warning. The command runs in the Terminal tab (switched to automatically) and its output is also saved to `log.checkMesh`, where [View Log Summary](#view-log-summary) can pick it up. The action is available only when a case is open and a terminal panel is present.
 
+## Run decomposePar
+
+Select **Tools > Run decomposePar…** to split the case into `processorN/` directories for a parallel run, as set out in `system/decomposeParDict` (the number of pieces is its `numberOfSubdomains`). The [options dialog](#run-blockmesh) offers `-force` (delete existing `processor*` directories first), `-copyZero` (copy `0/` as it is instead of decomposing the fields), `-latestTime` and `-region`. If the case is already decomposed, the dialog says so and `-force` starts ticked, because without it decomposePar refuses to run. The one exception is when the `processor*` directories hold results that have not been reconstructed yet: time directories that exist there but not at the case root. `-force` would delete those for good, so the dialog lists the times, tells you to run `reconstructPar` first, and leaves `-force` unticked even if you ticked it last time. A decomposePar that refuses to run is the safe way for this to fail. The command runs in the Terminal tab and its output is also saved to `log.decomposePar`. If the case has no `system/decomposeParDict`, a message says so and nothing runs. Run the solver in parallel afterwards with [Run Solver](#run-solver).
+
+## Run Solver
+
+Select **Tools > Run Solver…** to run the case's solver on its own, without the rest of an `Allrun` script — for example after changing a boundary condition or `endTime`, when the mesh and initial fields are already in place. The **Solver** field is filled in from `application` in `system/controlDict`. That includes an edit you have not saved yet, since the field reads the editor's text, not the file on disk. You can type over it or pick another solver from the list, and the change applies to this run only: the next time the dialog opens, it is filled in from `controlDict` again. Only an executable name is accepted (letters, digits and `_ . + -`), and **Run** stays disabled until the field holds one.
+
+The line under the field says where the name came from. In an OpenFOAM Foundation v11+ case, `application` is `foamRun` and the physics is chosen by a separate `solver` entry (for example `incompressibleFluid`), or by `regionSolvers` for `foamMultiRun`. The dialog shows those modules, but the command is still plain `foamRun`, because foamRun reads them from `controlDict` itself.
+
+The dialog also carries:
+
+- **Save all unsaved files first**: shown, and ticked, whenever any file has unsaved changes, because the solver reads its dictionaries from disk, not from FoDE. If a file cannot be saved, the solver is not started.
+- **Run in parallel (mpirun -np N … -parallel)**: shown when the case is decomposed or has a `system/decomposeParDict`. Once the case is decomposed, N is the number of pieces it is split into, because that is what `mpirun` must match; before that, N comes from `numberOfSubdomains`. If the case is not decomposed yet, a warning tells you to [run decomposePar](#run-decomposepar) first. The box starts ticked when the case is decomposed, except in two situations, where it starts unticked and a warning explains why:
+  - `numberOfSubdomains` and the decomposition disagree, so OpenFOAM would stop the run at startup.
+  - `0/` or `constant/polyMesh` changed after the case was decomposed, including an unsaved edit to a `0/` field that this dialog is about to save. A parallel run reads `processor*/`, never the case root, so it would silently run without your change. Re-run decomposePar first.
+- Pre-flight warnings: no mesh found (`constant/polyMesh`, a region's `constant/<region>/polyMesh`, or a decomposed one); and time directories that already exist, together with what `startFrom` will do with them (`latestTime` continues from the latest one, anything else may overwrite results).
+- **Extra options** for anything else, such as `-noFunctionObjects`.
+- **Existing log.<solver>**: shown only when that log already exists, typically when you continue a run from its latest time. **Keep it as log.<solver>.[suffix]**, the default, moves the old log aside before the run starts. The suffix is pre-filled with the next `partN` (one past the highest already there, so the numbers stay in run order) and you can type your own, such as `before-refine`. **Overwrite it** replaces the old log. Either way, plain `log.<solver>` is always the latest run. Run stays disabled while the suffix is empty, starts with `.`, or contains anything but letters, digits and `_ . -`, and also while it names a log that already exists, so keeping one log can never overwrite another. The suffix is not remembered: each time, the field starts at the next free `partN`.
+
+The output goes to `log.<solver>`, the same file name an `Allrun` script's `runApplication`/`runParallel` uses, so [View Log Summary](#view-log-summary) and the Allrun "case already run?" check both see it. Plot residuals while it runs with the [foamMonitor launcher](#foammonitor-launcher). Stop the solver from the Terminal tab with Ctrl+C; in Simple terminal mode a running job cannot be interrupted. The action is available only when a case is open and a terminal panel is present.
+
+## Run reconstructPar
+
+Select **Tools > Run reconstructPar…** to merge a parallel run's results from the `processor*/` directories back into ordinary time directories at the case root, where FoDE, ParaView and the serial tools can read them. The [options dialog](#run-blockmesh) offers `-newTimes` (ticked by default: skip the times already at the case root), `-latestTime`, `-time` (for example `0.5:1`), `-fields` (for example `(U p)`), `-withZero` and `-region` — the options both forks spell the same way. The "skip fields / sets / lagrangian" switches are spelt `-noFields` on Foundation and `-no-fields` on OpenCFD, so they go in **Extra options**. The dialog lists the times not yet at the case root, or says there is nothing new to reconstruct. It refuses when the case has no `processor*/` directories, and while a command is still running in the Terminal tab, since a time step being written could be reconstructed half-finished. The output is also saved to `log.reconstructPar`.
+
+## Delete processor* Directories
+
+Select **Tools > Delete processor\* Directories…** to free the disk space a decomposed case takes once its results are reconstructed. Nothing is deleted until FoDE has checked, file by file, that everything in `processor*/` also exists at the case root:
+
+- every time directory, and every file in it — fields, `uniform/`, `lagrangian/` — so a run reconstructed with `-latestTime` or `-fields` is caught;
+- the cell/face/point sets in `constant/polyMesh/sets/`, which `reconstructPar` skips under its no-sets option;
+- the mesh: when the processors hold one, the case root needs a mesh with the same total cell count. A mesh made with `snappyHexMesh -parallel` and not yet through `reconstructParMesh` leaves the old background mesh at the root, and is caught here.
+
+If anything would be lost, the dialog lists what (for example "time 0.3 exists only in processor\*") and deletes nothing; there is no "delete anyway". Collated data (`processorsN`) is refused too, because FoDE cannot read inside it. When the check passes, a confirmation asks, with **No** as the default. It carries a checkbox, **Keep the latest time (t) and the decomposed mesh**, ticked by default. Ticked, every time directory in `processor*/` except the latest goes, and each processor's `constant/` stays, so the run can carry on in parallel with `startFrom latestTime;`. That spares re-running `decomposePar`, which is serial and needs the whole mesh in memory — the expensive step on exactly the cases where `processor*/` is large — while still freeing nearly all of the space. Unticked, the directories go entirely, and continuing in parallel later needs `decomposePar` again (Run decomposePar's `-latestTime` decomposes just the last time). The question at the top always states what the current choice will delete and how much — "Permanently delete 9.59 GB from the processor\* directories?", or "…entirely (9.96 GB)?" — and changes as you toggle the box. Two cases change the default: if the case root already has a later time than the processors (a serial run carried on after reconstructing), the box starts unticked, since the kept time would be an older restart point than the case; and if deleting everything would lose data but keeping the latest would not — the mesh exists only in `processor*/` — the box is ticked and locked, and the reason is shown. Only what will actually be deleted is checked: in keep mode the kept time and the mesh stay, so they need not be at the root. Whatever goes is deleted permanently, not moved to the trash — freeing the space is the point. On a large case this takes a while, so it runs in the background behind a progress window that names the directory being deleted; the main window keeps responding but cannot be used until it finishes. **Stop** ends it after the current time directory. That is always safe, since everything was checked before the first deletion, and running the action again finishes the job. The action also refuses while a command is still running in the Terminal tab. It does not need a terminal itself: the check and the deletion run inside FoDE.
+
+**This cannot be undone.** See [Disclaimer](#disclaimer).
+
 ## Run Allrun Script
 
 Select **Tools > Run Allrun Script** to run the case's `./Allrun` script in the Terminal tab (switched to automatically) — the case's full workflow, typically meshing, field initialisation, and the solver itself. A warning dialog is shown if the case has no `Allrun` script. Since solver runs can take a long time, a confirmation dialog is shown first; note that in Simple terminal mode a running job cannot be interrupted (the xterm terminal supports Ctrl+C).
@@ -1278,6 +1340,8 @@ Select **Tools > Run Allclean Script** to run the case's `./Allclean` script in 
 
 Note that [Clean Case (foamCleanTutorials)](#clean-case-foamcleantutorials) already runs `./Allclean` when the case has one — this action exists for when you want the script itself, explicitly.
 
+**This cannot be undone.** See [Disclaimer](#disclaimer).
+
 ## Clean Case (foamCleanTutorials)
 
 Select **Tools > Clean Case (foamCleanTutorials)** to clean the case with OpenFOAM's standard `foamCleanTutorials` script, run in the Terminal tab (switched to automatically). It removes the generated mesh (`constant/polyMesh`), time directories, `processor*/` decompositions, `postProcessing/`, `log.*` files, and other generated artifacts. Two case-specific behaviors, both stated in the confirmation dialog:
@@ -1286,6 +1350,8 @@ Select **Tools > Clean Case (foamCleanTutorials)** to clean the case with OpenFO
 - Otherwise, if a `0.orig/` directory exists, `0/` is also removed (`foamCleanTutorials`' default `-auto` mode — the standard tutorial convention; use [Restore 0/ from 0.orig](#restore-0-from-0orig) or **Run Allrun Script** to recreate it).
 
 The file list and the [mesh indicator](#mesh-presencestaleness-indicator) refresh automatically after cleaning. The action is available only when a case is open and a terminal panel is present, and requires a sourced OpenFOAM environment in the terminal (same as **Run blockMesh**).
+
+**This cannot be undone.** See [Disclaimer](#disclaimer).
 
 ## View Log Summary
 
@@ -1789,6 +1855,8 @@ This project is a practical editor template, not a complete OpenFOAM parser. Kno
 - Formatting and comment placement can change for modified nodes when text is regenerated from the tree.
 
 ## Disclaimer
+
+FoDE is provided "as is", without warranty of any kind. It edits, copies and deletes files in your cases, and although it guards those operations, you use it at your own risk: the authors are not liable for any loss of data or other damage arising from its use. Keep backups of any case you cannot regenerate. The binding terms are sections 15 (Disclaimer of Warranty) and 16 (Limitation of Liability) of the [licence](LICENSE).
 
 This offering is not approved or endorsed by OpenCFD Limited, producer and distributor of the OpenFOAM software via [www.openfoam.com](http://www.openfoam.com/), and owner of the OPENFOAM® and OpenCFD® trade marks.
 

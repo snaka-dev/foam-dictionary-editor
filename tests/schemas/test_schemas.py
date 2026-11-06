@@ -169,10 +169,6 @@ class TestLoadSchemaConfig:
 
 
 class TestSaveSchemaConfig:
-    def test_creates_file(self, schema_config_path):
-        save_schema_config({"schema_modules": []})
-        assert schema_config_path.exists()
-
     def test_content_round_trips(self, schema_config_path):
         save_schema_config({"schema_modules": ["a.b", "c.d"]})
         content = json.loads(schema_config_path.read_text(encoding="utf-8"))

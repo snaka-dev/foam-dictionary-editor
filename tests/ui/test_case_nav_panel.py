@@ -22,17 +22,17 @@ from ui.panels.case_nav_panel import CaseNavPanel
 
 
 @pytest.fixture
-def navigator(qapp):
+def navigator(qapp, destroy_widget):
     nav = CaseNavigator()
     yield nav
-    nav.deleteLater()
+    destroy_widget(nav)
 
 
 @pytest.fixture
-def panel(navigator, qapp):
+def panel(navigator, qapp, destroy_widget):
     p = CaseNavPanel(navigator)
     yield p
-    p.deleteLater()
+    destroy_widget(p)
 
 
 @pytest.fixture
@@ -203,33 +203,26 @@ class TestLocationPersistence:
         navigator.go_to(sample_tree)
         assert get_app_config().get_case_browser_dir() == str(sample_tree)
 
-    def test_initial_location_returns_the_stored_location(self, sample_tree, qapp):
+    def test_initial_location_returns_the_stored_location(self, sample_tree, qapp, qt_widget):
         get_app_config().set_case_browser_dir(str(sample_tree))
-        fresh = CaseNavigator()
-        try:
-            assert fresh.initial_location() == sample_tree
-        finally:
-            fresh.deleteLater()
+        fresh = qt_widget(CaseNavigator())
+        assert fresh.initial_location() == sample_tree
 
-    def test_a_vanished_stored_location_falls_back_to_the_default_case_dir(self, tmp_path, qapp):
+    def test_a_vanished_stored_location_falls_back_to_the_default_case_dir(
+        self, tmp_path, qapp, qt_widget
+    ):
         get_app_config().set_case_browser_dir(str(tmp_path / "vanished"))
         default_dir = tmp_path / "default_case"
         default_dir.mkdir()
         get_app_config().set_default_case_dir(str(default_dir))
-        fresh = CaseNavigator()
-        try:
-            assert fresh.initial_location() == default_dir
-        finally:
-            fresh.deleteLater()
+        fresh = qt_widget(CaseNavigator())
+        assert fresh.initial_location() == default_dir
 
-    def test_vanished_stored_and_default_both_fall_back_to_home(self, tmp_path, qapp):
+    def test_vanished_stored_and_default_both_fall_back_to_home(self, tmp_path, qapp, qt_widget):
         get_app_config().set_case_browser_dir(str(tmp_path / "vanished"))
         get_app_config().set_default_case_dir(str(tmp_path / "also-gone"))
-        fresh = CaseNavigator()
-        try:
-            assert fresh.initial_location() == Path.home()
-        finally:
-            fresh.deleteLater()
+        fresh = qt_widget(CaseNavigator())
+        assert fresh.initial_location() == Path.home()
 
 
 # ── long names elide rather than scrolling sideways ──────────────────────────

@@ -13,12 +13,41 @@ import pathlib
 
 import pytest
 
+from ui.panels import _view_image_export as view_image_export
 from ui.panels import block_mesh_panel
 from ui.panels.block_mesh_panel import BlockMeshPanel
 
 pytestmark = pytest.mark.skipif(
     not block_mesh_panel._PYVISTA_OK, reason="pyvista/pyvistaqt not installed"
 )
+
+
+@pytest.fixture
+def make_panel(qapp, destroy_widget):  # noqa: ARG001 (qapp required by PySide6)
+    """Build BlockMeshPanels that get shut down and destroyed when the test ends.
+
+    Sixteen tests here build a panel inline, and a panel Qt never reclaims is ~77 live
+    widgets that every later `apply_theme` then re-polishes -- see tests/conftest.py's
+    `_destroy_widget`. `shutdown()` runs first where it can, because it closes the VTK render
+    window and that needs its QWidget alive -- but most tests here stand `_StubPlotter` in for
+    the plotter, and `shutdown()` hands whatever it finds to `QLayout.removeWidget`, which
+    rejects a non-QWidget. So it runs only for a real plotter; a stub owns no render window
+    and has nothing to close.
+    """
+    panels: list[BlockMeshPanel] = []
+
+    def build() -> BlockMeshPanel:
+        panel = BlockMeshPanel()
+        panels.append(panel)
+        return panel
+
+    yield build
+    for panel in panels:
+        from PySide6.QtWidgets import QWidget
+
+        if isinstance(panel._plotter, QWidget):
+            panel.shutdown()
+        destroy_widget(panel)
 
 
 class _StubPlotter:
@@ -81,15 +110,15 @@ def _saved_paths(panel) -> list[str]:
 
 # ── availability ──────────────────────────────────────────────────────────────
 
-def test_action_starts_disabled(qapp):
+def test_action_starts_disabled(qapp, make_panel):
     """No plotter yet, so there is no view to save."""
-    panel = BlockMeshPanel()
+    panel = make_panel()
     assert panel.save_image_action is not None
     assert not panel.save_image_action.isEnabled()
 
 
-def test_shutdown_disables_the_action(qapp):
-    panel = BlockMeshPanel()
+def test_shutdown_disables_the_action(qapp, make_panel):
+    panel = make_panel()
     panel._plotter = _StubPlotter()   # type: ignore[assignment]
     # The stub is not a QWidget, so it cannot be un-parented from the real
     # layout; shutdown() skips that step when there is no layout to remove from.
@@ -99,9 +128,9 @@ def test_shutdown_disables_the_action(qapp):
     assert not panel.save_image_action.isEnabled()
 
 
-def test_toolbar_button_and_menu_share_one_action(qapp):
+def test_toolbar_button_and_menu_share_one_action(qapp, make_panel):
     """The View-menu item MainWindow adds must be this very QAction."""
-    panel = BlockMeshPanel()
+    panel = make_panel()
     buttons = [
         w for w in panel.findChildren(block_mesh_panel.QToolButton)
         if w.defaultAction() is panel.save_image_action
@@ -111,8 +140,8 @@ def test_toolbar_button_and_menu_share_one_action(qapp):
 
 # ── writing ───────────────────────────────────────────────────────────────────
 
-def test_writes_the_chosen_path(qapp, tmp_path, monkeypatch):
-    panel = BlockMeshPanel()
+def test_writes_the_chosen_path(qapp, make_panel, tmp_path, monkeypatch):
+    panel = make_panel()
     stub = _StubPlotter()
     panel._plotter = stub             # type: ignore[assignment]
     target = str(tmp_path / "view.png")
@@ -137,14 +166,14 @@ def test_writes_the_chosen_path(qapp, tmp_path, monkeypatch):
     ],
 )
 def test_suffix_is_coerced_to_something_writable(
-    qapp, tmp_path, monkeypatch, chosen, written
+    qapp, tmp_path, monkeypatch, make_panel, chosen, written
 ):
     """pyvista's SUPPORTED_FORMATS check is case-sensitive, so ".JPG" raises.
 
     Lowering a supported-but-shouted suffix is what keeps the user's chosen
     format; appending ".png" is the fallback for one pyvista cannot write.
     """
-    panel = BlockMeshPanel()
+    panel = make_panel()
     stub = _StubPlotter()
     panel._plotter = stub             # type: ignore[assignment]
     _choose(monkeypatch, str(tmp_path / chosen))
@@ -154,7 +183,7 @@ def test_suffix_is_coerced_to_something_writable(
     assert stub.paths == [str(tmp_path / written)]
 
 
-def test_one_image_filter_covering_every_supported_suffix(qapp, monkeypatch):
+def test_one_image_filter_covering_every_supported_suffix(qapp, make_panel, monkeypatch):
     """A single filter, so the dropdown cannot disagree with the typed name.
 
     A native GTK chooser (what Qt uses on GNOME) treats a name filter as a
@@ -167,7 +196,7 @@ def test_one_image_filter_covering_every_supported_suffix(qapp, monkeypatch):
         "getSaveFileName",
         staticmethod(lambda _p, _t, _d, filt="", *a, **k: (seen.append(filt), ("", ""))[1]),
     )
-    panel = BlockMeshPanel()
+    panel = make_panel()
     panel._plotter = _StubPlotter()   # type: ignore[assignment]
 
     panel._save_view_image()
@@ -176,7 +205,7 @@ def test_one_image_filter_covering_every_supported_suffix(qapp, monkeypatch):
     image_filter = seen[0].split(";;")[0]
     # Exactly one image entry, and it offers every suffix the writer accepts.
     assert len(seen[0].split(";;")) == 2, "expected one image filter plus All files"
-    for suffix in block_mesh_panel._IMAGE_SUFFIXES:
+    for suffix in view_image_export._IMAGE_SUFFIXES:
         assert f"*{suffix}" in image_filter, suffix
 
     # Qt's gtk3 helper labels a native filter with filter.left(indexOf("(")),
@@ -188,12 +217,12 @@ def test_one_image_filter_covering_every_supported_suffix(qapp, monkeypatch):
     assert named, "the visible half of the filter names no format at all"
     for fmt in named:
         assert any(
-            s.lstrip(".").startswith(fmt[:3]) for s in block_mesh_panel._IMAGE_SUFFIXES
+            s.lstrip(".").startswith(fmt[:3]) for s in view_image_export._IMAGE_SUFFIXES
         ), f"filter advertises {fmt!r}, which no supported suffix matches"
 
 
 def test_every_coerced_suffix_is_one_pyvista_accepts(tmp_path):
-    """The suffixes _writable_image_path can produce must satisfy pyvista.
+    """The suffixes writable_image_path can produce must satisfy pyvista.
 
     Guards the pairing directly rather than through the stub: a change to
     pyvista's list, or to the coercion, should fail here rather than in a
@@ -201,19 +230,19 @@ def test_every_coerced_suffix_is_one_pyvista_accepts(tmp_path):
     """
     from pyvista.plotting.plotter import SUPPORTED_FORMATS
 
-    assert set(block_mesh_panel._IMAGE_SUFFIXES) == set(SUPPORTED_FORMATS)
+    assert set(view_image_export._IMAGE_SUFFIXES) == set(SUPPORTED_FORMATS)
     for name in ("v", "v.txt", "v.JPG", "v.PNG", "v.tiff", "v.Bmp", "v.TIF"):
-        written = block_mesh_panel._writable_image_path(str(tmp_path / name))
+        written = view_image_export.writable_image_path(str(tmp_path / name))
         assert pathlib.Path(written).suffix in SUPPORTED_FORMATS, name
 
 
 # ── not clobbering a file the dialog never asked about ────────────────────────
 
-def test_corrected_name_asks_before_overwriting(qapp, tmp_path, monkeypatch):
+def test_corrected_name_asks_before_overwriting(qapp, make_panel, tmp_path, monkeypatch):
     """The dialog checked "view.txt"; nothing ever checked "view.txt.png"."""
     existing = tmp_path / "view.txt.png"
     existing.write_text("precious")
-    panel = BlockMeshPanel()
+    panel = make_panel()
     stub = _StubPlotter()
     panel._plotter = stub             # type: ignore[assignment]
     _choose(monkeypatch, str(tmp_path / "view.txt"))
@@ -226,11 +255,11 @@ def test_corrected_name_asks_before_overwriting(qapp, tmp_path, monkeypatch):
     assert existing.read_text() == "precious"
 
 
-def test_unchanged_name_does_not_ask_twice(qapp, tmp_path, monkeypatch):
+def test_unchanged_name_does_not_ask_twice(qapp, make_panel, tmp_path, monkeypatch):
     """QFileDialog already confirmed this one; a second prompt would be noise."""
     existing = tmp_path / "view.png"
     existing.write_text("stale")
-    panel = BlockMeshPanel()
+    panel = make_panel()
     stub = _StubPlotter()
     panel._plotter = stub             # type: ignore[assignment]
     _choose(monkeypatch, str(existing))
@@ -243,9 +272,9 @@ def test_unchanged_name_does_not_ask_twice(qapp, tmp_path, monkeypatch):
 
 
 def test_corrected_name_that_is_free_writes_without_asking(
-    qapp, tmp_path, monkeypatch
+    qapp, tmp_path, monkeypatch, make_panel
 ):
-    panel = BlockMeshPanel()
+    panel = make_panel()
     stub = _StubPlotter()
     panel._plotter = stub             # type: ignore[assignment]
     _choose(monkeypatch, str(tmp_path / "view.txt"))
@@ -257,8 +286,8 @@ def test_corrected_name_that_is_free_writes_without_asking(
     assert stub.paths == [str(tmp_path / "view.txt.png")]
 
 
-def test_cancelled_dialog_writes_nothing(qapp, monkeypatch):
-    panel = BlockMeshPanel()
+def test_cancelled_dialog_writes_nothing(qapp, make_panel, monkeypatch):
+    panel = make_panel()
     stub = _StubPlotter()
     panel._plotter = stub             # type: ignore[assignment]
     _choose(monkeypatch, "")
@@ -270,9 +299,9 @@ def test_cancelled_dialog_writes_nothing(qapp, monkeypatch):
     assert saved == []
 
 
-def test_no_plotter_is_a_no_op(qapp, tmp_path, monkeypatch):
+def test_no_plotter_is_a_no_op(qapp, make_panel, tmp_path, monkeypatch):
     """The action is disabled in this state; the handler must not assume it."""
-    panel = BlockMeshPanel()
+    panel = make_panel()
     panel._plotter = None
     _choose(monkeypatch, str(tmp_path / "view.png"))
     saved = _saved_paths(panel)
@@ -282,8 +311,8 @@ def test_no_plotter_is_a_no_op(qapp, tmp_path, monkeypatch):
     assert saved == []
 
 
-def test_write_failure_warns_and_reports_nothing_saved(qapp, tmp_path, monkeypatch):
-    panel = BlockMeshPanel()
+def test_write_failure_warns_and_reports_nothing_saved(qapp, make_panel, tmp_path, monkeypatch):
+    panel = make_panel()
     panel._plotter = _StubPlotter(OSError("disk full"))  # type: ignore[assignment]
     _choose(monkeypatch, str(tmp_path / "view.png"))
     warnings = _capture_warnings(monkeypatch)
@@ -298,21 +327,21 @@ def test_write_failure_warns_and_reports_nothing_saved(qapp, tmp_path, monkeypat
 
 # ── default filename ──────────────────────────────────────────────────────────
 
-def test_default_path_is_named_after_the_case(qapp, tmp_path):
-    panel = BlockMeshPanel()
+def test_default_path_is_named_after_the_case(qapp, make_panel, tmp_path):
+    panel = make_panel()
     case = tmp_path / "damBreak"
     panel.set_case_dir(str(case))
     assert panel._default_image_path() == str(case / "damBreak-3Dview.png")
 
 
-def test_default_path_without_a_case(qapp):
-    panel = BlockMeshPanel()
+def test_default_path_without_a_case(qapp, make_panel):
+    panel = make_panel()
     assert panel._default_image_path() == "3Dview.png"
 
 
-def test_clear_forgets_the_case(qapp, tmp_path):
+def test_clear_forgets_the_case(qapp, make_panel, tmp_path):
     """Opening another case clears the panel before set_case_dir re-points it."""
-    panel = BlockMeshPanel()
+    panel = make_panel()
     panel.set_case_dir(str(tmp_path / "cavity"))
     panel.clear()
     assert panel._default_image_path() == "3Dview.png"

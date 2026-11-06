@@ -42,10 +42,10 @@ from ui.theme import colors
 
 
 @pytest.fixture
-def panel(qapp):
+def panel(qapp, destroy_widget):
     p = FileListPanel()
     yield p
-    p.deleteLater()
+    destroy_widget(p)
 
 
 # ── display_file_name ─────────────────────────────────────────────────────────
@@ -1021,3 +1021,226 @@ class TestLongPathsDoNotScrollSideways:
         header = panel._list.item(0)
         assert header.data(_HEADER_GROUP_ROLE) == "constant"
         assert header.toolTip() == header.text()
+
+
+class TestResetFileListReportsHonestly:
+    """The confirmation promises .foam-editor-files.json will be deleted.
+
+    It used to report success whether or not the delete worked -- and since the reload
+    that follows re-reads the surviving file, the entries reappeared in the list a moment
+    after the user was told they were gone.
+    """
+
+    @pytest.fixture
+    def case_with_extras(self, tmp_path):
+        from services.case_files_config import CaseFilesConfig
+
+        (tmp_path / "system").mkdir()
+        (tmp_path / "system" / "controlDict").write_text(
+            "FoamFile { version 2.0; format ascii; class dictionary; object controlDict; }\n"
+            "application icoFoam;\n", encoding="utf-8")
+        (tmp_path / "system" / "myDict").write_text("// x\n", encoding="utf-8")
+        cfg = CaseFilesConfig(str(tmp_path))
+        cfg.add_file("system/myDict")
+        cfg.save()
+        return tmp_path
+
+    def test_a_successful_reset_says_so(self, main_window, case_with_extras, monkeypatch):
+        win = main_window
+        win._load_case_dir(str(case_with_extras))
+        monkeypatch.setattr(type(win), "_confirm", lambda self, *a, **k: True)
+        seen: list[str] = []
+        monkeypatch.setattr(type(win), "_error", lambda self, t, m: seen.append(m))
+
+        win.reset_file_list()
+
+        assert seen == []
+        assert not (case_with_extras / ".foam-editor-files.json").exists()
+
+    def test_a_failed_delete_is_reported_not_claimed(
+        self, main_window, case_with_extras, monkeypatch
+    ):
+        from pathlib import Path
+
+        win = main_window
+        win._load_case_dir(str(case_with_extras))
+        monkeypatch.setattr(type(win), "_confirm", lambda self, *a, **k: True)
+        seen: list[str] = []
+        monkeypatch.setattr(type(win), "_error", lambda self, t, m: seen.append(m))
+        monkeypatch.setattr(
+            Path, "unlink", lambda self, *a, **k: (_ for _ in ()).throw(OSError("read-only"))
+        )
+
+        win.reset_file_list()
+
+        assert len(seen) == 1
+        assert "Could not delete" in seen[0]
+        # ...and the file really is still there, which is what the message claims
+        assert (case_with_extras / ".foam-editor-files.json").exists()
+
+
+# ── context menus (built without QMenu.exec, see _build_context_menu) ────────
+
+
+def _menu_rows(menu):
+    """Every action of *menu* and its submenus, by text.
+
+    Submenus are reached through findChildren rather than QAction.menu(),
+    which in this PySide6 release invalidates the wrappers it touches.
+    """
+    from PySide6.QtWidgets import QMenu
+
+    rows = {}
+    for m in [menu, *menu.findChildren(QMenu)]:
+        for act in m.actions():
+            if not act.isSeparator() and act.text() not in ("", "Show in 3-D view as"):
+                rows[act.text()] = act
+    return rows
+
+
+def _choose(panel, item, label):
+    menu, actions = panel._build_context_menu(item)
+    rows = _menu_rows(menu)
+    assert label in rows, f"no {label!r}; rows were {sorted(rows)}"
+    actions[rows[label]]()
+
+
+def _find_item(panel, predicate):
+    for i in range(panel._list.count()):
+        item = panel._list.item(i)
+        if predicate(item):
+            return item
+    raise AssertionError("no matching row")
+
+
+@pytest.fixture
+def menu_case(tmp_path):
+    (tmp_path / "system").mkdir()
+    (tmp_path / "system" / "controlDict").write_text("")
+    (tmp_path / "0.orig").mkdir()
+    (tmp_path / "0.orig" / "U").write_text("")
+    (tmp_path / "0").mkdir()
+    (tmp_path / "0" / "U").write_text("")
+    return tmp_path
+
+
+def _loaded(panel, case, **kw):
+    paths = [str(case / "system" / "controlDict"), str(case / "0" / "U"),
+             str(case / "0.orig" / "U")]
+    panel.load_files(paths + kw.pop("more", []), str(case), **kw)
+    return paths
+
+
+class TestFileRowMenu:
+    def _row(self, panel, path):
+        return _find_item(panel, lambda it: it.data(Qt.ItemDataRole.UserRole) == path)
+
+    @pytest.mark.parametrize(
+        ("label", "signal"),
+        [
+            ("Duplicate...", "duplicate_file_requested"),
+            ("Create Backup", "backup_file_requested"),
+            ("Delete file...", "delete_file_requested"),
+        ],
+    )
+    def test_path_actions_emit_their_signal(self, panel, menu_case, label, signal):
+        paths = _loaded(panel, menu_case)
+        got = []
+        getattr(panel, signal).connect(got.append)
+        _choose(panel, self._row(panel, paths[0]), label)
+        assert got == [paths[0]]
+
+    def test_save(self, panel, menu_case):
+        paths = _loaded(panel, menu_case)
+        got = []
+        panel.save_file_requested.connect(lambda: got.append(True))
+        _choose(panel, self._row(panel, paths[0]), "Save File\tCtrl+S")
+        assert got == [True]
+
+    def test_remove_only_for_extra_files(self, panel, menu_case):
+        extra = str(menu_case / "system" / "myDict")
+        (menu_case / "system" / "myDict").write_text("")
+        paths = _loaded(panel, menu_case, more=[extra], extra_files=["system/myDict"])
+        menu, _ = panel._build_context_menu(self._row(panel, paths[0]))
+        assert "Remove from extra files" not in _menu_rows(menu)
+        got = []
+        panel.remove_extra_file_requested.connect(got.append)
+        _choose(panel, self._row(panel, extra), "Remove from extra files")
+        assert got == [extra]
+
+    def test_viewer_kind_submenu(self, panel, menu_case):
+        paths = _loaded(panel, menu_case)
+        panel.set_viewer_kind_overrides({paths[0]: "topo_set"})
+        menu, _ = panel._build_context_menu(self._row(panel, paths[0]))
+        rows = _menu_rows(menu)
+        assert not rows["Automatic"].isChecked()
+        assert [t for t, a in rows.items() if a.isCheckable() and a.isChecked()] == [
+            "topoSetDict"
+        ]
+        got = []
+        panel.viewer_kind_requested.connect(lambda p, k: got.append((p, k)))
+        _choose(panel, self._row(panel, paths[0]), "Automatic")
+        _choose(panel, self._row(panel, paths[0]), "Sampling (probes / sets / surfaces)")
+        assert got == [(paths[0], ""), (paths[0], "sampling")]
+
+    def test_read_only_row_offers_only_copy(self, panel, menu_case, tmp_path_factory):
+        outside = tmp_path_factory.mktemp("etc") / "caseDicts"
+        outside.write_text("")
+        paths = _loaded(
+            panel, menu_case, more=[str(outside)],
+            included_files={str(outside): str(menu_case / "system" / "controlDict")},
+        )
+        row = self._row(panel, str(outside))
+        assert row.data(_READ_ONLY_ROLE)
+        menu, _ = panel._build_context_menu(row)
+        assert list(_menu_rows(menu)) == ["Copy into case..."]
+        got = []
+        panel.copy_into_case_requested.connect(got.append)
+        _choose(panel, row, "Copy into case...")
+        assert got == [str(outside)]
+        assert paths  # the case rows are still there
+
+
+class TestHeaderMenu:
+    def _header(self, panel, group):
+        return _find_item(panel, lambda it: it.data(_HEADER_GROUP_ROLE) == group)
+
+    def test_new_and_add(self, panel, menu_case):
+        _loaded(panel, menu_case)
+        got = []
+        panel.create_file_requested.connect(lambda c, g: got.append(("new", c, g)))
+        panel.add_file_requested.connect(lambda c, g: got.append(("add", c, g)))
+        header = self._header(panel, "system")
+        _choose(panel, header, "New file in 'system'...")
+        _choose(panel, header, "Add files from 'system'...")
+        assert got == [("new", str(menu_case), "system"), ("add", str(menu_case), "system")]
+
+    def test_zero_dir_delete_needs_zero_orig(self, panel, menu_case):
+        _loaded(panel, menu_case)
+        got = []
+        panel.delete_dir_requested.connect(lambda c, g: got.append(g))
+        _choose(panel, self._header(panel, "0"), "Delete '0' directory...")
+        assert got == ["0"]
+        # Both directories exist, so neither offers to duplicate into the other.
+        menu, _ = panel._build_context_menu(self._header(panel, "0.orig"))
+        assert not any(t.startswith("Duplicate") for t in _menu_rows(menu))
+
+    def test_duplicate_into_missing_counterpart(self, panel, menu_case):
+        import shutil
+
+        shutil.rmtree(menu_case / "0.orig")
+        panel.load_files(
+            [str(menu_case / "system" / "controlDict"), str(menu_case / "0" / "U")],
+            str(menu_case),
+        )
+        menu, _ = panel._build_context_menu(self._header(panel, "0"))
+        assert "Delete '0' directory..." not in _menu_rows(menu)
+        got = []
+        panel.duplicate_dir_requested.connect(lambda c, s, d: got.append((s, d)))
+        _choose(panel, self._header(panel, "0"), "Duplicate '0' → '0.orig'...")
+        assert got == [("0", "0.orig")]
+
+    def test_no_menu_without_case_dir(self, panel, menu_case):
+        panel.load_files([str(menu_case / "system" / "controlDict")], None)
+        header = self._header(panel, "system")
+        assert panel._build_context_menu(header) is None

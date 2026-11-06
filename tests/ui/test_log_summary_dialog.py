@@ -35,35 +35,31 @@ def case_dir(tmp_path):
     return tmp_path
 
 
-def test_dialog_is_non_modal(qapp, case_dir):
-    dlg = LogSummaryDialog(str(case_dir))
+def test_dialog_is_non_modal(qapp, qt_widget, case_dir):
+    dlg = qt_widget(LogSummaryDialog(str(case_dir)))
     assert dlg.windowModality() == Qt.WindowModality.NonModal
-    dlg.deleteLater()
 
 
-def test_dialog_defaults_to_most_recent_log_and_shows_summary(qapp, case_dir):
-    dlg = LogSummaryDialog(str(case_dir))
+def test_dialog_defaults_to_most_recent_log_and_shows_summary(qapp, qt_widget, case_dir):
+    dlg = qt_widget(LogSummaryDialog(str(case_dir)))
     assert dlg._file_edit.text() == str(case_dir / "log.blockMesh")
     assert "nCells: 5" in dlg._summary_text.toPlainText()
     assert "Result: OK" in dlg._summary_text.toPlainText()
     assert "Mesh Information" in dlg._raw_text.toPlainText()
-    dlg.deleteLater()
 
 
-def test_changing_file_field_reparses_summary(qapp, case_dir, tmp_path):
+def test_changing_file_field_reparses_summary(qapp, qt_widget, case_dir, tmp_path):
     other_log = tmp_path / "log.other"
     other_log.write_text("Exec   : checkMesh\n\n// * * * //\nsome output line\n")
-    dlg = LogSummaryDialog(str(case_dir))
+    dlg = qt_widget(LogSummaryDialog(str(case_dir)))
     dlg._file_edit.setText(str(other_log))
     dlg._reload()
     assert "some output line" in dlg._raw_text.toPlainText()
-    dlg.deleteLater()
 
 
-def test_no_log_files_leaves_file_field_empty(qapp, tmp_path):
+def test_no_log_files_leaves_file_field_empty(qapp, qt_widget, tmp_path):
     empty_dir = tmp_path / "empty_case"
     empty_dir.mkdir()
-    dlg = LogSummaryDialog(str(empty_dir))
+    dlg = qt_widget(LogSummaryDialog(str(empty_dir)))
     assert dlg._file_edit.text() == ""
     assert "Select a log file" in dlg._summary_text.toPlainText()
-    dlg.deleteLater()

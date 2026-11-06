@@ -2,6 +2,8 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+import bisect
+
 from foam.lexer import OpenFoamLexer
 from foam.nodes import BOOL_WORDS, FoamNode, NodeType
 from foam.utils import (
@@ -92,6 +94,11 @@ class OpenFoamParser:
         self.tokens = OpenFoamLexer(text).tokenize()
         self.index = 0
         self.errors: list[tuple[int, str]] = []
+        # Offset of the first character of each line, for _token_line's bisect. Built once
+        # here rather than counting newlines per lookup, which made parsing quadratic in
+        # file size -- see _token_line.
+        self._line_starts = [0]
+        self._line_starts.extend(i + 1 for i, ch in enumerate(text) if ch == "\n")
 
     def parse(self) -> FoamNode:
         root = FoamNode(name="root", node_type="dictionary")
@@ -860,9 +867,16 @@ class OpenFoamParser:
         return tok
 
     def _token_line(self, token_index: int) -> int:
+        """The 1-based source line a token starts on.
+
+        _finalize_node calls this twice per node, so counting newlines from the start of the
+        file each time made the whole parse quadratic: 80% of the time spent parsing a 486 KB
+        dictionary was this one str.count. Bisecting the line-start offsets built in __init__
+        makes each lookup logarithmic.
+        """
         if token_index >= len(self.tokens):
             return 0
-        return self.text.count("\n", 0, self.tokens[token_index].pos) + 1
+        return bisect.bisect_right(self._line_starts, self.tokens[token_index].pos)
 
     def _finalize_node(self, node: FoamNode, start_index: int) -> FoamNode:
         node.inline_comment = self._collect_inline_comment()

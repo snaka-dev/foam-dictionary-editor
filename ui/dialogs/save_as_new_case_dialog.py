@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QButtonGroup, QGroupBox, QLabel, QRadioButton, QVB
 
 from i18n import tr
 from ui.dialogs._case_dest_dialog import _CaseDestDialogBase
+from ui.label_fit import fit_wrapped_labels
 from ui.theme import colors
 
 
@@ -50,3 +51,23 @@ class SaveAsNewCaseDialog(_CaseDestDialogBase):
         note.setWordWrap(True)
 
         self._finish_layout(copy_mode_box, [note])
+
+        self._labels_fitted = False
+
+    def showEvent(self, event):
+        """Give the wrapped labels their real heights, once.
+
+        A wrapped QLabel's sizeHint is measured at a width Qt guesses, not the one it gets,
+        so a fixed-width dialog under-allocates and the last lines are never drawn -- see
+        ui/label_fit.py. Only after the first layout pass does a label know its real width.
+        """
+        super().showEvent(event)
+        if self._labels_fitted:
+            return
+        self._labels_fitted = True
+        fit_wrapped_labels(self)
+        # activate() first, so the new minimum heights travel back up through the layout
+        # before the dialog's own size hint reflects them. Then resize() rather than
+        # adjustSize(), which clamps a window to two thirds of the screen height.
+        self.layout().activate()
+        self.resize(self.width(), self.sizeHint().height())

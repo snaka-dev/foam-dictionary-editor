@@ -126,6 +126,22 @@ class _FileOpsMixin(_Base):
         self.state.read_only_files = read_only
         return paths + included, extra, extra_dir_paths, origins
 
+    def _case_relative(self, path: str | Path) -> str | None:
+        """*path* as a case-relative string, or None when it is outside the open case.
+
+        Six callers wrote this as a three-line try/except around `relative_to`, whose
+        ValueError is how "outside the case" is reported. Out-of-case paths are ordinary
+        here -- an `#include` resolved into the OpenFOAM installation is one -- so this is
+        a routine answer rather than an error, and None says so without the ceremony.
+        """
+        case_dir = self.state.current_case_dir
+        if not case_dir:
+            return None
+        try:
+            return str(Path(path).relative_to(Path(case_dir)))
+        except ValueError:
+            return None
+
     def _reload_file_list(self) -> None:
         if not self.state.current_case_dir or not self.state.case_files_config:
             return
@@ -143,6 +159,13 @@ class _FileOpsMixin(_Base):
         paths, extra, extra_dir_paths, origins = self._case_file_paths(
             self.state.current_case_dir
         )
+        # Absolute here, case-relative on disk: the panel works in the paths its rows
+        # carry, the config in paths that survive the case directory being moved.
+        case_root = Path(self.state.current_case_dir)
+        self.file_list_panel.set_viewer_kind_overrides({
+            str(case_root / rel): kind
+            for rel, kind in self.state.case_files_config.get_viewer_kinds().items()
+        })
         self.file_list_panel.load_files(
             paths,
             case_dir=self.state.current_case_dir,
@@ -236,8 +259,7 @@ class _FileOpsMixin(_Base):
             large_non_foam, size_bytes = is_large_non_foam_file(path)
             if large_non_foam:
                 size_kb = size_bytes // 1024
-                reply = QMessageBox.question(
-                    self,
+                if not self._confirm(
                     tr("Large Non-Dictionary File"),
                     tr(
                         "'{name}' does not appear to be an OpenFOAM dictionary ({size} KB).\n"
@@ -245,10 +267,7 @@ class _FileOpsMixin(_Base):
                         "Loading may take a while — the application will not respond during this time.\n\n"
                         "Open anyway?"
                     ).format(name=Path(path).name, size=size_kb),
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.No,
-                )
-                if reply != QMessageBox.StandardButton.Yes:
+                ):
                     return
                 self.statusBar().showMessage(
                     tr("Loading large file: {name} — please wait…").format(name=Path(path).name),
@@ -257,7 +276,7 @@ class _FileOpsMixin(_Base):
             try:
                 text = read_foam_file(path)
             except Exception as e:
-                QMessageBox.critical(self, tr("Error"), str(e))
+                self._error(tr("Error"), str(e))
                 return
             self.state.file_buffers[path] = text
             self.state.file_dirty[path] = False
@@ -319,18 +338,12 @@ class _FileOpsMixin(_Base):
                 )
 
         except Exception as e:
-            QMessageBox.critical(self, tr("Error"), str(e))
+            self._error(tr("Error"), str(e))
 
     def save_file(self) -> None:
         if not self.state.current_file:
             return
-        if self._is_read_only(self.state.current_file):
-            self.statusBar().showMessage(
-                tr("Read-only file — outside the case directory: {name}").format(
-                    name=Path(self.state.current_file).name
-                ),
-                STATUS_WARNING,
-            )
+        if self._read_only_refused(self.state.current_file):
             return
 
         text = self.editor_panel.get_text()
@@ -378,18 +391,14 @@ class _FileOpsMixin(_Base):
                 )
 
         except Exception as e:
-            QMessageBox.critical(self, tr("Save Error"), str(e))
+            self._error(tr("Save Error"), str(e))
 
     def save_all_files(self) -> None:
         if self.state.current_file is not None:
             self.state.file_buffers[self.state.current_file] = self.editor_panel.get_text()
             self.state.file_dirty[self.state.current_file] = self.state.text_dirty
 
-        # A read-only file should never be dirty (_mark_dirty refuses); filtering
-        # here too keeps one stray flag from writing into the OpenFOAM install.
-        dirty_paths = [
-            p for p, dirty in self.state.file_dirty.items() if dirty and not self._is_read_only(p)
-        ]
+        dirty_paths = self._dirty_paths()
         if not dirty_paths:
             self.statusBar().showMessage(tr("No unsaved files."), STATUS_SHORT)
             return
@@ -435,21 +444,27 @@ class _FileOpsMixin(_Base):
         if not config.exists:
             self.statusBar().showMessage(tr("No extra files configured for this case."), STATUS_SHORT)
             return
-        reply = QMessageBox.question(
-            self,
+        if not self._confirm(
             tr("Reset File List"),
             tr(
                 "Remove all user-added files and directories from the file list for this case?\n"
                 "The .foam-editor-files.json file will be deleted."
             ),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
+        ):
             return
-        config.delete_config_file()
+        deleted = config.delete_config_file()
         self._load_case_dir(self.state.current_case_dir)
-        self.statusBar().showMessage(tr("File list reset to default."), STATUS_SHORT)
+        if deleted:
+            self.statusBar().showMessage(tr("File list reset to default."), STATUS_SHORT)
+        else:
+            # The reload above has already put the entries back, so saying it worked
+            # would be contradicted on screen a moment later.
+            self._error(
+                tr("Reset File List"),
+                tr("Could not delete {name}. The file list is unchanged.").format(
+                    name=config.config_filename
+                ),
+            )
 
     # ── scan-group / cache helpers ────────────────────────────────────────────
 

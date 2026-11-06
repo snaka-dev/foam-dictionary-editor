@@ -15,14 +15,10 @@ from foam.writer import write_root
 from i18n import tr
 from model.tree_model import FoamTreeModel
 from services.include_scan import foam_etc_dirs
+from ui import viewer_dicts
 from ui.layout_constants import (
-    BLOCKMESH_DICT_NAME,
-    SAMPLING_DICT_NAMES,
-    SETFIELDS_DICT_NAME,
-    SNAPPY_HEX_MESH_DICT_NAME,
     STATUS_SHORT,
     STATUS_WARNING,
-    TOPOSET_DICT_NAME,
     TREE_EXPAND_DEPTH,
 )
 
@@ -68,13 +64,9 @@ class _ModelOpsMixin(_Base):
             return ExpandedTree(root=root)
 
         def read_buffer(target: Path) -> str | None:
-            # The open file's freshest text is in the editor, not in
-            # file_buffers: apply_text_to_tree parses the editor directly and
-            # never flushes it there, so reading the buffer would serve the
-            # text as it was when the file was opened.
-            if self.state.current_file is not None and str(target) == self.state.current_file:
-                return self.editor_panel.get_text()
-            return self.state.file_buffers.get(str(target))
+            # Unsaved text only: expand_includes reads (and memoises) the disk
+            # copy itself when this returns None.
+            return self._current_text(str(target), fallback=False)
 
         try:
             return expand_includes(
@@ -95,19 +87,34 @@ class _ModelOpsMixin(_Base):
         self._update_block_mesh_viewer(path, root)
         self._refresh_include_dependents(path)
 
+    def _viewer_kind_for(self, path: str, root: FoamNode | None) -> str | None:
+        """Which 3-D overlay *path* feeds, honouring the user's "show as" override.
+
+        The single place the override is read, so the viewer dispatch and the
+        side-by-side button can never disagree about whether a file is viewable.
+        """
+        config = self.state.case_files_config
+        rel = self._case_relative(path)
+        override = config.get_viewer_kind(rel) if config is not None and rel else ""
+        return viewer_dicts.viewer_dict_kind(path, root, override)
+
     def _update_block_mesh_viewer(self, path: str, root: FoamNode) -> None:
         """Push one file's tree at the 3-D viewer, with its includes resolved."""
         if self.block_mesh_panel is None:
             return
-        name = Path(path).name
-        update = {
-            BLOCKMESH_DICT_NAME: self.block_mesh_panel.update_block_mesh,
-            TOPOSET_DICT_NAME: self.block_mesh_panel.update_topo_set,
-            SNAPPY_HEX_MESH_DICT_NAME: self.block_mesh_panel.update_snappy_hex_mesh,
-            SETFIELDS_DICT_NAME: self.block_mesh_panel.update_set_fields,
-        }.get(name)
-        if update is None and name in SAMPLING_DICT_NAMES:
-            update = self.block_mesh_panel.update_sampling
+        # Recognised by the FoamFile header when the name is not one of the defaults, so
+        # a hand-named `topoSetDict-slices` reaches the viewer -- see ui/viewer_dicts.py.
+        updates = {
+            viewer_dicts.BLOCK_MESH: self.block_mesh_panel.update_block_mesh,
+            viewer_dicts.TOPO_SET: self.block_mesh_panel.update_topo_set,
+            viewer_dicts.SNAPPY_HEX_MESH: self.block_mesh_panel.update_snappy_hex_mesh,
+            viewer_dicts.SET_FIELDS: self.block_mesh_panel.update_set_fields,
+            viewer_dicts.SAMPLING: self.block_mesh_panel.update_sampling,
+        }
+        kind = self._viewer_kind_for(path, root)
+        if kind is None:
+            return
+        update = updates.get(kind)
         if update is None:
             return
         expanded = self._expand_includes_for_viewer(path, root)
@@ -215,6 +222,57 @@ class _ModelOpsMixin(_Base):
         every write path consults this. See DEVELOPER.md's "Include resolution".
         """
         return bool(path) and path in self.state.read_only_files
+
+    def _current_text(self, path: str, *, fallback: bool = True) -> str | None:
+        """The freshest text of one file, as the user currently sees it.
+
+        The single answer to "what does this file say right now". For the open
+        file that is the editor, not ``file_buffers``: ``apply_text_to_tree``
+        parses the editor directly and never flushes it there, so the buffer
+        can hold the text as it was when the file was opened. For any other
+        file, the buffer. With ``fallback``, a file with no buffer is then
+        served from the parse cache and finally from disk; without it, None --
+        for a caller such as the include expansion that reads and memoises the
+        disk copy itself.
+        """
+        path = str(Path(path))
+        if self.state.current_file is not None and path == str(
+            Path(self.state.current_file)
+        ):
+            return self.editor_panel.get_text()
+        text = self.state.file_buffers.get(path)
+        if text is not None or not fallback:
+            return text
+        root = self.state.parsed_roots.get(path)
+        if root is not None:
+            return write_root(root)
+        try:
+            return read_foam_file(path)
+        except OSError:
+            return None
+
+    def _dirty_paths(self) -> list[str]:
+        """Every file with unsaved changes that may be written.
+
+        A read-only file should never be dirty (``_mark_dirty`` refuses);
+        filtering here too keeps one stray flag from writing into the OpenFOAM
+        install. The open file counts through ``text_dirty`` even before its
+        flag in ``file_dirty`` has been flushed.
+        """
+        paths = [
+            p
+            for p, dirty in self.state.file_dirty.items()
+            if dirty and not self._is_read_only(p)
+        ]
+        current = self.state.current_file
+        if (
+            self.state.text_dirty
+            and current is not None
+            and current not in paths
+            and not self._is_read_only(current)
+        ):
+            paths.append(current)
+        return paths
 
     def _mark_dirty(self) -> None:
         # Never letting a read-only file go dirty is what disables the `*`

@@ -22,7 +22,7 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture
-def main_window_bm(qapp):
+def main_window_bm(qapp, destroy_widget):
     """A real MainWindow instance with the BlockMesh 3-D panel enabled."""
     from app_config import get_app_config
 
@@ -44,9 +44,13 @@ def main_window_bm(qapp):
         win.terminal_panel.cleanup()
     if win.block_mesh_panel is not None:
         win.block_mesh_panel.shutdown()
-
-    for name, value in original.items():
-        cfg.set_feature(name, value)
+    # Strictly after shutdown(): that closes pyvista's render window, and a VTK context
+    # outliving its QWidget is the one teardown order that crashes rather than fails.
+    try:
+        destroy_widget(win)
+    finally:
+        for name, value in original.items():
+            cfg.set_feature(name, value)
 
 
 _SNAPPY_HEX_MESH_DICT_TEXT = """\

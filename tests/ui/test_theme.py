@@ -7,7 +7,6 @@ import dataclasses
 
 import pytest
 from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QApplication
 
 from ui import theme
 from ui.theme import (
@@ -24,21 +23,39 @@ from ui.theme import (
 )
 
 
-@pytest.fixture(scope="module")
-def app():
-    return QApplication.instance() or QApplication([])
-
-
 @pytest.fixture(autouse=True)
-def restore_theme(app):
-    """Leave the process-wide theme state as we found it."""
+def restore_theme(qapp):
+    """Leave the process-wide theme state as we found it -- touching it only if the test
+    actually changed something.
+
+    ``apply_theme``/``setPalette``/``setStyleSheet`` are broadcasts: Qt walks every live
+    QWidget in the process and re-polishes it. Most tests in this module are pure contrast
+    arithmetic and never touch the application at all, so an unconditional restore made each
+    of them pay for every widget the session had left alive. See tests/conftest.py's
+    ``_destroy_widget`` for the leak that made that bill enormous, and DEVELOPER.md's
+    "Destroying widgets in tests".
+
+    The guards stay separate: a test can change the palette without changing the mode.
+
+    ``theme`` keeps *two* globals -- ``_active_mode`` and ``_active_is_dark`` -- and in
+    ``system`` mode ``apply_theme`` re-derives the second from whatever palette is live when
+    it runs. So the mode alone does not describe the state, and the palette has to go back
+    before ``apply_theme`` is asked to re-read it: restoring in the other order records the
+    *test's* darkness under the restored mode, and the next module to call ``theme.colors()``
+    gets the dark table on a light palette.
+    """
     previous = theme.active_mode()
-    saved_palette = QPalette(app.palette())
-    saved_qss = app.styleSheet()
+    previous_is_dark = theme.is_dark()
+    saved_palette = QPalette(qapp.palette())
+    saved_qss = qapp.styleSheet()
     yield
-    apply_theme(app, previous)
-    app.setPalette(saved_palette)
-    app.setStyleSheet(saved_qss)
+    if theme.active_mode() != previous or theme.is_dark() != previous_is_dark:
+        qapp.setPalette(saved_palette)
+        apply_theme(qapp, previous)
+    if qapp.palette() != saved_palette:
+        qapp.setPalette(saved_palette)
+    if qapp.styleSheet() != saved_qss:
+        qapp.setStyleSheet(saved_qss)
 
 
 # ── contrast maths ────────────────────────────────────────────────────────────
@@ -130,37 +147,37 @@ def test_windows_style_palette_is_repaired_in_every_group():
 # ── apply_theme ───────────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("mode", THEME_MODES)
-def test_apply_theme_guarantees_readable_selection(app, mode):
-    apply_theme(app, mode)
-    palette = app.palette()
+def test_apply_theme_guarantees_readable_selection(qapp, mode):
+    apply_theme(qapp, mode)
+    palette = qapp.palette()
     for group in (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive):
         fill = palette.color(group, QPalette.ColorRole.Highlight)
         text = palette.color(group, QPalette.ColorRole.HighlightedText)
         assert contrast_ratio(text, fill) >= _MIN_CONTRAST, f"{mode}/{group}"
 
 
-def test_apply_theme_sets_mode_and_darkness(app):
-    apply_theme(app, "dark")
+def test_apply_theme_sets_mode_and_darkness(qapp):
+    apply_theme(qapp, "dark")
     assert theme.active_mode() == "dark"
     assert theme.is_dark() is True
     assert colors() is _DARK
 
-    apply_theme(app, "light")
+    apply_theme(qapp, "light")
     assert theme.active_mode() == "light"
     assert theme.is_dark() is False
     assert colors() is _LIGHT
 
 
-def test_unknown_mode_falls_back_to_system(app):
-    apply_theme(app, "chartreuse")  # type: ignore[arg-type]
+def test_unknown_mode_falls_back_to_system(qapp):
+    apply_theme(qapp, "chartreuse")  # type: ignore[arg-type]
     assert theme.active_mode() == "system"
 
 
-def test_apply_theme_installs_selection_stylesheet(app):
-    apply_theme(app, "dark")
-    qss = app.styleSheet()
-    fill = app.palette().color(QPalette.ColorGroup.Active, QPalette.ColorRole.Highlight)
-    text = app.palette().color(QPalette.ColorGroup.Active, QPalette.ColorRole.HighlightedText)
+def test_apply_theme_installs_selection_stylesheet(qapp):
+    apply_theme(qapp, "dark")
+    qss = qapp.styleSheet()
+    fill = qapp.palette().color(QPalette.ColorGroup.Active, QPalette.ColorRole.Highlight)
+    text = qapp.palette().color(QPalette.ColorGroup.Active, QPalette.ColorRole.HighlightedText)
     # Both halves of the pair must be named, or the platform style is free to
     # substitute its own text colour — which is the bug this guards against.
     assert f"background-color: {fill.name()}" in qss

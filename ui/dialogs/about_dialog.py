@@ -102,7 +102,17 @@ class AboutDialog(QDialog):
         layout.addWidget(ack_label)
 
         # ── disclaimer ────────────────────────────────────────────────────────
-        disclaimer_label = QLabel(DISCLAIMER)
+        # The warranty notice the GPL family asks an interactive program to
+        # show, first: FoDE deletes files, so it is the half that matters most.
+        # tr() here, not at module level, where it would freeze to English
+        # before main.py has set the language.
+        warranty = tr(
+            "This program comes with ABSOLUTELY NO WARRANTY. It edits, copies "
+            "and deletes files in your cases; use it at your own risk, and keep "
+            "backups of any case you cannot regenerate. The terms are sections "
+            "15 and 16 of the licence."
+        )
+        disclaimer_label = QLabel(warranty + "\n\n" + DISCLAIMER)
         disclaimer_label.setWordWrap(True)
         disclaimer_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         # No size of its own: a disclaimer is the one thing here that should be

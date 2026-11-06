@@ -5,9 +5,9 @@ from __future__ import annotations
 import copy
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QModelIndex, Qt
 from PySide6.QtGui import QKeySequence, QShortcut
-from PySide6.QtWidgets import QApplication, QMenu, QMessageBox
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from foam.include_resolver import ResolvedInclude
 from foam.nodes import FoamNode
@@ -18,6 +18,7 @@ from i18n import tr
 from model.tree_model import FoamTreeModel
 from services.include_scan import resolve_directive_text
 from ui.layout_constants import STATUS_SHORT, STATUS_WARNING
+from ui.menu_builder import BuiltMenu, MenuBuilder, exec_menu
 
 if TYPE_CHECKING:
     from ui.mixins._protocol import MainWindowProtocol as _Base
@@ -95,7 +96,18 @@ class _TreeCrudOpsMixin(_Base):
         index = self.tree.indexAt(pos)
         if not index.isValid():
             return
+        exec_menu(
+            self._build_tree_context_menu(index),
+            self.tree.viewport().mapToGlobal(pos),
+        )
 
+    def _build_tree_context_menu(self, index: QModelIndex) -> BuiltMenu:
+        """The tree row menu for *index* (a proxy index), with each row's handler.
+
+        Split from _on_tree_context_menu so which row is enabled, and what it
+        does, can be tested without the blocking QMenu.exec() -- see
+        ui/menu_builder.py.
+        """
         src = self._to_source(index)
         node = src.internalPointer()
         parent_node = node.parent if node.parent is not None else self.state.current_model.root
@@ -120,82 +132,67 @@ class _TreeCrudOpsMixin(_Base):
             or parent_is_block_list
         )
         can_add_child = not read_only and node.node_type == "dictionary"
-
-        menu = QMenu(self)
-        undo_action = menu.addAction(tr("Undo Tree Edit\tCtrl+Z"))
-        undo_action.setEnabled(not read_only and bool(self.state.undo.undo_stack))
-        redo_action = menu.addAction(tr("Redo Tree Edit\tCtrl+Shift+Z"))
-        redo_action.setEnabled(not read_only and bool(self.state.undo.redo_stack))
-        menu.addSeparator()
-        copy_action = menu.addAction(tr("Copy Value\tCtrl+C"))
-        paste_action = menu.addAction(tr("Paste Value\tCtrl+V"))
-        paste_action.setEnabled(can_paste)
-
-        open_include_action = None
-        if node.node_type == "directive_entry":
-            resolved = self._resolve_tree_include(node)
-            menu.addSeparator()
-            open_include_action = menu.addAction(tr("Open Included File"))
-            open_include_action.setEnabled(resolved is not None and resolved.resolved)
-
-        menu.addSeparator()
-        add_after_action = menu.addAction(tr("Add Entry After"))
-        add_after_action.setEnabled(can_add_sibling)
-        add_child_action = menu.addAction(tr("Add Child Entry"))
-        add_child_action.setEnabled(can_add_child)
-        dup_action = menu.addAction(tr("Duplicate"))
-        dup_action.setEnabled(can_add_sibling)
-
         is_commented_out = self._is_commented_out_node(node)
-        is_boundary_entry = node.node_type == "boundary_entry"
-        is_boundary_field_patch = (
+        is_renameable_boundary = node.node_type == "boundary_entry" or (
             node.node_type == "dictionary"
             and node.parent is not None
             and node.parent.name == "boundaryField"
         )
-        is_renameable_boundary = is_boundary_entry or is_boundary_field_patch
 
-        rename_boundary_action = None
-        if is_renameable_boundary:
-            menu.addSeparator()
-            rename_boundary_action = menu.addAction(tr("Rename Boundary…"))
-
-        menu.addSeparator()
-        comment_action = menu.addAction(tr("Comment Out"))
-        comment_action.setEnabled(
-            can_add_sibling and not parent_is_block_list and not is_commented_out
+        b = MenuBuilder(self)
+        b.add(
+            tr("Undo Tree Edit\tCtrl+Z"),
+            self._tree_undo,
+            enabled=not read_only and bool(self.state.undo.undo_stack),
         )
-        restore_action = menu.addAction(tr("Restore from Comment"))
-        restore_action.setEnabled(is_commented_out)
-        delete_action = menu.addAction(tr("Delete"))
-        delete_action.setEnabled(can_add_sibling)
+        b.add(
+            tr("Redo Tree Edit\tCtrl+Shift+Z"),
+            self._tree_redo,
+            enabled=not read_only and bool(self.state.undo.redo_stack),
+        )
+        b.menu.addSeparator()
+        b.add(tr("Copy Value\tCtrl+C"), self._tree_copy_value)
+        b.add(tr("Paste Value\tCtrl+V"), self._tree_paste_value, enabled=can_paste)
 
-        action = menu.exec(self.tree.viewport().mapToGlobal(pos))
-        if open_include_action is not None and action == open_include_action:
-            self._open_included_target(str(node.value))
-            return
-        if action == undo_action:
-            self._tree_undo()
-        elif action == redo_action:
-            self._tree_redo()
-        elif action == copy_action:
-            self._tree_copy_value()
-        elif action == paste_action:
-            self._tree_paste_value()
-        elif action == add_after_action:
-            self._tree_add_entry_after(node)
-        elif action == add_child_action:
-            self._tree_add_child_entry(node)
-        elif action == dup_action:
-            self._tree_duplicate(node)
-        elif action == comment_action:
-            self._tree_comment_out(node)
-        elif action == restore_action:
-            self._tree_restore_comment(node)
-        elif action == delete_action:
-            self._tree_delete(node)
-        elif action is not None and action == rename_boundary_action:
-            self._on_rename_boundary_by_name(node.name)
+        if node.node_type == "directive_entry":
+            resolved = self._resolve_tree_include(node)
+            b.menu.addSeparator()
+            b.add(
+                tr("Open Included File"),
+                lambda: self._open_included_target(str(node.value)),
+                enabled=resolved is not None and resolved.resolved,
+            )
+
+        b.menu.addSeparator()
+        b.add(
+            tr("Add Entry After"),
+            lambda: self._tree_add_entry_after(node),
+            enabled=can_add_sibling,
+        )
+        b.add(
+            tr("Add Child Entry"),
+            lambda: self._tree_add_child_entry(node),
+            enabled=can_add_child,
+        )
+        b.add(tr("Duplicate"), lambda: self._tree_duplicate(node), enabled=can_add_sibling)
+
+        if is_renameable_boundary:
+            b.menu.addSeparator()
+            b.add(tr("Rename Boundary…"), lambda: self._on_rename_boundary_by_name(node.name))
+
+        b.menu.addSeparator()
+        b.add(
+            tr("Comment Out"),
+            lambda: self._tree_comment_out(node),
+            enabled=can_add_sibling and not parent_is_block_list and not is_commented_out,
+        )
+        b.add(
+            tr("Restore from Comment"),
+            lambda: self._tree_restore_comment(node),
+            enabled=is_commented_out,
+        )
+        b.add(tr("Delete"), lambda: self._tree_delete(node), enabled=can_add_sibling)
+        return b.built()
 
     def _tree_copy_value(self) -> None:
         index = self._current_primary_index()
@@ -307,13 +304,10 @@ class _TreeCrudOpsMixin(_Base):
         self._after_model_edit()
 
     def _tree_delete(self, node: FoamNode) -> None:
-        reply = QMessageBox.question(
-            self, tr("Delete Entry"),
+        if not self._confirm(
+            tr("Delete Entry"),
             tr("Delete '{node_name}'?").format(node_name=_delete_label(node)),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
+        ):
             return
         self._checkpoint_for_undo()
         parent_node = node.parent if node.parent is not None else self.state.current_model.root

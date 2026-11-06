@@ -53,7 +53,7 @@ def case_dir(tmp_path):
 
 
 @pytest.fixture
-def second_window(qapp):
+def second_window(qapp, destroy_widget):
     """A second MainWindow, built the same way the shared fixture builds one."""
     from ui.main_window import MainWindow
 
@@ -71,6 +71,7 @@ def second_window(qapp):
         if win._case_dir_watcher.directories():
             win._case_dir_watcher.removePaths(win._case_dir_watcher.directories())
         win._stop_foam_monitor()
+        destroy_widget(win)
 
 
 class TestSave:

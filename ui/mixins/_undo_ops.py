@@ -9,7 +9,6 @@ from PySide6.QtGui import QKeySequence, QShortcut
 
 from foam.parser import OpenFoamParser
 from foam.utils import read_foam_file
-from foam.writer import write_root
 from i18n import tr
 from ui.app_state import UndoSnapshot
 from ui.layout_constants import STATUS_SHORT
@@ -131,7 +130,11 @@ class _UndoOpsMixin(_Base):
         texts: dict[str, str] = {}
         dirty: dict[str, bool] = {}
         for path in paths:
-            text = self._undo_text_for(path)
+            # The editor for the current file: when tree and editor are in
+            # sync it is byte-faithful to the loaded file, and when the user
+            # has typed unapplied free text it is what is on screen -- either
+            # way the state undo must be able to restore.
+            text = self._current_text(path)
             if text is None:
                 continue
             texts[path] = text
@@ -139,28 +142,6 @@ class _UndoOpsMixin(_Base):
         if not texts:
             return None
         return UndoSnapshot(texts=texts, dirty=dirty)
-
-    def _undo_text_for(self, path: str) -> str | None:
-        """The authoritative current text of one file.
-
-        For the current file this is the editor text: when tree and editor are
-        in sync it is byte-faithful to the loaded file, and when the user has
-        typed unapplied free-text it is what is on screen — either way the state
-        undo must be able to restore. For other files: the buffer, then the
-        parse cache, then the disk file.
-        """
-        if path == self.state.current_file:
-            return self.editor_panel.get_text()
-        text = self.state.file_buffers.get(path)
-        if text is not None:
-            return text
-        root = self.state.parsed_roots.get(path)
-        if root is not None:
-            return write_root(root)
-        try:
-            return read_foam_file(path)
-        except OSError:
-            return None
 
     def _clear_undo_stacks(self) -> None:
         undo = self.state.undo

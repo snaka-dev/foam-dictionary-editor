@@ -1,13 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
+from _parser_helpers import find_child
+
 from foam.parser import OpenFoamParser
 
-
-def find_child(node, name):
-    for child in node.children:
-        if child.name == name:
-            return child
-    raise AssertionError(f"child not found: {name}")
 
 def test_parse_control_dict_basic(control_dict_text):
     root = OpenFoamParser(control_dict_text).parse()

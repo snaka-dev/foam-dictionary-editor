@@ -54,6 +54,8 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 | FoDE を離れずに blockMesh を実行・0/ を復元する | [Run blockMesh](#run-blockmesh) / [Restore 0/ from 0.orig](#restore-0-from-0orig) |
 | FoDE を離れずに snappyHexMesh・topoSet を実行する | [Run snappyHexMesh](#run-snappyhexmesh) / [Run topoSet](#run-toposet) |
 | 初期場の領域を設定する、またはメッシュを検証する | [Run setFields](#run-setfields) / [Run checkMesh](#run-checkmesh) |
+| 並列計算用にケースを分割する、ソルバーだけを実行する、結果を戻す | [Run decomposePar](#run-decomposepar) / [Run Solver](#run-solver) / [Run reconstructPar](#run-reconstructpar) |
+| 再構築済みの並列計算のディスク容量を空ける | [Delete processor\* Directories](#delete-processor-directories) |
 | ケースのワークフロー全体を実行する、またはケースを初期状態にクリーンする | [Run Allrun Script](#run-allrun-script) / [Run Allclean Script](#run-allclean-script) / [Clean Case](#clean-case-foamcleantutorials) |
 | ソルバー実行中に残差をプロットする | [foamMonitor ランチャー](#foammonitor-ランチャー) |
 | 数千行に及ぶ log.snappyHexMesh をスクロールせずに読む | [View Log Summary](#view-log-summary) |
@@ -164,6 +166,10 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 - [Run topoSet](#run-toposet)
 - [Run setFields](#run-setfields)
 - [Run checkMesh](#run-checkmesh)
+- [Run decomposePar](#run-decomposepar)
+- [Run Solver](#run-solver)
+- [Run reconstructPar](#run-reconstructpar)
+- [Delete processor* Directories](#delete-processor-directories)
 - [Run Allrun Script](#run-allrun-script)
 - [Open Mesh in ParaView](#open-mesh-in-paraview)
 - [Run Allclean Script](#run-allclean-script)
@@ -278,7 +284,7 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 - Highlight — シンタックスハイライトのオン／オフを切り替えるトグルボタン。設定は `app_config.json` に保存され、次回起動時に復元されます。
 - Line: N — 現在のカーソル行番号（ツールバー右端）。
 
-メニューバーには **Case** メニュー、**View** メニュー、**Settings** メニュー、**Tools** メニュー、**Help** メニューがあります。
+メニューバーには **Case** メニュー、**Settings** メニュー、**View** メニュー、**Tools** メニュー、**Help** メニューがあります。
 
 **Case メニュー:**
 
@@ -307,6 +313,7 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 - View > File List `Ctrl+1`、View > Detail Pane `Ctrl+2`、View > Editor / Terminal Pane `Ctrl+3` — チェック式。チェックを外すとそのペインが最小化されます。「[ペインの最小化](#ペインの最小化)」を参照。
 - View > Reset Window Size — Settings メニューからここへ移動しました。すぐ上のペイン切り替え項目と同じく、ウィンドウの見た目のサイズに関する項目だからです。[ウィンドウサイズ](#ウィンドウサイズ) を参照。
 - View > BlockMesh 3-D Panel（チェック式。BlockMesh タブの表示・非表示を切り替えます。xterm ターミナルモードが有効な場合は GPU 競合のためグレーアウトし、ラベルが **"BlockMesh 3-D Panel  (unavailable: xterm active)"** に変わります）
+- View > Save Image… `Ctrl+Shift+I` — BlockMesh パネルの **Save Image…** ボタンと同じアクションで、そのパネルが使える場合にのみ表示されます。[BlockMesh パネル](#blockmesh-パネル) を参照。
 - View > View Log Summary… — Tools > View Log Summary… と同じアクションで、見つけやすさのためここにも表示されます。[View Log Summary](#view-log-summary) を参照。
 
 **Settings メニュー:**
@@ -315,6 +322,7 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 - Settings > Manage Case Library…
 - Settings > Manage Schema Modules…
 - Settings > Generate OpenFOAM Keywords… — 選択した OpenFOAM インストールからシンタックスハイライト用のキーワード一覧を再生成します。[Generate OpenFOAM Keywords](#generate-openfoam-keywords) を参照。
+- Settings > Restore Last Session on Startup（チェック式、既定でオン）と Settings > Forget Saved Session。[セッションの復元](#セッションの復元) を参照。
 - Settings > Reset All Settings…
 - Settings > Appearance — 配色テーマを選択します: **Follow System**（既定）、**Light**、**Dark**。アプリケーションを再起動すると反映されます。[外観と配色](#外観と配色)を参照してください。
 - Settings > UI Scale — UI 全体の拡大率を 100 %（既定）、125 %、150 %、175 %、200 % から選択します。アプリケーションを再起動すると反映されます。[文字サイズと表示スケーリング](#文字サイズと表示スケーリング)を参照してください。
@@ -331,8 +339,12 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 - Tools > Run topoSet… — オプションを選択してケースディレクトリで `topoSet` を実行します。[Run topoSet](#run-toposet) を参照。
 - Tools > Run setFields… — オプションを選択してケースディレクトリで `setFields` を実行します。先に `0/` を `0.orig/` から復元するかを選べます。[Run setFields](#run-setfields) を参照。
 - Tools > Run checkMesh… — オプションを選択してケースディレクトリで `checkMesh` を実行します。[Run checkMesh](#run-checkmesh) を参照。
+- Tools > Run decomposePar… — オプションを選択して、並列計算用にケースを分割します。[Run decomposePar](#run-decomposepar) を参照。
+- Tools > Run Solver… — `system/controlDict` で指定されたソルバー、または入力した別のソルバーを実行します。並列実行も可能です。[Run Solver](#run-solver) を参照。
+- Tools > Run reconstructPar… — 並列計算の結果をケースに戻します。[Run reconstructPar](#run-reconstructpar) を参照。
+- Tools > Delete processor\* Directories… — 中身が失われないことを確認した上でのみ `processor*/` ディレクトリを削除します。[Delete processor\* Directories](#delete-processor-directories) を参照。
 
-  上のメッシュ・フィールド系ユーティリティ群の後ろと、続く 2 項目それぞれの後ろに区切り線が入ります。**Run Allrun Script** は個々のユーティリティ実行とは違う「ワークフロー全体」なので、**Open Mesh in ParaView…** は「実行」ではなく「ビューア起動」なので、それぞれ独立したグループになっています。
+  上のメッシュ・フィールド系ユーティリティ群の後ろ、並列計算関連の項目（**Run decomposePar…** から **Delete processor\* Directories…** まで）の後ろ、続く 2 項目それぞれの後ろに区切り線が入ります。**Run Allrun Script** は個々のユーティリティ実行とは違う「ワークフロー全体」なので、**Open Mesh in ParaView…** は「実行」ではなく「ビューア起動」なので、それぞれ独立したグループになっています。
 - Tools > Run Allrun Script — ケースの `./Allrun` スクリプト（ソルバーを含む）を実行します。[Run Allrun Script](#run-allrun-script) を参照。
 - Tools > Open Mesh in ParaView… — 現在のケースを ParaView で開きます。[Open Mesh in ParaView](#open-mesh-in-paraview) を参照。
 - Tools > Run Allclean Script — ケースの `./Allclean` スクリプトを実行します。[Run Allclean Script](#run-allclean-script) を参照。
@@ -557,6 +569,8 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 
 バックアップファイルが見つからない場合は「No backup files found.」と表示され、**Close** ボタンのみが表示されます。
 
+**この操作は元に戻せません。** [免責事項](#免責事項) を参照してください。
+
 ### ファイルの削除
 
 ファイル一覧の任意のファイルを右クリックして **Delete file...** を選択します。ファイル名を表示する確認ダイアログが開き、次の 3 択を選べます。
@@ -651,12 +665,6 @@ FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集�
 ### パッチエントリの削除
 
 パッチが定義されているセルを右クリックして **Delete Entry** を選択すると、その特定フィールドファイルからそのパッチを削除します。全ファイルからそのパッチが無くなった場合、そのパッチの行/列もテーブルから削除されます。
-
-### 元に戻す・やり直す
-
-ツリーの編集は元に戻せます: ツリーがキーボードフォーカスを持つ状態で **Ctrl+Z** を押すと、現在のファイルで最後に行ったツリー変更が取り消され、**Ctrl+Shift+Z** で再適用されます（コンテキストメニューの **Undo Tree Edit** / **Redo Tree Edit** からも実行できます）。対象はツリー側のすべての変更 — インラインセル編集、Detail パネルの Apply、Paste Value、Add/Duplicate/Delete/Comment Out/Restore、**Apply Text to Tree**、BlockMesh パネルでの頂点ドラッグ、Boundary タブのパッチ操作 — です。複数のフィールドファイルを一度に変更する境界操作（例: `0/` 全体でのパッチ名変更）は一体として取り消されます。1 回の Ctrl+Z で触れたすべてのファイルが復元され、ステータスバーに追加ファイル数が表示されます。
-
-Undo はセッション全体で単一の履歴として保持され（最大 50 ステップ）、別のケースを開くとクリアされます: Ctrl+Z は場所を問わず最後のツリー変更を取り消し、対象ファイルが画面に表示されていない場合はそのファイルへ表示を切り替えます。下部のテキストエディタは自由入力用に自身のネイティブな Ctrl+Z を保持しています — ツリーのショートカットはツリーにフォーカスがあるときだけ発火します。Undo はツリーを再読み込みするため、行の展開・選択状態はリセットされます。
 
 ### コピー・ペースト
 
@@ -775,7 +783,7 @@ xterm ターミナルがアクティブな間は **⊞** ボタンが無効化�
 | **Refresh** | 現在のツリーからジオメトリを再抽出して再描画します。プレビューモード中はすべてのプレビュー編集を破棄してツリーの値に戻します。 |
 | **Preview** | `vertices` ブロックに変数参照（`$varName`）が含まれる場合のみ表示されます。このボタンはメインツールバーではなく **Vertices** パネル内（テーブルの上部）に表示されます。クリックするとプレビューモードになり、テーブルセルが編集可能になって各変更が即座に 3D ビューへ反映されますが、ツリーとファイルは変更されません。プレビューモード中は黄色いバナーが表示されます。**Refresh** をクリックするとプレビューモードを終了して元の値に戻ります。 |
 | **STL ▾** | ドロップダウンメニュー: **Load STL / OBJ…** で STL または OBJ ファイルを読み込み半透明オーバーレイとして表示（ファイルダイアログで複数ファイルをまとめて選択でき、さらに読み込むと既存の表示に追加されます。選択したファイルの一部が読み込めない場合も残りは読み込まれ、失敗したファイル名をまとめた警告が 1 回だけ表示されます）。gzip 圧縮されたファイル（`.stl.gz`、`.obj.gz`）もそのまま読み込めます（手動での解凍は不要）。読み込んだファイルはメニュー下部にファイルごとのチェック可能な行として表示され、行の横のスウォッチの色で描画されるため、複数のサーフェスを見分けられます。マスタートグルの **Show loaded surfaces** と **Show all surfaces** / **Hide all surfaces** で一括切替でき、構成は上のオーバーレイメニューと同じです。既に読み込み済みのファイルを読み込むと、行が増えるのではなく既存の行に再読み込みされます。FoDE の外で編集したサーフェスを更新したいときはこれを使います。**Unload ▸** で個別のファイルを削除、**Clear STL** ですべて削除（いずれも未読み込み時はグレーアウト。別のケースを開いたときも、それらは離れたケース用に読み込まれたものなので同様に削除されます）。`blockMeshDict` を開いていなくてもサーフェスは描画されます。**Export Shapes as STL…** は、読み込み済みの `topoSetDict`/`snappyHexMeshDict`/`setFieldsDict` の描画可能な各シェイプをチェックボックス付きで一覧表示するダイアログを開きます（初期状態は 3D ビューでの現在の表示/非表示に対応）。Select All / Deselect All も使えます。出力先フォルダを選んで Export をクリックすると、チェックした各シェイプがそのラベル/名前にちなんだ個別の `.stl` ファイルとして書き出されます（topoSet/snappyHexMesh/setFields のジオメトリが読み込まれていない場合はグレーアウト）。点マーカーのシェイプ（`nearestToCell` など）と `planeToFaceZone` の円板は、意味のある STL サーフェスを持たないため一覧に表示されません。3D ビューでクリップ表示されているシェイプも、エクスポートされるのは常にクリップ前の完全なジオメトリです。 |
-| **Save Image…** | 3D ビューを表示されているそのままの状態 — 同じピクセルサイズ、同じ背景色 — で PNG / JPEG / BMP / TIFF ファイルに保存します。**形式は Name 欄に入力した拡張子で決まります**。ダイアログのフィルタは形式ごとに分けず 1 つにまとめ、**Image files - PNG, JPEG, BMP, TIFF** という名前にして、対応形式がダイアログ上で読み取れるようにしています — ネイティブの GTK ファイルチューザはフィルタを表示用の絞り込みとしてのみ扱い、名前をそれに合わせて書き換えないため、形式別のドロップダウンだと JPEG を選んだのに名前が `.png` のままで PNG が書き出される、ということが起こりうるからです。書き出せない拡張子は（`.JPG` のような大文字表記の対応形式も含めて）書き込み前に補正され、その補正によって既存のファイルを上書きすることになる場合は確認を求めます（**View** メニューの **Save 3-D View as Image**、および `Ctrl+Shift+I` からも実行できます）。3D ビューを一度も表示していない間は、まだ取り込む画になっていないためグレーアウトします。既定のファイル名は現在のケースディレクトリ内の `<caseName>-3Dview.png` です。**Export Shapes as STL…** と違い、これが保存するのは描画された画そのもの — オーバーレイ・色・カメラアングルを含めた見たままです — であって、ジオメトリそのものではありません。 |
+| **Save Image…** | 3D ビューを表示されているそのままの状態 — 同じピクセルサイズ、同じ背景色 — で PNG / JPEG / BMP / TIFF ファイルに保存します。**形式は Name 欄に入力した拡張子で決まります**。ダイアログのフィルタは形式ごとに分けず 1 つにまとめ、**Image files - PNG, JPEG, BMP, TIFF** という名前にして、対応形式がダイアログ上で読み取れるようにしています — ネイティブの GTK ファイルチューザはフィルタを表示用の絞り込みとしてのみ扱い、名前をそれに合わせて書き換えないため、形式別のドロップダウンだと JPEG を選んだのに名前が `.png` のままで PNG が書き出される、ということが起こりうるからです。書き出せない拡張子は（`.JPG` のような大文字表記の対応形式も含めて）書き込み前に補正され、その補正によって既存のファイルを上書きすることになる場合は確認を求めます（**View** メニューの **Save Image…**、および `Ctrl+Shift+I` からも実行できます）。3D ビューを一度も表示していない間は、まだ取り込む画になっていないためグレーアウトします。既定のファイル名は現在のケースディレクトリ内の `<caseName>-3Dview.png` です。**Export Shapes as STL…** と違い、これが保存するのは描画された画そのもの — オーバーレイ・色・カメラアングルを含めた見たままです — であって、ジオメトリそのものではありません。 |
 
 従来の 4 頂点インデックス記法 `(v0 v1 v2 v3)` と新しいコンパクト記法 `(blockIndex faceIndex)` の両方がサポートされており、同じファイル内で混在させることができます。コンパクト記法は表示前に標準的な六面体ブロック面番号を使用して 4 頂点リストに自動展開されます。
 
@@ -1199,6 +1207,14 @@ xterm.js のライブラリファイルは初回起動時に jsDelivr から自�
 - シェルプロセスが終了した場合は自動的に再起動されます。
 - アプリケーション終了時にシェルプロセスは正常に終了されます。
 
+### コマンド実行中に FoDE を閉じる場合
+
+FoDE を閉じると Terminal タブのシェルが終了し、そこで実行中のものも一緒に終了します。この方法で停止したソルバーは、現在の時間ステップを書き出しません。そのため、ソルバー、`./Allrun`、手で入力したコマンドなどがまだ実行中の場合は、ウィンドウを閉じる前に実行中のものの名前を示して確認します（既定の答えは **No**）。xterm モードと Simple モードの切り替えもシェルを置き換えるため、モードのチェックボックスでも同じ確認が出て、No と答えると元の状態のままになります。シェルが何も実行していなければ、確認は出ません。
+
+同じ理由で、コマンドを送る Tools メニューの操作はすべて、別のコマンドが実行中の間は実行を拒否します。新しいコマンドは実行中のものの後ろに並ぶだけか、xterm モードではそこに入力として送られ、`mpirun` に入力として飲み込まれてしまうためです。
+
+この確認はシェルの子プロセスを `/proc` から読むため、Linux で動作します。それ以外の環境では何も表示されず、閉じる動作は従来どおりです。FoDE を閉じた後も計算を続けたい場合は、現時点では FoDE の外で起動してください（例: 自分で開いたターミナルで `nohup simpleFoam > log.simpleFoam 2>&1 < /dev/null &`）。
+
 ## foamMonitor ランチャー
 
 **Tools > foamMonitor…** から `foamMonitor` を起動し、残差などの時系列データを gnuplot でプロットできます。FoDE を離れることなく残差監視が可能です。
@@ -1237,9 +1253,11 @@ foamMonitor の実行中、メニュー項目は **■ foamMonitor** と表示�
 
 **Tools > Restore 0/ from 0.orig** を選択すると、`0.orig/` から `0/` フィールドディレクトリを再作成できます。確認ダイアログが表示され、`0/` を削除して `0.orig/` の新しいコピーで置き換えること、`0/` に直接加えた編集はすべて破棄されることが警告されます。**Yes** をクリックすると続行します。コマンドは Terminal タブで実行され（`rm -rf 0 && cp -r 0.orig 0`）、自動的にそのタブへ切り替わります。このアクションはケースが開かれていて、`0.orig/` が存在し、ターミナルパネルが存在する場合（`no-terminal` バリアントでは存在しません）にのみ利用できます。
 
+**この操作は元に戻せません。** [免責事項](#免責事項) を参照してください。
+
 ## Run blockMesh
 
-**Tools > Run blockMesh…** を選択すると、ケースディレクトリで `blockMesh` を実行できます。まずオプションダイアログが開きます — 5 つの「Run *」アクションはすべて同じダイアログ構成を共有します:
+**Tools > Run blockMesh…** を選択すると、ケースディレクトリで `blockMesh` を実行できます。まずオプションダイアログが開きます — 「Run *」アクションはすべて同じダイアログ構成を共有します（[Run Solver](#run-solver) はその上に独自の行を加えます）:
 
 - **主要オプション** — そのツールでよく使うフラグのチェックボックスと入力欄。blockMesh の場合: 代替ディクショナリ（`-dict`。ケース相対パスを挿入する **Browse…** ボタン付き）とメッシュリージョン（`-region`）。
 - **追加オプション** — それ以外のフラグ（例: `-verbose`）を自由に書けるテキスト欄。入力したとおりコマンドに追加されます。
@@ -1265,6 +1283,44 @@ foamMonitor の実行中、メニュー項目は **■ foamMonitor** と表示�
 
 **Tools > Run checkMesh…** を選択すると、ケースディレクトリで `checkMesh` を実行し、メッシュ品質（非直交性、歪度、アスペクト比など）を検証できます。**Run blockMesh** や **Run snappyHexMesh** の後に実行するのが典型的です。[オプションダイアログ](#run-blockmesh)には `-allGeometry` と `-allTopology`（非標準の拡張チェック群）、サーフェス形式を指定する `-writeSets`（例: `vtk` — 問題のあるセル/面セットを ParaView で調べられるように書き出します）、`-region` が並びます。`checkMesh` はメッシュを読むだけなので、ダイアログにプレフライト警告はありません。コマンドは Terminal タブで実行され（自動的にそのタブへ切り替わります）、出力は `log.checkMesh` にも保存され、[View Log Summary](#view-log-summary) で確認できます。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用できます。
 
+## Run decomposePar
+
+**Tools > Run decomposePar…** を選択すると、`system/decomposeParDict` の設定に従って、並列計算用にケースを `processorN/` ディレクトリへ分割します（分割数は `numberOfSubdomains`）。[オプションダイアログ](#run-blockmesh)には `-force`（既存の `processor*` ディレクトリを先に削除）、`-copyZero`（場を分割せず `0/` をそのままコピー）、`-latestTime`、`-region` が並びます。ケースがすでに分割済みの場合はダイアログにその旨が表示され、`-force` が最初からチェックされています。`-force` がないと decomposePar は実行を拒否するためです。唯一の例外は、`processor*` ディレクトリにまだ再構築されていない結果（そちらにはあってケースルートにはない時間ディレクトリ）がある場合です。`-force` を付けるとこれらは完全に削除されるため、ダイアログはその時刻を示して先に `reconstructPar` を実行するよう促し、前回チェックしていても `-force` をチェックしない状態で開きます。この場合は、decomposePar が実行を拒否するのが安全な失敗のしかたです。コマンドは Terminal タブで実行され、出力は `log.decomposePar` にも保存されます。`system/decomposeParDict` がないケースではメッセージが表示され、何も実行されません。分割後は [Run Solver](#run-solver) で並列実行できます。
+
+## Run Solver
+
+**Tools > Run Solver…** を選択すると、`Allrun` スクリプトの他の手順を通さずに、ケースのソルバーだけを実行できます。たとえば境界条件や `endTime` を変えた後、メッシュと初期場がすでに揃っている場合に使います。**Solver** 欄には `system/controlDict` の `application` が入ります。欄はディスク上のファイルではなくエディタのテキストを読むので、未保存の編集も反映されます。ソルバー名は上書き入力したり一覧から選んだりでき、変更はその回の実行にだけ適用されます。次にダイアログを開くと、再び `controlDict` の値が入ります。受け付けるのは実行ファイル名（英数字と `_ . + -`）だけで、有効な名前が入るまで **Run** は無効のままです。
+
+欄の下の行には、名前をどこから読んだかが表示されます。OpenFOAM Foundation v11 以降のケースでは `application` は `foamRun` で、物理モデルは別の `solver` エントリ（例: `incompressibleFluid`）、`foamMultiRun` なら `regionSolvers` で選びます。ダイアログはそれらのモジュールを表示しますが、コマンドは `foamRun` のままです。foamRun が `controlDict` から直接読み込むためです。
+
+ダイアログには次の項目もあります。
+
+- **未保存のファイルを先にすべて保存**: 未保存の変更があるファイルが一つでもあると表示され、チェックされた状態で始まります。ソルバーは FoDE ではなくディスクからディクショナリを読むためです。保存できないファイルがあった場合、ソルバーは開始されません。
+- **並列実行 (mpirun -np N … -parallel)**: ケースが分割済みか、`system/decomposeParDict` があると表示されます。分割済みなら N は実際の分割数です（`mpirun` が合わせるべきなのはこの数です）。分割前は `numberOfSubdomains` から取られます。まだ分割されていない場合は、先に [decomposePar を実行](#run-decomposepar)するよう警告が表示されます。分割済みならチェックされた状態で始まりますが、次の 2 つの場合はチェックなしで始まり、警告で理由を示します。
+  - `numberOfSubdomains` と実際の分割数が食い違っている場合。OpenFOAM が起動時に実行を止めます。
+  - 分割後に `0/` または `constant/polyMesh` が変更された場合。このダイアログがこれから保存する `0/` の場の未保存の編集も含みます。並列実行はケースルートではなく `processor*/` を読むため、変更が反映されないまま黙って計算が進んでしまいます。先に decomposePar を再実行してください。
+- プレフライト警告: メッシュが見つからない場合（`constant/polyMesh`、リージョンの `constant/<region>/polyMesh`、分割済みメッシュのいずれもない）、および時間ディレクトリがすでにある場合。後者では `startFrom` の扱いも示します（`latestTime` なら最新の時刻から継続、それ以外は結果が上書きされる可能性あり）。
+- その他のオプション（`-noFunctionObjects` など）を指定する **Extra options**。
+- **既存の log.<ソルバー名>**: そのログがすでにある場合（典型的には最新時刻から計算を継続する場合）にだけ表示されます。デフォルトの **名前を変えて残す: log.<ソルバー名>.[サフィックス]** は、実行前に古いログを別名に移します。サフィックスには次の `partN` が入っており（既存の最大番号の次なので、番号は実行順に並びます）、`before-refine` のように自分で入力することもできます。**上書きする** を選ぶと古いログを置き換えます。どちらの場合も、ただの `log.<ソルバー名>` が常に最新の実行です。サフィックスが空の場合、`.` で始まる場合、英数字と `_ . -` 以外を含む場合、およびすでにあるログ名になる場合は Run が無効になるので、ログを残す操作で別のログを上書きすることはありません。サフィックスは記憶されず、毎回次の空いている `partN` から始まります。
+
+出力は `log.<ソルバー名>` に保存されます。`Allrun` スクリプトの `runApplication`/`runParallel` と同じファイル名なので、[View Log Summary](#view-log-summary) と Allrun の「実行済みか」チェックの両方がこのログを認識します。実行中の残差は [foamMonitor ランチャー](#foammonitor-ランチャー) でプロットできます。ソルバーは Terminal タブで Ctrl+C を押すと停止できますが、Simple ターミナルモードでは実行中のジョブを中断できません。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用できます。
+
+## Run reconstructPar
+
+**Tools > Run reconstructPar…** を選択すると、並列計算の結果を `processor*/` ディレクトリからケースルートの通常の時間ディレクトリに戻し、FoDE・ParaView・シリアル実行のツールから読めるようにします。[オプションダイアログ](#run-blockmesh)には、両フォークで綴りが同じオプションである `-newTimes`（既定でチェック: すでにケースルートにある時刻を飛ばす）、`-latestTime`、`-time`（例: `0.5:1`）、`-fields`（例: `(U p)`）、`-withZero`、`-region` が並びます。「フィールド / セット / lagrangian を飛ばす」スイッチは Foundation では `-noFields`、OpenCFD では `-no-fields` と綴りが異なるため、**Extra options** に入力します。ダイアログには、まだケースルートにない時刻が一覧されるか、新たに再構築するものがないことが表示されます。`processor*/` ディレクトリがないケースや、Terminal タブでコマンドがまだ実行中の場合は実行を拒否します。書き込み途中の時間ステップを中途半端な状態で再構築してしまうおそれがあるためです。出力は `log.reconstructPar` にも保存されます。
+
+## Delete processor* Directories
+
+**Tools > Delete processor\* Directories…** を選択すると、結果の再構築が済んだ分割ケースが占めるディスク容量を解放できます。`processor*/` の中身がすべてケースルートにも存在することを FoDE がファイルごとに確認するまで、何も削除しません。確認する内容:
+
+- すべての時間ディレクトリとその中のすべてのファイル（フィールド、`uniform/`、`lagrangian/`）。`-latestTime` や `-fields` で再構築した場合も検出します。
+- `constant/polyMesh/sets/` のセル/面/点セット。`reconstructPar` はセットを飛ばすオプション指定時にこれを再構築しません。
+- メッシュ: processor 側にメッシュがある場合、ケースルートには合計セル数が同じメッシュが必要です。`snappyHexMesh -parallel` で作成し、まだ `reconstructParMesh` を通していないメッシュでは、ケースルートに古いバックグラウンドメッシュが残っているため、ここで検出されます。
+
+失われるものが一つでもあれば、ダイアログはその内容（例: 「時刻 0.3 は processor\* にしかありません」）を一覧して何も削除しません。「それでも削除」はありません。collated 形式のデータ（`processorsN`）も、FoDE が中身を読めないため拒否します。確認に通ると、確認を求めます（既定は **No**）。そこには **最新の時刻（t）と分割済みメッシュを残す** というチェックボックスがあり、既定でチェックされています。チェックしたままなら、`processor*/` の時間ディレクトリのうち最新のもの以外を削除し、各 processor の `constant/` は残すので、`startFrom latestTime;` でそのまま並列計算を続けられます。これにより、シリアル実行でメッシュ全体をメモリに載せる必要がある `decomposePar` — まさに `processor*/` が大きいケースで重くなる処理 — をやり直さずに済み、容量もほぼすべて解放されます。チェックを外すとディレクトリ全体を削除し、後で並列計算を続けるにはもう一度 `decomposePar` が必要です（Run decomposePar の `-latestTime` を使えば最後の時刻だけを分割できます）。先頭の問いは常に、現在の選択で何がどれだけ削除されるかを示し（「processor\* ディレクトリから 9.59 GB を完全に削除しますか?」または「…丸ごと完全に削除しますか（9.96 GB）?」）、チェックボックスを切り替えると変わります。既定が変わる場合が 2 つあります。ケースルートに processor 側より新しい時刻がある場合（再構築後にシリアルで計算を続けた場合など）は、残す時刻がケースより古い再開点になるため、チェックなしで始まります。すべて削除するとデータが失われるが最新の時刻を残せば失われない場合 — メッシュが `processor*/` にしかない場合 — は、チェックされた状態で固定され、その理由が表示されます。確認するのは実際に削除するものだけです。残すモードでは残す時刻とメッシュは削除しないので、ケースルートになくても構いません。削除するものはゴミ箱ではなく完全に削除します — 容量を空けることが目的だからです。大きなケースでは時間がかかるため、削除中のディレクトリ名を示す進捗ウィンドウの裏で、バックグラウンドで実行します。メインウィンドウは応答し続けますが、終わるまでは操作できません。**停止** を押すと、現在の時間ディレクトリを削除し終えたところで止まります。最初の削除の前にすべてを確認済みなので、途中で止めても常に安全です。もう一度この操作を実行すれば続きを削除します。Terminal タブでコマンドが実行中の場合も実行を拒否します。この操作自体にターミナルは不要で、確認と削除は FoDE の内部で行われます。
+
+**この操作は元に戻せません。** [免責事項](#免責事項) を参照してください。
+
 ## Run Allrun Script
 
 **Tools > Run Allrun Script** を選択すると、ケースの `./Allrun` スクリプト — 通常はメッシュ生成・フィールド初期化・ソルバー本体までのワークフロー全体 — を Terminal タブで実行できます（自動的にそのタブへ切り替わります）。ケースに `Allrun` スクリプトがない場合は警告ダイアログが表示されます。ソルバー実行には長時間かかることがあるため、まず確認ダイアログが表示されます。なお Simple ターミナルモードでは実行中のジョブを中断できません（xterm ターミナルは Ctrl+C に対応しています）。
@@ -1283,6 +1339,8 @@ foamMonitor の実行中、メニュー項目は **■ foamMonitor** と表示�
 
 なお、[Clean Case (foamCleanTutorials)](#clean-case-foamcleantutorials) はケースに `./Allclean` がある場合それを実行するため、このアクションはスクリプト自体を明示的に実行したい場合のためのものです。
 
+**この操作は元に戻せません。** [免責事項](#免責事項) を参照してください。
+
 ## Clean Case (foamCleanTutorials)
 
 **Tools > Clean Case (foamCleanTutorials)** を選択すると、OpenFOAM 標準の `foamCleanTutorials` スクリプトを Terminal タブで実行してケースをクリーンできます（自動的にそのタブへ切り替わります）。生成されたメッシュ（`constant/polyMesh`）、時刻ディレクトリ、`processor*/` 分割、`postProcessing/`、`log.*` ファイルなどの生成物を削除します。ケースに応じて次の 2 つの挙動があり、いずれも確認ダイアログに明記されます。
@@ -1291,6 +1349,8 @@ foamMonitor の実行中、メニュー項目は **■ foamMonitor** と表示�
 - それ以外で `0.orig/` ディレクトリが存在する場合、`0/` も削除されます（`foamCleanTutorials` のデフォルト `-auto` モード — 標準的なチュートリアルの慣例です。[Restore 0/ from 0.orig](#restore-0-from-0orig) または **Run Allrun Script** で再作成できます）。
 
 クリーン後、ファイルリストと[メッシュインジケーター](#メッシュ有無古さのインジケーター)は自動的に更新されます。このアクションはケースが開かれていてターミナルパネルが存在する場合にのみ利用でき、ターミナルで OpenFOAM 環境が source 済みである必要があります（**Run blockMesh** と同じです）。
+
+**この操作は元に戻せません。** [免責事項](#免責事項) を参照してください。
 
 ## View Log Summary
 
@@ -1353,7 +1413,13 @@ Editor ツールバーの **Find in Tree** ボタンをクリック（または 
 
 ## ツリービューのコンテキストメニュー
 
-中央ツリービューの任意の行を右クリックするとコンテキストメニューが表示されます。
+中央ツリービューの任意の行を右クリックするとコンテキストメニューが表示されます。項目は機能ごとにグループ化されています。
+
+### 元に戻す・やり直す
+
+ツリーの編集は元に戻せます: ツリーがキーボードフォーカスを持つ状態で **Ctrl+Z** を押すと、現在のファイルで最後に行ったツリー変更が取り消され、**Ctrl+Shift+Z** で再適用されます（コンテキストメニューの **Undo Tree Edit** / **Redo Tree Edit** からも実行できます）。対象はツリー側のすべての変更 — インラインセル編集、Detail パネルの Apply、Paste Value、Add/Duplicate/Delete/Comment Out/Restore、**Apply Text to Tree**、BlockMesh パネルでの頂点ドラッグ、Boundary タブのパッチ操作 — です。複数のフィールドファイルを一度に変更する境界操作（例: `0/` 全体でのパッチ名変更）は一体として取り消されます。1 回の Ctrl+Z で触れたすべてのファイルが復元され、ステータスバーに追加ファイル数が表示されます。
+
+Undo はセッション全体で単一の履歴として保持され（最大 50 ステップ）、別のケースを開くとクリアされます: Ctrl+Z は場所を問わず最後のツリー変更を取り消し、対象ファイルが画面に表示されていない場合はそのファイルへ表示を切り替えます。下部のテキストエディタは自由入力用に自身のネイティブな Ctrl+Z を保持しています — ツリーのショートカットはツリーにフォーカスがあるときだけ発火します。Undo はツリーを再読み込みするため、行の展開・選択状態はリセットされます。
 
 ### Value のコピー・ペースト
 
@@ -1788,6 +1854,8 @@ FoDE は完全な仕様準拠ではなく、よく使われる OpenFOAM 辞書�
 - ツリーからテキストを再生成した場合、変更ノード周辺の整形やコメント位置が変化する可能性があります。
 
 ## 免責事項
+
+FoDE は「現状のまま」提供され、いかなる保証もありません。FoDE はケース内のファイルを編集・コピー・削除します。これらの操作には安全策を設けていますが、ご自身の責任でお使いください。本ソフトウェアの使用によって生じたデータの損失その他の損害について、作者は責任を負いません。再生成できないケースはバックアップを取っておいてください。拘束力のある条件は[ライセンス](LICENSE)の第 15 条（保証の否認）と第 16 条（責任の制限）です。
 
 This offering is not approved or endorsed by OpenCFD Limited, producer and distributor of the OpenFOAM software via [www.openfoam.com](http://www.openfoam.com/), and owner of the OPENFOAM® and OpenCFD® trade marks.
 

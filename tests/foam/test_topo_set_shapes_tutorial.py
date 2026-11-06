@@ -33,10 +33,6 @@ def _by_label(shapes, label):
     return matches[0]
 
 
-def test_all_shapes_extracted(shapes):
-    assert len(shapes) == 14
-
-
 def test_every_geometry_source_covered(shapes):
     sources = sorted(s.kind for s in shapes)
     assert sources == [

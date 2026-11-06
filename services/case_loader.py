@@ -234,6 +234,23 @@ def list_region_files(case_dir: str, regions: list[str]) -> list[str]:
     return result
 
 
+# Dictionaries a case may legitimately hold several of, listed by prefix rather than by
+# name. `topoSet -dict system/topoSetDict-slices` runs one of many, and the tutorials use
+# `topoSetDict.1` / `.2` / `.3` for the same reason -- names a fixed list cannot enumerate,
+# so each one previously had to be added by hand through the Add files dialog.
+#
+# Scoped to the four dictionaries the 3-D viewer knows, which is where having several is
+# normal. Measured over both tutorial trees, that adds 133 rows across 67 of 851 cases:
+# 92% of cases see no change at all, and most of the rest gain a single row. Applying the
+# same rule to every name in TARGET_FILES would touch 398 cases, and most of that is the
+# `.air` / `.water` phase variants `_list_phase_files` already handles in constant/.
+VARIANT_FILE_BASES = (
+    "blockMeshDict",
+    "setFieldsDict",
+    "snappyHexMeshDict",
+    "topoSetDict",
+)
+
 def _list_phase_files(case_dir: str, subdir: str) -> list[str]:
     """Return files matching '<stem>.*' patterns in case_dir/subdir/."""
     d = Path(case_dir) / subdir
@@ -244,6 +261,25 @@ def _list_phase_files(case_dir: str, subdir: str) -> list[str]:
         for stem in PHASE_FILE_BASES
         for f in sorted(d.glob(f"{stem}.*"), key=lambda p: p.name.lower())
         if f.is_file()
+    ]
+
+
+
+def _list_variant_files(case_dir: str) -> list[str]:
+    """Return system/ files named like a viewer dictionary but not exactly so.
+
+    A prefix match, not `<stem>.*` like the phase files: the separator varies and is
+    sometimes absent -- `topoSetDict-slices`, `topoSetDict.1`, `topoSetDict2` all occur.
+    The exact name is excluded here because TARGET_FILES has already added it.
+    """
+    d = Path(case_dir) / "system"
+    if not d.is_dir():
+        return []
+    return [
+        str(f)
+        for stem in VARIANT_FILE_BASES
+        for f in sorted(d.glob(f"{stem}*"), key=lambda p: p.name.lower())
+        if f.is_file() and f.name != stem
     ]
 
 
@@ -291,8 +327,11 @@ def detect_poly_mesh(case_dir: str) -> PolyMeshInfo | None:
     owner = Path(case_dir) / "constant" / "polyMesh" / "owner"
     if not owner.is_file():
         return None
+    # Only the header: owner runs to gigabytes on a large mesh, and this runs
+    # on every file-list refresh.
     try:
-        header = owner.read_text(errors="replace")[:2000]
+        with owner.open(encoding="utf-8", errors="replace") as f:
+            header = f.read(2000)
     except OSError:
         header = ""
     match = _OWNER_NOTE_RE.search(header)
@@ -342,6 +381,10 @@ def list_case_files(
 
     # Phase variant files in constant/ (e.g. thermophysicalProperties.air)
     for s in _list_phase_files(case_dir, "constant"):
+        _add(s)
+
+    # Extra copies of a viewer dictionary (e.g. topoSetDict-slices, topoSetDict.1)
+    for s in _list_variant_files(case_dir):
         _add(s)
 
     # Field directories (0/, 0.orig/) — direct files and one level of region subdirs

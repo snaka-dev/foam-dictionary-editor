@@ -109,7 +109,7 @@ class TestActionToolbar:
         tooltips = [a.toolTip() for a in main_window.findChildren(QAction)]
         assert forbidden not in tooltips
 
-    def test_toolbar_actions_are_wired_to_the_commands(self, qapp, monkeypatch):
+    def test_toolbar_actions_are_wired_to_the_commands(self, qapp, monkeypatch, destroy_widget):
         # Patched on the class before construction -- see
         # test_tree_text_sync_bar.py::test_buttons_are_wired_to_the_sync_commands
         # for why: the connections are made during __init__, so a patch applied
@@ -140,7 +140,7 @@ class TestActionToolbar:
             assert called == ["open_case", "save_file", "save_all_files", "reload_case"]
         finally:
             win._file_list_refresh_timer.stop()
-            win.close()
+            destroy_widget(win)
             for name, value in original.items():
                 cfg.set_feature(name, value)
 
@@ -155,7 +155,7 @@ class TestPinnedButtonWidths:
     """
 
     @contextmanager
-    def _window(self, *, font_point_size: int, language: str):
+    def _window(self, destroy, *, font_point_size: int, language: str):
         """Build a MainWindow at *font_point_size* in *language*, restoring after.
 
         A context manager rather than a returned cleanup callable: the font,
@@ -183,7 +183,7 @@ class TestPinnedButtonWidths:
         finally:
             if win is not None:
                 win._file_list_refresh_timer.stop()
-                win.close()
+                destroy(win)
             QApplication.setFont(previous_font)
             set_language(previous_language)
             for name, value in original.items():
@@ -194,9 +194,9 @@ class TestPinnedButtonWidths:
         return next(b for b in win.findChildren(QAbstractButton) if b.text() == text)
 
     def test_no_pinned_button_is_capped_below_its_own_text_at_16pt(
-        self, qapp, temp_config  # noqa: ARG002 (qapp/temp_config needed for construction)
+        self, qapp, temp_config, destroy_widget  # noqa: ARG002 (qapp/temp_config for construction)
     ):
-        with self._window(font_point_size=16, language="en") as win:
+        with self._window(destroy_widget, font_point_size=16, language="en") as win:
             assert win._bottom_minimize_btn.maximumWidth() >= button_pixel_width(
                 win._bottom_minimize_btn.text()
             )
@@ -210,10 +210,10 @@ class TestPinnedButtonWidths:
             assert refresh_btn.maximumWidth() >= button_pixel_width(refresh_btn.text())
 
     def test_the_japanese_clear_label_is_not_capped_either(
-        self, qapp, temp_config  # noqa: ARG002 (qapp/temp_config needed for construction)
+        self, qapp, temp_config, destroy_widget  # noqa: ARG002 (qapp/temp_config for construction)
     ):
         # クリア is 11 px wider than "Clear" and hits a shared cap first.
-        with self._window(font_point_size=16, language="ja") as win:
+        with self._window(destroy_widget, font_point_size=16, language="ja") as win:
             clear_btn = self._clear_button(win)
             assert clear_btn.text() != "Clear"
             assert clear_btn.maximumWidth() >= button_pixel_width(clear_btn.text())

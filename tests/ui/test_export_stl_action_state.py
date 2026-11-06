@@ -30,27 +30,27 @@ _HEADER_ONLY_TOPO = (
 )
 
 
-def test_export_action_disabled_by_default(qapp):
-    panel = BlockMeshPanel()
+def test_export_action_disabled_by_default(qapp, qt_widget):
+    panel = qt_widget(BlockMeshPanel())
     assert not panel._export_stl_act.isEnabled()
 
 
-def test_export_action_enabled_after_loading_topo_set(qapp):
-    panel = BlockMeshPanel()
+def test_export_action_enabled_after_loading_topo_set(qapp, qt_widget):
+    panel = qt_widget(BlockMeshPanel())
     root = OpenFoamParser(_TOPO_SET_DICT.read_text()).parse()
     panel.update_topo_set(str(_TOPO_SET_DICT), root)
     assert panel._export_stl_act.isEnabled()
 
 
-def test_export_action_enabled_after_loading_snappy(qapp):
-    panel = BlockMeshPanel()
+def test_export_action_enabled_after_loading_snappy(qapp, qt_widget):
+    panel = qt_widget(BlockMeshPanel())
     root = OpenFoamParser(_SNAPPY_DEMO_DICT).parse()
     panel.update_snappy_hex_mesh("snappyHexMeshDict", root)
     assert panel._export_stl_act.isEnabled()
 
 
-def test_export_action_disabled_after_clear(qapp):
-    panel = BlockMeshPanel()
+def test_export_action_disabled_after_clear(qapp, qt_widget):
+    panel = qt_widget(BlockMeshPanel())
     root = OpenFoamParser(_TOPO_SET_DICT.read_text()).parse()
     panel.update_topo_set(str(_TOPO_SET_DICT), root)
     assert panel._export_stl_act.isEnabled()
@@ -59,12 +59,12 @@ def test_export_action_disabled_after_clear(qapp):
     assert not panel._export_stl_act.isEnabled()
 
 
-def test_export_action_disabled_when_reloaded_empty(qapp):
-    panel = BlockMeshPanel()
+def test_export_action_disabled_when_reloaded_empty(qapp, qt_widget):
+    panel = qt_widget(BlockMeshPanel())
     root = OpenFoamParser(_TOPO_SET_DICT.read_text()).parse()
     panel.update_topo_set(str(_TOPO_SET_DICT), root)
     assert panel._export_stl_act.isEnabled()
 
     empty_root = OpenFoamParser(_HEADER_ONLY_TOPO).parse()
-    panel.update_topo_set("empty", empty_root)
+    panel.update_topo_set(str(_TOPO_SET_DICT), empty_root)
     assert not panel._export_stl_act.isEnabled()

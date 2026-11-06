@@ -4,7 +4,7 @@ FoDE — Foam Dictionary Editor（読み方: "フォーディー"）
 
 Python と PySide6 で作られた、OpenFOAM 辞書ファイル向け GUI エディタです。
 
-🎬 **Vimeo のデモ動画** — 短い紹介動画が 8 本あります。ショットごとの台本とあわせて [docs/DEMO_SCRIPTS_ja.md](docs/DEMO_SCRIPTS_ja.md) に一覧があります。まずは [編集し、見て、実行する](https://vimeo.com/1218332419?texttrack=ja)（約 74 秒）から。[ワークフロー全体](https://vimeo.com/1217899060?texttrack=ja)（約 3 分 38 秒）を通しで見ることもできます。
+🎬 **Vimeo のデモ動画** — 短い紹介動画が 9 本あります。ショットごとの台本とあわせて [docs/DEMO_SCRIPTS_ja.md](docs/DEMO_SCRIPTS_ja.md) に一覧があります。まずは [編集し、見て、実行する](https://vimeo.com/1218332419?texttrack=ja)（約 74 秒）から。[ワークフロー全体](https://vimeo.com/1217899060?texttrack=ja)（約 3 分 41 秒）を通しで見ることもできます。
 
 > 📄 **[*SoftwareX*](https://doi.org/10.1016/j.softx.2026.102852)**（Elsevier）に掲載されました — 「[引用](#引用)」を参照してください。
 
@@ -112,7 +112,7 @@ pip install pyvista pyvistaqt
 - `no-terminal` バリアントでは完全に省略（Windows 向け）
 
 **[ツールメニュー](USER_GUIDE_ja.md#foammonitor-ランチャー)**
-- `blockMesh`・`snappyHexMesh`・`topoSet`・`setFields`・`checkMesh` をワンクリックでターミナル実行（出力は `log.*` に保存）。`0/` を `0.orig` から復元することも可能
+- `blockMesh`・`snappyHexMesh`・`topoSet`・`setFields`・`checkMesh`・`decomposePar`・`reconstructPar`、およびケースのソルバー（`controlDict` から読み取り、並列実行も可）をワンクリックでターミナル実行（出力は `log.*` に保存）。`0/` を `0.orig` から復元することも可能
 - ケースの `Allrun`/`Allclean` スクリプトを実行、または `foamCleanTutorials` でケースを初期状態にクリーン
 - ソルバー実行中に `foamMonitor` を起動して gnuplot で残差をプロット
 - 生成されたメッシュを ParaView で表示
@@ -180,6 +180,8 @@ Copyright (C) 2025-2026 Shinji NAKAGAWA。[GNU Affero General Public License v3.
 `ui/assets/icons/` のツールバー・メニューアイコンは、既存のアイコンセットから持ち込んだものではなく本プロジェクトのために描き起こしたものです。したがって上記ライセンスの対象であり、第三者への表示義務は生じません。フォルダ・ディスク・回転矢印・虫眼鏡といった意図的にありふれた形状を、実際に描画されるサイズで滲まないよう 16 ピクセルのグリッドに合わせて配置しています。
 
 ## 免責事項
+
+FoDE は「現状のまま」提供され、いかなる保証もありません。FoDE はケース内のファイルを編集・コピー・削除します。これらの操作には安全策を設けていますが、ご自身の責任でお使いください。本ソフトウェアの使用によって生じたデータの損失その他の損害について、作者は責任を負いません。再生成できないケースはバックアップを取っておいてください。拘束力のある条件は[ライセンス](LICENSE)の第 15 条（保証の否認）と第 16 条（責任の制限）です。
 
 This offering is not approved or endorsed by OpenCFD Limited, producer and distributor of the OpenFOAM software via [www.openfoam.com](http://www.openfoam.com/), and owner of the OPENFOAM® and OpenCFD® trade marks.
 

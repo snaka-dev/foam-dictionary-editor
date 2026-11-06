@@ -14,19 +14,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from foam.utils import format_size
 from i18n import tr
 from ui.widgets._checkable_list import checked_items, set_all_check_states
 
 _DIALOG_WIDTH = 560
 _DIALOG_HEIGHT = 400
 
-
-def _fmt_size(n: int) -> str:
-    if n < 1024:
-        return f"{n} B"
-    if n < 1024 * 1024:
-        return f"{n / 1024:.1f} KB"
-    return f"{n / (1024 * 1024):.1f} MB"
 
 
 class CleanBackupsDialog(QDialog):
@@ -65,7 +59,7 @@ class CleanBackupsDialog(QDialog):
 
         self._list = QListWidget()
         for abs_path, rel_path, size in backups:
-            item = QListWidgetItem(f"{rel_path}    ({_fmt_size(size)})")
+            item = QListWidgetItem(f"{rel_path}    ({format_size(size)})")
             item.setData(Qt.ItemDataRole.UserRole, abs_path)
             item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(Qt.CheckState.Checked)

@@ -452,12 +452,17 @@ def both_keys(module_name: str) -> list[str]:
 
 
 def build() -> dict:
-    dictionaries = []
+    dictionaries: list[dict[str, object]] = []
+    # Collected as the rows are built rather than re-walked out of `dictionaries`
+    # afterwards: that dict's values are heterogeneous, so reading a key back out of it
+    # gives the join of every value type rather than the row list that went in.
+    all_keys: set[str] = set()
     for path, module_name in MODULES.items():
         readers = READERS.get(path)
         if not readers:
             raise SystemExit(f"no READERS entry for {path}")
         keys = [{"key": k, "claimed": "BOTH"} for k in both_keys(module_name)]
+        all_keys.update(str(entry["key"]) for entry in keys)
         dictionaries.append({
             "file": path,
             "module": module_name.replace(".", "/") + ".py",
@@ -485,8 +490,7 @@ def build() -> dict:
         "exclude_dirs": ["lnInclude"],
         "runtime_assembled": sorted(
             set(RUNTIME_ASSEMBLED)
-            | set(_model_coeff_keys(
-                {k["key"] for d in dictionaries for k in d["keys"]}))),
+            | set(_model_coeff_keys(all_keys))),
         "known_unseen": list(KNOWN_UNSEEN),
         "structural_keys": list(STRUCTURAL_KEYS),
         "dictionaries": dictionaries,

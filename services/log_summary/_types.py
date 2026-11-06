@@ -17,7 +17,6 @@ _HEADER_FIELDS = ("Exec", "Version", "Build", "Date", "Case", "nProcs")
 _HEADER_END_RE = re.compile(r"^//\s*\*")
 
 _WARNING_START_RE = re.compile(r"^-->\s*FOAM Warning\s*:\s*(.*)$")
-_FATAL_START_RE = re.compile(r"^-{3,}\s*$|^\s*$")
 _FATAL_HEADER_RE = re.compile(r"FOAM FATAL ERROR", re.IGNORECASE)
 _NUMERIC_RE = re.compile(r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
 

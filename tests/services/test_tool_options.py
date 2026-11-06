@@ -22,6 +22,8 @@ class TestSpecs:
             "snappyHexMesh",
             "topoSet",
             "setFields",
+            "decomposePar",
+            "reconstructPar",
             "checkMesh",
         }
 
@@ -43,6 +45,8 @@ class TestSpecs:
             ("topoSet", "topoSet 2>&1 | tee log.topoSet"),
             ("setFields", "setFields 2>&1 | tee log.setFields"),
             ("checkMesh", "checkMesh 2>&1 | tee log.checkMesh"),
+            ("decomposePar", "decomposePar 2>&1 | tee log.decomposePar"),
+            ("reconstructPar", "reconstructPar -newTimes 2>&1 | tee log.reconstructPar"),
         ]:
             spec = TOOL_SPECS[name]
             assert build_command(spec, default_values(spec)) == expected
@@ -120,4 +124,19 @@ class TestBuildCommand:
         )
         assert cmd == (
             "rm -rf 0 && cp -r 0.orig 0 && demoTool 2>&1 | tee log.demoTool"
+        )
+
+
+class TestParallel:
+    def test_parallel_wraps_in_mpirun_and_appends_flag(self):
+        spec = ToolSpec("simpleFoam", ())
+        assert build_command(spec, {}, "-noFunctionObjects", parallel_np=4) == (
+            "mpirun -np 4 simpleFoam -noFunctionObjects -parallel"
+            " 2>&1 | tee log.simpleFoam"
+        )
+
+    def test_parallel_keeps_prefix_in_front(self):
+        spec = ToolSpec("simpleFoam", ())
+        assert build_command(spec, {}, prefix="cd x && ", parallel_np=2) == (
+            "cd x && mpirun -np 2 simpleFoam -parallel 2>&1 | tee log.simpleFoam"
         )

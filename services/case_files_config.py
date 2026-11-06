@@ -19,6 +19,10 @@ class CaseFilesConfig:
         self._path = Path(case_dir) / _CONFIG_FILENAME
         self._extra_files: list[str] = []
         self._extra_dirs: list[DirEntry] = []
+        # rel path -> viewer overlay key, for files whose name and FoamFile header do not
+        # identify them (a renamed sampling dict has no header at all). Case-relative like
+        # the lists above, so the override travels inside a case directory that is moved.
+        self._viewer_kinds: dict[str, str] = {}
         self._load()
 
     def _load(self) -> None:
@@ -26,8 +30,12 @@ class CaseFilesConfig:
         if data is None:
             self._extra_files = []
             self._extra_dirs = []
+            self._viewer_kinds = {}
             return
         self._extra_files = [str(f) for f in data.get("extra_files", [])]
+        self._viewer_kinds = {
+            str(k): str(v) for k, v in (data.get("viewer_kinds") or {}).items() if v
+        }
         self._extra_dirs = []
         for d in data.get("extra_dirs", []):
             if isinstance(d, dict):
@@ -40,6 +48,8 @@ class CaseFilesConfig:
 
     def save(self) -> None:
         data: dict = {"extra_files": self._extra_files}
+        if self._viewer_kinds:
+            data["viewer_kinds"] = dict(self._viewer_kinds)
         if self._extra_dirs:
             data["extra_dirs"] = [
                 {"path": p, "recursive": r} for p, r in self._extra_dirs
@@ -70,17 +80,40 @@ class CaseFilesConfig:
     def remove_dir(self, rel_path: str) -> None:
         self._extra_dirs = [(p, r) for p, r in self._extra_dirs if p != rel_path]
 
+    def get_viewer_kind(self, rel_path: str) -> str:
+        """The user's "show this in the 3-D view as ..." choice, or "" for automatic."""
+        return self._viewer_kinds.get(rel_path, "")
+
+    def set_viewer_kind(self, rel_path: str, kind: str) -> None:
+        """Pin *rel_path* to an overlay; an empty *kind* returns it to automatic."""
+        if kind:
+            self._viewer_kinds[rel_path] = kind
+        else:
+            self._viewer_kinds.pop(rel_path, None)
+
+    def get_viewer_kinds(self) -> dict[str, str]:
+        return dict(self._viewer_kinds)
+
     def reset(self) -> None:
         self._extra_files = []
         self._extra_dirs = []
+        self._viewer_kinds = {}
 
-    def delete_config_file(self) -> None:
+    def delete_config_file(self) -> bool:
+        """Delete .foam-editor-files.json. False when it is still there.
+
+        The caller shows a confirmation promising the file will be deleted and then
+        reloads the case from disk, so a swallowed failure told the user it had worked
+        and then put every entry straight back in the list a moment later.
+        """
+        ok = True
         try:
             if self._path.exists():
                 self._path.unlink()
         except OSError:
-            pass
+            ok = False
         self.reset()
+        return ok
 
     @property
     def config_filename(self) -> str:

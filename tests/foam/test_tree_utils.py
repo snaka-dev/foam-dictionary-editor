@@ -11,12 +11,15 @@ from __future__ import annotations
 from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser
 from foam.tree_utils import (
+    child_scalar,
+    child_vector,
     expand_evals,
     find_child,
     find_child_any,
     resolve_box_geometry,
     resolve_cone_geometry,
     resolve_cylinder_geometry,
+    resolve_plane_geometry,
     resolve_point_list,
     resolve_scalar,
     resolve_sphere_geometry,
@@ -261,3 +264,55 @@ def test_box_precedence_box_over_min_max_over_boxes():
 def test_box_unresolvable_var_returns_empty():
     entry = _entry("min ($x 0 0);\nmax (1 1 1);")
     assert resolve_box_geometry(entry, {}) == {}
+
+
+# ── child_vector / child_scalar ───────────────────────────────────────────────
+
+
+def test_child_vector_resolves_first_present_key():
+    entry = _entry("p1 (1 2 3);\npoint1 (4 5 6);")
+    assert child_vector(entry, {}, "point1", "p1") == [4.0, 5.0, 6.0]
+    assert child_vector(entry, {}, "missing", "p1") == [1.0, 2.0, 3.0]
+    assert child_vector(entry, {}, "missing") is None
+
+
+def test_child_vector_does_not_fall_back_past_an_unresolvable_key():
+    """The first key present decides, as OpenFOAM reads a keyword over its alias."""
+    entry = _entry("point1 $undefined;\np1 (1 2 3);")
+    assert child_vector(entry, {}, "point1", "p1") is None
+
+
+def test_child_scalar():
+    entry = _entry("r $R;")
+    assert child_scalar(entry, {"R": "0.5"}, "radius", "r") == 0.5
+    assert child_scalar(entry, {}, "radius") is None
+
+
+# ── resolve_plane_geometry ────────────────────────────────────────────────────
+
+
+def test_plane_point_and_normal():
+    entry = _entry("point (0 0 1);\nnormal (0 0 1);")
+    assert resolve_plane_geometry(entry, {}) == {
+        "planePoint": [0.0, 0.0, 1.0],
+        "planeNormal": [0.0, 0.0, 1.0],
+    }
+
+
+def test_plane_sampling_aliases_need_allow_aliases():
+    entry = _entry("basePoint (1 0 0);\nnormalVector (1 0 0);")
+    assert resolve_plane_geometry(entry, {}) == {}
+    assert resolve_plane_geometry(entry, {}, allow_aliases=True) == {
+        "planePoint": [1.0, 0.0, 0.0],
+        "planeNormal": [1.0, 0.0, 0.0],
+    }
+
+
+def test_plane_from_nested_dict():
+    entry = _entry(
+        "planeType pointAndNormal;\n"
+        "pointAndNormalDict { basePoint (0 2 0); normalVector (0 1 0); }"
+    )
+    assert resolve_plane_geometry(
+        entry, {}, allow_aliases=True, nested_dict="pointAndNormalDict"
+    ) == {"planePoint": [0.0, 2.0, 0.0], "planeNormal": [0.0, 1.0, 0.0]}

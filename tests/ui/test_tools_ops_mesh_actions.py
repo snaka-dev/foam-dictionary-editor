@@ -11,6 +11,7 @@ filename would otherwise ship silently.
 """
 from __future__ import annotations
 
+import pytest
 from PySide6.QtWidgets import QDialog, QMessageBox, QWidget
 
 from ui.dialogs.run_tool_dialog import RunToolDialog
@@ -23,6 +24,11 @@ class _FakeTerminalPanel(QWidget):
     def __init__(self):
         super().__init__()
         self.commands: list[str] = []
+
+    def running_commands(self) -> list[str]:
+
+        return []  # idle; the busy case is tested in test_tools_busy_terminal.py
+
 
     def run_command(self, cmd: str) -> None:
         self.commands.append(cmd)
@@ -403,3 +409,471 @@ def test_view_log_summary_enabled_without_terminal(main_window, tmp_path):
 
     assert win._run_snappyhexmesh_action.isEnabled() is False
     assert win._view_log_summary_action.isEnabled() is True
+
+
+# ── Run decomposePar… / Run Solver… ──────────────────────────────────────────
+
+
+def _solver_case(tmp_path, control_dict="application simpleFoam;\n", subdomains=None):
+    (tmp_path / "system").mkdir()
+    (tmp_path / "system" / "controlDict").write_text(control_dict)
+    (tmp_path / "constant" / "polyMesh").mkdir(parents=True)
+    if subdomains is not None:
+        (tmp_path / "system" / "decomposeParDict").write_text(
+            f"numberOfSubdomains {subdomains};\nmethod scotch;\n"
+        )
+    return tmp_path
+
+
+def _capture_dialog(monkeypatch, accept=True, tweak=None):
+    """Patch exec() and return a dict that receives the built dialog."""
+    seen = {}
+
+    def fake_exec(self):
+        seen["dlg"] = self
+        if tweak is not None:
+            tweak(self)
+        return QDialog.Accepted if accept else QDialog.Rejected
+
+    monkeypatch.setattr(RunToolDialog, "exec", fake_exec)
+    return seen
+
+
+def test_run_solver_prefills_from_control_dict(main_window, tmp_path, monkeypatch):
+    win = main_window
+    win.state.current_case_dir = str(_solver_case(tmp_path))
+    win.terminal_panel = _FakeTerminalPanel()
+
+    seen = _capture_dialog(monkeypatch)
+    win._on_run_solver_clicked()
+
+    assert seen["dlg"].windowTitle() == "Run Solver"
+    assert win.terminal_panel.commands == ["simpleFoam 2>&1 | tee log.simpleFoam"]
+
+
+def test_run_solver_uses_retyped_name(main_window, tmp_path, monkeypatch):
+    win = main_window
+    win.state.current_case_dir = str(_solver_case(tmp_path))
+    win.terminal_panel = _FakeTerminalPanel()
+
+    _capture_dialog(monkeypatch, tweak=lambda d: d._exe_combo.setEditText("pimpleFoam"))
+    win._on_run_solver_clicked()
+    assert win.terminal_panel.commands == ["pimpleFoam 2>&1 | tee log.pimpleFoam"]
+
+    # The override is not remembered: the next dialog starts from controlDict.
+    _capture_dialog(monkeypatch)
+    win._on_run_solver_clicked()
+    assert win.terminal_panel.commands[-1] == "simpleFoam 2>&1 | tee log.simpleFoam"
+
+
+def test_run_solver_invalid_name_disables_run(main_window, tmp_path, monkeypatch):
+    win = main_window
+    win.state.current_case_dir = str(_solver_case(tmp_path))
+    win.terminal_panel = _FakeTerminalPanel()
+
+    def tweak(dlg):
+        dlg._exe_combo.setEditText("simpleFoam; rm -rf /")
+        assert not dlg._run_btn.isEnabled()
+        dlg._exe_combo.setEditText("")
+        assert not dlg._run_btn.isEnabled()
+
+    _capture_dialog(monkeypatch, accept=False, tweak=tweak)
+    win._on_run_solver_clicked()
+    assert win.terminal_panel.commands == []
+
+
+def test_run_solver_reads_unsaved_editor_text(main_window, tmp_path, monkeypatch):
+    win = main_window
+    case = _solver_case(tmp_path)
+    win.state.current_case_dir = str(case)
+    win.terminal_panel = _FakeTerminalPanel()
+    path = str(case / "system" / "controlDict")
+    win.state.current_file = path
+    win.editor_panel.set_text("application icoFoam;\n")
+
+    seen = _capture_dialog(monkeypatch, accept=False)
+    win._on_run_solver_clicked()
+    assert seen["dlg"].get_executable() == "icoFoam"
+
+
+def test_run_solver_foam_run_note(main_window, tmp_path, monkeypatch):
+    win = main_window
+    win.state.current_case_dir = str(
+        _solver_case(tmp_path, "application foamRun;\nsolver incompressibleFluid;\n")
+    )
+    win.terminal_panel = _FakeTerminalPanel()
+
+    seen = _capture_dialog(monkeypatch)
+    win._on_run_solver_clicked()
+    from PySide6.QtWidgets import QLabel
+
+    texts = " ".join(lbl.text() for lbl in seen["dlg"].findChildren(QLabel))
+    assert "incompressibleFluid" in texts
+    assert win.terminal_panel.commands == ["foamRun 2>&1 | tee log.foamRun"]
+
+
+def test_run_solver_parallel_defaults_on_when_decomposed(
+    main_window, tmp_path, monkeypatch
+):
+    win = main_window
+    case = _solver_case(tmp_path, subdomains=4)
+    for n in range(4):
+        (case / f"processor{n}").mkdir()
+    win.state.current_case_dir = str(case)
+    win.terminal_panel = _FakeTerminalPanel()
+
+    _capture_dialog(monkeypatch)
+    win._on_run_solver_clicked()
+    assert win.terminal_panel.commands == [
+        "mpirun -np 4 simpleFoam -parallel 2>&1 | tee log.simpleFoam"
+    ]
+
+
+def test_run_solver_parallel_off_and_warned_when_not_decomposed(
+    main_window, tmp_path, monkeypatch
+):
+    win = main_window
+    win.state.current_case_dir = str(_solver_case(tmp_path, subdomains=4))
+    win.terminal_panel = _FakeTerminalPanel()
+
+    seen = _capture_dialog(monkeypatch)
+    win._on_run_solver_clicked()
+    dlg = seen["dlg"]
+    assert dlg._parallel_chk is not None and not dlg._parallel_chk.isChecked()
+    assert win.terminal_panel.commands == ["simpleFoam 2>&1 | tee log.simpleFoam"]
+
+
+def test_run_solver_no_parallel_checkbox_without_decompose_dict(
+    main_window, tmp_path, monkeypatch
+):
+    win = main_window
+    win.state.current_case_dir = str(_solver_case(tmp_path))
+    win.terminal_panel = _FakeTerminalPanel()
+
+    seen = _capture_dialog(monkeypatch, accept=False)
+    win._on_run_solver_clicked()
+    assert seen["dlg"]._parallel_chk is None
+
+
+def test_run_solver_save_first_checkbox_only_when_dirty(
+    main_window, tmp_path, monkeypatch
+):
+    win = main_window
+    case = _solver_case(tmp_path)
+    win.state.current_case_dir = str(case)
+    win.terminal_panel = _FakeTerminalPanel()
+
+    seen = _capture_dialog(monkeypatch, accept=False)
+    win._on_run_solver_clicked()
+    assert seen["dlg"]._save_chk is None
+
+    other = str(case / "system" / "fvSchemes")
+    win.state.file_buffers[other] = "ddtSchemes { default steadyState; }\n"
+    win.state.file_dirty[other] = True
+    seen = _capture_dialog(monkeypatch)
+    win._on_run_solver_clicked()
+    assert seen["dlg"].save_first()
+    # Saved to disk before the command went out.
+    assert (case / "system" / "fvSchemes").read_text().startswith("ddtSchemes")
+    assert not win.state.file_dirty[other]
+    assert win.terminal_panel.commands == ["simpleFoam 2>&1 | tee log.simpleFoam"]
+
+
+def test_run_solver_warns_about_missing_mesh_and_results(
+    main_window, tmp_path, monkeypatch
+):
+    win = main_window
+    case = _solver_case(tmp_path, "application simpleFoam;\nstartFrom latestTime;\n")
+    (case / "constant" / "polyMesh").rmdir()
+    (case / "0").mkdir()
+    (case / "100").mkdir()
+    win.state.current_case_dir = str(case)
+    win.terminal_panel = _FakeTerminalPanel()
+
+    seen = _capture_dialog(monkeypatch, accept=False)
+    win._on_run_solver_clicked()
+    from PySide6.QtWidgets import QLabel
+
+    texts = " ".join(lbl.text() for lbl in seen["dlg"].findChildren(QLabel))
+    assert "No mesh found" in texts
+    assert "continues from 100" in texts
+
+
+def test_run_decomposepar_refuses_without_dict(main_window, tmp_path, monkeypatch):
+    win = main_window
+    win.state.current_case_dir = str(tmp_path)
+    win.terminal_panel = _FakeTerminalPanel()
+    warned = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: warned.append(a))
+
+    win._on_run_decomposepar_clicked()
+    assert warned and win.terminal_panel.commands == []
+
+
+def test_run_decomposepar_forces_when_already_decomposed(
+    main_window, tmp_path, monkeypatch
+):
+    win = main_window
+    case = _solver_case(tmp_path, subdomains=2)
+    win.state.current_case_dir = str(case)
+    win.terminal_panel = _FakeTerminalPanel()
+
+    _capture_dialog(monkeypatch)
+    win._on_run_decomposepar_clicked()
+    assert win.terminal_panel.commands == ["decomposePar 2>&1 | tee log.decomposePar"]
+
+    (case / "processor0").mkdir()
+    _capture_dialog(monkeypatch)
+    win._on_run_decomposepar_clicked()
+    assert win.terminal_panel.commands[-1] == (
+        "decomposePar -force 2>&1 | tee log.decomposePar"
+    )
+
+
+# ── existing log: keep under a suffix, or overwrite ──────────────────────────
+
+
+def test_run_solver_no_log_choice_without_existing_log(main_window, tmp_path, monkeypatch):
+    win = main_window
+    win.state.current_case_dir = str(_solver_case(tmp_path))
+    win.terminal_panel = _FakeTerminalPanel()
+
+    seen = _capture_dialog(monkeypatch)
+    win._on_run_solver_clicked()
+    assert not seen["dlg"]._log_box.isVisibleTo(seen["dlg"])
+    assert win.terminal_panel.commands == ["simpleFoam 2>&1 | tee log.simpleFoam"]
+
+
+def test_run_solver_keeps_existing_log_as_next_part(main_window, tmp_path, monkeypatch):
+    win = main_window
+    case = _solver_case(tmp_path)
+    (case / "log.simpleFoam").write_text("run 3")
+    (case / "log.simpleFoam.part1").write_text("run 1")
+    (case / "log.simpleFoam.part2").write_text("run 2")
+    win.state.current_case_dir = str(case)
+    win.terminal_panel = _FakeTerminalPanel()
+
+    _capture_dialog(monkeypatch)
+    win._on_run_solver_clicked()
+    assert win.terminal_panel.commands == [
+        "mv log.simpleFoam log.simpleFoam.part3 && simpleFoam 2>&1 | tee log.simpleFoam"
+    ]
+
+
+def test_run_solver_keeps_log_under_typed_suffix(main_window, tmp_path, monkeypatch):
+    win = main_window
+    case = _solver_case(tmp_path)
+    (case / "log.simpleFoam").write_text("x")
+    win.state.current_case_dir = str(case)
+    win.terminal_panel = _FakeTerminalPanel()
+
+    def tweak(dlg):
+        dlg._suffix_edit.setText("before-refine")
+        dlg._suffix_typed = True
+
+    _capture_dialog(monkeypatch, tweak=tweak)
+    win._on_run_solver_clicked()
+    assert win.terminal_panel.commands == [
+        "mv log.simpleFoam log.simpleFoam.before-refine && "
+        "simpleFoam 2>&1 | tee log.simpleFoam"
+    ]
+
+
+def test_run_solver_overwrite_choice_sends_no_mv(main_window, tmp_path, monkeypatch):
+    win = main_window
+    case = _solver_case(tmp_path)
+    (case / "log.simpleFoam").write_text("x")
+    win.state.current_case_dir = str(case)
+    win.terminal_panel = _FakeTerminalPanel()
+
+    _capture_dialog(monkeypatch, tweak=lambda d: d._overwrite_radio.setChecked(True))
+    win._on_run_solver_clicked()
+    assert win.terminal_panel.commands == ["simpleFoam 2>&1 | tee log.simpleFoam"]
+
+
+@pytest.mark.parametrize("suffix", ["", ".hidden", "a b", "a/b", "x;rm", "$(x)"])
+def test_run_solver_bad_suffix_disables_run(main_window, tmp_path, monkeypatch, suffix):
+    win = main_window
+    case = _solver_case(tmp_path)
+    (case / "log.simpleFoam").write_text("x")
+    win.state.current_case_dir = str(case)
+    win.terminal_panel = _FakeTerminalPanel()
+
+    def tweak(dlg):
+        dlg._suffix_edit.setText(suffix)
+        assert not dlg._run_btn.isEnabled()
+        assert "suffix" in dlg._preview.text()
+
+    _capture_dialog(monkeypatch, accept=False, tweak=tweak)
+    win._on_run_solver_clicked()
+
+
+def test_run_solver_suffix_collision_disables_run(main_window, tmp_path, monkeypatch):
+    win = main_window
+    case = _solver_case(tmp_path)
+    (case / "log.simpleFoam").write_text("x")
+    (case / "log.simpleFoam.part1").write_text("older run")
+    win.state.current_case_dir = str(case)
+    win.terminal_panel = _FakeTerminalPanel()
+
+    def tweak(dlg):
+        assert dlg._suffix_edit.text() == "part2"
+        assert dlg._run_btn.isEnabled()
+        dlg._suffix_edit.setText("part1")
+        assert not dlg._run_btn.isEnabled()
+        assert "log.simpleFoam.part1 already exists" in dlg._preview.text()
+        # Overwriting the *current* log is an explicit, separate choice.
+        dlg._overwrite_radio.setChecked(True)
+        assert dlg._run_btn.isEnabled()
+
+    _capture_dialog(monkeypatch, accept=False, tweak=tweak)
+    win._on_run_solver_clicked()
+
+
+def test_run_solver_log_choice_follows_solver_name(main_window, tmp_path, monkeypatch):
+    win = main_window
+    case = _solver_case(tmp_path)
+    (case / "log.pimpleFoam").write_text("x")
+    (case / "log.pimpleFoam.part1").write_text("x")
+    win.state.current_case_dir = str(case)
+    win.terminal_panel = _FakeTerminalPanel()
+
+    def tweak(dlg):
+        # log.simpleFoam does not exist: no choice to make.
+        assert not dlg._log_exists
+        dlg._exe_combo.setEditText("pimpleFoam")
+        assert dlg._log_exists
+        assert dlg._suffix_edit.text() == "part2"
+
+    _capture_dialog(monkeypatch, tweak=tweak)
+    win._on_run_solver_clicked()
+    assert win.terminal_panel.commands == [
+        "mv log.pimpleFoam log.pimpleFoam.part2 && pimpleFoam 2>&1 | tee log.pimpleFoam"
+    ]
+
+
+def test_run_solver_parallel_keeps_log_too(main_window, tmp_path, monkeypatch):
+    win = main_window
+    case = _solver_case(tmp_path, subdomains=2)
+    for n in range(2):
+        (case / f"processor{n}").mkdir()
+    (case / "log.simpleFoam").write_text("x")
+    win.state.current_case_dir = str(case)
+    win.terminal_panel = _FakeTerminalPanel()
+
+    _capture_dialog(monkeypatch)
+    win._on_run_solver_clicked()
+    assert win.terminal_panel.commands == [
+        "mv log.simpleFoam log.simpleFoam.part1 && "
+        "mpirun -np 2 simpleFoam -parallel 2>&1 | tee log.simpleFoam"
+    ]
+
+
+# ── parallel safeguards ───────────────────────────────────────────────────────
+
+
+def _labels(dlg):
+    from PySide6.QtWidgets import QLabel
+
+    return " ".join(lbl.text() for lbl in dlg.findChildren(QLabel))
+
+
+def test_run_solver_subdomain_mismatch_warns_and_unticks(main_window, tmp_path, monkeypatch):
+    win = main_window
+    case = _solver_case(tmp_path, subdomains=8)
+    for n in range(4):
+        (case / f"processor{n}").mkdir()
+    win.state.current_case_dir = str(case)
+    win.terminal_panel = _FakeTerminalPanel()
+
+    seen = _capture_dialog(monkeypatch, accept=False)
+    win._on_run_solver_clicked()
+    dlg = seen["dlg"]
+    assert "asks for 8 subdomains but the case is decomposed into 4" in _labels(dlg)
+    assert not dlg._parallel_chk.isChecked()
+    # -np follows the decomposition, which is what mpirun must match.
+    assert "-np 4" in dlg._parallel_chk.text()
+
+
+def test_run_solver_stale_zero_dir_warns_and_unticks(main_window, tmp_path, monkeypatch):
+    import os
+
+    win = main_window
+    case = _solver_case(tmp_path, subdomains=2)
+    for n in range(2):
+        (case / f"processor{n}" / "0").mkdir(parents=True)
+        (case / f"processor{n}" / "0" / "U").write_text("decomposed")
+    (case / "0").mkdir()
+    (case / "0" / "U").write_text("edited later")
+    old = os.path.getmtime(case / "processor0" / "0" / "U")
+    os.utime(case / "0" / "U", (old + 60, old + 60))
+    win.state.current_case_dir = str(case)
+    win.terminal_panel = _FakeTerminalPanel()
+
+    seen = _capture_dialog(monkeypatch, accept=False)
+    win._on_run_solver_clicked()
+    dlg = seen["dlg"]
+    assert "0/ changed after the case was decomposed" in _labels(dlg)
+    assert not dlg._parallel_chk.isChecked()
+
+
+def test_run_solver_unsaved_zero_field_counts_as_stale(main_window, tmp_path, monkeypatch):
+    import os
+
+    win = main_window
+    case = _solver_case(tmp_path, subdomains=2)
+    (case / "0").mkdir()
+    (case / "0" / "U").write_text("original")
+    for n in range(2):
+        (case / f"processor{n}" / "0").mkdir(parents=True)
+        (case / f"processor{n}" / "0" / "U").write_text("decomposed")
+    old = os.path.getmtime(case / "processor0" / "0" / "U")
+    os.utime(case / "0" / "U", (old - 60, old - 60))
+    path = str(case / "0" / "U")
+    win.state.file_buffers[path] = "edited, not saved"
+    win.state.file_dirty[path] = True
+    win.state.current_case_dir = str(case)
+    win.terminal_panel = _FakeTerminalPanel()
+
+    seen = _capture_dialog(monkeypatch, accept=False)
+    win._on_run_solver_clicked()
+    assert "0/ changed after the case was decomposed" in _labels(seen["dlg"])
+
+
+# ── decomposePar -force safeguard ─────────────────────────────────────────────
+
+
+def test_run_decomposepar_never_forces_over_unreconstructed_results(
+    main_window, tmp_path, monkeypatch
+):
+    win = main_window
+    case = _solver_case(tmp_path, subdomains=2)
+    for n in range(2):
+        (case / f"processor{n}" / "0.5").mkdir(parents=True)
+    win.state.current_case_dir = str(case)
+    win.terminal_panel = _FakeTerminalPanel()
+    # Even a remembered -force from an earlier run is overridden.
+    win.state.run_tool_options["decomposePar"] = {"-force": True}
+
+    seen = _capture_dialog(monkeypatch)
+    win._on_run_decomposepar_clicked()
+    assert "not been reconstructed: 0.5" in _labels(seen["dlg"])
+    assert win.terminal_panel.commands == ["decomposePar 2>&1 | tee log.decomposePar"]
+
+
+def test_run_decomposepar_reconstructed_times_are_not_flagged(
+    main_window, tmp_path, monkeypatch
+):
+    win = main_window
+    case = _solver_case(tmp_path, subdomains=2)
+    for n in range(2):
+        (case / f"processor{n}" / "0.5").mkdir(parents=True)
+    (case / "0.5").mkdir()
+    win.state.current_case_dir = str(case)
+    win.terminal_panel = _FakeTerminalPanel()
+
+    _capture_dialog(monkeypatch)
+    win._on_run_decomposepar_clicked()
+    assert win.terminal_panel.commands == [
+        "decomposePar -force 2>&1 | tee log.decomposePar"
+    ]

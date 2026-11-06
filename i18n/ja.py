@@ -305,6 +305,8 @@ TRANSLATIONS: dict[str, str] = {
     "Tree changes applied to text editor": "ツリーの変更をテキストエディタに適用しました",
     "No unsaved files.": "未保存のファイルはありません。",
     "File list reset to default.": "ファイルリストをデフォルトにリセットしました。",
+    "Could not delete {name}. The file list is unchanged.":
+        "{name} を削除できませんでした。ファイル一覧は変更されていません。",
     "No extra files configured for this case.": "このケースには追加ファイルが設定されていません。",
     "Paste failed: value format not accepted": "貼り付け失敗: 値の形式が受け付けられません",
     "Copied: {text}": "コピーしました: {text}",
@@ -470,7 +472,7 @@ TRANSLATIONS: dict[str, str] = {
         "このケースのファイルリストからユーザーが追加したファイルとディレクトリをすべて削除しますか？\n"
         ".foam-editor-files.json ファイルが削除されます。",
     "File name (will be created in {group}/):" : "ファイル名（{group}/ に作成されます）:",
-    "New file name (in {dir}/):" : "新しいファイル名（{dir}/ 内）:",
+    "New file name (in {dir}/):": "新しいファイル名（{dir}/ 内）:",
     "Could not read file:\n{e}": "ファイルを読み込めませんでした:\n{e}",
     "Could not write backup:\n{e}": "バックアップを書き込めませんでした:\n{e}",
     "Backup && Delete": "バックアップして削除",
@@ -579,6 +581,11 @@ TRANSLATIONS: dict[str, str] = {
     "Copy as CSV (multi-line cells)": "CSVとしてコピー（セル内改行あり）",
     "Save File\tCtrl+S": "ファイルを保存\tCtrl+S",
     "Remove from extra files": "追加ファイルから削除",
+    "Show in 3-D view as": "3-D ビューでの扱い",
+    "Automatic": "自動判定",
+    "Sampling (probes / sets / surfaces)": "サンプリング (probes / sets / surfaces)",
+    "3-D view: {name} is now shown as {kind}.": "3-D ビュー: {name} を {kind} として表示します。",
+    "automatic": "自動判定",
     "Duplicate...": "複製...",
     "Create Backup": "バックアップを作成",
     "Delete file...": "ファイルを削除...",
@@ -872,6 +879,219 @@ TRANSLATIONS: dict[str, str] = {
     "e.g. system/blockMeshDict.v2": "例: system/blockMeshDict.v2",
     "e.g. fluid": "例: fluid",
     "e.g. vtk": "例: vtk",
+    "Remove existing processor* directories first":
+        "既存の processor* ディレクトリを先に削除",
+    "Copy 0/ as-is instead of decomposing the fields":
+        "場を分割せず 0/ をそのままコピー",
+    "Decompose the latest time directory only": "最新の時間ディレクトリのみ分割",
+
+    # ── Run decomposePar… / Run Solver… (Tools menu) ──────────────────────────
+    "Run decomposePar…": "decomposePar を実行…",
+    "Choose options and run decomposePar in the terminal panel to "
+    "split the case for a parallel run (system/decomposeParDict)":
+        "オプションを選択して decomposePar をターミナルパネルで実行し、"
+        "並列計算用にケースを分割します (system/decomposeParDict)",
+    "Run Solver…": "ソルバーを実行…",
+    "Run the solver named in system/controlDict (or another one) "
+    "in the terminal panel, optionally in parallel":
+        "system/controlDict で指定されたソルバー（または別のソルバー）を"
+        "ターミナルパネルで実行します。並列実行も可能です",
+    "Run Solver": "ソルバーを実行",
+    "Solver:": "ソルバー:",
+    "No decomposeParDict": "decomposeParDict がありません",
+    "This case has no system/decomposeParDict, which "
+    "decomposePar needs to split the case.":
+        "このケースには system/decomposeParDict がありません。"
+        "decomposePar がケースを分割するには必要です。",
+    "This case is already decomposed ({dirs}). decomposePar "
+    "refuses to overwrite them unless -force is given.":
+        "このケースはすでに分割されています ({dirs})。"
+        "-force を指定しないと decomposePar は上書きしません。",
+    "system/controlDict not found — type the solver name.":
+        "system/controlDict が見つかりません — ソルバー名を入力してください。",
+    "controlDict has no application entry — type the solver name.":
+        "controlDict に application エントリがありません — "
+        "ソルバー名を入力してください。",
+    "From system/controlDict: application {app}, solver module "
+    "{module} (foamRun reads it from controlDict itself).":
+        "system/controlDict より: application {app}、ソルバーモジュール "
+        "{module}（foamRun が controlDict から直接読み込みます）。",
+    "From system/controlDict: application {app}, region solvers "
+    "{regions}.":
+        "system/controlDict より: application {app}、リージョンソルバー "
+        "{regions}。",
+    "From system/controlDict: application {app}.":
+        "system/controlDict より: application {app}。",
+    "No mesh found (constant/polyMesh) — run blockMesh or "
+    "snappyHexMesh first.":
+        "メッシュが見つかりません (constant/polyMesh) — "
+        "先に blockMesh または snappyHexMesh を実行してください。",
+    "startFrom is latestTime, so the run continues from {t}.":
+        "startFrom が latestTime のため、{t} から計算を継続します。",
+    "startFrom is {mode}, so existing results may be "
+    "overwritten.":
+        "startFrom が {mode} のため、既存の結果が上書きされる可能性があります。",
+    "Existing results may be overwritten.":
+        "既存の結果が上書きされる可能性があります。",
+    "Parallel runs need a decomposed case — run "
+    "Tools > Run decomposePar… first.":
+        "並列実行には分割済みのケースが必要です — "
+        "先に Tools > Run decomposePar… を実行してください。",
+    "Save all unsaved files first (the solver reads them from disk)":
+        "未保存のファイルを先にすべて保存（ソルバーはディスクから読み込みます）",
+    "Run in parallel  (mpirun -np {n} … -parallel)":
+        "並列実行  (mpirun -np {n} … -parallel)",
+    "(enter a solver name: letters, digits, _ . + - only)":
+        "（ソルバー名を入力してください: 英数字と _ . + - のみ）",
+    "Solver not started": "ソルバーを開始しませんでした",
+    "Existing {log}:": "既存の {log}:",
+    "Command still running": "コマンドを実行中です",
+    "{names} is still running in the Terminal tab.\n"
+    "{action} stops it, and a solver stopped this way does not "
+    "write its current time step.\n\nContinue anyway?":
+        "Terminal タブで {names} がまだ実行中です。\n"
+        "{action}とこれが停止し、この方法で停止したソルバーは現在の時間ステップを"
+        "書き出しません。\n\nそれでも続けますか?",
+    "Closing FoDE": "FoDE を閉じる",
+    "This program comes with ABSOLUTELY NO WARRANTY. It edits, copies "
+    "and deletes files in your cases; use it at your own risk, and keep "
+    "backups of any case you cannot regenerate. The terms are sections "
+    "15 and 16 of the licence.":
+        "本プログラムは完全に無保証です。ケース内のファイルを編集・コピー・削除"
+        "するため、ご自身の責任でお使いください。再生成できないケースはバック"
+        "アップを取っておいてください。条件はライセンスの第 15 条・第 16 条に"
+        "定められています。",
+    "{names} is still running in the Terminal tab. Wait for it to "
+    "finish before {what}.":
+        "Terminal タブで {names} がまだ実行中です。{what}前に、終了するまで"
+        "待ってください。",
+    "running another command": "別のコマンドを実行する",
+    "reconstructing the case": "ケースを再構築する",
+    "deleting processor* directories": "processor* ディレクトリを削除する",
+    "Run reconstructPar…": "reconstructPar を実行…",
+    "Choose options and run reconstructPar in the terminal panel to "
+    "merge a parallel run's processor* results back into the case":
+        "オプションを選択して reconstructPar をターミナルパネルで実行し、"
+        "並列計算の processor* の結果をケースに戻します",
+    "Delete processor* Directories…": "processor* ディレクトリを削除…",
+    "Permanently delete the processor* directories, only after "
+    "checking that everything in them also exists at the case root":
+        "processor* ディレクトリを完全に削除します。中身がすべてケースルートにも"
+        "存在することを確認した後にのみ実行します",
+    "Case not decomposed": "ケースが分割されていません",
+    "This case has no processor* directories to reconstruct from.":
+        "このケースには再構築元となる processor* ディレクトリがありません。",
+    "Not yet at the case root: {times}.": "まだケースルートにない時刻: {times}。",
+    "Every time in processor* is already at the case root, so with "
+    "-newTimes there is nothing new to reconstruct.":
+        "processor* のすべての時刻がすでにケースルートにあるため、-newTimes では"
+        "新たに再構築するものはありません。",
+    "Nothing to delete": "削除するものがありません",
+    "This case has no processor* directories.":
+        "このケースには processor* ディレクトリがありません。",
+    "processor* directories not deleted": "processor* ディレクトリを削除しませんでした",
+    "Deleting them would lose data that exists nowhere else:":
+        "削除すると、ほかのどこにもないデータが失われます:",
+    "… and {n} more.": "…ほか {n} 件。",
+    "Nothing was deleted.": "何も削除していません。",
+    "Delete processor* directories?": "processor* ディレクトリを削除しますか?",
+    "Everything that will be deleted also exists at the case root, "
+    "checked file by file. This cannot be undone.":
+        "削除されるものはすべてケースルートにも存在することを、ファイルごとに"
+        "確認済みです。この操作は元に戻せません。",
+    "Permanently delete {size} from the processor* directories?":
+        "processor* ディレクトリから {size} を完全に削除しますか?",
+    "Permanently delete the processor* directories entirely ({size})?":
+        "processor* ディレクトリを丸ごと完全に削除しますか（{size}）?",
+    "Kept: the latest time ({t}) and the decomposed mesh, so the "
+    "run can continue in parallel without decomposePar.":
+        "残すもの: 最新の時刻（{t}）と分割済みメッシュ。decomposePar なしで並列計算を"
+        "続けられます。",
+    "Continuing this run in parallel later will need decomposePar again.":
+        "後でこの計算を並列で続ける場合は、もう一度 decomposePar が必要です。",
+    "Keep the latest time ({t}) and the decomposed mesh":
+        "最新の時刻（{t}）と分割済みメッシュを残す",
+    "Deleting processor* data…": "processor* のデータを削除しています…",
+    "Deleting {path}…": "{path} を削除しています…",
+    "Stop": "停止",
+    "Stopping after the current directory…": "現在のディレクトリの削除が終わったら停止します…",
+    "Deletion stopped": "削除を停止しました",
+    "Stopped after {done} of {total} directories. Everything "
+    "deleted so far also exists at the case root, and nothing "
+    "else was changed; run the action again to finish.":
+        "{total} 個のディレクトリのうち {done} 個を削除した時点で停止しました。"
+        "ここまでに削除したものはすべてケースルートにも存在し、ほかには何も"
+        "変更していません。最後まで削除するには、もう一度この操作を実行してください。",
+    "Deleting everything would lose data that exists nowhere else:":
+        "すべて削除すると、ほかのどこにもないデータが失われます:",
+    "The case root has a later time ({root}) than the processors "
+    "({t}), so keeping {t} would leave a restart point older than "
+    "the case.":
+        "ケースルートには processor 側（{t}）より新しい時刻（{root}）があるため、"
+        "{t} を残してもケースより古い再開点になります。",
+    "Deleted the processor* time directories except {t} ({size}).":
+        "processor* の時間ディレクトリを {t} 以外削除しました（{size}）。",
+    "Delete processor* directories": "processor* ディレクトリの削除",
+    "Some directories could not be deleted:\n{errors}":
+        "削除できなかったディレクトリがあります:\n{errors}",
+    "Deleted {n} processor* directories ({size}).":
+        "processor* ディレクトリを {n} 個削除しました（{size}）。",
+    "the data is in collated format (processorsN), which FoDE "
+    "cannot check — delete it by hand if you are sure":
+        "データが collated 形式（processorsN）のため FoDE では確認できません — "
+        "確信がある場合は手作業で削除してください",
+    "time {t} exists only in processor*": "時刻 {t} は processor* にしかありません",
+    "time {t}: {files} exist only in processor*":
+        "時刻 {t}: {files} は processor* にしかありません",
+    "the mesh exists only in processor* — run reconstructParMesh first":
+        "メッシュが processor* にしかありません — 先に reconstructParMesh を実行してください",
+    "the case-root mesh has {root} cells but the processors have "
+    "{procs} — run reconstructParMesh first":
+        "ケースルートのメッシュは {root} セルですが、processor 側は {procs} セルです — "
+        "先に reconstructParMesh を実行してください",
+    "sets {sets} exist only in processor*": "セット {sets} は processor* にしかありません",
+    "the meshes' cell counts could not be read, so they cannot be compared":
+        "メッシュのセル数を読み取れないため、比較できません",
+    "Only reconstruct times not already at the case root":
+        "ケースルートにまだない時刻だけを再構築",
+    "Reconstruct the latest time only": "最新の時刻のみ再構築",
+    "Times to reconstruct": "再構築する時刻",
+    "Fields to reconstruct": "再構築するフィールド",
+    "Include the 0/ directory": "0/ ディレクトリも含める",
+    "e.g. 0.5:1 or 0.1,0.2": "例: 0.5:1 または 0.1,0.2",
+    "e.g. (U p)": "例: (U p)",
+    "Switching the terminal mode": "ターミナルモードを切り替える",
+    "Keep it as {log}.": "名前を変えて残す: {log}.",
+    "Overwrite it": "上書きする",
+    "(enter a suffix for the kept log: letters, digits, _ . - only, "
+    "not starting with .)":
+        "（残すログのサフィックスを入力してください: 英数字と _ . - のみ、"
+        "先頭に . は不可）",
+    "({log} already exists — choose another suffix so it is not "
+    "overwritten)":
+        "（{log} はすでに存在します — 上書きしないよう別のサフィックスを"
+        "指定してください）",
+    "The processor* directories hold results that have not been "
+    "reconstructed: {times}. -force deletes them for good — run "
+    "Tools > Run reconstructPar… first to keep them.":
+        "processor* ディレクトリに、まだ再構築されていない結果があります: "
+        "{times}。-force を付けるとこれらは完全に削除されます — 残すには先に "
+        "Tools > Run reconstructPar… を実行してください。",
+    "decomposeParDict asks for {wanted} subdomains but the case "
+    "is decomposed into {count}, so a parallel run would stop "
+    "at startup — re-run decomposePar.":
+        "decomposeParDict は {wanted} 分割を指定していますが、ケースは {count} "
+        "に分割されているため、並列実行は起動時に停止します — "
+        "decomposePar を再実行してください。",
+    "{dirs} changed after the case was decomposed. A parallel "
+    "run reads processor*/, not these, so it would not see the "
+    "changes — re-run decomposePar first.":
+        "{dirs} はケースの分割後に変更されています。並列実行はこれらではなく "
+        "processor*/ を読むため、変更が反映されません — 先に decomposePar を"
+        "再実行してください。",
+    "Some files could not be saved, so the solver was not "
+    "started.":
+        "保存できなかったファイルがあるため、ソルバーを開始しませんでした。",
 
     # ── Allrun / Allclean / clean case (Tools menu) ───────────────────────────
     "Run Allrun Script": "Allrun スクリプトを実行",
@@ -1063,4 +1283,46 @@ TRANSLATIONS: dict[str, str] = {
     "Renamed to {name}": "{name} に名前を変更しました",
     "Moved {name}": "{name} を移動しました",
     "Moved to trash: {name}": "ゴミ箱へ移動しました: {name}",
+
+    # ── foamMonitor, log summary, keyword generation and key status ──────────
+    # The tool's own name stays Latin, as blockMesh/snappyHexMesh do above, and so
+    # do its command-line flags: both appear verbatim in what the user types.
+    "foamMonitor": "foamMonitor",
+    "foamMonitor…": "foamMonitor…",
+    "■ foamMonitor": "■ foamMonitor",
+    "foamMonitor error": "foamMonitor エラー",
+    "foamMonitor not found": "foamMonitor が見つかりません",
+    "foamMonitor could not be found on PATH.": "foamMonitor が PATH 上に見つかりませんでした。",
+    "Click to stop foamMonitor and close the gnuplot window":
+        "クリックすると foamMonitor を停止し、gnuplot のウィンドウを閉じます",
+    "Select file to monitor": "監視するファイルを選択",
+    "Refresh (-r):": "更新間隔 (-r):",
+    "Idle timeout (-i):": "アイドルタイムアウト (-i):",
+    "Grid  (-g)": "グリッド  (-g)",
+    "Log scale  (-l)": "対数軸  (-l)",
+    "Additional options (e.g. -y [0:1])": "追加オプション（例: -y [0:1]）",
+    "e.g. log.icoFoam or postProcessing/residuals/0/residuals.dat":
+        "例: log.icoFoam、postProcessing/residuals/0/residuals.dat",
+    "Launch": "起動",
+    "View Log Summary": "ログ要約を表示",
+    "Summary": "要約",
+    "Raw Log": "生ログ",
+    "Log file:": "ログファイル:",
+    "Select log file": "ログファイルを選択",
+    "Select a log file to summarize.": "要約するログファイルを選択してください。",
+    "Generate OpenFOAM Keywords": "OpenFOAM キーワードを生成",
+    "Generate": "生成",
+    "Cancelling …": "キャンセルしています …",
+    "Key Status": "キーの状態",
+    "Formerly {0}.": "旧称 {0}。",
+    "Historical name — OpenFOAM reads '{0}'{1}.": "旧称 — OpenFOAM は '{0}' を読みます{1}。",
+    "Has no effect — OpenFOAM reads '{0}' instead.": "効果がありません — OpenFOAM は代わりに '{0}' を読みます。",
+    "Has no effect — no OpenFOAM reader consumes this entry.": "効果がありません — この項目を読む OpenFOAM のリーダは存在しません。",
+    "Extra:": "追加:",
+    "Refresh file list from disk": "ディスクからファイル一覧を再読み込み",
+    "File not found": "ファイルが見つかりません",
+    "File not found:": "ファイルが見つかりません:",
+    "Could not create file:\n{e}": "ファイルを作成できませんでした:\n{e}",
+    "Could not read file: {error}": "ファイルを読み込めませんでした: {error}",
+    "Save As — Partial Failure": "名前を付けて保存 — 一部失敗",
 }

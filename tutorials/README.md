@@ -26,9 +26,10 @@ The `cavity/` subdirectories, `snappyMultiRegionHeater`, `damBreak`, and
 `pitzDaily` are taken unchanged from the standard tutorial set distributed with
 OpenFOAM (OpenCFD/ESI, OpenFOAM v2512).
 
-`snappyMultiRegionHeater/0/` is not present in the
-original source (it is generated at run time by `./Allrun`); the
-copy here was produced from a completed run of that tutorial.
+`snappyMultiRegionHeater` ships only `0.orig/`, as upstream does. Running the
+case restores the initial fields from it with `restore0Dir`: into `0/` for
+`Allrun-serial`, and into each `processor*/0` for `Allrun-parallel`, which is
+what `Allrun` links to.
 
 The `oneBlocks`, `oneBlocks-vars`, `nineBlocks`, `nineBlocks-vars`,
 `topoSetShapes`, and `samplingShapes` cases are custom cases created for FoDE
