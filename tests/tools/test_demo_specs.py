@@ -41,7 +41,7 @@ PLACEHOLDERS = ("{repo}", "{cases}", "{work}")
 # The ways a step can name what it acts on, i.e. every branch of resolve().
 TARGET_KEYS = frozenset({
     "point", "menu", "menu_item", "file", "group", "tree", "cell", "tab",
-    "widget", "button", "field", "case",
+    "widget", "button", "field", "case", "item",
 })
 
 # Steps that act on a target and so must name exactly one.
@@ -296,9 +296,14 @@ class TestLabels:
 
     def test_field_labels_exist_in_the_ui(self, scenes, ui_literals):
         # A form row's label, which is also what the person watching reads.
+        # Only FoDE's own labels, which end in a colon ("New case name:"): Add
+        # Function Object labels its rows with a template's keys
+        # (probeLocations), data read out of an installation at run time, the
+        # same as the shape rows test_dialog_opening_menu_items_exist_in_the_ui
+        # leaves out.
         for name, step in steps_of(scenes):
             label = step.get("field")
-            if not label:
+            if not label or not label.endswith(":"):
                 continue
             assert _matches_a_literal(label, ui_literals), (
                 f"{name}: no form field labelled {label!r}"
@@ -338,4 +343,19 @@ class TestDocumentation:
         # leaves an orphan caption file behind with nothing to pair it to.
         known = {scene.name for scene in scenes}
         for caption in sorted(DEFAULT_OUT.glob("*.srt")):
-            assert caption.stem in known, f"{caption.name} matches no scene"
+            scene = caption.name.removesuffix(".srt").removesuffix(".ja")
+            assert scene in known, f"{caption.name} matches no scene"
+
+    def test_every_caption_has_a_japanese_track(self):
+        english = {p.name.removesuffix(".srt") for p in DEFAULT_OUT.glob("*.srt")
+                   if not p.name.endswith(".ja.srt")}
+        japanese = {p.name.removesuffix(".ja.srt") for p in DEFAULT_OUT.glob("*.ja.srt")}
+        assert english == japanese
+
+    def test_japanese_tracks_are_current(self):
+        # The .ja.srt files are generated from the English cues and the two
+        # scripts (tools/make_ja_srt.py); a retake or a script edit without
+        # re-running it would publish Japanese captions out of step.
+        import make_ja_srt
+
+        assert make_ja_srt.main(["--check"]) == 0, "run tools/make_ja_srt.py"

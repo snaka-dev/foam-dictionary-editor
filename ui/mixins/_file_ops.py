@@ -24,6 +24,7 @@ from services.include_scan import (
     resolve_directive_text,
     scan_includes,
 )
+from services.solver_run import processor_dirs
 from ui.layout_constants import STATUS_NORMAL, STATUS_SHORT, STATUS_WARNING
 from ui.panels.file_list_panel import display_file_name
 
@@ -66,12 +67,7 @@ class _FileOpsMixin(_Base):
         self.state.case_files_config = CaseFilesConfig(directory)
         self._update_case_label()
 
-        if self._case_dir_watcher.directories():
-            self._case_dir_watcher.removePaths(self._case_dir_watcher.directories())
-        self._case_dir_watcher.addPath(directory)
-        constant_dir = str(Path(directory) / "constant")
-        if Path(constant_dir).is_dir():
-            self._case_dir_watcher.addPath(constant_dir)
+        self._sync_case_watch()
 
         clear_scan_cache()  # the memos are per case; bound them on a switch
         clear_expand_cache()
@@ -88,6 +84,7 @@ class _FileOpsMixin(_Base):
         self.state.file_dirty.clear()
         self.state.parsed_roots.clear()
         self.state.viewer_include_sources.clear()
+        self._viewer_primed.clear()
         self._clear_undo_stacks()
         if self.block_mesh_panel is not None:
             self.block_mesh_panel.clear()
@@ -103,6 +100,11 @@ class _FileOpsMixin(_Base):
         self._case_navigator.set_current_case(directory)
         self._stop_foam_monitor()
         self._reset_diff_for_case_dir(directory, previous_dir)
+        # A background run still going, or one stopped while FoDE was closed.
+        self._poll_background_run()
+        # Every listed dictionary that feeds the 3-D view, without opening it.
+        self._prime_viewer()
+        self.file_list_panel.set_function_files(self._function_file_paths())
         QTimer.singleShot(0, self._reload_boundary_panel)
 
     def _case_file_paths(
@@ -162,6 +164,7 @@ class _FileOpsMixin(_Base):
         # Absolute here, case-relative on disk: the panel works in the paths its rows
         # carry, the config in paths that survive the case directory being moved.
         case_root = Path(self.state.current_case_dir)
+        self.file_list_panel.set_function_files(self._function_file_paths())
         self.file_list_panel.set_viewer_kind_overrides({
             str(case_root / rel): kind
             for rel, kind in self.state.case_files_config.get_viewer_kinds().items()
@@ -178,6 +181,31 @@ class _FileOpsMixin(_Base):
                 self.file_list_panel.mark_dirty(path, True)
         if self.state.current_file:
             self.file_list_panel.select_file(self.state.current_file)
+        self._sync_case_watch()
+        self._prime_viewer()
+
+    def _sync_case_watch(self) -> None:
+        """Point the watcher at the case, its constant/, and its first processor*.
+
+        The first processor directory is watched so the file list's
+        "Decomposed" row sees a parallel run write a new time (a time written
+        inside it changes nothing in the case directory itself). It comes and
+        goes with decomposePar and deletions, so this re-syncs on every reload
+        rather than once per case.
+        """
+        case_dir = self.state.current_case_dir
+        wanted = set()
+        if case_dir:
+            wanted.add(case_dir)
+            for sub in ("constant", *processor_dirs(case_dir)[:1]):
+                path = str(Path(case_dir) / sub)
+                if Path(path).is_dir():
+                    wanted.add(path)
+        current = set(self._case_dir_watcher.directories())
+        if current - wanted:
+            self._case_dir_watcher.removePaths(sorted(current - wanted))
+        if wanted - current:
+            self._case_dir_watcher.addPaths(sorted(wanted - current))
 
     def _on_case_dir_changed_on_disk(self, path: str) -> None:
         """Debounce a burst of on-disk changes into one file-list reload.

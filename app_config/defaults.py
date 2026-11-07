@@ -31,3 +31,5 @@ MIN_UI_SCALE, MAX_UI_SCALE = 50, 400
 # the window size has always been restored, so a clean-slate launch was never
 # what this application promised. Settings > Restore Last Session turns it off.
 DEFAULT_RESTORE_SESSION = True
+# Remind, when FoDE closes, that a background run it started keeps going.
+DEFAULT_REMIND_BACKGROUND_RUNS = True

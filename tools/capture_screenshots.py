@@ -29,7 +29,8 @@ A real X display is required and DISPLAY must point at it: offscreen Qt aborts
 VTK, so there is no headless mode to fall back on. Capture goes through
 ImageMagick's `import -frame`, not QWidget.grab(), for two reasons — grab()
 returns black for the 3-D panel's native child window, and `-frame` keeps the
-title bar and borders every existing gallery image has.
+title bar and borders every existing gallery image has. The black shadow
+margin `-frame` brings with it on GNOME is cropped (strip_shadow_margin).
 
 Each shot runs in its own process (this script re-executes itself), so no shot
 can inherit stray state from the one before it. Nothing is written back to the
@@ -102,6 +103,14 @@ class Shot:
     # navigation"), so putting it in WindowState would give one value two
     # persistence paths.
     browse_dir: str = ""
+    # A menu-bar title to open before capturing ("Tools"). A menu is a popup
+    # of its own -- an override-redirect window -- so it is outside the main
+    # window and a window grab would miss it: such a shot grabs the screen and
+    # crops it to the main window's frame instead (capture_screen_region), as
+    # Qt's frameGeometry() gives it -- the window manager's frame extents.
+    # Not `xwininfo -frame`: on GNOME it reported the client area alone, and
+    # the first capture came out without its title bar.
+    open_menu: str = ""
 
 
 def load_spec(path: Path, cases_dir: Path) -> list[Shot]:
@@ -111,7 +120,9 @@ def load_spec(path: Path, cases_dir: Path) -> list[Shot]:
 
     shots: list[Shot] = []
     for name, entry in data["shots"].items():
-        unknown = sorted(set(entry) - {"outputs", "state", "note", "compare_with", "browse_dir"})
+        unknown = sorted(
+            set(entry) - {"outputs", "state", "note", "compare_with", "browse_dir", "open_menu"}
+        )
         if unknown:
             raise ValueError(f"shot {name!r}: unknown key(s) {', '.join(unknown)}")
         state = defaults.merged_with(WindowState.from_dict(entry.get("state") or {}))
@@ -130,7 +141,7 @@ def load_spec(path: Path, cases_dir: Path) -> list[Shot]:
         shots.append(Shot(
             name=name, state=state, outputs=outputs,
             note=entry.get("note", ""), compare_with=compare_with,
-            browse_dir=browse_dir,
+            browse_dir=browse_dir, open_menu=entry.get("open_menu", ""),
         ))
     return shots
 
@@ -268,7 +279,15 @@ def capture_one(shot: Shot, theme: ThemeMode, out_path: Path | None, settle_ms: 
               "its title bar may not match the rest of the gallery", file=sys.stderr)
 
     try:
-        capture_window(int(window.winId()), out_path)
+        if shot.open_menu:
+            _open_menu(window, shot.open_menu)
+            _process_events(app, 800)
+            frame = window.frameGeometry()
+            capture_screen_region(
+                (frame.x(), frame.y(), frame.width(), frame.height()), out_path
+            )
+        else:
+            capture_window(int(window.winId()), out_path)
     finally:
         # Not window.close(): closeEvent saves the window size to app_config.json,
         # and a capture must not change the user's settings.
@@ -277,6 +296,20 @@ def capture_one(shot: Shot, theme: ThemeMode, out_path: Path | None, settle_ms: 
         if window.terminal_panel is not None:
             window.terminal_panel.cleanup()
     return 0
+
+
+def _open_menu(window, title: str) -> None:
+    """Open a menu-bar menu the way a click does, with no input involved.
+
+    ``setActiveAction`` highlights the title and pops the menu under it, so
+    the image shows the state a person sees after clicking it.
+    """
+    bar = window.menuBar()
+    for action in bar.actions():
+        if action.text().replace("&", "") == title:
+            bar.setActiveAction(action)
+            return
+    raise SystemExit(f"no menu titled {title!r} in the menu bar")
 
 
 def _wait_for_active(app, window, attempts: int = 10) -> bool:
@@ -311,6 +344,49 @@ def capture_window(window_id: int, out_path: Path) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
         ["import", "-frame", "-window", str(window_id), str(out_path)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0 or not out_path.exists():
+        raise RuntimeError(f"import failed: {result.stderr.strip() or result.returncode}")
+    strip_shadow_margin(out_path)
+
+
+def strip_shadow_margin(path: Path) -> None:
+    """Crop the black margin `import -frame` leaves around a GNOME window.
+
+    Mutter's frame extents include an invisible margin for the drop shadow
+    and the resize grab area (14 px at the sides, 12 at the top); `import`
+    has no alpha, so it is saved as solid black, and a gallery image then
+    sits in a heavy black frame. A one-pixel black border is added so a
+    single flood fill reaches the margin from every side, the fill makes it
+    transparent -- the corners outside the window's rounded edge included,
+    so they suit a light or dark page alike -- and -trim removes what is
+    left of it. Only pure black connected to the edge goes, so a window
+    with no margin comes back unchanged.
+    """
+    result = subprocess.run(
+        [
+            "convert", str(path),
+            "-bordercolor", "black", "-border", "1",
+            "-alpha", "set", "-fill", "none", "-draw", "color 0,0 floodfill",
+            "-trim", "+repage", str(path),
+        ],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"convert failed: {result.stderr.strip() or result.returncode}")
+
+
+def capture_screen_region(rect: tuple[int, int, int, int], out_path: Path) -> None:
+    """Save a rectangle of the whole screen -- for a shot with a menu open."""
+    if shutil.which("import") is None:
+        raise SystemExit(
+            "Error: ImageMagick is required to capture (apt install imagemagick)."
+        )
+    x, y, w, h = rect
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(
+        ["import", "-window", "root", "-crop", f"{w}x{h}+{x}+{y}", "+repage", str(out_path)],
         capture_output=True, text=True,
     )
     if result.returncode != 0 or not out_path.exists():

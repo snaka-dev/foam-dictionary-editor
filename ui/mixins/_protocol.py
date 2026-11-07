@@ -59,6 +59,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSplitter,
     QTabWidget,
+    QToolButton,
     QTreeView,
 )
 
@@ -66,6 +67,7 @@ from foam.include_expand import ExpandedTree
 from foam.include_resolver import ResolvedInclude
 from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser
+from services.background_run import BackgroundRun, StopReport
 from services.case_fs_ops import Precheck
 from services.solver_run import DeletionCheck, DeletionProblem, SolverInfo
 from ui.app_state import AppState, UndoSnapshot
@@ -73,6 +75,7 @@ from ui.case_navigation import CaseNavigator
 from ui.dialogs.case_browser_dialog import CaseBrowserDialog
 from ui.dialogs.find_examples_dialog import FindExamplesDialog
 from ui.dialogs.log_summary_dialog import LogSummaryDialog
+from ui.dialogs.processor_delete_dialog import ProcessorDeleteDialog
 from ui.menu_builder import BuiltMenu
 from ui.pane_minimize import PaneMinimizer
 from ui.panels.block_mesh_panel import BlockMeshPanel
@@ -152,6 +155,17 @@ class MainWindowProtocol(QMainWindow):
     _run_solver_action: QAction | None
     _run_reconstructpar_action: QAction | None
     _delete_processor_dirs_action: QAction | None
+    _stop_background_run_action: QAction | None
+    _add_function_object_action: QAction | None
+    _run_post_process_action: QAction | None
+    _preview_shown: bool
+    _background_run_timer: QTimer
+    _background_title: str
+    _background_cases: set[str]
+    _viewer_primed: dict
+    _background_badge_action: QAction
+    background_run_btn: QToolButton
+    _background_seen: tuple[str, BackgroundRun] | None
     _run_allrun_action: QAction | None
     _run_allclean_action: QAction | None
     _clean_case_action: QAction | None
@@ -249,6 +263,7 @@ class MainWindowProtocol(QMainWindow):
     def _load_case_dir(self, directory: str) -> None: ...
     def _case_relative(self, path: str | Path) -> str | None: ...
     def _reload_file_list(self) -> None: ...
+    def _sync_case_watch(self) -> None: ...
     def _on_case_dir_changed_on_disk(self, path: str) -> None: ...
     def _parse_and_update(self, path: str, text: str) -> OpenFoamParser:
         raise NotImplementedError
@@ -278,6 +293,7 @@ class MainWindowProtocol(QMainWindow):
     # ── from _ModelOpsMixin (ui/mixins/_model_ops.py) ─────────────────────────
     def _save_current_buffer(self) -> None: ...
     def _after_model_edit(self) -> None: ...
+    def _prime_viewer(self) -> None: ...
     def _update_viewer_panels(self, path: str, root: FoamNode) -> None: ...
     def _viewer_kind_for(self, path: str, root: FoamNode | None) -> str | None: ...
     def _update_block_mesh_viewer(self, path: str, root: FoamNode) -> None: ...
@@ -332,6 +348,9 @@ class MainWindowProtocol(QMainWindow):
     def _on_run_setfields_clicked(self) -> None: ...
     def _on_run_checkmesh_clicked(self) -> None: ...
     def _on_run_decomposepar_clicked(self) -> None: ...
+    def _refuse_while_running(self, what: str) -> bool:
+        raise NotImplementedError
+    def _on_run_reconstructpar_clicked(self) -> None: ...
     def _solver_dialog_notes(
         self, case_dir: str, info: SolverInfo | None
     ) -> tuple[str, list[str]]:
@@ -341,20 +360,9 @@ class MainWindowProtocol(QMainWindow):
     ) -> tuple[int | None, bool, list[str]]:
         raise NotImplementedError
     def _on_run_solver_clicked(self) -> None: ...
-    def _refuse_while_running(self, what: str) -> bool:
-        raise NotImplementedError
-    def _on_run_reconstructpar_clicked(self) -> None: ...
-    def _on_delete_processor_dirs_clicked(self) -> None: ...
-    def _problem_lines(self, problems) -> str:
-        raise NotImplementedError
-    def _processor_delete_box(
-        self, whole: DeletionCheck, keep: DeletionCheck
-    ) -> tuple[QMessageBox, QCheckBox | None]:
-        raise NotImplementedError
-    @staticmethod
-    def _describe_deletion_problem(problem: DeletionProblem) -> str:
-        raise NotImplementedError
     def _on_run_allrun_clicked(self) -> None: ...
+    def _reload_clean_file_from_disk(self, path: str) -> None:
+        raise NotImplementedError
     def _on_run_allclean_clicked(self) -> None: ...
     def _on_clean_case_clicked(self) -> None: ...
     def _show_cached_dialog(self, attr: str, factory) -> None: ...
@@ -364,6 +372,64 @@ class MainWindowProtocol(QMainWindow):
     def _on_example_duplicate_requested(self, case_dir: str) -> None: ...
     def _on_open_paraview_clicked(self) -> None: ...
     def _update_tools_actions(self) -> None: ...
+
+    # ── from _ProcessorOpsMixin (ui/mixins/_processor_ops.py) ─────────────────
+    def _on_delete_processor_dirs_clicked(self) -> None: ...
+    def _report_not_deleted(self, problems) -> None:
+        raise NotImplementedError
+    def _problem_lines(self, problems) -> str:
+        raise NotImplementedError
+    def _processor_delete_box(
+        self, whole: DeletionCheck, keep: DeletionCheck
+    ) -> ProcessorDeleteDialog:
+        raise NotImplementedError
+    @staticmethod
+    def _describe_deletion_problem(problem: DeletionProblem) -> str:
+        raise NotImplementedError
+
+    # ── from _BackgroundRunOpsMixin (ui/mixins/_background_run_ops.py) ────────
+    def _background_checkbox(self, box: QMessageBox) -> QCheckBox | None:
+        raise NotImplementedError
+    def _on_stop_background_run_clicked(self) -> None:
+        raise NotImplementedError
+    def _poll_background_run(self) -> None:
+        raise NotImplementedError
+    def _remind_background_runs(self) -> None:
+        raise NotImplementedError
+    def _update_background_badge(self) -> None:
+        raise NotImplementedError
+    def _follow_background_run(self) -> None:
+        raise NotImplementedError
+    @staticmethod
+    def _stop_report_text(report: StopReport) -> tuple[bool, str]:
+        raise NotImplementedError
+    def _show_stop_report(self, report: StopReport) -> None:
+        raise NotImplementedError
+
+    # ── from _FunctionObjectOpsMixin (ui/mixins/_function_object_ops.py) ──────
+    def _on_run_post_process_clicked(self, preset: str = "") -> None:
+        raise NotImplementedError
+    def _function_file_paths(self) -> set[str]:
+        raise NotImplementedError
+    def _on_run_post_process_for_file(self, path: str) -> None:
+        raise NotImplementedError
+    def _on_add_function_object_clicked(self) -> None:
+        raise NotImplementedError
+    def _preview_function_object(self, name: str, text: str) -> None:
+        raise NotImplementedError
+    def _clear_function_object_preview(self) -> None:
+        raise NotImplementedError
+    def _write_function_object(
+        self,
+        case_dir: str,
+        control_dict: str,
+        control_text: str,
+        name: str,
+        content: str,
+        tool: str = "postProcess",
+    ) -> bool:
+        raise NotImplementedError
+
 
     # ── from _TreeCrudOpsMixin (ui/mixins/_tree_crud_ops.py) ──────────────────
     def _setup_tree_copy_paste(self) -> None: ...

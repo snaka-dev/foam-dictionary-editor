@@ -21,6 +21,8 @@ from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser
 from foam.tree_utils import find_child
 from services.case_loader import detect_time_dirs
+from services.field_integrity import Cancelled, MeshSizes, inspect_file, read_mesh_sizes
+from services.process_tree import processes_in_directory
 
 # Foundation v11+ runs every solver module through one of these two
 # executables; the module itself is named by controlDict's ``solver`` entry
@@ -291,6 +293,23 @@ class DeletionProblem:
     - ``sets_missing``: cell/face/point sets (``constant/polyMesh/sets/``)
       that exist only in the decomposed copy -- reconstructPar skips them
       under ``-noSets`` (``detail`` names them).
+
+    The rest are about the case-root copy being *sound*, not merely present
+    (see services/field_integrity.py); ``detail`` lists the files, relative
+    to the time directory:
+
+    - ``files_cut_off``: no closing ``// *** //`` line, or a compressed
+      stream that ends early -- a reconstructPar killed while writing it;
+    - ``files_bad_header``: no ``FoamFile`` header naming the file;
+    - ``files_wrong_size``: an ``internalField`` whose value count is not the
+      mesh's (each entry "file: in file ≠ mesh") -- a complete file left
+      from a run on another mesh;
+    - ``processes_running``: something other than FoDE is working in the
+      case right now (``detail``: "name (pid N)"), so what is on disk may
+      still be changing.
+
+    A root file is only held to a standard its processor copy meets, so a
+    file OpenFOAM writes without a closing line or header is never flagged.
     """
 
     kind: str
@@ -314,6 +333,11 @@ class DeletionCheck:
     kept_time: str | None = None
     # The newest time at the case root, for the "root is ahead" note.
     latest_root_time: str | None = None
+    # Compressed root files whose end was not read -- only their head was --
+    # as (time, path within it), and their compressed size in all.
+    # verify_compressed() reads them to the end.
+    unverified_gz: tuple[tuple[str, str], ...] = ()
+    unverified_gz_bytes: int = 0
 
     @property
     def safe(self) -> bool:
@@ -333,14 +357,20 @@ def _files_under(root: str) -> set[str]:
 
 
 def _owner_cell_count(mesh_dir: str) -> int | None:
-    """nCells from ``owner``'s header note, reading only the header."""
-    try:
-        with open(os.path.join(mesh_dir, "owner"), encoding="utf-8", errors="replace") as f:
-            header = f.read(2000)
-    except OSError:
-        return None
-    match = re.search(r"nCells:\s*(\d+)", header)
-    return int(match.group(1)) if match else None
+    """nCells from ``owner``'s header note (``owner.gz`` too), reading only the header."""
+    owner = os.path.join(mesh_dir, "owner")
+    sizes = read_mesh_sizes(owner if os.path.exists(owner) else owner + ".gz")
+    return sizes.n_cells if sizes is not None else None
+
+
+def _uncompressed(rel: str) -> str:
+    """*rel* without a ``.gz`` suffix: the name a file is compared under.
+
+    With ``writeCompression on`` decomposePar writes ``processor*/0/U.gz``
+    from an uncompressed ``0/U``, so the two copies of one file need not
+    share a name.
+    """
+    return rel[:-3] if rel.endswith(".gz") else rel
 
 
 def _tree_bytes(root: str) -> int:
@@ -363,6 +393,159 @@ def _times_of(directory: str) -> set[str]:
 
 def _latest(times: set[str]) -> str | None:
     return max(times, key=float) if times else None
+
+
+class _RootMeshes:
+    """The mesh each root field is read against, memoised per case.
+
+    A field at time *t* uses the newest ``<t'>/polyMesh`` with t' ≤ t (a
+    topology-changing run writes one per time), else ``constant/polyMesh``;
+    a field under ``<t>/<region>/`` uses that region's mesh the same way.
+    """
+
+    def __init__(self, case_dir: str) -> None:
+        self._case = case_dir
+        self._times = sorted(_times_of(case_dir), key=float)
+        self._cache: dict[str, MeshSizes | None] = {}
+
+    def region_of(self, rel: str) -> str:
+        first = rel.split(os.sep, 1)[0]
+        if first != rel and os.path.isdir(
+            os.path.join(self._case, "constant", first, "polyMesh")
+        ):
+            return first
+        return ""
+
+    def sizes(self, time: str, region: str) -> MeshSizes | None:
+        for t in reversed(self._times):
+            if float(t) > float(time):
+                continue
+            owner = os.path.join(self._case, t, region, "polyMesh", "owner")
+            if os.path.exists(owner) or os.path.exists(owner + ".gz"):
+                return self._read(owner)
+        return self._read(os.path.join(self._case, "constant", region, "polyMesh", "owner"))
+
+    def _read(self, owner: str) -> MeshSizes | None:
+        if owner not in self._cache:
+            path = owner if os.path.exists(owner) else owner + ".gz"
+            self._cache[owner] = read_mesh_sizes(path)
+        return self._cache[owner]
+
+
+def _processor_copy(case_dir: str, dirs: Iterable[str], time: str, rel: str) -> str | None:
+    """The first processor copy of root file *rel*, compressed or not."""
+    plain = _uncompressed(rel)
+    for d in dirs:
+        for name in (rel, plain, plain + ".gz"):
+            path = os.path.join(case_dir, d, time, name)
+            if os.path.isfile(path):
+                return path
+    return None
+
+
+def _soundness_problems(
+    case_dir: str, time: str, rels: Iterable[str], holders: list[str], meshes: _RootMeshes
+) -> tuple[list[DeletionProblem], list[str]]:
+    """The root copy of *rels* under *time*, held to its processor copy.
+
+    Returns the problems and the compressed files whose end went unread.
+    """
+    cut: list[str] = []
+    bad_header: list[str] = []
+    wrong_size: list[str] = []
+    unread_gz: list[str] = []
+    for rel in sorted(rels):
+        path = os.path.join(case_dir, time, rel)
+        state = inspect_file(path)
+        if not state.readable:
+            cut.append(rel)
+            continue
+        names_itself = state.names(path)
+        if state.ended is False or not names_itself:
+            base_path = _processor_copy(case_dir, holders, time, rel)
+            base = inspect_file(base_path, full=True) if base_path else None
+            if state.ended is False and base is not None and base.ended:
+                cut.append(rel)
+                continue
+            if not names_itself and base is not None and base_path and base.names(base_path):
+                bad_header.append(rel)
+                continue
+        if state.ended is None:
+            unread_gz.append(rel)
+        if state.field_class is not None and state.count is not None:
+            mesh = meshes.sizes(time, meshes.region_of(rel))
+            expected = mesh.expected_count(state.field_class) if mesh else None
+            if expected is not None and expected != state.count:
+                wrong_size.append(f"{rel}: {state.count} ≠ {expected}")
+    problems = [
+        DeletionProblem(kind, time, tuple(found))
+        for kind, found in (
+            ("files_cut_off", cut),
+            ("files_bad_header", bad_header),
+            ("files_wrong_size", wrong_size),
+        )
+        if found
+    ]
+    return problems, unread_gz
+
+
+def case_activity_problem(case_dir: str, *, proc_root: str = "/proc") -> DeletionProblem | None:
+    """``processes_running`` if anything outside FoDE is working in the case."""
+    procs = processes_in_directory(case_dir, exclude_tree_of=os.getpid(), proc_root=proc_root)
+    if not procs:
+        return None
+    return DeletionProblem(
+        "processes_running", detail=tuple(f"{p.name} (pid {p.pid})" for p in procs)
+    )
+
+
+def verify_compressed(
+    case_dir: str,
+    check: DeletionCheck,
+    progress: Callable[[int, int, str], None] | None = None,
+    cancelled: Callable[[], bool] | None = None,
+) -> tuple[DeletionProblem, ...] | None:
+    """Read every file in ``check.unverified_gz`` to its end; None if cancelled.
+
+    ``progress(done_bytes, total_bytes, relative_path)`` counts compressed
+    bytes, the unit the work is proportional to.
+    """
+    total = check.unverified_gz_bytes
+    done = 0
+    cut: dict[str, list[str]] = {}
+    for time, rel in check.unverified_gz:
+        path = os.path.join(case_dir, time, rel)
+        shown = os.path.join(time, rel)
+        if progress is not None:
+            progress(done, total, shown)
+
+        def advance(n: int, shown: str = shown) -> None:
+            nonlocal done
+            done += n
+            if progress is not None:
+                progress(done, total, shown)
+
+        start = done
+        try:
+            state = inspect_file(path, full=True, progress=advance, cancelled=cancelled)
+        except Cancelled:
+            return None
+        try:
+            # Whole files, whatever the read consumed: one cut off stops early.
+            done = start + os.path.getsize(path)
+        except OSError:
+            pass
+        if not state.readable or state.ended is False:
+            base_path = _processor_copy(case_dir, check.dirs, time, rel)
+            base = inspect_file(base_path, full=True) if base_path else None
+            if not state.readable or (base is not None and base.ended):
+                cut.setdefault(time, []).append(rel)
+    if progress is not None:
+        progress(done, total, "")
+    return tuple(
+        DeletionProblem("files_cut_off", t, tuple(found))
+        for t, found in sorted(cut.items(), key=lambda item: float(item[0]))
+    )
 
 
 def check_processor_deletion(case_dir: str, *, keep_latest: bool = False) -> DeletionCheck:
@@ -406,13 +589,28 @@ def check_processor_deletion(case_dir: str, *, keep_latest: bool = False) -> Del
             holders.setdefault(t, []).append(d)
             files.setdefault(t, set()).update(_files_under(os.path.join(proc, t)))
 
+    meshes = _RootMeshes(case_dir)
+    unverified: list[tuple[str, str]] = []
     for t in sorted(holders, key=float):
         if t not in at_root:
             problems.append(DeletionProblem("time_missing", t, tuple(holders[t])))
             continue
-        missing = files[t] - _files_under(os.path.join(case_dir, t))
+        root_files = {_uncompressed(r): r for r in _files_under(os.path.join(case_dir, t))}
+        missing = {f for f in files[t] if _uncompressed(f) not in root_files}
         if missing:
             problems.append(DeletionProblem("files_missing", t, tuple(sorted(missing))))
+        present = {
+            root_files[_uncompressed(f)] for f in files[t] if _uncompressed(f) in root_files
+        }
+        found, unread = _soundness_problems(case_dir, t, present, holders[t], meshes)
+        problems += found
+        unverified += [(t, rel) for rel in unread]
+    unverified_bytes = 0
+    for t, rel in unverified:
+        try:
+            unverified_bytes += os.path.getsize(os.path.join(case_dir, t, rel))
+        except OSError:
+            pass
 
     if not keep_latest:
         # The whole of each processor directory goes, constant/ included.
@@ -425,7 +623,8 @@ def check_processor_deletion(case_dir: str, *, keep_latest: bool = False) -> Del
         proc_sets: set[str] = set()
         for m in proc_meshes:
             proc_sets |= _files_under(os.path.join(m, "sets"))
-        sets_missing = proc_sets - _files_under(os.path.join(root_mesh, "sets"))
+        root_sets = {_uncompressed(r) for r in _files_under(os.path.join(root_mesh, "sets"))}
+        sets_missing = {s for s in proc_sets if _uncompressed(s) not in root_sets}
         if sets_missing:
             problems.append(DeletionProblem("sets_missing", detail=tuple(sorted(sets_missing))))
         if proc_meshes:
@@ -450,7 +649,31 @@ def check_processor_deletion(case_dir: str, *, keep_latest: bool = False) -> Del
             for d in dirs
             for t in _times_of(os.path.join(case_dir, d)) - {kept}
         )
-    return DeletionCheck(dirs, total, tuple(problems), keep_latest, kept, latest_root)
+    return DeletionCheck(
+        dirs, total, tuple(problems), keep_latest, kept, latest_root,
+        tuple(unverified), unverified_bytes,
+    )
+
+
+@dataclasses.dataclass(frozen=True)
+class DecompositionStatus:
+    """What the file list's "Decomposed" line says about processor*."""
+
+    count: int  # processor directories, or the collated count
+    collated: bool
+    times: tuple[str, ...]  # in processor0 (or the collated dir), ascending
+    unreconstructed: tuple[str, ...]  # of those, not at the case root
+
+
+def decomposition_status(case_dir: str) -> DecompositionStatus | None:
+    """None when the case is not decomposed. Directory listings only."""
+    dirs = processor_dirs(case_dir)
+    if not dirs:
+        return None
+    collated = any(d.startswith("processors") for d in dirs)
+    count = decomposed_count(case_dir) or len(dirs)
+    times = tuple(sorted(_times_of(os.path.join(case_dir, dirs[0])), key=float))
+    return DecompositionStatus(count, collated, times, tuple(unreconstructed_times(case_dir)))
 
 
 def deletion_targets(case_dir: str, check: DeletionCheck) -> list[str]:
@@ -478,6 +701,9 @@ class DeletionResult:
     stopped: bool  # cancelled before the last target
     done: int  # targets deleted (or attempted)
     total: int
+    # Found by the last-moment checks before anything was deleted (then
+    # ``done`` is 0): a process working in the case, a compressed file cut off.
+    problems: tuple[DeletionProblem, ...] = ()
 
 
 def delete_processor_data(

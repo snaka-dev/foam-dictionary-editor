@@ -2,6 +2,8 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+import dataclasses
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -10,7 +12,7 @@ from PySide6.QtCore import Qt
 from foam.include_expand import ExpandedTree, expand_includes
 from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser
-from foam.utils import read_foam_file
+from foam.utils import is_text_only, read_foam_file
 from foam.writer import write_root
 from i18n import tr
 from model.tree_model import FoamTreeModel
@@ -21,6 +23,23 @@ from ui.layout_constants import (
     STATUS_WARNING,
     TREE_EXPAND_DEPTH,
 )
+
+# What _prime_viewer reads: dictionaries live directly under these.
+_PRIME_DIRS = frozenset({"system", "constant"})
+# Far above any dictionary the view draws; keeps a stray large file from
+# costing a parse every time the file list refreshes.
+_PRIME_MAX_BYTES = 1_000_000
+
+
+@dataclasses.dataclass
+class _Primed:
+    """One listed file as _prime_viewer last saw it."""
+
+    stamp: tuple[int, int]  # (mtime_ns, size): re-read only when it changes
+    root: FoamNode | None  # None: feeds no overlay, or could not be read
+    drawn: bool  # whether its shapes are in the view now
+    fresh: bool = True  # re-read since last drawn: draw again
+
 
 if TYPE_CHECKING:
     from ui.mixins._protocol import MainWindowProtocol as _Base
@@ -80,6 +99,99 @@ class _ModelOpsMixin(_Base):
             # An unreadable include must never stop the viewer updating; it
             # simply renders what the unexpanded tree holds, as before.
             return ExpandedTree(root=root)
+
+    def _prime_viewer(self) -> None:
+        """Draw every dictionary the case lists that feeds the 3-D view.
+
+        The view used to show a file's shapes only once that file had been
+        opened, so a freshly opened case looked emptier than it is -- a mesh
+        with none of its probes, regions or snappy geometry. This reads the
+        listed ``system/`` and ``constant/`` files for drawing only: no
+        buffer is created, nothing is marked edited, the tree and editor are
+        untouched. A file open in FoDE is skipped, since its own text (with
+        any unsaved edits) already drives the view; files over
+        ``_PRIME_MAX_BYTES`` are skipped; each is re-read only when its
+        modification time or size changes. A file whose content reaches the
+        view through another's ``#include`` (damBreak's ``system/sampling``,
+        pulled into controlDict by ``#sinclude``) is not drawn a second time
+        on its own, and a file gone from the list takes its shapes with it.
+        """
+        panel = self.block_mesh_panel
+        case_dir = self.state.current_case_dir
+        if panel is None or not case_dir:
+            return
+        listed: set[str] = set()
+        for path in self.file_list_panel.file_paths():
+            rel = self._case_relative(path)
+            if rel is None or Path(rel).parts[0] not in _PRIME_DIRS or len(Path(rel).parts) != 2:
+                continue
+            listed.add(path)
+            if path in self.state.file_buffers:
+                continue
+            try:
+                st = os.stat(path)
+            except OSError:
+                continue
+            stamp = (st.st_mtime_ns, st.st_size)
+            known = self._viewer_primed.get(path)
+            if known is not None and known.stamp == stamp:
+                continue
+            root = None
+            if st.st_size <= _PRIME_MAX_BYTES:
+                try:
+                    text = read_foam_file(path)
+                    if not is_text_only(text, path):
+                        root = OpenFoamParser(text).parse()
+                except Exception:
+                    root = None  # unreadable or unparseable: draw nothing, quietly
+            kind = self._viewer_kind_for(path, root) if root is not None else None
+            drawn = known.drawn if known is not None else False
+            self._viewer_primed[path] = _Primed(stamp, root if kind else None, drawn, fresh=True)
+
+        # Gone from the list: take its shapes with it.
+        for path in [p for p in self._viewer_primed if p not in listed]:
+            primed = self._viewer_primed.pop(path)
+            if primed.drawn and path not in self.state.file_buffers:
+                panel.forget_file(path)
+
+        # Changed so that it no longer feeds the view.
+        for path, primed in self._viewer_primed.items():
+            if primed.root is None and primed.drawn and path not in self.state.file_buffers:
+                panel.forget_file(path)
+                primed.drawn = False
+
+        def drawn_includers() -> set[str]:
+            covered: set[str] = set()
+            for includer, sources in self.state.viewer_include_sources.items():
+                if includer in self.state.file_buffers or (
+                    includer in self._viewer_primed and self._viewer_primed[includer].drawn
+                ):
+                    covered |= {os.path.realpath(s) for s in sources}
+            return covered
+
+        # Includers first, so what they pull in is known before deciding on
+        # the included files themselves.
+        pending = [p for p, d in self._viewer_primed.items() if d.root is not None]
+        for path in sorted(pending, key=lambda p: Path(p).name != "controlDict"):
+            primed = self._viewer_primed[path]
+            if path in self.state.file_buffers or primed.root is None:
+                continue
+            if os.path.realpath(path) in drawn_includers():
+                if primed.drawn:
+                    panel.forget_file(path)
+                    primed.drawn = False
+                continue
+            if primed.drawn and not primed.fresh:
+                continue  # unchanged and already in the view
+            self._update_block_mesh_viewer(path, primed.root)
+            primed.drawn = True
+            primed.fresh = False
+        # Any order can draw an included file before its includer: withdraw it.
+        covered = drawn_includers()
+        for path, primed in self._viewer_primed.items():
+            if primed.drawn and os.path.realpath(path) in covered:
+                panel.forget_file(path)
+                primed.drawn = False
 
     def _update_viewer_panels(self, path: str, root: FoamNode) -> None:
         """Refresh the boundary table and the 3-D viewer for one file's tree."""

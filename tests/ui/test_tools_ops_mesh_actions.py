@@ -231,11 +231,11 @@ def test_run_allrun_confirms_and_sends_command(main_window, tmp_path, monkeypatc
     win.state.current_case_dir = str(tmp_path)
     win.terminal_panel = _FakeTerminalPanel()
 
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.No)
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: QMessageBox.StandardButton.No.value)
     win._on_run_allrun_clicked()
     assert win.terminal_panel.commands == []
 
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.Yes)
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: QMessageBox.StandardButton.Yes.value)
     win._on_run_allrun_clicked()
     assert win.terminal_panel.commands == ["./Allrun"]
 

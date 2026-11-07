@@ -190,4 +190,9 @@ def test_case_switch_drops_the_tracking(main_window, panel, tmp_path):
 
     other = _case(tmp_path / "other")
     main_window._load_case_dir(str(other))
-    assert main_window.state.viewer_include_sources == {}
+    # Nothing of the first case survives. The new case's own dictionaries
+    # are drawn as soon as it opens (_prime_viewer), so it has tracking of
+    # its own -- every key and source inside the new case.
+    tracked = main_window.state.viewer_include_sources
+    assert all(k.startswith(str(other)) for k in tracked)
+    assert all(src.startswith(str(other)) for srcs in tracked.values() for src in srcs)

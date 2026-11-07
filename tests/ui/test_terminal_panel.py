@@ -274,3 +274,57 @@ def test_the_xterm_shell_reports_a_running_command(qapp, shell_cwd):
         assert names == ["sleep"]
     finally:
         backend.stop()
+
+
+def _wait_for(qapp, condition, seconds=10):
+    import time
+
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline and not condition():
+        qapp.processEvents()
+        time.sleep(0.05)
+    return condition()
+
+
+def test_a_following_tail_is_stopped_before_a_command(terminal_panel, qapp, shell_cwd):
+    """Simple mode: the tail of a background run must not swallow the next command."""
+    import sys
+
+    from services.process_tree import follower_pids
+
+    if not sys.platform.startswith("linux"):
+        pytest.skip("reads /proc")
+    if terminal_panel._use_xterm:
+        terminal_panel._xterm_chk.setChecked(False)  # to the Simple shell
+    terminal_panel.run_command("tail -f /dev/null")
+    assert _wait_for(qapp, lambda: follower_pids(terminal_panel._shell_pid()))
+    assert terminal_panel.running_commands() == []  # closing would not ask
+    terminal_panel.run_command("echo ran > marker")
+    assert _wait_for(qapp, lambda: (shell_cwd / "marker").exists())
+    assert _wait_for(qapp, lambda: (shell_cwd / "marker").read_text() == "ran\n")
+
+
+def test_xterm_reads_a_command_typed_behind_a_stopped_tail(qapp, shell_cwd):
+    """xterm mode: under job control the tail is a foreground job of its own;
+    once it is stopped, bash reads what was typed meanwhile."""
+    import os
+    import signal
+    import sys
+
+    from services.process_tree import follower_pids
+    from ui.widgets._xterm_widget import PtyBackend
+
+    if not sys.platform.startswith("linux"):
+        pytest.skip("reads /proc")
+    backend = PtyBackend()
+    backend.start_shell(str(shell_cwd))
+    try:
+        backend.write(b"tail -f /dev/null\n")
+        assert _wait_for(qapp, lambda: follower_pids(backend.pid, job_control=True))
+        # TerminalPanel.run_command's order: stop the followers, then type.
+        for pid in follower_pids(backend.pid, job_control=True):
+            os.kill(pid, signal.SIGTERM)
+        backend.write(b"echo ran > marker\n")
+        assert _wait_for(qapp, lambda: (shell_cwd / "marker").exists())
+    finally:
+        backend.stop()

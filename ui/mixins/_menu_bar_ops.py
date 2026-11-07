@@ -231,6 +231,25 @@ class _MenuBarOpsMixin(_Base):
             self._on_run_checkmesh_clicked,
         )
         tools_menu.addSeparator()
+        self._add_function_object_action = _tool_act(
+            tr("Add Function Object…"),
+            tr(
+                "Add a post-processing function object — probes, a line "
+                "graph, forces, … — from your OpenFOAM installation's "
+                "templates: system/<name> plus #includeFunc in controlDict"
+            ),
+            self._on_add_function_object_clicked,
+        )
+        self._run_post_process_action = _tool_act(
+            tr("Run postProcess…"),
+            tr(
+                "Run function objects on results that already exist — the "
+                "case's own, or one-offs such as mag(U) or yPlus — in the "
+                "terminal panel, through the solver where a function needs it"
+            ),
+            self._on_run_post_process_clicked,
+        )
+        tools_menu.addSeparator()
         # Running the case itself, rather than preparing it.
         self._run_decomposepar_action = _tool_act(
             tr("Run decomposePar…"),
@@ -247,6 +266,14 @@ class _MenuBarOpsMixin(_Base):
                 "in the terminal panel, optionally in parallel"
             ),
             self._on_run_solver_clicked,
+        )
+        self._stop_background_run_action = _tool_act(
+            tr("Stop Background Run"),
+            tr(
+                "Ask the solver running in the background in this case to write "
+                "the current time and stop (stopAt writeNow)"
+            ),
+            self._on_stop_background_run_clicked,
         )
         self._run_reconstructpar_action = _tool_act(
             tr("Run reconstructPar…"),

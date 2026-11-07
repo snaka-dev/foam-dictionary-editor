@@ -2,7 +2,7 @@
 
 FoDE の各パネル・オーバーレイ・ダイアログを画面で紹介します。全機能リファレンスは [USER_GUIDE_ja.md](../USER_GUIDE_ja.md)、インストールとクイックスタートは [README_ja.md](../README_ja.md) を参照してください。
 
-以下の **メインウィンドウ** と **BlockMesh 3D ビューア** の各画像は、`tools/screenshot_specs.json` に記述したウィンドウ状態から `tools/capture_screenshots.py` が撮影しています。そのため 1 コマンドで撮り直せ、ライト/ダークのペアはテーマ以外がまったく同一になります。詳細は [スクリーンショットの撮影](../DEVELOPER_ja.md#スクリーンショットの撮影) を参照してください。**ダイアログとメニュー** の各画像は別途撮影しています: 開いたメニューやダイアログはメインウィンドウのフレームの一部ではなく、独立した X ウィンドウであるためです。
+以下の **メインウィンドウ** と **BlockMesh 3D ビューア** の各画像は、`tools/screenshot_specs.json` に記述したウィンドウ状態から `tools/capture_screenshots.py` が撮影しています。そのため 1 コマンドで撮り直せ、ライト/ダークのペアはテーマ以外がまったく同一になります。詳細は [スクリーンショットの撮影](../DEVELOPER_ja.md#スクリーンショットの撮影) を参照してください。**ダイアログとメニュー** の各画像は別途撮影しています: 開いたメニューやダイアログはメインウィンドウのフレームの一部ではなく、独立した X ウィンドウであるためです。ダイアログは `tools/capture_dialog.py` が撮影し、Tools メニューは、メニューを開いて画面をウィンドウの範囲で切り抜く `capture_screenshots.py` のショットです。
 
 ## メインウィンドウ
 
@@ -28,7 +28,7 @@ Boundary view タブ: すべてのフィールドファイルにまたがる境�
 
 ## BlockMesh 3D ビューア
 
-3D パネルは `blockMeshDict` のジオメトリを描画し、`topoSetDict`・`snappyHexMeshDict`・`setFieldsDict`・サンプリング辞書を開いている、または編集している場合はそのジオメトリも重ねて表示します。詳細は [BlockMesh パネル](../USER_GUIDE_ja.md#blockmesh-パネル) を参照してください。
+3D パネルは `blockMeshDict` のジオメトリを描画し、`topoSetDict`・`snappyHexMeshDict`・`setFieldsDict`・サンプリング辞書のジオメトリも重ねて表示します。ケースを開いた時点で描画され、編集にも追従します。詳細は [BlockMesh パネル](../USER_GUIDE_ja.md#blockmesh-パネル) を参照してください。
 
 ### topoSetDict オーバーレイ — topoSetShapes ケース
 
@@ -84,6 +84,24 @@ OpenFOAM インストールの `simpleFoam` チュートリアルを表示して
 
 Tools メニューの **Run …** アクションの背後にあるオプションダイアログ。ここでは同梱の `damBreak` ケースに対する `setFields` です。実行ファイルのフラグを覚えておくことを求める代わりに、各ツールについて厳選したフラグを入力欄として提示し、そこに含まれないものは **Extra options** に書きます。そして下端のボックスには、Terminal タブへ実際に送られるコマンドがそのまま表示され、設定を変えるたびに更新されます。組み立てられるコマンドは必ず最後に `log.<ツール名>` へ tee するため、その後 [View Log Summary](#view-log-summary) が読むログが残ります。ツールの落とし穴に先回りするのもこのダイアログの役割です: `setFields` は `0/` をその場で書き換えるため、再実行すると既に設定した値にさらに重ねてしまいます。そこで `0.orig/` から `0/` を復元する選択肢が既定でオンになっており、実際に実行される前置きコマンドとしてコマンド欄にも現れています。詳細は [Run setFields](../USER_GUIDE_ja.md#run-setfields) を参照してください。
 
+### Add Function Object
+
+![Add Function Object ダイアログ](images/add-function-object-dialog.png)
+
+同梱の `damBreak` ケースで **Tools > Add Function Object…** を開き、プローブを選んだところです。左の一覧は FoDE 独自のものではなく、上部に表示されている OpenFOAM のインストールが同梱するテンプレートです。そのため、同じ関数でも 2 つのフォークで名前や形が異なっても、入力欄は常に実際に使う OpenFOAM と一致します。入力欄にはそのテンプレートが設定する項目だけが、種類に合った形で表示されます。フィールド名は **▾** でケースから選べ、点は 1 行に 1 つ `x y z` で入力します。ここでのプローブの位置は、このケースでは角にあたるテンプレートの例 `(0 0 0)` ではありません。FoDE が `blockMeshDict` から読んだメッシュの中心に置き、入力欄の下の注記にそう書かれています。**書き出すファイル** は `system/probes` に書かれる正確なテキストで、設定の部分までスクロールされ、入力に合わせて更新されます。ダイアログを開いている間、3D ビューはメッシュと重ねてプローブを描画します。[Add Function Object](../USER_GUIDE_ja.md#add-function-object) を参照してください。
+
+### ソルバーを実行する
+
+![Run Solver ダイアログ](images/run-solver-dialog.png)
+
+同梱の `damBreak` ケースで **Tools > Run Solver…** を開いたところです。ソルバーは `controlDict` の `application` から読み取られ、変更もできます。**Run in parallel** は、ケースが実際に分割されているプロセッサ数を使うので、コマンドは `mpirun -np 4 … -parallel` になります。**Keep running after FoDE closes** を選ぶと、FoDE を閉じても止まらないように切り離して実行し、後から **Tools > Stop Background Run** で書き出し済みの時刻に止められます。どの Run ダイアログでも同じく、下部のコマンドがそのまま Terminal に送られます。詳細は [Run Solver](../USER_GUIDE_ja.md#run-solver) を参照してください。
+
+### Run postProcess
+
+![Run postProcess ダイアログ](images/run-post-process-dialog.png)
+
+同梱の `pitzDaily` ケースで **Tools > Run postProcess…** を開き、`yPlus` を選んだところです。関数の一覧は、ケース自身の関数オブジェクト（ここでは `streamlines`）から始まり、続いて OpenFOAM がテンプレートから直接実行できるよく使うものが並びます。`yPlus` はソルバーの乱流モデルを必要とするため **ソルバーを通して実行** が自動でチェックされ、コマンドは `simpleFoam -postProcess` になっています。そのままの `postProcess` では、エラーなく終了しても何も計算されません。出力は `log.postProcess` に書かれ、ソルバー自身のログには書かれません。[Run postProcess](../USER_GUIDE_ja.md#run-postprocess) を参照してください。
+
 ### View Log Summary
 
 ![View Log Summary ダイアログ](images/log-summary-dialog.png)
@@ -94,4 +112,4 @@ Tools メニューの **Run …** アクションの背後にあるオプショ�
 
 ![Tools メニュー](images/tools-menu.png)
 
-Tools メニューは、FoDE が辞書の編集をやめて OpenFOAM 自身に処理を渡す場所です。各項目は対象ごとにグループ分けされています: メッシュと場のユーティリティ（いずれも上記の「メッシュ・場のツールを実行する」のオプションダイアログを開いてから、コマンドを Terminal タブへ送ります）、ケース全体を対象とするスクリプトとクリーンアップ、メッシュを ParaView へ渡す操作、そして 2 つの非モーダルダイアログ（「View Log Summary」と「Find OpenFOAM Examples」）です。いずれも開いているケース — この例では `pitzDaily` — に対して実行されます。詳細は [Run blockMesh](../USER_GUIDE_ja.md#run-blockmesh) と [foamMonitor ランチャー](../USER_GUIDE_ja.md#foammonitor-ランチャー) を参照してください。
+Tools メニューは、FoDE が辞書の編集をやめて OpenFOAM 自身に処理を渡す場所です。各項目は対象ごとにグループ分けされており、ツールを実行する項目は先にオプションダイアログを開きます。いずれも開いているケース — この例では `pitzDaily` — に対して実行されます。詳細は [Tools メニュー](../USER_GUIDE_ja.md#tools-メニュー) を参照してください。

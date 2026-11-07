@@ -2,7 +2,7 @@
 
 A visual tour of FoDE's panels, overlays, and dialogs. For the full feature reference see [USER_GUIDE.md](../USER_GUIDE.md); for installation and a quick start see [README.md](../README.md).
 
-Every image in the **Main window** and **BlockMesh 3-D viewer** sections below is captured by `tools/capture_screenshots.py` from the window states in `tools/screenshot_specs.json`, so a shot can be retaken with one command and a light/dark pair differs in nothing but the theme. See [Screenshot capture](../DEVELOPER.md#screenshot-capture). The **Dialogs and menus** shots are taken separately: an open menu and a dialog are separate X windows rather than part of the main window's frame.
+Every image in the **Main window** and **BlockMesh 3-D viewer** sections below is captured by `tools/capture_screenshots.py` from the window states in `tools/screenshot_specs.json`, so a shot can be retaken with one command and a light/dark pair differs in nothing but the theme. See [Screenshot capture](../DEVELOPER.md#screenshot-capture). The **Dialogs and menus** shots are taken separately: an open menu and a dialog are separate X windows rather than part of the main window's frame. Dialogs come from `tools/capture_dialog.py`; the Tools menu is a `capture_screenshots.py` shot that opens the menu and crops the screen to the window.
 
 ## Main window
 
@@ -28,7 +28,7 @@ Compare mode, with the `cavity` tutorial open and `cavityGrade` set as the refer
 
 ## BlockMesh 3-D viewer
 
-The 3-D panel renders `blockMeshDict` geometry and overlays matching geometry from `topoSetDict`, `snappyHexMeshDict`, `setFieldsDict`, and sampling dicts when those files are loaded or being edited. See [BlockMesh panel](../USER_GUIDE.md#blockmesh-panel).
+The 3-D panel renders `blockMeshDict` geometry and overlays matching geometry from `topoSetDict`, `snappyHexMeshDict`, `setFieldsDict`, and sampling dicts. The shapes are drawn as soon as the case opens and follow your edits. See [BlockMesh panel](../USER_GUIDE.md#blockmesh-panel).
 
 ### topoSetDict overlay — topoSetShapes case
 
@@ -84,6 +84,24 @@ The non-modal Find OpenFOAM Examples dialog, searching an installation's `tutori
 
 The options dialog behind the Tools menu's **Run …** actions, here for `setFields` on the bundled `damBreak` case. Rather than asking you to remember an executable's flags, each tool offers a curated set of them as fields, with anything uncurated going in **Extra options** — and the box at the bottom shows the exact command that will be sent to the Terminal tab, updating as you change your mind. The composed command always ends by teeing to `log.<tool>`, which is what leaves a log for [View Log Summary](#view-log-summary) to read afterwards. The dialog is also where a tool's foot-guns are headed off: `setFields` rewrites `0/` in place, so re-running it compounds the values it has already set, and the offer to restore `0/` from `0.orig/` first is checked by default and visible in the command as the prefix it will actually run. See [Run setFields](../USER_GUIDE.md#run-setfields).
 
+### Add Function Object
+
+![Add Function Object dialog](images/add-function-object-dialog.png)
+
+**Tools > Add Function Object…** on the bundled `damBreak` case, with a probe set chosen. The list on the left is not FoDE's own: it is the templates the OpenFOAM installation ships, named at the top. So the form always matches the OpenFOAM you run, even though the two forks name and shape the same function differently. The form shows only what that template sets, each entry with an input for its kind: field names picked from the case with **▾**, points as `x y z` per line. The probe's location here is not the template's example `(0 0 0)`, a corner of this case. FoDE placed it at the centre of the mesh, read from `blockMeshDict`, and the note under the field says so. **File to be written** is the exact text that will go to `system/probes`, scrolled to the settings and updated as you type. While the dialog is open, the 3-D view draws the probe against the mesh. See [Add Function Object](../USER_GUIDE.md#add-function-object).
+
+### Run the solver
+
+![Run Solver dialog](images/run-solver-dialog.png)
+
+**Tools > Run Solver…** on the bundled `damBreak` case. The solver comes from `controlDict`'s `application` and can be changed; **Run in parallel** uses the number of processors the case is actually decomposed into, so the command reads `mpirun -np 4 … -parallel`. **Keep running after FoDE closes** starts the run detached, so closing FoDE does not stop it, and **Tools > Stop Background Run** later ends it at a written time. As in every Run dialog, the command at the bottom is exactly what will be sent to the Terminal. See [Run Solver](../USER_GUIDE.md#run-solver).
+
+### Run postProcess
+
+![Run postProcess dialog](images/run-post-process-dialog.png)
+
+**Tools > Run postProcess…** on the bundled `pitzDaily` case, with `yPlus` chosen. The function list starts with the case's own function objects (`streamlines`, here), then common ones OpenFOAM runs straight from its templates. `yPlus` needs the solver's turbulence model, so **Run through the solver** ticked itself, and the command became `simpleFoam -postProcess`. Plain `postProcess` would finish without any error and calculate nothing. The output goes to `log.postProcess`, never the solver's own log. See [Run postProcess](../USER_GUIDE.md#run-postprocess).
+
 ### View Log Summary
 
 ![View Log Summary dialog](images/log-summary-dialog.png)
@@ -94,4 +112,4 @@ The non-modal View Log Summary dialog, reading the `log.simpleFoam` a `pitzDaily
 
 ![Tools menu](images/tools-menu.png)
 
-The Tools menu is where FoDE stops editing dictionaries and hands work to OpenFOAM itself. Its entries are grouped by what they act on: the meshing and field utilities, each of which opens the [options dialog above](#run-a-meshing-or-field-tool) before sending its command to the Terminal tab; the whole-case scripts and clean-up; handing the mesh to ParaView; and the two non-modal dialogs, [View Log Summary](#view-log-summary) and [Find OpenFOAM Examples](#find-openfoam-examples). Everything acts on the open case — `pitzDaily`, here. See [Run blockMesh](../USER_GUIDE.md#run-blockmesh) and [foamMonitor launcher](../USER_GUIDE.md#foammonitor-launcher).
+The Tools menu is where FoDE stops editing dictionaries and hands work to OpenFOAM itself. Its entries are grouped by what they act on, and the ones that run a tool open an options dialog first. Everything acts on the open case — `pitzDaily`, here. See [Tools menu](../USER_GUIDE.md#tools-menu).

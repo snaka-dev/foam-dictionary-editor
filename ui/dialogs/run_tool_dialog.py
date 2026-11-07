@@ -216,6 +216,18 @@ class RunToolDialog(QDialog):
         """``-np`` to wrap the command in ``mpirun … -parallel``; None for serial."""
         return None
 
+    def _background(self) -> bool:
+        """Whether to detach the run so it outlives FoDE (services/background_run.py)."""
+        return False
+
+    def _lead_args(self) -> tuple[str, ...]:
+        """Arguments right after the executable (``-postProcess -func yPlus``)."""
+        return ()
+
+    def _log_name(self) -> str | None:
+        """The log file, when not ``log.<executable>``."""
+        return None
+
     # ── internals ─────────────────────────────────────────────────────────────
 
     def _compose(self) -> tuple[str | None, str]:
@@ -233,7 +245,10 @@ class RunToolDialog(QDialog):
             return None, problem
         try:
             command = build_command(
-                spec, values, extra, run_prefix + prefix, self._parallel_np()
+                spec, values, extra, run_prefix + prefix, self._parallel_np(),
+                background=self._background(),
+                lead=self._lead_args(),
+                log_name=self._log_name(),
             )
         except ValueError:
             return None, tr("(invalid extra options — unbalanced quote?)")

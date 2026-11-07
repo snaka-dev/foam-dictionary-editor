@@ -639,24 +639,27 @@
             "boundary_faces": false,
             "vertex_table": false
           },
-          "label_font_size": 11,
+          "label_font_size": 9,
           "camera": [
             [
-              15.75,
-              -15.5,
-              10.45
+              4.0,
+              -8.0,
+              7.26
             ],
             [
-              4.0,
-              1.0,
-              2.0
+              1.2,
+              0.0,
+              0.7
             ],
             [
               0.0,
               0.0,
               1.0
             ]
-          ]
+          ],
+          "overlays": {
+            "sampling": false
+          }
         }
       },
       "steps": [
@@ -664,7 +667,7 @@
           "do": "wait",
           "ms": 5000,
           "beat": "open",
-          "say": "snappyHexMesh builds a mesh around a surface, and its dictionary is mostly references to things you cannot see: a geometry file, a refinement region, a point that decides which side is fluid. Open it here and they are drawn — inside the background mesh they will be cut from."
+          "say": "snappyHexMesh builds a mesh around a surface, and its dictionary is mostly references to things you cannot see: a geometry file, a refinement region, a point that decides which side is fluid. Open the case and they are drawn — inside the background mesh they will be cut from."
         },
         {
           "do": "drag",
@@ -682,7 +685,7 @@
           "do": "scroll",
           "widget": "block_mesh_panel",
           "direction": "up",
-          "amount": 8,
+          "amount": 5,
           "then": 2500,
           "beat": "zoom in",
           "say": "Zoom in and it is the real surface, not a bounding box standing in for it."
@@ -1026,12 +1029,12 @@
       ]
     },
     "damBreak-end-to-end": {
-      "note": "Movie 1: edit setFieldsDict, watch the geometry, run the tools, read the log.",
+      "note": "Movie 1: edit setFieldsDict, watch the geometry, run the tools and the solver, read the log.",
       "theme": "light",
       "case_source": "{repo}/tutorials/damBreak",
       "workdir": "{work}/damBreak",
       "terminal_prelude": [
-        "source /usr/lib/openfoam/openfoam2512/etc/bashrc",
+        "source /usr/lib/openfoam/openfoam2606/etc/bashrc",
         "clear"
       ],
       "state": {
@@ -1093,14 +1096,14 @@
           "do": "wait",
           "ms": 4000,
           "beat": "open",
-          "say": "This is an OpenFOAM case — the damBreak tutorial — open in FoDE. The dictionary is a tree on the left, the mesh it describes is drawn on the right."
+          "say": "This is an OpenFOAM case — the damBreak tutorial — open in FoDE. The dictionary is a tree on the left; on the right, the mesh it describes, and the water column setFieldsDict will fill — drawn as soon as the case opened."
         },
         {
           "do": "click",
           "file": "system/setFieldsDict",
           "then": 3800,
           "beat": "open setFieldsDict",
-          "say": "Open setFieldsDict, and the region it initialises is drawn straight onto that mesh."
+          "say": "Open setFieldsDict: it is the file that puts that water there."
         },
         {
           "do": "click",
@@ -1186,9 +1189,29 @@
         {
           "do": "click",
           "button": "Run",
-          "then": 7000,
+          "then": 5000,
           "beat": "setFields runs",
           "say": "Run it."
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 900,
+          "beat": "Tools menu for the solver"
+        },
+        {
+          "do": "click",
+          "menu_item": "Run Solver…",
+          "then": 6000,
+          "beat": "the Run Solver dialog",
+          "say": "And the solver. Run Solver reads interFoam from controlDict and shows the command; the parallel option waits for a decomposed case."
+        },
+        {
+          "do": "click",
+          "button": "Run",
+          "then": 11000,
+          "beat": "interFoam runs",
+          "say": "interFoam runs to the end time, and the time directories it writes land in the file list as they appear."
         },
         {
           "do": "click",
@@ -1201,7 +1224,7 @@
           "menu_item": "View Log Summary…",
           "then": 7500,
           "beat": "log summary",
-          "say": "And the logs those runs left behind are condensed to a report: what ran, what it produced, and every warning it printed."
+          "say": "Then the logs the runs left behind are condensed to a report: what ran, how far it got, and every warning it printed."
         }
       ]
     },
@@ -1517,6 +1540,443 @@
           "then": 3000,
           "beat": "back to the case",
           "say": "The case you had open is still open. Browsing your cases never disturbed the one you were working on."
+        }
+      ]
+    },
+    "damBreak-function-objects": {
+      "note": "Movie 10: post-processing without knowing the dictionary — a probe set from the installation's template, placed and previewed in 3-D.",
+      "theme": "light",
+      "case_source": "{repo}/tutorials/damBreak",
+      "workdir": "{work}/damBreak",
+      "state": {
+        "block_mesh_visible": true,
+        "side_by_side": false,
+        "upper_tab": "BlockMesh",
+        "splitter_sizes": {
+          "main": [
+            640,
+            640
+          ],
+          "right": [
+            560,
+            210
+          ],
+          "right_upper": [
+            640,
+            0,
+            0
+          ]
+        }
+      },
+      "steps": [
+        {
+          "do": "wait",
+          "ms": 5500,
+          "beat": "everything drawn",
+          "say": "damBreak, just opened. Nothing has been opened yet, and the 3-D view already shows what the case defines: the mesh, the water column from setFieldsDict, and two gauge lines from a file called sampling."
+        },
+        {
+          "do": "drag",
+          "widget": "block_mesh_panel",
+          "by": [
+            70,
+            20
+          ],
+          "ticks": 20,
+          "then": 1500,
+          "beat": "orbit"
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 900,
+          "beat": "the Tools menu"
+        },
+        {
+          "do": "click",
+          "menu_item": "Add Function Object…",
+          "then": 600,
+          "beat": "the templates",
+          "say": "To add probes, you do not need to know how the dictionary is written. This list is not FoDE's own: it is the templates your OpenFOAM installation ships, so the form always matches the version you run."
+        },
+        {
+          "do": "place",
+          "rect": [
+            0,
+            30,
+            640,
+            740
+          ],
+          "then": 3900
+        },
+        {
+          "do": "type",
+          "text": "probes",
+          "delay": 90,
+          "then": 1200,
+          "beat": "search"
+        },
+        {
+          "do": "click",
+          "item": "probes",
+          "then": 5500,
+          "beat": "a probe at the centre",
+          "say": "The form shows only what the template sets. The probe does not start at the template's example, a corner of this case: FoDE put it at the centre of the mesh, read from blockMeshDict — and the 3-D view draws it while the dialog is open."
+        },
+        {
+          "do": "click",
+          "field": "probeLocations",
+          "then": 500,
+          "beat": "a row along the floor"
+        },
+        {
+          "do": "key",
+          "keys": "ctrl+a",
+          "then": 300
+        },
+        {
+          "do": "type",
+          "text": "0.05 0.03 0.0073\n0.15 0.03 0.0073\n0.35 0.03 0.0073\n0.45 0.03 0.0073\n0.55 0.03 0.0073",
+          "delay": 45,
+          "then": 3500,
+          "say": "A row of probes along the floor, where the water will run. The markers follow as the points are typed."
+        },
+        {
+          "do": "click",
+          "field": "fields",
+          "then": 400,
+          "beat": "which fields"
+        },
+        {
+          "do": "key",
+          "keys": "ctrl+a",
+          "then": 300
+        },
+        {
+          "do": "type",
+          "text": "alpha.water p_rgh",
+          "delay": 70,
+          "then": 2500,
+          "say": "And which fields to record — the ▾ beside it lists the case's own."
+        },
+        {
+          "do": "click",
+          "button": "Add",
+          "then": 5000,
+          "beat": "added",
+          "say": "Add writes system/probes and adds #includeFunc probes to controlDict, the way the tutorials do it. From now on the probes run with the solver."
+        },
+        {
+          "do": "click",
+          "file": "system/controlDict",
+          "then": 5000,
+          "beat": "the include in controlDict",
+          "say": "And they stay in the 3-D view, beside the gauges, under their own name."
+        }
+      ]
+    },
+    "damBreak-background-run": {
+      "note": "Movie 11: a run that outlives FoDE — started in the background, followed, stopped cleanly with its result reported.",
+      "theme": "light",
+      "case_source": "{repo}/tutorials/damBreak",
+      "workdir": "{work}/damBreak",
+      "terminal_prelude": [
+        "source /usr/lib/openfoam/openfoam2606/etc/bashrc",
+        "clear"
+      ],
+      "state": {
+        "block_mesh_visible": true,
+        "side_by_side": false,
+        "upper_tab": "BlockMesh",
+        "splitter_sizes": {
+          "main": [
+            220,
+            1060
+          ],
+          "right": [
+            540,
+            230
+          ],
+          "right_upper": [
+            1060,
+            0,
+            0
+          ]
+        }
+      },
+      "steps": [
+        {
+          "do": "wait",
+          "ms": 4000,
+          "beat": "the case",
+          "say": "A long run is one you do not want to babysit — or to lose when you close the editor. First, the mesh and the water column."
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 800,
+          "beat": "blockMesh"
+        },
+        {
+          "do": "click",
+          "menu_item": "Run blockMesh…",
+          "then": 2200
+        },
+        {
+          "do": "click",
+          "button": "Run",
+          "then": 4000
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 800,
+          "beat": "setFields"
+        },
+        {
+          "do": "click",
+          "menu_item": "Run setFields…",
+          "then": 2200
+        },
+        {
+          "do": "click",
+          "button": "Run",
+          "then": 4000
+        },
+        {
+          "do": "click",
+          "file": "system/controlDict",
+          "then": 1500,
+          "beat": "a long run",
+          "say": "Make it a long run: endTime 100 instead of 1."
+        },
+        {
+          "do": "click",
+          "tab": "Tree",
+          "then": 1500
+        },
+        {
+          "do": "click",
+          "tree": [
+            "endTime"
+          ],
+          "col": 2,
+          "double": true,
+          "then": 600
+        },
+        {
+          "do": "key",
+          "keys": "ctrl+a",
+          "then": 200
+        },
+        {
+          "do": "type",
+          "text": "100",
+          "delay": 120,
+          "then": 300
+        },
+        {
+          "do": "key",
+          "keys": "Return",
+          "then": 2000
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 800,
+          "beat": "Run Solver"
+        },
+        {
+          "do": "click",
+          "menu_item": "Run Solver…",
+          "then": 3500,
+          "say": "Run Solver offers to save the edit first, and one more box: keep running after FoDE closes."
+        },
+        {
+          "do": "click",
+          "button": "Keep running after FoDE closes",
+          "then": 4000,
+          "beat": "in the background",
+          "say": "Ticked, the run starts detached from the terminal, in a session of its own, writing its log directly — closing FoDE cannot stop it."
+        },
+        {
+          "do": "click",
+          "button": "Run",
+          "then": 9000,
+          "beat": "running",
+          "say": "The terminal follows the log. A badge beside the case name says a run is going, the window title says so in the taskbar, and the file list has a line for it. Close FoDE now, and it keeps going; open the case again, and the badge is back."
+        },
+        {
+          "do": "click",
+          "widget": "background_run_btn",
+          "then": 2500,
+          "beat": "stop it",
+          "say": "To stop it, click the badge."
+        },
+        {
+          "do": "click",
+          "menu_item": "Stop Background Run",
+          "then": 3500,
+          "say": "FoDE asks the solver to write the current time and stop, the OpenFOAM way — stopAt writeNow in controlDict."
+        },
+        {
+          "do": "click",
+          "button": "Yes",
+          "then": 9000,
+          "beat": "the result",
+          "say": "The badge turns to Stopping until the run has gone. Then a message says what happened: the last time written, and that stopAt is back as it was — so the next run does not stop at once."
+        },
+        {
+          "do": "click",
+          "button": "OK",
+          "then": 3000,
+          "beat": "done"
+        }
+      ]
+    },
+    "damBreak-parallel-run": {
+      "note": "Movie 12: a parallel run from the menu — decompose, run on four processors, reconstruct, and delete processor* only once it is safe.",
+      "theme": "light",
+      "case_source": "{repo}/tutorials/damBreak",
+      "workdir": "{work}/damBreak",
+      "terminal_prelude": [
+        "source /usr/lib/openfoam/openfoam2606/etc/bashrc",
+        "clear"
+      ],
+      "state": {
+        "block_mesh_visible": true,
+        "side_by_side": false,
+        "upper_tab": "BlockMesh",
+        "splitter_sizes": {
+          "main": [
+            340,
+            940
+          ],
+          "right": [
+            470,
+            300
+          ],
+          "right_upper": [
+            940,
+            0,
+            0
+          ]
+        }
+      },
+      "steps": [
+        {
+          "do": "wait",
+          "ms": 3500,
+          "beat": "the case",
+          "say": "A parallel run takes four steps that are easy to get wrong by hand. First, the mesh and the water column."
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 800,
+          "beat": "blockMesh"
+        },
+        {
+          "do": "click",
+          "menu_item": "Run blockMesh…",
+          "then": 2000
+        },
+        {
+          "do": "click",
+          "button": "Run",
+          "then": 4000
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 800,
+          "beat": "setFields"
+        },
+        {
+          "do": "click",
+          "menu_item": "Run setFields…",
+          "then": 2000
+        },
+        {
+          "do": "click",
+          "button": "Run",
+          "then": 4000
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 800,
+          "beat": "decomposePar"
+        },
+        {
+          "do": "click",
+          "menu_item": "Run decomposePar…",
+          "then": 3500,
+          "say": "decomposePar splits the case into the four pieces decomposeParDict asks for."
+        },
+        {
+          "do": "click",
+          "button": "Run",
+          "then": 6000,
+          "beat": "decomposed",
+          "say": "The file list now says so: decomposed into four processors, and which times they hold."
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 800,
+          "beat": "Run Solver in parallel"
+        },
+        {
+          "do": "click",
+          "menu_item": "Run Solver…",
+          "then": 5000,
+          "say": "Run Solver sees the decomposition and ticks Run in parallel, with the processor count the case really has — mpirun, minus parallel."
+        },
+        {
+          "do": "click",
+          "button": "Run",
+          "then": 14000,
+          "beat": "running in parallel",
+          "say": "Four processes, one log. Their results are written into the processor directories, not the case — so the file list's processor line turns orange: those times exist nowhere else yet."
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 800,
+          "beat": "reconstructPar"
+        },
+        {
+          "do": "click",
+          "menu_item": "Run reconstructPar…",
+          "then": 3500,
+          "say": "reconstructPar puts them back together — only the new times, by default."
+        },
+        {
+          "do": "click",
+          "button": "Run",
+          "then": 8000,
+          "beat": "reconstructed",
+          "say": "Now every time is at the case root too: the results line is back, and the processor line is no longer orange."
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 800,
+          "beat": "delete processor*"
+        },
+        {
+          "do": "click",
+          "menu_item": "Delete processor* Directories…",
+          "then": 8500,
+          "say": "The processor directories can go — but only once FoDE has checked, file by file, that the copy at the case root is complete. By default it keeps each processor's latest time, so the run can carry on in parallel without decomposing again."
+        },
+        {
+          "do": "click",
+          "button": "Yes",
+          "then": 6000,
+          "beat": "deleted",
+          "say": "Deleted — the status bar says what was kept, and the file list shows the one time left in the processors."
         }
       ]
     }

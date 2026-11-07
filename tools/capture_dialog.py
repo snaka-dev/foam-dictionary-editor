@@ -252,6 +252,124 @@ def _build_run_tool(ctx: ShotContext):
     )
 
 
+_FUNCTION_OBJECT_CASE = ROOT / "tutorials" / "damBreak"
+_POST_PROCESS_CASE = ROOT / "tutorials" / "pitzDaily"
+
+
+def _template_root(ctx: ShotContext) -> Path:
+    return ctx.installation / "etc" / "caseDicts" / "postProcessing"
+
+
+def _requires_function_object(ctx: ShotContext) -> None:
+    if not (_template_root(ctx) / "probes" / "probes").is_file():
+        raise SystemExit(
+            f"missing {_template_root(ctx) / 'probes' / 'probes'}\n"
+            "Add Function Object lists an installation's own templates."
+        )
+
+
+def _build_function_object(ctx: ShotContext):
+    """Add Function Object on the bundled damBreak, a probe set chosen.
+
+    Its location is FoDE's own suggestion -- the centre of the blockMesh --
+    which is the point of the shot: a template's example is (0 0 0).
+    """
+    from services.domain_bounds import domain_bounds
+    from services.function_templates import (
+        case_field_names,
+        case_patch_names,
+        list_templates,
+        suggest_values,
+    )
+    from ui.dialogs.function_object_dialog import FunctionObjectDialog, _NamesInput
+
+    case = str(_FUNCTION_OBJECT_CASE)
+    bounds = domain_bounds(case)
+    dialog = FunctionObjectDialog(
+        list_templates(str(_template_root(ctx))),
+        str(ctx.installation),
+        case_field_names(case),
+        case_patch_names(case),
+        {"controlDict", "sampling"},
+        suggest=(lambda parsed: suggest_values(parsed, bounds)) if bounds else None,
+    )
+    dialog.select_template("probes", "probes")
+    fields = dialog._inputs["fields"]
+    assert isinstance(fields, _NamesInput)
+    fields.edit.setText("alpha.water p_rgh")
+    return dialog
+
+
+def _requires_post_process(ctx: ShotContext) -> None:
+    if not (_POST_PROCESS_CASE / "system" / "controlDict").is_file():
+        raise SystemExit(f"missing {_POST_PROCESS_CASE / 'system' / 'controlDict'}")
+
+
+def _build_post_process(ctx: ShotContext):
+    """Run postProcess on the bundled pitzDaily, yPlus chosen.
+
+    yPlus needs the solver's turbulence model, so the box goes through
+    simpleFoam by itself -- what the shot is there to show.
+    """
+    from services.post_process import COMMON_FUNCTIONS, post_process_tool
+    from ui.dialogs.run_post_process_dialog import RunPostProcessDialog
+
+    return RunPostProcessDialog(
+        str(_POST_PROCESS_CASE),
+        post_process_tool(str(ctx.installation)),
+        ["streamlines"],
+        COMMON_FUNCTIONS,
+        "simpleFoam",
+        None,
+        preset="yPlus",
+    )
+
+
+# Copied from ui/mixins/_tools_ops.py's _solver_dialog_notes, for the same
+# reason as _SETFIELDS_WARNING; tests/tools/test_capture_dialog.py pins it.
+_SOLVER_NOTE = "From system/controlDict: application {app}."
+_SOLVER_CASE = ROOT / "tutorials" / "damBreak"
+
+
+def _requires_run_solver(ctx: ShotContext) -> None:
+    if not (_SOLVER_CASE / "system" / "decomposeParDict").is_file():
+        raise SystemExit(f"missing {_SOLVER_CASE / 'system' / 'decomposeParDict'}")
+
+
+def _build_run_solver(ctx: ShotContext):
+    """Run Solver on the bundled damBreak: interFoam, 4 subdomains offered.
+
+    background_available is forced on, as on any Linux with setsid, so the
+    shot shows the option whatever machine takes it. No pre-flight warnings:
+    the dialog as it looks once the case has a mesh.
+    """
+    from services.solver_run import COMMON_SOLVERS, read_subdomain_count
+    from ui.dialogs.run_solver_dialog import ExecutableChoice, RunSolverDialog
+
+    return RunSolverDialog(
+        str(_SOLVER_CASE),
+        ExecutableChoice(
+            "Solver:", "interFoam", COMMON_SOLVERS, _SOLVER_NOTE.format(app="interFoam")
+        ),
+        parallel_np=read_subdomain_count(
+            (_SOLVER_CASE / "system" / "decomposeParDict").read_text("utf-8")
+        ),
+        background_available=True,
+    )
+
+
+def _prepare_run_solver(dialog, pump: Callable[[int], None]) -> None:
+    """Tick "Run in parallel", so the preview shows the mpirun command.
+
+    Not the background box: ticked, the preview becomes the detaching
+    wrapper script, which reads as noise in a picture. Unticked, the option
+    is still there to be seen.
+    """
+    assert dialog._parallel_chk is not None
+    dialog._parallel_chk.setChecked(True)
+    pump(200)
+
+
 def _case_browser_dir(ctx: ShotContext) -> Path:
     """The directory the browser shows: a tutorials level of the installation.
 
@@ -319,6 +437,33 @@ DIALOG_SHOTS: dict[str, DialogShot] = {
         requires=_requires_run_tool,
         build=_build_run_tool,
         note="Run setFields options dialog, with its pre-flight and command preview.",
+    ),
+    "add-function-object": DialogShot(
+        name="add-function-object",
+        output="add-function-object-dialog.png",
+        size=(980, 640),
+        requires=_requires_function_object,
+        build=_build_function_object,
+        note="Add Function Object on damBreak: a probe set placed at the mesh centre.",
+    ),
+    "run-post-process": DialogShot(
+        name="run-post-process",
+        output="run-post-process-dialog.png",
+        # Wide enough that the composed command stays on one line at a desktop
+        # font size; at 700 it wrapped after "tee".
+        size=(760, 440),
+        requires=_requires_post_process,
+        build=_build_post_process,
+        note="Run postProcess on pitzDaily: yPlus, run through simpleFoam by itself.",
+    ),
+    "run-solver": DialogShot(
+        name="run-solver",
+        output="run-solver-dialog.png",
+        size=(700, 330),
+        requires=_requires_run_solver,
+        build=_build_run_solver,
+        prepare=_prepare_run_solver,
+        note="Run Solver on damBreak: interFoam on 4 processors, the background option offered.",
     ),
     "case-browser": DialogShot(
         name="case-browser",

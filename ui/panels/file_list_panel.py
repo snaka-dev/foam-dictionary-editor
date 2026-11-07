@@ -2,6 +2,7 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+import time
 from functools import partial
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from PySide6.QtWidgets import (
 from foam.utils import is_log_filename
 from i18n import tr
 from model.file_list_model import INCLUDED_GROUP, ROOT_GROUP, FileListModel
+from services.background_run import BackgroundRun, active_run, stop_requested_at
 from services.case_loader import (
     FIELD_DIRS,
     PolyMeshInfo,
@@ -27,6 +29,7 @@ from services.case_loader import (
     detect_time_dirs,
     list_directory_files,
 )
+from services.solver_run import DecompositionStatus, decomposition_status
 from ui import viewer_dicts
 from ui.fonts import button_pixel_width
 from ui.menu_builder import BuiltMenu, MenuBuilder, exec_menu
@@ -52,6 +55,8 @@ _INCLUDED_ROLE = Qt.ItemDataRole.UserRole + 7
 # True on included files outside the case dir: shown, but never written to.
 # Distinct from _INCLUDED_ROLE — an include inside the case stays editable.
 _READ_ONLY_ROLE = Qt.ItemDataRole.UserRole + 8
+# On the case-status rows at the bottom: "decomposed" or "background".
+_STATUS_ROLE = Qt.ItemDataRole.UserRole + 9
 _INCLUDED_MARKER = " ↳"
 
 _DIFF_CAP = 50
@@ -152,10 +157,18 @@ class FileListPanel(QWidget):
     refresh_requested = Signal()
     # Emitted to copy a read-only included file into the case: absolute source path
     copy_into_case_requested = Signal(str)
+    # From the "Decomposed" and "Running in background" rows' menus.
+    reconstruct_requested = Signal()
+    delete_processors_requested = Signal()
+    stop_background_requested = Signal()
+    view_log_summary_requested = Signal()
+    # A function-object file's right-click: run it on existing results.
+    run_post_process_requested = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._viewer_kind_overrides: dict[str, str] = {}
+        self._function_files: set[str] = set()
         self._model = FileListModel()
         self._show_changed_only = False
 
@@ -221,6 +234,15 @@ class FileListPanel(QWidget):
         """
         self._viewer_kind_overrides = dict(overrides)
 
+    def set_function_files(self, paths: set[str]) -> None:
+        """Files controlDict runs as function objects (``#includeFunc``).
+
+        Their right-click offers Run postProcess with them pre-filled.
+        Pushed in, like the viewer overrides: the panel does not read
+        controlDict.
+        """
+        self._function_files = set(paths)
+
     def load_files(
         self,
         paths: list[str],
@@ -262,6 +284,14 @@ class FileListPanel(QWidget):
                 mesh_info = detect_poly_mesh(case_dir)
                 if mesh_info is not None:
                     self._list.addItem(_make_mesh_indicator(mesh_info))
+                decomposition = decomposition_status(case_dir)
+                if decomposition is not None:
+                    self._list.addItem(_make_decomposition_indicator(decomposition))
+                run = active_run(case_dir)
+                if run is not None:
+                    self._list.addItem(
+                        _make_background_indicator(run, stop_requested_at(case_dir))
+                    )
         finally:
             self._list.blockSignals(False)
 
@@ -422,6 +452,9 @@ class FileListPanel(QWidget):
         time_dirs = item.data(_TIME_DIRS_ROLE)
         if time_dirs is not None:
             return self._time_dirs_menu(time_dirs)
+        status = item.data(_STATUS_ROLE)
+        if status is not None:
+            return self._status_menu(status)
         group = item.data(_HEADER_GROUP_ROLE)
         if group is not None:
             return self._header_menu(item, group)
@@ -441,6 +474,23 @@ class FileListPanel(QWidget):
                 partial(self.add_time_dir_requested.emit, d),
                 enabled=not self._model.is_extra_dir(d),
             )
+        return b.built()
+
+    def _status_menu(self, status: str) -> BuiltMenu:
+        """A case-status row: the actions on the state it shows.
+
+        The Decomposed row deliberately has no decomposePar: on a decomposed
+        case that means re-decomposing with -force, which deletes the
+        processor data first -- too easy to pick from a row that describes
+        what exists. It stays in the Tools menu.
+        """
+        b = MenuBuilder(self.window())
+        if status == "decomposed":
+            b.add(tr("Run reconstructPar…"), self.reconstruct_requested.emit)
+            b.add(tr("Delete processor* Directories…"), self.delete_processors_requested.emit)
+        else:
+            b.add(tr("Stop Background Run"), self.stop_background_requested.emit)
+            b.add(tr("View Log Summary…"), self.view_log_summary_requested.emit)
         return b.built()
 
     def _header_menu(self, item: QListWidgetItem, group: str) -> BuiltMenu | None:
@@ -505,6 +555,12 @@ class FileListPanel(QWidget):
         menu.addSeparator()
         add(tr("Delete file..."), lambda: self.delete_file_requested.emit(path))
         menu.addSeparator()
+        if path in self._function_files:
+            add(
+                tr("Run postProcess with this…"),
+                lambda: self.run_post_process_requested.emit(path),
+            )
+            menu.addSeparator()
         # Escape hatch for a file the name and the FoamFile header cannot identify --
         # a renamed sampling dict has no header at all -- and for one whose header is
         # simply wrong. See ui/viewer_dicts.py.
@@ -575,6 +631,72 @@ def _make_time_dirs_indicator(dirs: list[str]) -> QListWidgetItem:
         tip += f":  {dirs[0]}"
     item.setToolTip(tip)
     return item
+
+
+def _status_item(label: str, tip: str, kind: str, *, attention: bool) -> QListWidgetItem:
+    """A grey, bold, unselectable case-status row, like the Results row."""
+    item = QListWidgetItem(label)
+    item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+    font = QFont(item.font())
+    font.setBold(True)
+    item.setFont(font)
+    c = colors()
+    item.setForeground(QColor(c.attention_text if attention else c.hint_text))
+    item.setToolTip(tip)
+    item.setData(_STATUS_ROLE, kind)
+    return item
+
+
+def _make_decomposition_indicator(status: DecompositionStatus) -> QListWidgetItem:
+    """processor* at a glance: how many, which times, what is not reconstructed.
+
+    One row however many processors there are -- a case can have hundreds,
+    and nothing inside them is edited from here.
+    """
+    _MAX_SHOWN = 4
+    shown = list(status.times[-_MAX_SHOWN:])
+    times = "  ".join(shown)
+    if len(status.times) > _MAX_SHOWN:
+        times = "…  " + times
+    if status.collated:
+        label = tr("Decomposed (collated): {n} processors").format(n=status.count)
+    elif status.count == 1:
+        label = tr("Decomposed: 1 processor")
+    else:
+        label = tr("Decomposed: {n} processors").format(n=status.count)
+    if times:
+        label += tr(" — times {times}").format(times=times)
+    if status.unreconstructed:
+        label += tr(" ({n} not reconstructed)").format(n=len(status.unreconstructed))
+    tip = tr("Times in processor*: {times}").format(
+        times=", ".join(status.times) or tr("none")
+    )
+    if status.unreconstructed:
+        tip += "\n" + tr(
+            "Not reconstructed yet: {times} — decomposePar -force would delete them."
+        ).format(times=", ".join(status.unreconstructed))
+    tip += "\n" + tr("Right-click for reconstructPar or deleting processor*.")
+    return _status_item(label, tip, "decomposed", attention=bool(status.unreconstructed))
+
+
+def _make_background_indicator(run: BackgroundRun, stop_requested: float | None) -> QListWidgetItem:
+    if stop_requested is None:
+        label = tr("Running in background: {name} (pid {pid})").format(
+            name=run.label, pid=run.pid
+        )
+        tip = tr(
+            "Started with Keep running after FoDE closes; writes {log}. "
+            "Right-click to stop it or view the log summary."
+        ).format(log=run.log_name)
+    else:
+        label = tr("Stopping {name} (pid {pid}) — requested {at}").format(
+            name=run.label, pid=run.pid, at=time.strftime("%H:%M", time.localtime(stop_requested))
+        )
+        tip = tr(
+            "stopAt writeNow is set: the solver stops after writing its "
+            "current time step, which can take as long as one step."
+        )
+    return _status_item(label, tip, "background", attention=stop_requested is not None)
 
 
 def _make_mesh_indicator(info: PolyMeshInfo) -> QListWidgetItem:

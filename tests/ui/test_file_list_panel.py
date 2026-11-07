@@ -1244,3 +1244,121 @@ class TestHeaderMenu:
         panel.load_files([str(menu_case / "system" / "controlDict")], None)
         header = self._header(panel, "system")
         assert panel._build_context_menu(header) is None
+
+
+# ── case-status rows: Decomposed, Running in background ─────────────────────
+
+
+class TestCaseStatusRows:
+    @staticmethod
+    def _case(tmp_path):
+        (tmp_path / "system").mkdir()
+        path = tmp_path / "system" / "controlDict"
+        path.write_text("FoamFile {}\n")
+        return str(path)
+
+    @staticmethod
+    def _status_rows(panel):
+        from ui.panels.file_list_panel import _STATUS_ROLE
+
+        return {
+            panel._list.item(i).data(_STATUS_ROLE): panel._list.item(i)
+            for i in range(panel._list.count())
+            if panel._list.item(i).data(_STATUS_ROLE) is not None
+        }
+
+    def test_no_rows_for_a_plain_case(self, panel, tmp_path):
+        panel.load_files([self._case(tmp_path)], case_dir=str(tmp_path))
+        assert self._status_rows(panel) == {}
+
+    def test_a_decomposed_case(self, panel, tmp_path):
+        path = self._case(tmp_path)
+        for n in range(4):
+            for t in ("0", "0.5", "1"):
+                (tmp_path / f"processor{n}" / t).mkdir(parents=True)
+        for t in ("0", "0.5"):
+            (tmp_path / t).mkdir()
+        panel.load_files([path], case_dir=str(tmp_path))
+        row = self._status_rows(panel)["decomposed"]
+        assert row.text() == "Decomposed: 4 processors — times 0  0.5  1 (1 not reconstructed)"
+        assert "Not reconstructed yet: 1" in row.toolTip()
+        assert not row.flags() & Qt.ItemFlag.ItemIsSelectable
+
+    def test_many_times_are_shortened_and_all_reconstructed_is_quiet(self, panel, tmp_path):
+        from ui.theme import colors
+
+        path = self._case(tmp_path)
+        times = [str(t) for t in range(10)]
+        for t in times:
+            (tmp_path / "processor0" / t).mkdir(parents=True)
+            (tmp_path / t).mkdir()
+        panel.load_files([path], case_dir=str(tmp_path))
+        row = self._status_rows(panel)["decomposed"]
+        assert row.text() == "Decomposed: 1 processor — times …  6  7  8  9"
+        assert row.foreground().color().name() == colors().hint_text.lower()
+
+    def test_collated(self, panel, tmp_path):
+        path = self._case(tmp_path)
+        (tmp_path / "processors4" / "0").mkdir(parents=True)
+        panel.load_files([path], case_dir=str(tmp_path))
+        assert self._status_rows(panel)["decomposed"].text().startswith(
+            "Decomposed (collated): 4 processors"
+        )
+
+    def test_the_decomposed_rows_menu(self, panel, tmp_path):
+        path = self._case(tmp_path)
+        (tmp_path / "processor0" / "0").mkdir(parents=True)
+        panel.load_files([path], case_dir=str(tmp_path))
+        menu, actions = panel._build_context_menu(self._status_rows(panel)["decomposed"])
+        fired = []
+        panel.reconstruct_requested.connect(lambda: fired.append("reconstruct"))
+        panel.delete_processors_requested.connect(lambda: fired.append("delete"))
+        for action, handler in actions.items():
+            handler()
+        # No decomposePar: on a decomposed case that is a destructive -force re-run.
+        assert [a.text() for a in actions] == [
+            "Run reconstructPar…", "Delete processor* Directories…"
+        ]
+        assert fired == ["reconstruct", "delete"]
+
+    @pytest.fixture
+    def running(self, tmp_path):
+        import subprocess
+        import sys
+
+        from services.background_run import PID_FILE
+
+        if not sys.platform.startswith("linux"):
+            pytest.skip("reads /proc")
+        child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"], cwd=tmp_path)
+        (tmp_path / PID_FILE).write_text(f"{child.pid} simpleFoam log.simpleFoam\n")
+        yield child
+        child.kill()
+        child.wait()
+
+    def test_a_background_run(self, panel, tmp_path, running):
+        panel.load_files([self._case(tmp_path)], case_dir=str(tmp_path))
+        row = self._status_rows(panel)["background"]
+        assert row.text() == f"Running in background: simpleFoam (pid {running.pid})"
+        menu, actions = panel._build_context_menu(row)
+        fired = []
+        panel.stop_background_requested.connect(lambda: fired.append("stop"))
+        panel.view_log_summary_requested.connect(lambda: fired.append("log"))
+        for handler in actions.values():
+            handler()
+        assert fired == ["stop", "log"]
+
+    def test_a_background_run_being_stopped(self, panel, tmp_path, running):
+        import re
+
+        from services.background_run import BackgroundRun, request_stop
+        from ui.theme import colors
+
+        path = self._case(tmp_path)
+        request_stop(str(tmp_path), BackgroundRun(running.pid, "simpleFoam", "log.simpleFoam"))
+        panel.load_files([path], case_dir=str(tmp_path))
+        row = self._status_rows(panel)["background"]
+        assert re.fullmatch(
+            rf"Stopping simpleFoam \(pid {running.pid}\) — requested \d\d:\d\d", row.text()
+        )
+        assert row.foreground().color().name() == colors().attention_text.lower()

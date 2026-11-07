@@ -338,6 +338,7 @@ class _CaseNavOpsMixin(_Base):
         self.state.file_dirty.clear()
         self.state.parsed_roots.clear()
         self.state.viewer_include_sources.clear()
+        self._viewer_primed.clear()
         self.state.read_only_files.clear()
         self._clear_undo_stacks()
         self._clear_current_file()

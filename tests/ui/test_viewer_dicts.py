@@ -78,7 +78,43 @@ class TestWhatMustNotBeRecognised:
     def test_no_tree_and_no_default_name_is_not_a_guess(self):
         assert vd.viewer_dict_kind("/case/system/topoSetDict-slices", None) is None
 
-    def test_a_renamed_sampling_dict_is_not_recognised(self):
-        # Documented limitation: a standalone sample/probes file is one function-object
-        # entry with no FoamFile header, so there is nothing to read. It has to be named.
-        assert vd.viewer_dict_kind("/case/system/sample-extra", _root("type sets;\n")) is None
+    def test_a_type_deep_in_another_dictionary_is_not_sampling(self):
+        # snappyHexMeshDict's geometry entries carry a type two levels down.
+        root = _root("geometry { box { type searchableBox; } }\n")
+        assert vd.viewer_dict_kind("/case/system/whatever", root) is None
+
+    def test_a_function_object_that_is_not_sampling_is_not_drawn(self):
+        root = _root("forces1 { type forces; patches (walls); }\n")
+        assert vd.viewer_dict_kind("/case/system/forces1", root) is None
+
+
+class TestSamplingByContent:
+    """Function-object files go by any name and mostly have no header."""
+
+    @pytest.mark.parametrize(
+        "path, text",
+        [
+            # damBreak's system/sampling, included by controlDict's #sinclude
+            (
+                "/case/system/sampling",
+                "sampleSets { type sets; sets { g1 { start (0 0 0); end (1 0 0); } } }\n",
+            ),
+            # a file that is one function object at its top level
+            ("/case/system/sample-extra", "type sets;\n"),
+            ("/case/system/cuttingPlane", "type surfaces;\nsurfaces ( p { type cuttingPlane; } );\n"),
+            # Foundation's system/functions, included by controlDict
+            ("/case/system/functions", "functions { probes1 { type probes; probeLocations ((0 0 0)); } }\n"),
+            ("/case/system/lidProbes", "lid { type patchProbes; patches (lid); }\n"),
+        ],
+    )
+    def test_recognised(self, path, text):
+        assert vd.viewer_dict_kind(path, _root(text)) == vd.SAMPLING
+
+    def test_a_header_naming_something_else_still_counts(self):
+        root = _root(_header("sampleDict") + "type sets;\n")
+        assert vd.viewer_dict_kind("/case/system/sampleU", root) == vd.SAMPLING
+
+    def test_the_name_still_comes_first(self):
+        # A default-named dictionary keeps its overlay whatever it contains.
+        root = _root("type sets;\n")
+        assert vd.viewer_dict_kind("/case/system/topoSetDict", root) == vd.TOPO_SET

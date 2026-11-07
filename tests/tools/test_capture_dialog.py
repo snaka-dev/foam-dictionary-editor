@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 from capture_dialog import (  # noqa: E402
     _SETFIELDS_PREFIX,
     _SETFIELDS_WARNING,
+    _SOLVER_NOTE,
     DEFAULT_CASE,
     DEFAULT_OUT,
     DIALOG_SHOTS,
@@ -28,8 +29,8 @@ from capture_dialog import (  # noqa: E402
 
 # Shots whose inputs come from the capture machine (a run case, an OpenFOAM
 # installation) versus ones whose inputs are bundled in the repository.
-_CONTEXT_BACKED = ("case-browser", "find-examples", "log-summary")
-_REPO_BACKED = ("run-tool",)
+_CONTEXT_BACKED = ("add-function-object", "case-browser", "find-examples", "log-summary")
+_REPO_BACKED = ("run-post-process", "run-solver", "run-tool")
 
 
 class TestDialogShots:
@@ -116,7 +117,7 @@ class TestDialogShots:
             if isinstance(node, ast.Constant) and isinstance(node.value, str)
         }
         label, prefix_cmd, _checked = _SETFIELDS_PREFIX
-        for text in (_SETFIELDS_WARNING, label, prefix_cmd):
+        for text in (_SETFIELDS_WARNING, label, prefix_cmd, _SOLVER_NOTE):
             assert text in literals, f"_tools_ops.py no longer contains {text!r}"
 
     def test_the_find_examples_shot_reaches_only_for_attributes_that_exist(self):

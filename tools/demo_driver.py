@@ -503,8 +503,15 @@ class Pointer:
 
     def type_text(self, text: str, delay_ms: int = 55) -> None:
         # --clearmodifiers: a modifier left held by an earlier key step would
-        # turn the text into shortcuts.
-        self._run(["type", "--clearmodifiers", "--delay", str(delay_ms), text])
+        # turn the text into shortcuts. A newline is sent as Return: `xdotool
+        # type` drops it, which ran a list of probe points together onto one
+        # line in the first take of Movie 10.
+        lines = text.split("\n")
+        for i, line in enumerate(lines):
+            if line:
+                self._run(["type", "--clearmodifiers", "--delay", str(delay_ms), line])
+            if i < len(lines) - 1:
+                self._run(["key", "--clearmodifiers", "Return"])
 
     def key(self, keys: str) -> None:
         self._run(["key", "--clearmodifiers", keys])
@@ -623,6 +630,9 @@ def resolve(window, target: dict[str, Any]):
     if "field" in target:
         root = QApplication.activeModalWidget() or QApplication.activeWindow() or window
         return _centre(_labelled_field(root, target["field"]))
+    if "item" in target:
+        root = QApplication.activeModalWidget() or QApplication.activeWindow() or window
+        return _dialog_item_point(root, target["item"])
     raise TargetError(f"step target names nothing resolvable: {target!r}")
 
 
@@ -854,6 +864,61 @@ def _named_button(root, label: str):
     raise TargetError(f"no button labelled {label!r} in {root.windowTitle() or root}")
 
 
+def _dialog_item_point(root, label: str):
+    """A row of a dialog's tree or list, by its text -- Add Function Object's
+    template tree, say, whose rows are data read out of an installation.
+
+    Exact text first, then a unique substring, like _named_button. Only
+    visible rows count, so a search box narrowing the tree first makes a
+    short name unambiguous; the row is scrolled into view before it is
+    measured.
+    """
+    from PySide6.QtWidgets import QListWidget, QTreeWidget, QTreeWidgetItemIterator
+
+    wanted = _plain(label)
+    exact, partial = [], []
+    for tree in root.findChildren(QTreeWidget):
+        if not tree.isVisible():
+            continue
+        it = QTreeWidgetItemIterator(tree)
+        while it.value() is not None:
+            item = it.value()
+            if not item.isHidden() and (item.parent() is None or item.parent().isExpanded()):
+                text = _plain(item.text(0))
+                if text == wanted:
+                    exact.append((tree, item))
+                elif wanted in text:
+                    partial.append((tree, item))
+            it += 1
+    for lst in root.findChildren(QListWidget):
+        if not lst.isVisible():
+            continue
+        for row in range(lst.count()):
+            item = lst.item(row)
+            if item.isHidden():
+                continue
+            text = _plain(item.text())
+            if text == wanted:
+                exact.append((lst, item))
+            elif wanted in text:
+                partial.append((lst, item))
+    found = exact or partial
+    if len(found) > 1:
+        # A category and the entry inside it may share a name (Add Function
+        # Object's probes/probes): the entry, a row with no children, is the
+        # one a step means.
+        leaves = [(v, i) for v, i in found if getattr(i, "childCount", lambda: 0)() == 0]
+        if len(leaves) == 1:
+            found = leaves
+    if len(found) != 1:
+        what = "matches more than one" if found else "matches nothing"
+        raise TargetError(f"item {label!r} {what} in {root.windowTitle() or root}")
+    view, item = found[0]
+    view.scrollToItem(item)
+    rect = view.visualItemRect(item)
+    return view.viewport().mapToGlobal(rect.center())
+
+
 def _labelled_field(root, label: str):
     """The input a form row's label belongs to, e.g. `New case name:`.
 
@@ -917,6 +982,7 @@ class Runner:
         self._on_finish = on_finish
         self._failed = 0
         self._popup_was_open = False
+        self._modal_was_open = False
 
     def push(self, atoms: list[Atom]) -> None:
         self._queue.extendleft(reversed(atoms))
@@ -989,7 +1055,7 @@ class Runner:
         self.push(atoms)
 
     def _clear_closed_popup(self) -> None:
-        """Scrub the pixels a menu leaves behind when it closes.
+        """Scrub the pixels a menu or a dialog leaves behind when it closes.
 
         On the nested display a dismissed menu stays on screen over anything
         that does not redraw itself. The 3-D view is immune — VTK repaints it —
@@ -1002,11 +1068,19 @@ class Runner:
         from PySide6.QtWidgets import QApplication
 
         open_now = QApplication.activePopupWidget() is not None
-        if self._popup_was_open and not open_now:
+        # A closed dialog leaves the same kind of ghost: Movie 11's Run Solver
+        # command box and Movie 12's reconstructPar buttons stayed painted
+        # over the tab bar for several seconds.
+        modal_now = QApplication.activeModalWidget() is not None
+        closed = (self._popup_was_open and not open_now) or (
+            self._modal_was_open and not modal_now
+        )
+        if closed:
             size = self.window.size()
             self.window.resize(size.width(), size.height() - 1)
             self.window.resize(size)
         self._popup_was_open = open_now
+        self._modal_was_open = modal_now
 
     # ── step kinds ────────────────────────────────────────────────────────────
 
@@ -1094,6 +1168,41 @@ class Runner:
 
     def _step_key(self, step: dict[str, Any]) -> list[Atom]:
         return [(0, lambda: self.pointer.key(step["keys"]))]
+
+    def _step_place(self, step: dict[str, Any]) -> list[Atom]:
+        """Move and size the open dialog: ``"rect": [x, y, width, height]``.
+
+        A take's nested display has no window manager, so a dialog opens
+        centred over the main window and nothing can drag it aside. When what
+        the scene is about is *behind* the dialog -- Add Function Object's
+        live preview in the 3-D view -- this puts the dialog where it leaves
+        that in sight. Qt-level geometry, not a window-manager move.
+        """
+        x, y, w, h = (int(v) for v in step["rect"])
+
+        def go() -> None:
+            from PySide6.QtWidgets import QApplication
+
+            dialog = QApplication.activeModalWidget() or QApplication.activeWindow()
+            if dialog is None:
+                raise TargetError("place: no dialog is open")
+            dialog.setGeometry(x, y, w, h)
+            # Nothing repaints what the dialog uncovered on a bare X server --
+            # its buttons stayed as a ghost in the first take -- so ask every
+            # window to repaint itself.
+            from PySide6.QtWidgets import QWidget
+
+            for top in QApplication.topLevelWidgets():
+                if not top.isVisible():
+                    continue
+                # Every widget, not only the window: the editor's viewport
+                # kept the dialog's old buttons after a window-level repaint.
+                for widget in [top, *top.findChildren(QWidget)]:
+                    if widget.isVisible():
+                        widget.update()
+            QApplication.processEvents()
+
+        return [(0, go)]
 
     def _step_fit_window(self, step: dict[str, Any]) -> list[Atom]:
         """Move and size a *foreign* window to fit the take's display.

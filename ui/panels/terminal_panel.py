@@ -2,11 +2,14 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+import os
+import signal
+
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
 
 from i18n import tr
-from services.process_tree import running_command_names
+from services.process_tree import follower_pids, running_command_names
 from ui.widgets._simple_terminal_widget import SimpleTerminalWidget
 from ui.widgets._xterm_widget import _XTERM_AVAILABLE
 
@@ -105,7 +108,20 @@ class TerminalPanel(QWidget):
         self._widget.set_working_directory(path)
 
     def run_command(self, cmd: str) -> None:
+        # A `tail -F` following a background run holds the shell until it
+        # ends; stop it so the command runs now. The run itself is detached
+        # and untouched. The command is read once the tail has gone -- the
+        # terminal buffers it meanwhile, and tail never reads its input.
+        for pid in follower_pids(self._shell_pid(), job_control=self._use_xterm):
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
         self._widget.run_command(cmd)
+
+    def _shell_pid(self) -> int | None:
+        shell_pid = getattr(self._widget, "shell_pid", None)
+        return shell_pid() if callable(shell_pid) else None
 
     def running_commands(self) -> list[str]:
         """What the shell is still running (``["simpleFoam"]``), or [] when idle.
@@ -113,9 +129,8 @@ class TerminalPanel(QWidget):
         Anything that ends the shell -- closing the window, switching
         terminal mode -- ends these with it, so both ask first.
         """
-        shell_pid = getattr(self._widget, "shell_pid", None)
         return running_command_names(
-            shell_pid() if callable(shell_pid) else None,
+            self._shell_pid(),
             # The xterm shell is interactive, with job control -- see
             # running_command_names for why that changes the test.
             job_control=self._use_xterm,

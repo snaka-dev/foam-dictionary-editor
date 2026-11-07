@@ -1,16 +1,16 @@
 {
   "_comment": [
-    "Specs for tools/capture_screenshots.py \u2014 the gallery in docs/SCREENSHOTS.md.",
+    "Specs for tools/capture_screenshots.py — the gallery in docs/SCREENSHOTS.md.",
     "Each shot's `state` is a ui/window_state.py WindowState; `defaults` is laid",
     "under every one of them. `case_dir` may use {repo} for this repository and",
     "{cases} for the capture machine's OpenFOAM run directory (--cases-dir).",
     "Only choices are pinned here: tree expansion beyond the selected row's",
     "ancestors, editor scroll, folds and the detail panel follow from the open",
     "file and the selected row, so they are left to follow.",
-    "Dialog shots are not here \u2014 a dialog is a top-level X window of its own,",
-    "not part of the main window's frame, so tools/capture_dialog.py takes",
-    "those. tools-menu.png is the one image still captured by hand: a menu is",
-    "a popup that closes as soon as focus moves."
+    "Dialog shots are not here — a dialog is a top-level X window of its own,",
+    "those. tools-menu is taken here too: `open_menu` opens a menu-bar menu",
+    "and the shot grabs the screen cropped to the window's frame, since a menu",
+    "is a popup window of its own."
   ],
   "defaults": {
     "window_size": [
@@ -341,25 +341,39 @@
             "boundary_faces": false,
             "vertex_table": false
           },
-          "label_font_size": 10,
+          "label_font_size": 9,
           "camera": [
             [
-              15.75,
-              -15.5,
-              10.45
+              5.8,
+              -8.0,
+              7.36
             ],
             [
-              4.0,
-              1.0,
-              2.0
+              3.0,
+              0.0,
+              0.8
             ],
             [
               0.0,
               0.0,
               1.0
             ]
-          ]
+          ],
+          "overlays": {
+            "sampling": false
+          }
         }
+      }
+    },
+    "tools-menu": {
+      "note": "The Tools menu open over the bundled pitzDaily case. Menu shots grab the screen, cropped to the window's frame.",
+      "outputs": {
+        "light": "tools-menu.png"
+      },
+      "open_menu": "Tools",
+      "state": {
+        "case_dir": "{repo}/tutorials/pitzDaily",
+        "current_file": "system/controlDict"
       }
     }
   }

@@ -1,0 +1,35 @@
+1
+00:00:00,000 --> 00:00:27,346
+A parallel run takes four steps that are easy to get wrong by hand. First, the mesh and the water column.
+
+2
+00:00:27,346 --> 00:00:32,248
+decomposePar splits the case into the four pieces decomposeParDict asks for.
+
+3
+00:00:32,248 --> 00:00:41,777
+The file list now says so: decomposed into four processors, and which times they hold.
+
+4
+00:00:41,777 --> 00:00:47,799
+Run Solver sees the decomposition and ticks Run in parallel, with the processor count the case really has — mpirun, minus parallel.
+
+5
+00:00:47,799 --> 00:01:04,798
+Four processes, one log. Their results are written into the processor directories, not the case — so the file list's processor line turns orange: those times exist nowhere else yet.
+
+6
+00:01:04,798 --> 00:01:09,320
+reconstructPar puts them back together — only the new times, by default.
+
+7
+00:01:09,320 --> 00:01:20,798
+Now every time is at the case root too: the results line is back, and the processor line is no longer orange.
+
+8
+00:01:20,798 --> 00:01:30,796
+The processor directories can go — but only once FoDE has checked, file by file, that the copy at the case root is complete. By default it keeps each processor's latest time, so the run can carry on in parallel without decomposing again.
+
+9
+00:01:30,796 --> 00:01:34,796
+Deleted — the status bar says what was kept, and the file list shows the one time left in the processors.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import os
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
@@ -875,11 +876,17 @@ class BlockMeshPanel(QWidget):
         if self._plotter is not None:
             self._render()
 
-    def update_sampling(self, path: str, root: FoamNode) -> None:
+    def update_sampling(self, path: str, root: FoamNode, name: str | None = None) -> None:
+        """Draw the sampling shapes *root* defines, kept apart under *path*.
+
+        *name* labels what the file defines at its top level (a standalone
+        ``system/probes``); it defaults to the file name, which is also the
+        name OpenFOAM gives an ``#includeFunc`` function object.
+        """
         if not _PYVISTA_OK:
             return
         assert self._sampling is not None  # built in _build_controls() when _PYVISTA_OK
-        data = extract_sampling_data(root)
+        data = extract_sampling_data(root, os.path.basename(path) if name is None else name)
         shapes, non_geometric = self._merge_by_file(
             self._sampling_by_file, path, data, data.shapes, data.non_geometric
         )

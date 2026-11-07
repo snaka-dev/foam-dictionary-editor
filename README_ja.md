@@ -1,32 +1,42 @@
 # Foam Dictionary Editor (FoDE)
 
-FoDE — Foam Dictionary Editor（読み方: "フォーディー"）
+**OpenFOAM のケースを扱うデスクトップエディタです。** ケースを開くと辞書の内容が目に見え、すべてのキーに説明が付いた状態で編集でき、コマンドを覚えていなくてもケースを実行できます。FoDE（読み方: "フォーディー"）は Python と PySide6 で書かれた、無料のオープンソースソフトウェアです。
 
-Python と PySide6 で作られた、OpenFOAM 辞書ファイル向け GUI エディタです。
-
-🎬 **Vimeo のデモ動画** — 短い紹介動画が 9 本あります。ショットごとの台本とあわせて [docs/DEMO_SCRIPTS_ja.md](docs/DEMO_SCRIPTS_ja.md) に一覧があります。まずは [編集し、見て、実行する](https://vimeo.com/1218332419?texttrack=ja)（約 74 秒）から。[ワークフロー全体](https://vimeo.com/1217899060?texttrack=ja)（約 3 分 41 秒）を通しで見ることもできます。
-
-> 📄 **[*SoftwareX*](https://doi.org/10.1016/j.softx.2026.102852)**（Elsevier）に掲載されました — 「[引用](#引用)」を参照してください。
-
-## FoDE とは？
-
-FoDE は OpenFOAM ケースの辞書ファイルをグラフィカルに編集するツールです。構造化されたツリー表示とプレーンテキストエディタの両方で辞書を閲覧・編集・管理できます。OpenFOAM シミュレーションを行うエンジニアや研究者が、ケースファイルのセットアップや修正をより手軽に行えることを目指しています。
+🎬 [デモ動画](docs/DEMO_SCRIPTS_ja.md)（12 本、Vimeo）· 📖 [ユーザーガイド](USER_GUIDE_ja.md) · 🖼️ [スクリーンショット](docs/SCREENSHOTS_ja.md) · 📄 [*SoftwareX*](https://doi.org/10.1016/j.softx.2026.102852) に掲載 — 「[引用](#引用)」を参照
 
 ![メインウィンドウ — Tree と Editor タブ](docs/images/main-window-tree-editor.png)
 
-## インストール
+## FoDE でできること
 
-Python 3.10 以上が必要です。
+- **辞書が目に見える。** `blockMeshDict` を 3D で描き、`topoSetDict`・`snappyHexMeshDict`・`setFieldsDict`・サンプリングファイルの形状をその上に重ねます。位置のずれた箱に、メッシュを切った後ではなく切る前に気づけます。→ [3D ビューア](USER_GUIDE_ja.md#blockmesh-パネル)
+- **すべてのキーに説明が付く。** 設定を選ぶと、横のパネルがその意味、選べる値、対応する OpenFOAM のバージョンを示します。乱流モデルには、そのモデルを定義した論文と係数の既定値が付きます。→ [詳細ペイン](USER_GUIDE_ja.md#詳細ペイン)
+- **境界条件を 1 つの表で。** すべてのパッチとすべてのフィールドを 1 つの表で見て、その場で編集できます。`0/U`・`0/p`・`0/k`… を 1 つずつ開く必要はありません。→ [境界条件ビュー](USER_GUIDE_ja.md#境界条件ビュー)
+- **メニューからケースを実行。** blockMesh、setFields、ソルバー — 並列でも、FoDE を閉じても続くバックグラウンドでも実行でき、どれも実行するコマンドをそのまま見せるダイアログから始まります。終わったらログの要約も見られます。→ [Run Solver](USER_GUIDE_ja.md#run-solver)
+- **辞書を知らなくても後処理を追加。** プローブ、ライングラフ、切断面、力をフォームから追加でき、入力するそばから 3D に描かれます。→ [Add Function Object](USER_GUIDE_ja.md#add-function-object)
+- **動くケースと比べる。** 自分のケースをチュートリアルと並べると、違いが色分けされ、右クリック 1 回で値を取り込めます。→ [ケース比較](USER_GUIDE_ja.md#ケース比較)
+
+## 動作環境
+
+- **Python 3.10 以上。**
+- 主な対象は **Linux** で、**macOS** でも動きます。**Windows** では `no-terminal` バリアントを使ってください（「[起動オプション](#起動オプション)」を参照）。xterm ターミナルは Unix の疑似端末を必要とし、Tools のコマンドは OpenFOAM のシェルコマンドで、シンプルモードの `cmd.exe` では実行できないためです。
+- **編集だけなら OpenFOAM は不要です。** Tools メニューから何かを実行するには必要です。FoDE を起動するシェルで OpenFOAM の `bashrc` を読み込んでおくと、内蔵ターミナルがそれを引き継ぎます。両方の系統に対応しています — openfoam.com の OpenFOAM（v2xxx）と openfoam.org の OpenFOAM（番号付きのバージョン）です。
+
+## インストール
 
 ```bash
 git clone https://github.com/snaka-dev/foam-dictionary-editor
 cd foam-dictionary-editor
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt   # PySide6 (Qt for Python) をインストール
+pip install -r requirements.txt pyvista pyvistaqt
 ```
 
-初回起動時にインターネット接続を推奨します — ターミナルエミュレータ xterm.js が `ui/xterm/` へ自動ダウンロードされます。接続がない場合は QProcess ベースのシンプルターミナルが使われます。インターネット接続のある状態でアプリを再起動すると再試行されます。手動で配置する場合は以下のファイルを `ui/xterm/` に置いてください:
+`pyvista` と `pyvistaqt` は 3D ビューアのためのものです。入れなくても他の機能はすべて動きますが、FoDE が見せてくれるものの多くはこのビューの中にあります。
+
+<details>
+<summary>初回起動時、ターミナルにはインターネット接続が必要です</summary>
+
+内蔵ターミナルは xterm.js を使い、FoDE の初回起動時に `ui/xterm/` へダウンロードします。接続がない場合は簡易ターミナルが使われます。インターネットに接続した状態で再起動すると再試行されます。手動で配置する場合は、以下のファイルを `ui/xterm/` に置いてください:
 
 | ファイル | URL |
 |---|---|
@@ -34,113 +44,88 @@ pip install -r requirements.txt   # PySide6 (Qt for Python) をインストー�
 | `xterm.css` | `https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/css/xterm.css` |
 | `xterm-addon-fit.js` | `https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.11.0/lib/addon-fit.js` |
 
-**オプション — BlockMesh 3D ビューア**（Linux/macOS）: `blockMeshDict` のインタラクティブな 3D ジオメトリパネルを有効にするには `pyvista` と `pyvistaqt` をインストールしてください（`topoSetDict`・`snappyHexMeshDict`・`setFieldsDict` を開いている場合、それらのジオメトリも重ねて表示されます）:
+</details>
 
-```bash
-pip install pyvista pyvistaqt
-```
+**更新:** `git pull` の後、もう一度 `pip install -r requirements.txt` を実行してください。
 
-これらのパッケージがない場合、BlockMesh タブにインストールを促すメッセージが表示され、3D ビューアは無効になります。
+## クイックスタート: 5 分でダム崩壊
 
-## 基本的な使い方
+FoDE に同梱の `tutorials/damBreak` を使います。
 
-1. **起動**
+1. **FoDE を起動します。** OpenFOAM を source したシェルから:
 
    ```bash
-   python3 main.py                                   # 標準（ターミナル + BlockMesh）
-   python3 main.py --variant no-terminal             # ターミナルなし（Windows 向け）
-   python3 main.py --variant no-terminal-blockmesh   # ターミナルなし + BlockMesh 3D パネル
+   source /usr/lib/openfoam/openfoam2606/etc/bashrc   # お使いのインストールのパス
+   python3 main.py
    ```
 
-   選択したバリアントは終了時に `app_config.json` へ保存され、次回以降の起動時にも自動的に適用されます。
+2. **ケースを開きます:** **Case > Open Case…**（`Ctrl+O`）で `tutorials/damBreak` を選びます。左側にファイルが並びます。
+3. **見てみます:** **BlockMesh** タブを開くと、メッシュ、`setFieldsDict` の水柱、2 本のゲージ線が描かれています。*タブが見当たらない場合は、* **Terminal** タブ上部の **xterm terminal** のチェックを外してください。3D ビューとこのターミナルはグラフィックスカードを共有できないため、交代で使います。
+4. **読んで編集します:** `system/controlDict` をクリックし、**Tree** タブの行を選ぶと、横のパネルがキーの意味と選べる値を示します。値を変えて `Ctrl+S` で保存します。
+5. **境界条件を確認します:** **Boundary** タブに、すべてのパッチとすべてのフィールドが表になっています。
+6. **実行します**（実行するとメッシュと結果は開いたフォルダに書き込まれるため、リポジトリを汚したくない場合は、先に **Case > Duplicate Case…** でチュートリアルをコピーしてください）**:** **Tools > Run blockMesh…**、続いて **Tools > Run setFields…**（*Restore 0/ from 0.orig/ first* にはあらかじめチェックが入っています）、そして **Tools > Run Solver…**。どれも実行前にコマンドを示し、出力は Terminal に表示されて `log.*` に保存されます。
+7. **結果を見ます:** **Tools > View Log Summary…** でソルバーのログを要約し、**Tools > Open Mesh in ParaView…** でケースを ParaView で開きます。
 
-2. **ケースを開く** — いずれかを選択:
-   - *自分のケース:* **Case > Open Case…** → ケースディレクトリを選択
-   - *ドラッグ＆ドロップ:* ファイルマネージャからケースディレクトリをウィンドウ上の任意の場所にドロップ
-   - *チュートリアルから始める:* **Case > Duplicate from Case Library…** → `$FOAM_TUTORIALS` を参照 → 作業ディレクトリへコピー
-   - *同梱サンプルを使う:* リポジトリルートの `tutorials/` ディレクトリにあるケースを直接開く（「[サンプルケース](#サンプルケース)」参照）
+自分のケースから始めるときも同じように開くか、フォルダをウィンドウにドラッグしてください。**Case > Duplicate from Case Library…** を使うと、OpenFOAM のチュートリアルを自分のフォルダにコピーして出発点にできます。
 
-3. **ファイルを選択** — 左パネルから対象ファイルを選ぶ（例: `system/controlDict`、`0/U`）
+## 機能
 
-4. **編集** — ツリービューまたは下部のテキストエディタで値を編集する
+各見出しから[ユーザーガイド](USER_GUIDE_ja.md)の詳しい説明へ移れます。
 
-5. **境界条件を確認・調整** — **Boundary** タブで全パッチと全フィールド変数の境界条件を一覧表示。セルをクリックするとそのファイルがエディタで開きパッチエントリにジャンプ。ダブルクリックで編集できる
+<p>
+<img src="docs/images/blockMesh3Dview-topoSet-topoSetShapes.png" width="32%" alt="topoSet の形状を重ねた 3D ビュー">
+<img src="docs/images/main-window-boundary-editor.png" width="32%" alt="境界条件の表">
+<img src="docs/images/tools-menu.png" width="32%" alt="Tools メニュー">
+</p>
 
-6. **保存** — `Ctrl+S`（現在のファイル）または `Ctrl+Shift+S`（変更済みファイルをすべて保存）
-
-7. *（オプション）* **ソルバーを実行** — **Terminal** タブから直接 `blockMesh`、`interFoam` などの OpenFOAM コマンドを実行できる。ターミナルはケースディレクトリで自動的に起動する
-
-## 主な機能
-
-各見出しは [USER_GUIDE_ja.md](USER_GUIDE_ja.md) の詳細ドキュメントへのリンクになっています。
-
-**[ファイル管理](USER_GUIDE_ja.md#ファイル一覧の挙動)**
-- 代表的な辞書ファイル（`controlDict`、`fvSchemes`、`fvSolution`、`blockMeshDict`、`snappyHexMeshDict` など）と `0/`・`0.orig/` 配下の全ファイル、ケースルートの `All*` スクリプト（`Allrun`、`Allclean` など — プレーンテキストとして編集可能）を自動表示。マルチリージョンケース構造も自動検出
-- 追加のファイルやディレクトリ（フラット/再帰スキャン）をファイル一覧に登録可能 — カスタムフィールドディレクトリ、再起動タイムステップ、深い階層のサブディレクトリなどに便利
-- [`#include` ディレクティブを追跡](USER_GUIDE_ja.md#インクルードされたファイル)して取り込み先のファイルを一覧表示。ケース内のインクルードは本来のディレクトリグループに入り、OpenFOAM インストール先に解決するもの（`#includeEtc`、`#includeFunc`）は別グループにまとめて読み取り専用で開く。**Copy into case...** で編集可能なローカルコピーを作成できる
-- ファイルパネルからファイルの作成・複製・バックアップ・削除が可能。ケースはいつでもディスクから再読み込みできる
-- アプリ外部（Terminal パネルなど）での変更を検知してファイル一覧を自動更新。`constant/polyMesh` インジケーターがセル数を表示し、メッシュ生成後に `blockMeshDict` が変更されると「stale」と表示
-- 現在の状態を新しいケースとして保存したり、既存ケースを複製したりできる
-- [FoDE を離れずにケースディレクトリを閲覧](USER_GUIDE_ja.md#ケースナビゲーター) — ファイル一覧の隣の **Cases** タブと、2 ペイン構成の **Case Browser** ウィンドウで、開く・比較するケースを探したり、ファイルマネージャに切り替えずにケース全体を移動・リネーム・複製・削除したりできる。削除はデスクトップのゴミ箱に送られる
+**[ファイルとケース](USER_GUIDE_ja.md#ファイル一覧の挙動)**
+- ケースの辞書、`0/` のフィールド、`Allrun` などのスクリプトが自動で並びます。マルチリージョンのケースはリージョンごとにまとまり、`#include` で取り込まれるファイルも並びます。
+- 一覧は自動で最新の状態に保たれ、メッシュがあるか、`blockMeshDict` より古くないか、ケースが分割されているかを示します。
+- ファイルの作成・バックアップ・複製・削除、ケースを新しいケースとして保存。
+- FoDE の中から[ケースを探し、移動・名前変更・コピー・削除](USER_GUIDE_ja.md#ケースナビゲーター)できます。
 
 **[ツリーとテキストの編集](USER_GUIDE_ja.md#ツリーとテキストの編集フロー)**
-- 構造化ツリービューと生テキストエディタを双方向に同期
-- OpenFOAM シンタックスハイライト（オン/オフ切替可。キーワードリストは自分のインストールから再生成可能）とコード折りたたみ
-- 右クリックメニューでエントリの追加・複製・コメントアウト・削除が可能
-- `blockMeshDict` の `blocks ( … );` は `block 0`、`block 1`、… として 1 ブロック 1 行に展開され、BlockMesh 3D ビューアが描画する番号と一致。各行を個別に編集・追加・複製・削除でき、行を選択するとそのブロックが 3D ビューでアウトライン表示される
+- ツリー表示とプレーンテキストを双方向に同期し、シンタックスハイライトと折りたたみ付き。
+- 右クリックでエントリの追加・複製・コメントアウト・削除、`Ctrl+Z` で元に戻せます。
 
-**[境界条件ビュー](USER_GUIDE_ja.md#境界条件ビュー)**
-- 全フィールド変数の境界条件を一つのテーブルで一覧 — フィールドファイルを切り替える必要なし
-- テーブル上でパッチエントリを直接編集・作成・削除・コピー・ペースト。パッチの追加・削除・リネームは全フィールドファイルに対して一括で実行可能
-- セルをクリックするとエディタのパッチエントリへジャンプ。テーブル全体を Markdown / CSV としてコピー可能
+**[設定の説明](USER_GUIDE_ja.md#詳細ペイン)**
+- `controlDict`・`fvSchemes`・`fvSolution`・`blockMeshDict`・`snappyHexMeshDict` と乱流モデルについて、説明・選べる値・対応バージョン。一方の系統で名前が変わったキーや、もう一方には存在しないキーも示します。
+- [独自のモジュールを追加](USER_GUIDE_ja.md#カスタムスキーマモジュールの書き方)できます（プレーンな Python ファイル）。
 
-**[スキーマヘルプ](USER_GUIDE_ja.md#詳細ペイン)**
-- 主要な設定項目（`controlDict`、`fvSchemes`、`fvSolution`、`blockMeshDict`、`snappyHexMeshDict`）の説明と有効な選択肢を組み込み表示
-- `turbulenceProperties`/`momentumTransport` の乱流モデル: 29 モデルそれぞれが何であるかを、OpenFOAM 自身のヘッダから引用した説明と定義論文つきで表示。各係数のソース既定値もフォーク・バージョン別に表示
-- 独自のスキーマモジュール（Python ファイル）で拡張可能
+**[3D ビューア](USER_GUIDE_ja.md#blockmesh-パネル)** *（pyvista / pyvistaqt が必要）*
+- `$変数`・`#eval`・`#include` を解決した `blockMeshDict` を、パッチの種類で色分けして表示。頂点の座標は表で編集できます。
+- `topoSetDict`・`snappyHexMeshDict`・`setFieldsDict`・サンプリングの形状を重ね、それぞれ表示を切り替えられます。STL/OBJ の表面も参考として表示できます。
+- 編集中はツリーと並べて表示でき、ビューを画像として保存できます。
 
-**[BlockMesh 3D ビューア](USER_GUIDE_ja.md#blockmesh-パネル)** *(pyvista / pyvistaqt が必要)*
-- `blockMeshDict` のジオメトリ（頂点、ブロック、パッチ種別で色分けされた境界面）をインタラクティブに 3D プレビュー。`$variable` や `#eval` 参照も自動解決
-- `topoSetDict` のアクションジオメトリ、`snappyHexMeshDict` の `geometry {}` 形状（surface / region / geometry のみ に分類）、`setFieldsDict` の領域（`fieldValues` をラベル表示）をオーバーレイ表示。形状ごとに表示切替可能。ブロックメッシュより大きい形状はビュー内でクリップされ「(clipped)」マークが付く
-- 3D ビュー横の頂点テーブルで座標を編集すると即座に反映。変数ベースの頂点はプレビューモードでファイルを変更せずに試せる
-- STL/OBJ のオーバーレイ読み込み（複数同時に読み込み可能。`STL ▾` メニューでファイルごとに行と色が割り当てられる）と、topoSet/snappyHexMesh/setFields 形状の STL エクスポート
-- **Save Image…** で 3D ビューを表示されているそのまま（オーバーレイ・色・カメラアングルを含む）PNG に保存。レポートや不具合報告にそのまま使える
-- **⊞** サイドバイサイドモードで、`blockMeshDict`・`topoSetDict`・`snappyHexMeshDict`・`setFieldsDict` の編集中にツリーの隣に 3D ビューを表示
+**[境界条件](USER_GUIDE_ja.md#境界条件ビュー)**
+- 表の中でパッチのエントリを編集・追加・削除・コピー・貼り付け。パッチの追加・削除・名前変更はすべてのフィールドファイルに一度に反映されます。
+- 表を Markdown または CSV としてコピー。
 
-**[統合ターミナル](USER_GUIDE_ja.md#ターミナルタブ)**
-- フル PTY xterm.js ターミナル（Linux/macOS）と QProcess ベースのシンプルターミナルを実行中に切替可能。ケースを開くと自動的にそのディレクトリへ移動
-- `no-terminal` バリアントでは完全に省略（Windows 向け）
+**[実行と後処理](USER_GUIDE_ja.md#run-solver)**
+- blockMesh、snappyHexMesh、topoSet、setFields、checkMesh、decomposePar、reconstructPar とソルバーを、コマンドを示すダイアログから実行。`Allrun`/`Allclean` も。[FoDE を閉じても続く実行](USER_GUIDE_ja.md#background-runs-and-stop-background-run)は、書き出し済みの時刻できれいに止められます。
+- インストールに含まれるテンプレートから[関数オブジェクトを追加](USER_GUIDE_ja.md#add-function-object)し、既存の結果に [postProcess を実行](USER_GUIDE_ja.md#run-postprocess)。
+- 再構築した結果が完全であることを FoDE が確かめてから [processor\* ディレクトリを削除](USER_GUIDE_ja.md#delete-processor-directories)。
+- [ログの要約](USER_GUIDE_ja.md#view-log-summary)、[foamMonitor](USER_GUIDE_ja.md#foammonitor-ランチャー) による残差のプロット、ParaView。
 
-**[ツールメニュー](USER_GUIDE_ja.md#foammonitor-ランチャー)**
-- `blockMesh`・`snappyHexMesh`・`topoSet`・`setFields`・`checkMesh`・`decomposePar`・`reconstructPar`、およびケースのソルバー（`controlDict` から読み取り、並列実行も可）をワンクリックでターミナル実行（出力は `log.*` に保存）。`0/` を `0.orig` から復元することも可能
-- ケースの `Allrun`/`Allclean` スクリプトを実行、または `foamCleanTutorials` でケースを初期状態にクリーン
-- ソルバー実行中に `foamMonitor` を起動して gnuplot で残差をプロット
-- 生成されたメッシュを ParaView で表示
-- 数千行の生ログをスクロールする代わりに `log.*` ファイルの要約レポートを表示
-- OpenFOAM の使用例検索: インストールの `tutorials/` ケースと `etc/caseDicts/` テンプレートからキーワードの実際の使用例を検索し、プレビューからそのまま比較ビューへ読み込んだり、チュートリアルケースを複製して自分のケースの出発点にしたりできる
+**[他の人の書き方を知る](USER_GUIDE_ja.md#find-openfoam-examples)**
+- インストールのチュートリアルからキーワードを検索して使用例を見られます。そのケースと[自分のケースを比較](USER_GUIDE_ja.md#ケース比較)し、値を取り込むこともできます。
 
-**[ケース比較](USER_GUIDE_ja.md#ケース比較)**
-- 開いているケースを任意の参照ケースと比較: ツリーの色分け差分オーバーレイ、ファイル一覧の `≠N` マーカー、差分ありファイルのみの絞り込みフィルター
-- サイドバイサイドの参照ツリーで右クリック **Use this value** により個々の設定を取り込み
+**設定**
+- [ライト/ダークのテーマ](USER_GUIDE_ja.md#外観と配色)、English または日本語、UI の拡大縮小、そして前回[閉じたときの状態](USER_GUIDE_ja.md#セッションの復元)で開くウィンドウ。
 
-**[外観](USER_GUIDE_ja.md#外観と配色)**
-- **Settings > Appearance** — **Follow System**（既定）、**Light**、**Dark** から配色テーマを選択（再起動で反映）。エディタのシンタックスハイライト、差分行の配色、BlockMesh 3D ビューアのシーンを含む UI 全体に適用され、暗い画面の中で 3D ビューだけが白いままになることはありません
+## 起動オプション
 
-**UI 言語**
-- **Settings > Language** — English と 日本語 を切り替えられます（再起動で反映）。`i18n/` に翻訳ファイルを1つ追加するだけで新しい言語を追加できます
+```bash
+python3 main.py                                   # 標準: ターミナルと 3D ビューア
+python3 main.py --variant no-terminal             # ターミナルなし（Windows ではこちらを推奨）
+python3 main.py --variant no-terminal-blockmesh   # ターミナルなし、3D ビューアを常に表示
+```
 
-**[参照リンク](USER_GUIDE_ja.md#resources-ダイアログ)**
-- **Help > Resources** — OpenFOAM 公式ドキュメントへのリンクと、個人用の **My Links** リスト
-
-## 全リファレンス
-
-すべてのパネル・メニュー・操作手順の詳細については [USER_GUIDE_ja.md](USER_GUIDE_ja.md) を参照してください。
-プロジェクト構成・開発環境のセットアップ・テストについては [DEVELOPER_ja.md](DEVELOPER_ja.md) を参照してください。
-アプリの注釈付きスクリーンショットについては [docs/SCREENSHOTS_ja.md](docs/SCREENSHOTS_ja.md) を参照してください。
+選んだバリアントは次回の起動にも引き継がれます。「[バリアント](USER_GUIDE_ja.md#バリアント)」を参照してください。
 
 ## サンプルケース
 
-リポジトリルートの `tutorials/` ディレクトリには、すぐに開ける OpenFOAM ケースが収録されています。
+`tutorials/` フォルダには、すぐに開けるケースが入っています。
 
 | ディレクトリ | ソルバー | 用途 |
 |---|---|---|
@@ -148,7 +133,7 @@ pip install pyvista pyvistaqt
 | `tutorials/cavity/cavityGrade/` | `icoFoam` | 非一様グレーディング（`simpleGrading`） |
 | `tutorials/cavity/cavityClipped/` | `icoFoam` | クリップ形状・`mapFieldsDict` |
 | `tutorials/snappyMultiRegionHeater/` | `chtMultiRegionFoam` | 境界条件ビューとリージョンファイル一覧のマルチリージョンケース |
-| `tutorials/damBreak/` | `interFoam` | 二相流・`setFieldsDict` と `0.orig/` のテスト |
+| `tutorials/damBreak/` | `interFoam` | 二相流・`setFieldsDict` と `0.orig/` |
 | `tutorials/pitzDaily/` | `simpleFoam` | RAS の定番ケース。同梱ケースで唯一の乱流ケースであり、乱流モデルのヘルプを実際に確認できる場所 |
 | `tutorials/oneBlocks/` | `icoFoam` | 3-D 単一ブロック・`blockMeshDict` 編集と 3-D メッシュビューア |
 | `tutorials/oneBlocks-vars/` | `icoFoam` | `oneBlocks` の変数置換・コンパクト面記法バリアント |
@@ -160,6 +145,18 @@ pip install pyvista pyvistaqt
 `cavity/` 各ケース・`snappyMultiRegionHeater`・`damBreak`・`pitzDaily` は OpenFOAM v2512 標準チュートリアルセットから取得しています。`oneBlocks*` および `nineBlocks*` は FoDE テスト用に cavity をベースにしたカスタム `blockMeshDict` ケースです。
 
 **ライセンス:** これらのケースファイルは **GPL-3.0** でライセンスされています（FoDE ソースコードの AGPL-3.0 とは別です）。詳細は `tutorials/README.md` を参照してください。
+
+## ドキュメント
+
+- [ユーザーガイド](USER_GUIDE_ja.md) — すべてのパネル・メニュー・操作手順。
+- [スクリーンショット](docs/SCREENSHOTS_ja.md) — 注釈付きの画面写真。
+- [デモ動画](docs/DEMO_SCRIPTS_ja.md) — Vimeo の短い紹介動画 12 本と、ショットごとの台本。まずは [編集し、見て、実行する](https://vimeo.com/1218332419?texttrack=ja)（約 94 秒）から。[ワークフロー全体](https://vimeo.com/1217899060?texttrack=ja)（約 3 分 41 秒）もあります。
+- [リリースノート](RELEASE_NOTES_ja.md) — バージョンごとの変更点。
+- [開発者ガイド](DEVELOPER_ja.md) — プロジェクト構成、開発環境、テスト。
+
+## 質問と報告
+
+質問、不具合の報告、提案は [GitHub の issue](https://github.com/snaka-dev/foam-dictionary-editor/issues) で歓迎します。不具合の場合は、FoDE のバージョン（**Help > About**）、OpenFOAM のバージョン、そこに至った手順があると助かります。
 
 ## 引用
 
@@ -177,7 +174,7 @@ Copyright (C) 2025-2026 Shinji NAKAGAWA。[GNU Affero General Public License v3.
 
 本リポジトリには OpenFOAM 由来の素材が含まれており、それらは上記ライセンスの対象外です。同梱のチュートリアルケース、抽出したキーワード一覧、生成された乱流スキーマモジュール中の引用ドキュメントが該当します。これらは GPL-3.0-or-later であり、権利者は複数です（OpenFOAM Foundation、OpenCFD Ltd、Upstream CFD GmbH、Keysight Technologies）。ファイルごとの表示は [THIRD-PARTY.md](THIRD-PARTY.md) にあります（手で管理するのではなくソースから生成しています）。
 
-`ui/assets/icons/` のツールバー・メニューアイコンは、既存のアイコンセットから持ち込んだものではなく本プロジェクトのために描き起こしたものです。したがって上記ライセンスの対象であり、第三者への表示義務は生じません。フォルダ・ディスク・回転矢印・虫眼鏡といった意図的にありふれた形状を、実際に描画されるサイズで滲まないよう 16 ピクセルのグリッドに合わせて配置しています。
+ツールバーとメニューのアイコンは本プロジェクトのために描き起こしたものなので、上記ライセンスの対象であり、第三者への表示義務はありません。
 
 ## 免責事項
 
@@ -188,7 +185,7 @@ This offering is not approved or endorsed by OpenCFD Limited, producer and distr
 ## 謝辞
 
 - [PySide6 (Qt for Python)](https://doc.qt.io/qtforpython/) — GUI フレームワーク（LGPL v3）
-- [pyVista](https://pyvista.org/) / [VTK](https://vtk.org/) — `blockMeshDict`、`topoSetDict`、`snappyHexMeshDict` ジオメトリの 3D ビューア（BSD-3-Clause、オプション）
+- [pyVista](https://pyvista.org/) / [VTK](https://vtk.org/) — 3D ビューア（BSD-3-Clause、オプション）
 - [xterm.js](https://xtermjs.org/) — ターミナルパネルで使用するターミナルエミュレータ（MIT）。初回起動時に jsDelivr から自動ダウンロードされ `ui/xterm/` にキャッシュされます
 - [pytest](https://pytest.org/) / [pytest-qt](https://pytest-qt.readthedocs.io/) — テストフレームワーク（開発時のみ）
 

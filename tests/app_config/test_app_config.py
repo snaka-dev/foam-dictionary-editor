@@ -883,3 +883,21 @@ class TestClearSessionGeometry:
         assert manager.get_session_state() == {}
         manager.set_features({"terminal": True, "blockmesh": True})
         assert manager.get_session_state() == {}
+
+
+class TestRemindBackgroundRuns:
+    def test_on_by_default_saved_only_when_off_and_reset_restores_it(self, tmp_path):
+        import json
+
+        from app_config.app_config_manager import AppConfigManager
+
+        path = tmp_path / "cfg.json"
+        mgr = AppConfigManager(config_path=str(path))
+        assert mgr.get_remind_background_runs() is True
+        mgr.save()
+        assert "remind_background_runs" not in json.loads(path.read_text(encoding="utf-8"))
+        mgr.set_remind_background_runs(False)
+        mgr.save()
+        assert AppConfigManager(config_path=str(path)).get_remind_background_runs() is False
+        mgr.reset()
+        assert mgr.get_remind_background_runs() is True

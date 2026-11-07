@@ -8,17 +8,20 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtWidgets import QCheckBox, QDialog, QMessageBox
+from PySide6.QtWidgets import QDialog, QMessageBox
 
-from foam.utils import format_size
 from i18n import tr
+from services.background_run import (
+    STOPPING_VALUES,
+    active_run,
+    background_command,
+    background_supported,
+    read_stop_at,
+)
 from services.case_loader import detect_time_dirs
 from services.solver_run import (
     COMMON_SOLVERS,
-    DeletionCheck,
-    DeletionProblem,
     SolverInfo,
-    check_processor_deletion,
     decomposed_count,
     has_mesh,
     processor_dirs,
@@ -32,8 +35,6 @@ from ui.dialogs.find_examples_dialog import FindExamplesDialog
 from ui.dialogs.log_summary_dialog import LogSummaryDialog
 from ui.dialogs.run_solver_dialog import ExecutableChoice, RunSolverDialog
 from ui.dialogs.run_tool_dialog import RunToolDialog
-from ui.layout_constants import STATUS_NORMAL
-from ui.processor_deletion import run_deletion_with_progress
 
 if TYPE_CHECKING:
     from ui.mixins._protocol import MainWindowProtocol as _Base
@@ -233,7 +234,21 @@ class _ToolsOpsMixin(_Base):
         A command sent now would only queue behind the running one -- or, in
         the xterm terminal, be typed into it (mpirun reads its input) -- and
         anything that reads the case meanwhile sees a time step half written.
+        A background run in this case refuses the same way, even after FoDE
+        was restarted: it writes the case just the same, only out of sight.
         """
+        run = active_run(self.state.current_case_dir) if self.state.current_case_dir else None
+        if run is not None:
+            QMessageBox.warning(
+                self,
+                tr("Background run in progress"),
+                tr(
+                    "{name} is running in the background in this case (pid "
+                    "{pid}). Wait for it to finish before {what}, or stop it "
+                    "with Tools > Stop Background Run."
+                ).format(name=run.label, pid=run.pid, what=what),
+            )
+            return True
         names = self.terminal_panel.running_commands() if self.terminal_panel else []
         if not names:
             return False
@@ -269,222 +284,6 @@ class _ToolsOpsMixin(_Base):
                 "-newTimes there is nothing new to reconstruct."
             )
         self._run_tool_with_options("reconstructPar", warning)
-
-    def _on_delete_processor_dirs_clicked(self) -> None:
-        if not self.state.current_case_dir:
-            return
-        case_dir = self.state.current_case_dir
-        if self._refuse_while_running(tr("deleting processor* directories")):
-            return
-        whole = check_processor_deletion(case_dir)
-        if not whole.dirs:
-            QMessageBox.information(
-                self,
-                tr("Nothing to delete"),
-                tr("This case has no processor* directories."),
-            )
-            return
-        keep = check_processor_deletion(case_dir, keep_latest=True)
-        # Keeping the latest time deletes a subset of what deleting everything
-        # does, so if even that would lose data, nothing can go.
-        blocking = keep.problems if keep.problems else None
-        if whole.problems and keep.kept_time is None:
-            blocking = whole.problems
-        if blocking:
-            QMessageBox.warning(
-                self,
-                tr("processor* directories not deleted"),
-                tr("Deleting them would lose data that exists nowhere else:")
-                + "\n\n"
-                + self._problem_lines(blocking)
-                + "\n\n"
-                + tr("Nothing was deleted."),
-            )
-            return
-        box, keep_chk = self._processor_delete_box(whole, keep)
-        try:
-            answer = QMessageBox.StandardButton(box.exec())
-            keeping = keep_chk is not None and keep_chk.isChecked()
-        finally:
-            # Read everything first, then let Qt dispose of the box (and the
-            # checkbox it owns); otherwise every confirmation stays behind as a
-            # hidden child of the main window.
-            box.deleteLater()
-        if answer != QMessageBox.StandardButton.Yes:
-            return
-        chosen = keep if keeping else whole
-        if whole.problems:
-            # Enforced here, not left to the locked checkbox: deleting
-            # everything would lose data, whatever state a widget is in.
-            chosen = keep
-        result = run_deletion_with_progress(self, case_dir, chosen)
-        self._reload_file_list()
-        if result.failed:
-            self._error(
-                tr("Delete processor* directories"),
-                tr("Some directories could not be deleted:\n{errors}").format(
-                    errors="\n".join(result.failed)
-                ),
-            )
-        elif result.stopped:
-            QMessageBox.information(
-                self,
-                tr("Deletion stopped"),
-                tr(
-                    "Stopped after {done} of {total} directories. Everything "
-                    "deleted so far also exists at the case root, and nothing "
-                    "else was changed; run the action again to finish."
-                ).format(done=result.done, total=result.total),
-            )
-        elif chosen.keep_latest:
-            self.statusBar().showMessage(
-                tr("Deleted the processor* time directories except {t} ({size}).").format(
-                    t=chosen.kept_time, size=format_size(chosen.total_bytes)
-                ),
-                STATUS_NORMAL,
-            )
-        else:
-            self.statusBar().showMessage(
-                tr("Deleted {n} processor* directories ({size}).").format(
-                    n=len(chosen.dirs), size=format_size(chosen.total_bytes)
-                ),
-                STATUS_NORMAL,
-            )
-
-    def _problem_lines(self, problems) -> str:
-        lines = [self._describe_deletion_problem(p) for p in problems]
-        if len(lines) > 12:
-            lines = lines[:12] + [tr("… and {n} more.").format(n=len(lines) - 12)]
-        return "\n".join("• " + line for line in lines)
-
-    def _processor_delete_box(
-        self, whole: DeletionCheck, keep: DeletionCheck
-    ) -> tuple[QMessageBox, QCheckBox | None]:
-        """The confirmation, and its "keep the latest time" checkbox if offered.
-
-        The text describes what will happen with the checkbox as it stands --
-        one action, one size -- and is rewritten whenever it is toggled. An
-        earlier version listed both choices' sizes up front ("Keeping it
-        frees …"), which read as a contradiction and pointed at a checkbox
-        the reader had not reached yet.
-
-        The checkbox starts ticked -- it deletes less, and spares a serial,
-        memory-hungry decomposePar on exactly the cases where processor* is
-        large -- except when the case root is already ahead of the processors,
-        where the kept time would be an older restart point than the case.
-        When deleting everything would lose data but keeping the latest time
-        would not (the mesh exists only in processor*, say), it is ticked and
-        locked, with the reason shown.
-        """
-        box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Question)
-        box.setWindowTitle(tr("Delete processor* directories?"))
-        box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        box.setDefaultButton(QMessageBox.StandardButton.No)
-        assurance = tr(
-            "Everything that will be deleted also exists at the case root, "
-            "checked file by file. This cannot be undone."
-        )
-        if keep.kept_time is None:
-            box.setText(
-                tr("Permanently delete the processor* directories entirely ({size})?").format(
-                    size=format_size(whole.total_bytes)
-                )
-                + "\n\n"
-                + tr("Continuing this run in parallel later will need decomposePar again.")
-                + "\n\n"
-                + assurance
-            )
-            return box, None
-
-        t = keep.kept_time
-        # Parented to the box at construction, not merely handed to
-        # setCheckBox: PySide6's setCheckBox does not transfer ownership, so a
-        # parentless QCheckBox stays owned by Python while Qt treats it as the
-        # box's child -- two owners, and the garbage collector later destroys a
-        # checkbox C++ has already freed (a SIGBUS crash, reproduced and
-        # pinned by tests/ui/test_tools_busy_terminal.py).
-        keep_chk = QCheckBox(
-            tr("Keep the latest time ({t}) and the decomposed mesh").format(t=t), box
-        )
-        box.setCheckBox(keep_chk)
-        note = ""
-        if whole.problems:
-            keep_chk.setChecked(True)
-            keep_chk.setEnabled(False)
-            note = (
-                tr("Deleting everything would lose data that exists nowhere else:")
-                + "\n"
-                + self._problem_lines(whole.problems)
-            )
-        elif keep.latest_root_time is not None and float(keep.latest_root_time) > float(t):
-            keep_chk.setChecked(False)
-            note = tr(
-                "The case root has a later time ({root}) than the processors "
-                "({t}), so keeping {t} would leave a restart point older than "
-                "the case."
-            ).format(root=keep.latest_root_time, t=t)
-        else:
-            keep_chk.setChecked(True)
-
-        def describe(keeping: bool) -> None:
-            if keeping:
-                parts = [
-                    tr("Permanently delete {size} from the processor* directories?").format(
-                        size=format_size(keep.total_bytes)
-                    ),
-                    tr(
-                        "Kept: the latest time ({t}) and the decomposed mesh, so the "
-                        "run can continue in parallel without decomposePar."
-                    ).format(t=t),
-                ]
-            else:
-                parts = [
-                    tr("Permanently delete the processor* directories entirely ({size})?").format(
-                        size=format_size(whole.total_bytes)
-                    ),
-                    tr("Continuing this run in parallel later will need decomposePar again."),
-                ]
-            if note:
-                parts.append(note)
-            parts.append(assurance)
-            box.setText("\n\n".join(parts))
-
-        describe(keep_chk.isChecked())
-        keep_chk.toggled.connect(describe)
-        return box, keep_chk
-
-    @staticmethod
-    def _describe_deletion_problem(problem: DeletionProblem) -> str:
-        if problem.kind == "collated":
-            return tr(
-                "the data is in collated format (processorsN), which FoDE "
-                "cannot check — delete it by hand if you are sure"
-            )
-        if problem.kind == "time_missing":
-            return tr("time {t} exists only in processor*").format(t=problem.time)
-        if problem.kind == "files_missing":
-            shown = ", ".join(problem.detail[:5])
-            if len(problem.detail) > 5:
-                shown += ", …"
-            return tr("time {t}: {files} exist only in processor*").format(
-                t=problem.time, files=shown
-            )
-        if problem.kind == "mesh_missing":
-            return tr(
-                "the mesh exists only in processor* — run reconstructParMesh first"
-            )
-        if problem.kind == "mesh_differs":
-            root, procs = problem.detail
-            return tr(
-                "the case-root mesh has {root} cells but the processors have "
-                "{procs} — run reconstructParMesh first"
-            ).format(root=root, procs=procs)
-        if problem.kind == "sets_missing":
-            return tr("sets {sets} exist only in processor*").format(
-                sets=", ".join(problem.detail)
-            )
-        return tr("the meshes' cell counts could not be read, so they cannot be compared")
 
     def _solver_dialog_notes(
         self, case_dir: str, info: SolverInfo | None
@@ -599,12 +398,21 @@ class _ToolsOpsMixin(_Base):
         if self._refuse_while_running(tr("running another command")):
             return
         case_dir = self.state.current_case_dir
+        self._poll_background_run()
         # The editor's text, so an unsaved edit to `application` is what the
         # dialog pre-fills.
         text = self._current_text(os.path.join(case_dir, "system", "controlDict"))
         info = read_solver_info(text) if text is not None else None
         current = info.application if info is not None and info.application else ""
         note, warnings = self._solver_dialog_notes(case_dir, info)
+        stop_at = read_stop_at(text) if text is not None else None
+        if stop_at in STOPPING_VALUES:
+            warnings.append(
+                tr(
+                    "controlDict has stopAt {value}, so the solver will stop "
+                    "right after it starts — set it back (usually endTime) first."
+                ).format(value=stop_at)
+            )
 
         unsaved = bool(self._dirty_paths())
         parallel_np, parallel_default, parallel_warnings = self._parallel_setup(
@@ -625,6 +433,7 @@ class _ToolsOpsMixin(_Base):
                 if unsaved
                 else ""
             ),
+            background_available=background_supported(),
         )
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
@@ -644,6 +453,9 @@ class _ToolsOpsMixin(_Base):
                 )
                 return
         self._run_in_terminal(dlg.get_command())
+        if dlg.runs_in_background():
+            self._background_cases.add(case_dir)
+            self._background_run_timer.start()
 
     def _on_run_allrun_clicked(self) -> None:
         if not self.state.current_case_dir or self.terminal_panel is None:
@@ -684,26 +496,57 @@ class _ToolsOpsMixin(_Base):
             box.addButton(tr("Run anyway"), QMessageBox.ButtonRole.NoRole)
             cancel_btn = box.addButton(QMessageBox.StandardButton.Cancel)
             box.setDefaultButton(cancel_btn)
-            box.exec()
-            clicked = box.clickedButton()
+            background = self._background_checkbox(box)
+            try:
+                box.exec()
+                clicked = box.clickedButton()
+                detach = background is not None and background.isChecked()
+            finally:
+                box.deleteLater()
             if clicked is None or clicked is cancel_btn:
                 return
-            if clicked is clean_btn:
-                cmd = "foamCleanTutorials && ./Allrun"
-            else:
-                cmd = "./Allrun"
+            prefix = "foamCleanTutorials && " if clicked is clean_btn else ""
         else:
-            if not self._confirm(
-                tr("Run Allrun script?"),
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.Question)
+            box.setWindowTitle(tr("Run Allrun script?"))
+            box.setText(
                 tr(
                     "This runs the case's full workflow, which may include a "
                     "long-running solver. In Simple terminal mode a running "
                     "job cannot be interrupted. Continue?"
-                ),
-            ):
+                )
+            )
+            box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            box.setDefaultButton(QMessageBox.StandardButton.No)
+            background = self._background_checkbox(box)
+            try:
+                answer = QMessageBox.StandardButton(box.exec())
+                detach = background is not None and background.isChecked()
+            finally:
+                box.deleteLater()
+            if answer != QMessageBox.StandardButton.Yes:
                 return
-            cmd = "./Allrun"
+            prefix = ""
+        if detach:
+            cmd = background_command(["./Allrun"], "log.Allrun", "Allrun", prefix)
+        else:
+            cmd = f"{prefix}./Allrun"
         self._run_in_terminal(cmd)
+        if detach:
+            self._background_cases.add(case_dir)
+            self._background_run_timer.start()
+
+    def _reload_clean_file_from_disk(self, path: str) -> None:
+        """Drop FoDE's copy of *path*, unless edited, so it is read afresh."""
+        if path not in self.state.file_buffers or self.state.file_dirty.get(path):
+            return
+        was_current = path == self.state.current_file
+        if was_current:
+            self._clear_current_file()
+        self._purge_file_caches(path)
+        if was_current:
+            self.load_selected_file(path)
 
     def _on_run_allclean_clicked(self) -> None:
         if not self.state.current_case_dir or self.terminal_panel is None:
@@ -839,6 +682,7 @@ class _ToolsOpsMixin(_Base):
             self._run_checkmesh_action,
             self._run_decomposepar_action,
             self._run_solver_action,
+            self._run_post_process_action,
             self._run_reconstructpar_action,
             self._run_allrun_action,
             self._run_allclean_action,
@@ -851,6 +695,8 @@ class _ToolsOpsMixin(_Base):
             self._open_paraview_action,
             self._view_log_summary_action,
             self._delete_processor_dirs_action,
+            self._stop_background_run_action,
+            self._add_function_object_action,
         ):
             if action is not None:
                 action.setEnabled(has_case)

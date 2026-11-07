@@ -1,0 +1,27 @@
+1
+00:00:00,000 --> 00:00:11,883
+damBreak, just opened. Nothing has been opened yet, and the 3-D view already shows what the case defines: the mesh, the water column from setFieldsDict, and two gauge lines from a file called sampling.
+
+2
+00:00:11,883 --> 00:00:20,007
+To add probes, you do not need to know how the dictionary is written. This list is not FoDE's own: it is the templates your OpenFOAM installation ships, so the form always matches the version you run.
+
+3
+00:00:20,007 --> 00:00:29,199
+The form shows only what the template sets. The probe does not start at the template's example, a corner of this case: FoDE put it at the centre of the mesh, read from blockMeshDict — and the 3-D view draws it while the dialog is open.
+
+4
+00:00:29,199 --> 00:00:37,504
+A row of probes along the floor, where the water will run. The markers follow as the points are typed.
+
+5
+00:00:37,504 --> 00:00:41,282
+And which fields to record — the ▾ beside it lists the case's own.
+
+6
+00:00:41,282 --> 00:00:48,798
+Add writes system/probes and adds #includeFunc probes to controlDict, the way the tutorials do it. From now on the probes run with the solver.
+
+7
+00:00:48,798 --> 00:00:52,798
+And they stay in the 3-D view, beside the gauges, under their own name.

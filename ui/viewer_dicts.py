@@ -99,7 +99,7 @@ def viewer_dict_kind(
 
     declared = _declared_object(root)
     if not declared:
-        return None
+        return SAMPLING if _defines_sampling(root) else None
     kind = _BY_DICT_NAME.get(declared)
     if kind is not None:
         return kind
@@ -108,4 +108,44 @@ def viewer_dict_kind(
     for dict_name, overlay in _BY_DICT_NAME.items():
         if declared.startswith(dict_name) and declared[len(dict_name):][:1] in (".", "-", "_"):
             return overlay
-    return None
+    return SAMPLING if _defines_sampling(root) else None
+
+
+# Function-object types the sampling overlay draws.
+_SAMPLING_TYPES = frozenset(
+    {"sets", "surfaces", "probes", "patchProbes", "internalProbes", "boundaryProbes"}
+)
+
+
+def _defines_sampling(root: FoamNode | None) -> bool:
+    """Whether *root* holds a sampling function object -- the last resort.
+
+    Function-object files go by any name (the OpenCFD tutorials alone use
+    ``sampling``, ``cuttingPlane``, ``sampleLines``, ``samplingDebug``…;
+    Foundation's ``functions``) and mostly carry no header, so neither test
+    above settles them. What they hold does: a ``type sets;`` (``surfaces``,
+    ``probes``…) at the top level, in a top-level dictionary, or in
+    ``functions``. Only those two levels are looked at, and only sampling
+    types count, so a snappyHexMeshDict's ``type triSurfaceMesh`` deep in
+    ``geometry`` cannot pass.
+    """
+    if root is None:
+        return False
+
+    def typed(node: FoamNode) -> bool:
+        return any(
+            c.name == "type" and str(c.value) in _SAMPLING_TYPES for c in node.children
+        )
+
+    if typed(root):
+        return True
+    for child in root.children:
+        if child.node_type != "dictionary" or child.name == "FoamFile":
+            continue
+        if typed(child):
+            return True
+        if child.name == "functions" and any(
+            g.node_type == "dictionary" and typed(g) for g in child.children
+        ):
+            return True
+    return False

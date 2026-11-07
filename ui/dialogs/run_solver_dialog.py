@@ -50,7 +50,8 @@ class RunSolverDialog(RunToolDialog):
     On top of the base dialog: an editable solver field, a "save all
     first" checkbox the caller reads back through :meth:`save_first` (only
     when ``save_first_label`` is given), an ``mpirun -np N … -parallel``
-    checkbox (only when ``parallel_np`` is given), and -- while
+    checkbox (only when ``parallel_np`` is given), a run-in-the-background
+    checkbox (only when ``background_available``), and -- while
     ``log.<solver>`` exists -- the choice to keep it as
     ``log.<solver>.<suffix>`` or overwrite it. A suffix that is invalid or
     names an existing log disables Run, so keeping one log never overwrites
@@ -68,9 +69,11 @@ class RunSolverDialog(RunToolDialog):
         parallel_np: int | None = None,
         parallel_default: bool = False,
         save_first_label: str = "",
+        background_available: bool = False,
     ) -> None:
         # Read by _build_extra_sections, which the base __init__ calls.
         self._executable = executable
+        self._background_available = background_available
         self._np = parallel_np
         self._parallel_default = parallel_default
         self._save_first_label = save_first_label
@@ -88,6 +91,10 @@ class RunSolverDialog(RunToolDialog):
 
     def get_executable(self) -> str:
         return self._exe_combo.currentText().strip()
+
+    def runs_in_background(self) -> bool:
+        """Whether the user chose to keep the run going after FoDE closes."""
+        return self._background()
 
     def save_first(self) -> bool:
         """Whether the user asked for every unsaved file to be saved first."""
@@ -113,7 +120,35 @@ class RunSolverDialog(RunToolDialog):
             self._parallel_chk.toggled.connect(self._update_preview)
             layout.addWidget(self._parallel_chk)
 
-        if self._save_chk is not None or self._parallel_chk is not None:
+        self._background_chk: QCheckBox | None = None
+        if self._background_available:
+            # Never pre-ticked or remembered: a run that outlives the window
+            # is a choice made each time, not a habit carried over.
+            self._background_chk = QCheckBox(
+                tr("Keep running after FoDE closes (run in the background)")
+            )
+            self._background_chk.toggled.connect(self._update_preview)
+            self._background_chk.toggled.connect(self._on_background_toggled)
+            layout.addWidget(self._background_chk)
+            self._background_note = QLabel(
+                tr(
+                    "The output goes straight to the log; the Terminal tab follows "
+                    "it, and Ctrl+C there stops only the following, not the run. "
+                    "Edits saved to controlDict, fvSchemes or fvSolution while it "
+                    "runs take effect in it. Stop it with Tools > Stop Background "
+                    "Run, which makes the solver write the current time first."
+                )
+            )
+            self._background_note.setWordWrap(True)
+            self._background_note.setStyleSheet("font-style: italic;")
+            self._background_note.setVisible(False)
+            layout.addWidget(self._background_note)
+
+        if (
+            self._save_chk is not None
+            or self._parallel_chk is not None
+            or self._background_chk is not None
+        ):
             layout.addSpacing(4)
 
         self._build_log_box(layout)
@@ -139,6 +174,13 @@ class RunSolverDialog(RunToolDialog):
         if self._parallel_chk is not None and self._parallel_chk.isChecked():
             return self._np
         return None
+
+    def _background(self) -> bool:
+        return self._background_chk is not None and self._background_chk.isChecked()
+
+    def _on_background_toggled(self, checked: bool) -> None:
+        self._background_note.setVisible(checked)
+        self.adjustSize()
 
     # ── sections ──────────────────────────────────────────────────────────────
 

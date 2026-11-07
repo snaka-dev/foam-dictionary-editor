@@ -17,6 +17,8 @@ import dataclasses
 import shlex
 from typing import Literal
 
+from services.background_run import background_command
+
 OptionKind = Literal["bool", "value", "file"]
 OptionValue = bool | str
 
@@ -130,6 +132,22 @@ TOOL_SPECS: dict[str, ToolSpec] = {
 }
 
 
+# Tools > Run postProcess…: the executable and -func are chosen by the dialog
+# (postProcess, foamPostProcess, or the solver itself -- services/
+# post_process.py), so only the time and field selection lives here. Both
+# forks spell all of these the same way.
+POST_PROCESS_SPEC = ToolSpec(
+    "postProcess",
+    (
+        ToolOption("-latestTime", "Latest time only", "bool", True),
+        ToolOption("-time", "Times to process", "value", "", "e.g. 0.5:1 or 0.1,0.2"),
+        ToolOption("-noZero", "Leave out the 0/ directory"),
+        ToolOption("-fields", "Fields to load", "value", "", "e.g. (U p)"),
+        _REGION_OPTION,
+    ),
+)
+
+
 # Tools > Run Solver…: the executable is whatever the user picks in the dialog
 # (pre-filled from controlDict's ``application``), so this spec is never used
 # with its own empty name -- RunToolDialog substitutes the chosen one. It
@@ -177,6 +195,9 @@ def build_command(
     extra: str = "",
     prefix: str = "",
     parallel_np: int | None = None,
+    background: bool = False,
+    lead: tuple[str, ...] = (),
+    log_name: str | None = None,
 ) -> str:
     """Compose the full shell command sent to the terminal panel.
 
@@ -186,8 +207,17 @@ def build_command(
     ``prefix`` is an optional raw shell prefix (e.g. ``"rm -rf 0 && … && "``).
     ``parallel_np`` runs the tool as ``mpirun -np N <tool> … -parallel``; the
     log keeps the plain ``log.<tool>`` name, as Allrun's ``runParallel`` does.
+    ``lead`` are arguments placed right after the executable (``-postProcess
+    -func yPlus``); ``log_name`` overrides ``log.<tool>`` -- a solver run as
+    a post-processor must not overwrite the solver's own log.
+    ``background`` detaches the run from the terminal so it outlives FoDE,
+    writing the log directly instead of through ``tee`` (see
+    services/background_run.py).
     """
-    tokens = [spec.name, *build_args(spec, values, extra)]
+    tokens = [spec.name, *lead, *build_args(spec, values, extra)]
     if parallel_np is not None:
         tokens = ["mpirun", "-np", str(parallel_np), *tokens, "-parallel"]
-    return f"{prefix}{shlex.join(tokens)} 2>&1 | tee log.{spec.name}"
+    log = log_name or f"log.{spec.name}"
+    if background:
+        return background_command(tokens, log, spec.name, prefix)
+    return f"{prefix}{shlex.join(tokens)} 2>&1 | tee {shlex.quote(log)}"

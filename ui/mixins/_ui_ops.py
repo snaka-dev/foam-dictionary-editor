@@ -255,7 +255,10 @@ class _UiOpsMixin(_Base):
 
     def _update_window_title(self) -> None:
         mark = "*" if self.state.text_dirty else ""
-        self.setWindowTitle(f"{tr('foam dictionary editor')}{mark}")
+        title = f"{tr('foam dictionary editor')}{mark}"
+        if self._background_title:
+            title += f" — {self._background_title}"
+        self.setWindowTitle(title)
 
     def _update_sync_checkbox(self) -> None:
         stale = self.state.current_file is not None and not self.state.source_lines_valid

@@ -398,3 +398,142 @@ class TestDeletionProgress:
         # Stopped between targets: what went was whole and verified; the rest is intact.
         assert sorted(p.name for p in (case / "processor0").iterdir()) == ["constant"]
         assert (case / "processor1" / "0.5" / "U").exists()
+
+
+# ── soundness: is the case-root copy whole, not merely present? ──────────────
+
+import services.field_integrity as _fi  # noqa: E402
+from services.solver_run import case_activity_problem, verify_compressed  # noqa: E402
+from tests.services._processor_cases import (  # noqa: E402
+    _field_text,
+    _sound_case,
+    _write,
+)
+
+
+def _kinds(check):
+    return [(p.kind, p.time, p.detail) for p in check.problems]
+
+
+class TestSoundness:
+    def test_a_sound_case_is_safe_in_both_modes(self, tmp_path):
+        _sound_case(tmp_path)
+        assert check_processor_deletion(str(tmp_path)).safe
+        assert check_processor_deletion(str(tmp_path), keep_latest=True).safe
+
+    def test_a_field_cut_off_at_the_root_is_refused(self, tmp_path):
+        _sound_case(tmp_path)
+        f = tmp_path / "0.5" / "p"
+        os.truncate(f, f.stat().st_size // 2)
+        assert _kinds(check_processor_deletion(str(tmp_path))) == [
+            ("files_cut_off", "0.5", ("p",))
+        ]
+
+    def test_the_kept_time_is_not_checked(self, tmp_path):
+        # Keep-latest leaves processor*/1 in place, so a damaged root 1/ loses nothing.
+        _sound_case(tmp_path)
+        f = tmp_path / "1" / "p"
+        os.truncate(f, f.stat().st_size // 2)
+        assert not check_processor_deletion(str(tmp_path)).safe
+        assert check_processor_deletion(str(tmp_path), keep_latest=True).safe
+
+    def test_a_root_file_is_held_only_to_its_processor_copys_standard(self, tmp_path):
+        # Neither copy has a closing line or header: OpenFOAM wrote it that way.
+        _sound_case(tmp_path)
+        for d in ("processor0", "processor1", "."):
+            (tmp_path / d / "0.5" / "extra").write_text("raw data\n")
+        assert check_processor_deletion(str(tmp_path)).safe
+
+    def test_a_damaged_header_is_refused(self, tmp_path):
+        _sound_case(tmp_path)
+        text = _field_text("p", 16)
+        _write(tmp_path / "0.5" / "p", text.replace("FoamFile", "FoamFi1e"))
+        assert _kinds(check_processor_deletion(str(tmp_path))) == [
+            ("files_bad_header", "0.5", ("p",))
+        ]
+
+    def test_a_field_from_another_mesh_is_refused(self, tmp_path):
+        _sound_case(tmp_path)
+        _write(tmp_path / "0.5" / "p", _field_text("p", 12))  # mesh has 16
+        assert _kinds(check_processor_deletion(str(tmp_path))) == [
+            ("files_wrong_size", "0.5", ("p: 12 ≠ 16",))
+        ]
+
+    def test_surface_fields_count_internal_faces(self, tmp_path):
+        _sound_case(tmp_path)
+        for d, n in (("processor0", 2), ("processor1", 3), (".", 5)):
+            _write(tmp_path / d / "0.5" / "phi", _field_text("phi", n, "surfaceScalarField"))
+        assert check_processor_deletion(str(tmp_path)).safe
+
+    def test_a_mesh_written_into_a_time_directory_applies_from_then_on(self, tmp_path):
+        # A topology-changing run (dynamicRefineFvMesh) writes <t>/polyMesh.
+        _sound_case(tmp_path)
+        _owner(tmp_path / "0.5" / "polyMesh", 20)
+        for d in ("processor0", "processor1"):
+            _owner(tmp_path / d / "0.5" / "polyMesh", 10)
+        _write(tmp_path / "0.5" / "p", _field_text("p", 20))
+        _write(tmp_path / "1" / "p", _field_text("p", 20))
+        assert check_processor_deletion(str(tmp_path)).safe
+
+    def test_a_region_field_uses_its_regions_mesh(self, tmp_path):
+        _sound_case(tmp_path)
+        _owner(tmp_path / "constant" / "solid" / "polyMesh", 6)
+        for d in ("processor0", "processor1"):
+            _write(tmp_path / d / "0.5" / "solid" / "T", _field_text("T", 3))
+        _write(tmp_path / "0.5" / "solid" / "T", _field_text("T", 6))
+        assert check_processor_deletion(str(tmp_path)).safe
+        _write(tmp_path / "0.5" / "solid" / "T", _field_text("T", 16))
+        assert _kinds(check_processor_deletion(str(tmp_path))) == [
+            ("files_wrong_size", "0.5", (os.path.join("solid", "T") + ": 16 ≠ 6",))
+        ]
+
+
+class TestCompressedCases:
+    def test_compressed_names_match_uncompressed_ones(self, tmp_path):
+        # decomposePar writes processor*/0/p.gz from an uncompressed 0/p, and
+        # the processor mesh as owner.gz: neither is data missing at the root.
+        _sound_case(tmp_path, gz=True)
+        for d in ("processor0", "processor1"):
+            owner = tmp_path / d / "constant" / "polyMesh" / "owner"
+            _write(owner, owner.read_text(), gz=True)
+            owner.unlink()
+        assert check_processor_deletion(str(tmp_path)).safe
+
+    def test_small_gz_files_are_read_whole_in_the_quick_check(self, tmp_path):
+        _sound_case(tmp_path, gz=True)
+        f = tmp_path / "0.5" / "p.gz"
+        os.truncate(f, f.stat().st_size - 20)
+        check = check_processor_deletion(str(tmp_path))
+        assert _kinds(check) == [("files_cut_off", "0.5", ("p.gz",))]
+        assert check.unverified_gz == ()
+
+    def test_large_gz_files_are_left_for_verify_compressed(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(_fi, "_HEAD_BYTES", 200)
+        _sound_case(tmp_path, gz=True)
+        f = tmp_path / "0.5" / "p.gz"
+        os.truncate(f, f.stat().st_size - 20)
+        check = check_processor_deletion(str(tmp_path))
+        assert check.safe  # the quick check cannot see it…
+        assert ("0.5", "p.gz") in check.unverified_gz
+        assert check.unverified_gz_bytes == sum(
+            os.path.getsize(tmp_path / t / r) for t, r in check.unverified_gz
+        )
+        seen = []
+        found = verify_compressed(str(tmp_path), check, lambda d, t, r: seen.append((d, t)))
+        assert [(p.kind, p.time, p.detail) for p in found] == [
+            ("files_cut_off", "0.5", ("p.gz",))
+        ]  # …the full read can
+        assert seen[-1][0] == seen[-1][1] == check.unverified_gz_bytes
+        assert verify_compressed(str(tmp_path), check, cancelled=lambda: True) is None
+
+    def test_keep_mode_leaves_the_kept_time_unread(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(_fi, "_HEAD_BYTES", 200)
+        _sound_case(tmp_path, gz=True)
+        keep = check_processor_deletion(str(tmp_path), keep_latest=True)
+        assert {t for t, _ in keep.unverified_gz} == {"0.5"}
+        assert verify_compressed(str(tmp_path), keep) == ()
+
+
+def test_case_activity_ignores_fode_itself(tmp_path):
+    # This test process is the "FoDE" here; nothing else works in tmp_path.
+    assert case_activity_problem(str(tmp_path)) is None

@@ -30,9 +30,14 @@ TOPO = ("FoamFile { version 2.0; format ascii; class dictionary; object topoSetD
 
 class TestTheResolver:
     def test_an_override_makes_an_unrecognisable_file_viewable(self):
-        root = OpenFoamParser(SAMPLE).parse()
-        assert vd.viewer_dict_kind("/case/system/sample-extra", root) is None
-        assert vd.viewer_dict_kind("/case/system/sample-extra", root, vd.SAMPLING) == vd.SAMPLING
+        # A probes file whose type lives in the .cfg it includes, as OpenFOAM's
+        # own templates write it: no name, header or type to go by.
+        root = OpenFoamParser(
+            '#includeEtc "caseDicts/postProcessing/probes/probes.cfg"\n'
+            "fields (p U);\nprobeLocations ((0 0 0));\n"
+        ).parse()
+        assert vd.viewer_dict_kind("/case/system/myProbes", root) is None
+        assert vd.viewer_dict_kind("/case/system/myProbes", root, vd.SAMPLING) == vd.SAMPLING
 
     def test_an_override_beats_the_header(self):
         # The user can see what a file is when its header is simply wrong.

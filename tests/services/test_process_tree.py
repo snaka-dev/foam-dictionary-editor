@@ -87,3 +87,102 @@ def test_a_real_child_is_found():
     finally:
         shell.kill()
         shell.wait()
+
+
+# ── processes_in_directory: is anything working in a case? ───────────────────
+
+from services.process_tree import processes_in_directory  # noqa: E402
+
+
+def _proc_in(root, pid, comm, ppid, cwd=None, cmdline=()):
+    _proc(root, pid, comm, ppid)
+    d = root / str(pid)
+    if cwd is not None:
+        (d / "cwd").symlink_to(cwd)
+    (d / "cmdline").write_bytes(b"\0".join(a.encode() for a in cmdline) + b"\0")
+
+
+def test_processes_running_in_the_case_or_naming_it(tmp_path):
+    case = tmp_path / "case"
+    (case / "system").mkdir(parents=True)
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    proc = tmp_path / "proc"
+    proc.mkdir()
+    _proc_in(proc, 10, "reconstructPar", 1, case)
+    _proc_in(proc, 11, "simpleFoam", 1, case / "system")  # a subdirectory counts
+    _proc_in(proc, 12, "mpirun", 1, other, ["mpirun", "-np", "2", "x", "-case", str(case)])
+    _proc_in(proc, 13, "icoFoam", 1, tmp_path, ["icoFoam", "-case", "case"])  # relative
+    _proc_in(proc, 14, "bash", 1, case)  # an idle shell
+    _proc_in(proc, 15, "less", 1, case)  # a pager on a log
+    _proc_in(proc, 16, "simpleFoam", 1, other)
+    _proc_in(proc, 17, "gone", 1)  # cwd unreadable
+    found = processes_in_directory(str(case), proc_root=str(proc))
+    assert [(p.pid, p.name) for p in found] == [
+        (10, "reconstructPar"), (11, "simpleFoam"), (12, "mpirun"), (13, "icoFoam")
+    ]
+
+
+def test_a_sibling_directory_with_a_common_prefix_is_not_inside(tmp_path):
+    (tmp_path / "case").mkdir()
+    (tmp_path / "case2").mkdir()
+    proc = tmp_path / "proc"
+    proc.mkdir()
+    _proc_in(proc, 10, "simpleFoam", 1, tmp_path / "case2")
+    assert processes_in_directory(str(tmp_path / "case"), proc_root=str(proc)) == []
+
+
+def test_fodes_own_process_tree_is_left_out(tmp_path):
+    case = tmp_path / "case"
+    case.mkdir()
+    proc = tmp_path / "proc"
+    proc.mkdir()
+    _proc_in(proc, 50, "python3", 1, case)  # FoDE, started from the case
+    _proc_in(proc, 51, "QtWebEngineProc", 50, case)  # its helper, same cwd
+    _proc_in(proc, 60, "reconstructPar", 1, case)  # another terminal's job
+    found = processes_in_directory(str(case), exclude_tree_of=50, proc_root=str(proc))
+    assert [p.pid for p in found] == [60]
+
+
+def test_a_real_process_in_the_directory_is_found(tmp_path):
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"], cwd=tmp_path)
+    try:
+        for _ in range(50):
+            found = processes_in_directory(str(tmp_path))
+            if found:
+                break
+            time.sleep(0.05)
+        assert child.pid in [p.pid for p in found]
+        # …and not when it belongs to the tree being excluded (FoDE's own).
+        import os
+
+        mine = processes_in_directory(str(tmp_path), exclude_tree_of=os.getpid())
+        assert child.pid not in [p.pid for p in mine]
+    finally:
+        child.kill()
+        child.wait()
+
+
+def test_no_proc_means_nothing_found(tmp_path):
+    assert processes_in_directory(str(tmp_path), proc_root=str(tmp_path / "missing")) == []
+
+
+# ── followers: a tail is never "running", and is stopped before a command ────
+
+from services.process_tree import follower_pids  # noqa: E402
+
+
+def test_a_tail_never_counts_as_running(tmp_path):
+    _proc(tmp_path, 100, "bash", 1)
+    _proc(tmp_path, 101, "tail", 100)
+    assert running_command_names(100, proc_root=str(tmp_path)) == []
+    assert follower_pids(100, proc_root=str(tmp_path)) == [101]
+
+
+def test_a_tail_beside_a_real_job(tmp_path):
+    _proc(tmp_path, 100, "bash", 1)
+    _proc(tmp_path, 101, "tail", 100)
+    _proc(tmp_path, 102, "simpleFoam", 100)
+    assert running_command_names(100, proc_root=str(tmp_path)) == ["simpleFoam"]
+    assert follower_pids(100, proc_root=str(tmp_path)) == [101]
+    assert follower_pids(None, proc_root=str(tmp_path)) == []

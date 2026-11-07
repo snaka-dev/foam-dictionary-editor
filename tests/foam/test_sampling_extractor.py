@@ -297,3 +297,73 @@ def test_probes_without_locations_is_non_geometric():
     data = extract_sampling_data(_parse(src))
     assert data.shapes == []
     assert [s.kind for s in data.non_geometric] == ["probes"]
+
+
+# ── function-object templates (Tools > Add Function Object…) ────────────────
+
+
+def _shapes(text, name=""):
+    from foam.parser import OpenFoamParser
+
+    data = extract_sampling_data(OpenFoamParser(text).parse(), name)
+    return (
+        [(s.label, s.kind, sorted(s.geometry)) for s in data.shapes],
+        [(s.label, s.kind) for s in data.non_geometric],
+    )
+
+
+class TestTemplateFiles:
+    """Standalone files written from OpenFOAM's function-object templates."""
+
+    def test_top_level_shapes_take_the_files_name(self):
+        assert _shapes("start (0 0 0);\nend (1 0 0);\n", "singleGraph")[0] == [
+            ("singleGraph", "line", ["end", "start"])
+        ]
+
+    def test_probes_whose_type_is_in_the_included_cfg(self):
+        # OpenCFD spells the locations probeLocations, Foundation points.
+        for key in ("probeLocations", "points"):
+            shapes, _ = _shapes(f"fields (p);\n{key} ((0 0 0) (1 0 0));\n", "probes1")
+            assert shapes == [("probes1", "probes", ["points"])]
+
+    def test_foundation_cut_plane_surface(self):
+        shapes, _ = _shapes("point (0 0 0.5);\nnormal (0 0 1);\nfields (p);\n", "cutPlaneSurface")
+        assert shapes == [("cutPlaneSurface", "cutPlane", ["planeNormal", "planePoint"])]
+
+    def test_graph_cfg_references_resolve(self):
+        # OpenCFD's singleGraph after its graph.cfg is spliced in.
+        text = (
+            "start (0 0 0);\nend (1 0 0);\nsetConfig { type uniform; nPoints 100; }\n"
+            "type sets;\nsets ( line { $setConfig; start $start; end $end; } );\n"
+        )
+        assert _shapes(text, "singleGraph")[0] == [("line", "uniform", ["end", "start"])]
+
+    def test_cutting_plane_merges_and_overrides(self):
+        # OpenCFD's surfaces.cfg + template: yNormal keeps the base point,
+        # takes its own normal; a member with no type but a plane still draws.
+        text = (
+            "x (1 0 0);\ny (0 1 0);\norigin (0 0 0);\n"
+            "cuttingPlane { type cuttingPlane; planeType pointAndNormal;\n"
+            "  pointAndNormalDict { basePoint $origin; normalVector $x; } }\n"
+            "type surfaces;\n"
+            "surfaces (\n"
+            "  xNormal { $cuttingPlane; }\n"
+            "  yNormal { $cuttingPlane; pointAndNormalDict { normalVector $y; } }\n"
+            "  bare { pointAndNormalDict { basePoint (0 0 1); normalVector (0 0 1); } }\n"
+            ");\n"
+        )
+        from foam.parser import OpenFoamParser
+
+        data = extract_sampling_data(OpenFoamParser(text).parse(), "surfaces")
+        geometry = {s.label: s.geometry for s in data.shapes}
+        assert geometry["xNormal"]["planeNormal"] == [1.0, 0.0, 0.0]
+        assert geometry["yNormal"] == {"planePoint": [0.0, 0.0, 0.0], "planeNormal": [0.0, 1.0, 0.0]}
+        assert geometry["bare"]["planePoint"] == [0.0, 0.0, 1.0]
+
+    def test_a_typeless_surfaces_list_is_still_read(self):
+        text = "surfaces ( mid { pointAndNormalDict { basePoint (0 0 0); normalVector (0 0 1); } } );\n"
+        assert _shapes(text, "surfaces")[0] == [("mid", "cuttingPlane", ["planeNormal", "planePoint"])]
+
+    def test_a_named_entry_keeps_its_own_name(self):
+        text = "functions { myProbes { type probes; probeLocations ((0 0 0)); } }\n"
+        assert _shapes(text, "controlDict")[0] == [("myProbes", "probes", ["points"])]

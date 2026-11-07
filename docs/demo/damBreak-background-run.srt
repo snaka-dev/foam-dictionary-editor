@@ -1,0 +1,31 @@
+1
+00:00:00,000 --> 00:00:25,798
+A long run is one you do not want to babysit — or to lose when you close the editor. First, the mesh and the water column.
+
+2
+00:00:25,798 --> 00:00:39,398
+Make it a long run: endTime 100 instead of 1.
+
+3
+00:00:39,398 --> 00:00:44,260
+Run Solver offers to save the edit first, and one more box: keep running after FoDE closes.
+
+4
+00:00:44,260 --> 00:00:49,281
+Ticked, the run starts detached from the terminal, in a session of its own, writing its log directly — closing FoDE cannot stop it.
+
+5
+00:00:49,281 --> 00:00:59,807
+The terminal follows the log. A badge beside the case name says a run is going, the window title says so in the taskbar, and the file list has a line for it. Close FoDE now, and it keeps going; open the case again, and the badge is back.
+
+6
+00:00:59,807 --> 00:01:03,753
+To stop it, click the badge.
+
+7
+00:01:03,753 --> 00:01:08,317
+FoDE asks the solver to write the current time and stop, the OpenFOAM way — stopAt writeNow in controlDict.
+
+8
+00:01:08,317 --> 00:01:12,317
+The badge turns to Stopping until the run has gone. Then a message says what happened: the last time written, and that stopAt is back as it was — so the next run does not stop at once.

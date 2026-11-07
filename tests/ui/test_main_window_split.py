@@ -86,10 +86,7 @@ TOOLS_OPS_METHODS = [
     "_on_run_solver_clicked",
     "_refuse_while_running",
     "_on_run_reconstructpar_clicked",
-    "_on_delete_processor_dirs_clicked",
-    "_problem_lines",
-    "_processor_delete_box",
-    "_describe_deletion_problem",
+    "_reload_clean_file_from_disk",
     "_on_run_allrun_clicked",
     "_on_run_allclean_clicked",
     "_on_clean_case_clicked",
@@ -102,11 +99,31 @@ TOOLS_OPS_METHODS = [
     "_update_tools_actions",
 ]
 
+PROCESSOR_OPS_METHODS = [
+    "_on_delete_processor_dirs_clicked",
+    "_problem_lines",
+    "_report_not_deleted",
+    "_processor_delete_box",
+    "_describe_deletion_problem",
+]
+
+BACKGROUND_RUN_OPS_METHODS = [
+    "_background_checkbox",
+    "_on_stop_background_run_clicked",
+    "_poll_background_run",
+    "_update_background_badge",
+    "_remind_background_runs",
+    "_follow_background_run",
+    "_stop_report_text",
+    "_show_stop_report",
+]
+
 FILE_OPS_METHODS = [
     "_load_case_dir",
     "_case_file_paths",
     "_case_relative",
     "_reload_file_list",
+    "_sync_case_watch",
     "_on_case_dir_changed_on_disk",
     "_open_included_target",
     "_parse_and_update",
@@ -256,6 +273,18 @@ def test_foam_monitor_ops_owns_its_methods():
     assert missing == [], f"_FoamMonitorOpsMixin is missing {missing}"
 
 
+def test_processor_ops_owns_its_methods():
+    from ui.mixins._processor_ops import _ProcessorOpsMixin
+    missing = [m for m in PROCESSOR_OPS_METHODS if m not in _ProcessorOpsMixin.__dict__]
+    assert missing == [], f"_ProcessorOpsMixin is missing {missing}"
+
+
+def test_background_run_ops_owns_its_methods():
+    from ui.mixins._background_run_ops import _BackgroundRunOpsMixin
+    missing = [m for m in BACKGROUND_RUN_OPS_METHODS if m not in _BackgroundRunOpsMixin.__dict__]
+    assert missing == [], f"_BackgroundRunOpsMixin is missing {missing}"
+
+
 def test_tools_ops_owns_its_methods():
     from ui.mixins._tools_ops import _ToolsOpsMixin
     missing = [m for m in TOOLS_OPS_METHODS if m not in _ToolsOpsMixin.__dict__]
@@ -312,15 +341,35 @@ def test_undo_ops_owns_its_methods():
 
 # ── no cross-mixin duplicates ─────────────────────────────────────────────────
 
+FUNCTION_OBJECT_OPS_METHODS = [
+    "_on_run_post_process_clicked",
+    "_on_run_post_process_for_file",
+    "_function_file_paths",
+    "_on_add_function_object_clicked",
+    "_write_function_object",
+    "_preview_function_object",
+    "_clear_function_object_preview",
+]
+
+
+def test_function_object_ops_owns_its_methods():
+    from ui.mixins._function_object_ops import _FunctionObjectOpsMixin
+    missing = [m for m in FUNCTION_OBJECT_OPS_METHODS if m not in _FunctionObjectOpsMixin.__dict__]
+    assert missing == [], f"_FunctionObjectOpsMixin is missing {missing}"
+
+
 def test_no_duplicate_methods_across_mixins():
+    from ui.mixins._background_run_ops import _BackgroundRunOpsMixin
     from ui.mixins._boundary_ops import _BoundaryOpsMixin
     from ui.mixins._case_ops import _CaseOpsMixin
     from ui.mixins._diff_ops import _DiffOpsMixin
     from ui.mixins._file_mgmt_ops import _FileManagementOpsMixin
     from ui.mixins._file_ops import _FileOpsMixin
     from ui.mixins._foam_monitor_ops import _FoamMonitorOpsMixin
+    from ui.mixins._function_object_ops import _FunctionObjectOpsMixin
     from ui.mixins._model_ops import _ModelOpsMixin
     from ui.mixins._panel_ops import _PanelOpsMixin
+    from ui.mixins._processor_ops import _ProcessorOpsMixin
     from ui.mixins._tools_ops import _ToolsOpsMixin
     from ui.mixins._tree_crud_ops import _TreeCrudOpsMixin
     from ui.mixins._tree_sync_ops import _TreeSyncOpsMixin
@@ -338,6 +387,9 @@ def test_no_duplicate_methods_across_mixins():
         ("_PanelOpsMixin",          set(_PanelOpsMixin.__dict__)),
         ("_FoamMonitorOpsMixin",    set(_FoamMonitorOpsMixin.__dict__)),
         ("_ToolsOpsMixin",          set(_ToolsOpsMixin.__dict__)),
+        ("_ProcessorOpsMixin",      set(_ProcessorOpsMixin.__dict__)),
+        ("_BackgroundRunOpsMixin",  set(_BackgroundRunOpsMixin.__dict__)),
+        ("_FunctionObjectOpsMixin", set(_FunctionObjectOpsMixin.__dict__)),
         ("_ModelOpsMixin",          set(_ModelOpsMixin.__dict__)),
         ("_UiOpsMixin",             set(_UiOpsMixin.__dict__)),
         ("_UndoOpsMixin",           set(_UndoOpsMixin.__dict__)),
@@ -346,7 +398,8 @@ def test_no_duplicate_methods_across_mixins():
         _CaseOpsMixin, _FileOpsMixin, _FileManagementOpsMixin,
         _TreeCrudOpsMixin, _TreeSyncOpsMixin, _BoundaryOpsMixin,
         _DiffOpsMixin, _PanelOpsMixin, _FoamMonitorOpsMixin,
-        _ToolsOpsMixin, _ModelOpsMixin, _UiOpsMixin, _UndoOpsMixin,
+        _ToolsOpsMixin, _ProcessorOpsMixin, _BackgroundRunOpsMixin,
+        _FunctionObjectOpsMixin, _ModelOpsMixin, _UiOpsMixin, _UndoOpsMixin,
     ]
     method_groups = [
         (name, {k for k in methods if not k.startswith("__") and callable(getattr(m, k, None))})
@@ -369,6 +422,7 @@ def test_no_duplicate_methods_across_mixins():
 
 def test_main_window_inherits_all_mixins(qapp):
     from ui.main_window import MainWindow
+    from ui.mixins._background_run_ops import _BackgroundRunOpsMixin
     from ui.mixins._boundary_ops import _BoundaryOpsMixin
     from ui.mixins._case_nav_ops import _CaseNavOpsMixin
     from ui.mixins._case_ops import _CaseOpsMixin
@@ -376,9 +430,11 @@ def test_main_window_inherits_all_mixins(qapp):
     from ui.mixins._file_mgmt_ops import _FileManagementOpsMixin
     from ui.mixins._file_ops import _FileOpsMixin
     from ui.mixins._foam_monitor_ops import _FoamMonitorOpsMixin
+    from ui.mixins._function_object_ops import _FunctionObjectOpsMixin
     from ui.mixins._menu_bar_ops import _MenuBarOpsMixin
     from ui.mixins._model_ops import _ModelOpsMixin
     from ui.mixins._panel_ops import _PanelOpsMixin
+    from ui.mixins._processor_ops import _ProcessorOpsMixin
     from ui.mixins._tools_ops import _ToolsOpsMixin
     from ui.mixins._tree_crud_ops import _TreeCrudOpsMixin
     from ui.mixins._tree_sync_ops import _TreeSyncOpsMixin
@@ -397,6 +453,9 @@ def test_main_window_inherits_all_mixins(qapp):
     assert issubclass(MainWindow, _PanelOpsMixin)
     assert issubclass(MainWindow, _FoamMonitorOpsMixin)
     assert issubclass(MainWindow, _ToolsOpsMixin)
+    assert issubclass(MainWindow, _ProcessorOpsMixin)
+    assert issubclass(MainWindow, _BackgroundRunOpsMixin)
+    assert issubclass(MainWindow, _FunctionObjectOpsMixin)
     assert issubclass(MainWindow, _ModelOpsMixin)
     assert issubclass(MainWindow, _UiOpsMixin)
     assert issubclass(MainWindow, _UndoOpsMixin)
@@ -432,6 +491,7 @@ MODEL_OPS_METHODS = [
     "_save_current_buffer",
     "_after_model_edit",
     "_update_viewer_panels",
+    "_prime_viewer",
     "_viewer_kind_for",
     "_update_block_mesh_viewer",
     "_expand_includes_for_viewer",
@@ -581,8 +641,8 @@ def test_every_mixin_method_is_declared_in_protocol():
 
 
 def test_all_mixin_methods_are_assigned_to_a_list():
-    """The 15 hand-maintained ``*_METHODS`` lists must, together, name every
-    method actually defined across the 15 mixin classes -- exactly.
+    """The 18 hand-maintained ``*_METHODS`` lists must, together, name every
+    method actually defined across the 18 mixin classes -- exactly.
 
     This deliberately stays a two-way equality check against the hand lists
     rather than regenerating them from the AST: the lists document which
@@ -600,6 +660,9 @@ def test_all_mixin_methods_are_assigned_to_a_list():
         "MENU_BAR_OPS_METHODS": MENU_BAR_OPS_METHODS,
         "FOAM_MONITOR_OPS_METHODS": FOAM_MONITOR_OPS_METHODS,
         "TOOLS_OPS_METHODS": TOOLS_OPS_METHODS,
+        "PROCESSOR_OPS_METHODS": PROCESSOR_OPS_METHODS,
+        "BACKGROUND_RUN_OPS_METHODS": BACKGROUND_RUN_OPS_METHODS,
+        "FUNCTION_OBJECT_OPS_METHODS": FUNCTION_OBJECT_OPS_METHODS,
         "FILE_OPS_METHODS": FILE_OPS_METHODS,
         "FILE_MGMT_OPS_METHODS": FILE_MGMT_OPS_METHODS,
         "TREE_CRUD_OPS_METHODS": TREE_CRUD_OPS_METHODS,

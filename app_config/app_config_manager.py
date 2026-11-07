@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from app_config.defaults import (
+    DEFAULT_REMIND_BACKGROUND_RUNS,
     DEFAULT_RESTORE_SESSION,
     DEFAULT_THEME,
     DEFAULT_UI_SCALE,
@@ -79,6 +80,7 @@ class AppConfigManager:
         self._theme: str = DEFAULT_THEME
         self._ui_scale: int = DEFAULT_UI_SCALE
         self._restore_session: bool = DEFAULT_RESTORE_SESSION
+        self._remind_background_runs: bool = DEFAULT_REMIND_BACKGROUND_RUNS
         self._sessions: dict[str, dict] = {}
         self._settings_were_reset = False
         # What went wrong, in words the UI can show. Recorded rather than printed:
@@ -106,6 +108,9 @@ class AppConfigManager:
         self._theme = data.get("theme", DEFAULT_THEME)
         self._ui_scale = _clamp_ui_scale(data.get("ui_scale", DEFAULT_UI_SCALE))
         self._restore_session = bool(data.get("restore_session", DEFAULT_RESTORE_SESSION))
+        self._remind_background_runs = bool(
+            data.get("remind_background_runs", DEFAULT_REMIND_BACKGROUND_RUNS)
+        )
         sessions = data.get("sessions")
         # Kept as raw dicts: this layer has no business knowing what a window
         # state looks like, and ui/window_state.py is where a bad one is
@@ -171,6 +176,8 @@ class AppConfigManager:
                 data["ui_scale"] = self._ui_scale
             if self._restore_session != DEFAULT_RESTORE_SESSION:
                 data["restore_session"] = self._restore_session
+            if self._remind_background_runs != DEFAULT_REMIND_BACKGROUND_RUNS:
+                data["remind_background_runs"] = self._remind_background_runs
             if self._sessions:
                 data["sessions"] = self._sessions
             save_json(self._config_path, data)
@@ -189,6 +196,7 @@ class AppConfigManager:
         self._theme = DEFAULT_THEME
         self._ui_scale = DEFAULT_UI_SCALE
         self._restore_session = DEFAULT_RESTORE_SESSION
+        self._remind_background_runs = DEFAULT_REMIND_BACKGROUND_RUNS
         self._sessions = {}
 
     def delete_config_file(self) -> bool:
@@ -372,6 +380,14 @@ class AppConfigManager:
         effect of a checkbox that says something else.
         """
         self._restore_session = enabled
+
+    def get_remind_background_runs(self) -> bool:
+        """Whether closing FoDE reminds of background runs still going."""
+        return self._remind_background_runs
+
+    def set_remind_background_runs(self, enabled: bool) -> None:
+        """Turn the close-time reminder on or off. Does not auto-save."""
+        self._remind_background_runs = enabled
 
     def has_stored_sessions(self) -> bool:
         """Whether any feature set has a layout stored."""

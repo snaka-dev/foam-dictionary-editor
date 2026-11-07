@@ -990,15 +990,43 @@ TRANSLATIONS: dict[str, str] = {
     "This case has no processor* directories.":
         "このケースには processor* ディレクトリがありません。",
     "processor* directories not deleted": "processor* ディレクトリを削除しませんでした",
-    "Deleting them would lose data that exists nowhere else:":
-        "削除すると、ほかのどこにもないデータが失われます:",
+    "Deleting them now could lose data:":
+        "いま削除すると、データが失われるおそれがあります:",
     "… and {n} more.": "…ほか {n} 件。",
     "Nothing was deleted.": "何も削除していません。",
     "Delete processor* directories?": "processor* ディレクトリを削除しますか?",
     "Everything that will be deleted also exists at the case root, "
-    "checked file by file. This cannot be undone.":
+    "checked file by file: each file is complete and matches the mesh. "
+    "This cannot be undone.":
         "削除されるものはすべてケースルートにも存在することを、ファイルごとに"
-        "確認済みです。この操作は元に戻せません。",
+        "確認済みです（各ファイルが最後まで書き込まれ、メッシュと一致すること）。"
+        "この操作は元に戻せません。",
+    "Read compressed files to the end first ({n} .gz files, {size} — this "
+    "can take a few minutes)":
+        "先に圧縮ファイルを最後まで読んで確認する（.gz ファイル {n} 個、{size}。"
+        "数分かかることがあります）",
+    "{n} compressed files ({size}) will be checked at their start only: one "
+    "cut off part-way would not be detected.":
+        "圧縮ファイル {n} 個（{size}）は先頭だけを確認します。途中で切れた"
+        "ファイルがあっても検出されません。",
+    "time {t}: {files} at the case root are cut off (incomplete) — run "
+    "reconstructPar -time {t} again":
+        "時刻 {t}: ケースルートの {files} が途中で切れています（不完全）— "
+        "reconstructPar -time {t} をもう一度実行してください",
+    "time {t}: {files} at the case root have no valid FoamFile header — run "
+    "reconstructPar -time {t} again":
+        "時刻 {t}: ケースルートの {files} に正しい FoamFile ヘッダがありません — "
+        "reconstructPar -time {t} をもう一度実行してください",
+    "time {t}: {files} at the case root hold a different number of values "
+    "than the mesh (file ≠ mesh), left from another mesh — run reconstructPar "
+    "-time {t} again":
+        "時刻 {t}: ケースルートの {files} は値の個数がメッシュと異なります"
+        "（ファイル ≠ メッシュ）。別のメッシュでの計算の残りです — "
+        "reconstructPar -time {t} をもう一度実行してください",
+    "{procs} is working in this case — wait for it to finish, since the "
+    "files may still be changing":
+        "{procs} がこのケースで動作中です。ファイルがまだ変わる可能性があるため、"
+        "終了を待ってください",
     "Permanently delete {size} from the processor* directories?":
         "processor* ディレクトリから {size} を完全に削除しますか?",
     "Permanently delete the processor* directories entirely ({size})?":
@@ -1014,7 +1042,203 @@ TRANSLATIONS: dict[str, str] = {
     "Deleting processor* data…": "processor* のデータを削除しています…",
     "Deleting {path}…": "{path} を削除しています…",
     "Stop": "停止",
-    "Stopping after the current directory…": "現在のディレクトリの削除が終わったら停止します…",
+    "Stopping…": "停止しています…",
+    "Stop Background Run": "Stop Background Run",
+    "Ask the solver running in the background in this case to write "
+    "the current time and stop (stopAt writeNow)":
+        "このケースでバックグラウンド実行中のソルバーに、現在の時刻を書き出して"
+        "停止するよう求めます（stopAt writeNow）",
+    "Ask {name} (pid {pid}) to write the current time and stop?\n\n"
+    "This sets stopAt writeNow in system/controlDict, which the "
+    "running solver re-reads. FoDE puts the original stopAt back "
+    "once the run has ended — when it is next open on this case, "
+    "if it is closed before then.":
+        "{name}（pid {pid}）に、現在の時刻を書き出して停止するよう求めますか?\n\n"
+        "system/controlDict に stopAt writeNow を設定します。実行中のソルバーは"
+        "これを読み直します。実行が終わると、FoDE が元の stopAt に戻します"
+        "（それまでに FoDE を閉じた場合は、次にこのケースを開いたときに戻します）。",
+    "Asked {name} to stop: it writes the current time at its next "
+    "step and exits. FoDE tells you when it has.":
+        "{name} に停止を求めました。次のステップで現在の時刻を書き出して終了します。"
+        "終了したら FoDE がお知らせします。",
+    " ({n} not reconstructed)": "（{n} 個が未再構築）",
+    " — times {times}": " — 時刻 {times}",
+    "Background run stopped": "バックグラウンド実行の停止",
+    '(other)': '（その他）',
+    'Add Function Object': '関数オブジェクトの追加',
+    'Add Function Object…': 'Add Function Object…',
+    "Add a post-processing function object — probes, a line graph, forces, … — from your OpenFOAM installation's templates: system/<name> plus #includeFunc in controlDict": 'OpenFOAM インストールのテンプレートから後処理用の関数オブジェクト（probes、線上のグラフ、forces など）を追加します: system/<name> と controlDict の #includeFunc',
+    "Choose a function object from your OpenFOAM installation's templates and fill in its settings. FoDE writes it to system/<name> and adds #includeFunc <name> to controlDict, as the tutorials do.": 'OpenFOAM インストールのテンプレートから関数オブジェクトを選び、設定を入力してください。FoDE はチュートリアルと同じように、それを system/<name> に書き、controlDict に #includeFunc <name> を追加します。',
+    'Choose a template on the left.': '左からテンプレートを選んでください。',
+    "Field names, separated by spaces. ▾ lists this case's fields.": 'フィールド名を空白で区切って入力します。▾ でこのケースのフィールドを選べます。',
+    'File to be written:': '書き出すファイル:',
+    'Name:': '名前:',
+    'Name: letters, digits and _ only, starting with a letter.': '名前: 英字で始まり、英数字と _ のみ使えます。',
+    'Name: {name} is already used in this case (in controlDict or as system/{name}) — choose another.': '名前: {name} はこのケースですでに使われています（controlDict 内、または system/{name}）— 別の名前にしてください。',
+    'No OpenFOAM installation found': 'OpenFOAM のインストールが見つかりません',
+    "One point per line, as x y z, in the mesh's coordinates.": '1 行に 1 点ずつ、メッシュの座標で x y z の形で入力します。',
+    "Patch names, separated by spaces. ▾ lists this case's patches.": 'パッチ名を空白で区切って入力します。▾ でこのケースのパッチを選べます。',
+    'Pick from this case': 'このケースから選ぶ',
+    'Search (name or description)': '検索（名前または説明）',
+    'Templates from: {path}': 'テンプレートの場所: {path}',
+    "The function-object templates come from an OpenFOAM installation, and none was found. Source OpenFOAM's bashrc before starting FoDE, or choose an installation in Tools > Find OpenFOAM Examples….": '関数オブジェクトのテンプレートは OpenFOAM のインストールから読みますが、見つかりませんでした。FoDE を起動する前に OpenFOAM の bashrc を読み込むか、Tools > Find OpenFOAM Examples… でインストールを選んでください。',
+    'This case has no system/controlDict to add a function object to.': 'このケースには関数オブジェクトを追加する system/controlDict がありません。',
+    'This function object has no settings to fill in.': 'この関数オブジェクトには入力する設定がありません。',
+    'This template holds code FoDE cannot turn into a form. Edit it as text below.': 'このテンプレートには FoDE が入力欄にできないコードが含まれています。下のテキストを直接編集してください。',
+    'Three numbers: x y z.': '3 つの数値: x y z。',
+    'a field name, e.g. p': 'フィールド名（例: p）',
+    'a number': '数値',
+    'a patch name': 'パッチ名',
+    "controlDict's functions entry is not a dictionary FoDE can add to. Nothing was written; add #includeFunc {name} to it by hand after creating system/{name}.": 'controlDict の functions は FoDE が追加できる辞書の形ではありません。何も書き込んでいません。system/{name} を作成した上で、#includeFunc {name} を手で追加してください。',
+    'field names, e.g. p U': 'フィールド名（例: p U）',
+    'one point per line: x y z': '1 行に 1 点: x y z',
+    'patch names, e.g. inlet outlet': 'パッチ名（例: inlet outlet）',
+    'system/controlDict has unsaved edits. Save or reload it first: adding a function object writes to it.': 'system/controlDict に未保存の編集があります。関数オブジェクトの追加はこのファイルに書き込むため、先に保存するか読み込み直してください。',
+    'system/{name} already exists; nothing was written.': 'system/{name} はすでに存在します。何も書き込んでいません。',
+    'x y z': 'x y z',
+    '{key}: a number is needed.': '{key}: 数値が必要です。',
+    '{key}: each line needs three numbers, as x y z.': '{key}: 各行に x y z の 3 つの数値が必要です。',
+    '{key}: enter a value.': '{key}: 値を入力してください。',
+    '{key}: names only — letters, digits and _ . : + -.': '{key}: 名前のみ — 英数字と _ . : + - が使えます。',
+    '{key}: replace the <…> placeholder with a value.': '{key}: <…> の部分を値に置き換えてください。',
+    '{key}: this value cannot be written.': '{key}: この値は書き込めません。',
+    '{key}: three numbers are needed, as x y z.': '{key}: x y z の 3 つの数値が必要です。',
+    "▾ lists this case's fields.": '▾ でこのケースのフィールドを選べます。',
+    "▾ lists this case's patches.": '▾ でこのケースのパッチを選べます。',
+    "Not patches of this case's mesh: {names}. Fine for a patch group; otherwise pick from ▾ before running.": "このケースのメッシュにないパッチ: {names}。パッチグループなら問題ありません。そうでなければ、実行前に ▾ から選んでください。",
+    'Added function object {name}: system/{name}, and #includeFunc {name} in controlDict. It runs with the solver; for existing results, run {tool} -func {name}.': '関数オブジェクト {name} を追加しました: system/{name} と controlDict の #includeFunc {name}。ソルバーと一緒に実行されます。既存の結果に対しては {tool} -func {name} を実行してください。',
+    'Also run it on the latest existing results now:  {command}': '既存の最新の結果にもすぐ実行する:  {command}',
+    'Applies the function object to the latest results that already exist, in the Terminal tab — through the solver when the function needs its models (forces, yPlus, …). It runs with the solver from now on either way.': 'すでにある最新の結果に、Terminal タブで関数オブジェクトを適用します。関数がモデルを必要とする場合（forces、yPlus など）はソルバーを通して実行します。どちらの場合も、今後はソルバーと一緒に実行されます。',
+    'Cutting planes — one per line: name  px py pz  nx ny nz': '切断面 — 1 行に 1 つ: 名前  px py pz  nx ny nz',
+    'Other surfaces, as written — delete those this case does not have:': 'その他の面（書かれたまま）— このケースにないものは削除してください:',
+    'midPlane  0 0 0.005  0 0 1': 'midPlane  0 0 0.005  0 0 1',
+    'running postProcess': 'postProcess を実行する',
+    '{key}: each plane line needs a name and six numbers: name  px py pz  nx ny nz.': '{key}: 各行に名前と 6 つの数値が必要です: 名前  px py pz  nx ny nz。',
+    '(controlDict names no solver to run it through — untick “Run through the solver”)': '（controlDict にソルバーの指定がないため、ソルバーを通して実行できません —「ソルバーを通して実行」のチェックを外してください）',
+    '(enter a function name, e.g. probes or mag(U))': '（関数名を入力してください。例: probes、mag(U)）',
+    '(every function in controlDict)': '（controlDict のすべての関数）',
+    'Function:': '関数:',
+    "Functions such as yPlus, wallShearStress and forces need the solver's turbulence and transport models. Run plainly, they finish without error yet calculate nothing (“Unable to find turbulence model in the database”).": 'yPlus、wallShearStress、forces などの関数はソルバーの乱流モデルと輸送モデルを必要とします。そのまま実行するとエラーなく終了しますが、何も計算されません（「Unable to find turbulence model in the database」）。',
+    "Run function objects on results that already exist — the case's own, or one-offs such as mag(U) or yPlus — in the terminal panel, through the solver where a function needs it": 'すでにある結果に関数オブジェクトを実行します — ケース自身のもの、または mag(U) や yPlus のような単発のもの。ターミナルパネルで実行し、必要な関数はソルバーを通して実行します',
+    'Run postProcess': 'postProcess の実行',
+    'Run postProcess with this…': 'これで postProcess を実行…',
+    'Run postProcess…': 'Run postProcess…',
+    'Run through the solver  ({via})': 'ソルバーを通して実行  ({via})',
+    'Some files have unsaved edits. postProcess reads them from disk — save first for a changed function object to count.': '未保存の編集があるファイルがあります。postProcess はディスクから読むため、変更した関数オブジェクトを反映させるには先に保存してください。',
+    "The case's own function objects come first, then common ones OpenFOAM runs straight from its templates. Type any other name, with arguments if it takes them, e.g. mag(p).": 'ケース自身の関数オブジェクトが先に、続いて OpenFOAM がテンプレートから直接実行できるよく使うものが並びます。その他の名前も入力でき、引数を取るものは引数付きで書きます（例: mag(p)）。',
+    'This case has no results yet: postProcess works on time directories a run has written. Function objects in controlDict run with the solver anyway.': 'このケースにはまだ結果がありません。postProcess は計算が書き出した時間ディレクトリに対して動作します。controlDict の関数オブジェクトはいずれにせよソルバーと一緒に実行されます。',
+    'Latest time only': '最新の時刻のみ',
+    'Times to process': '処理する時刻',
+    'Leave out the 0/ directory': '0/ ディレクトリを除く',
+    'Fields to load': '読み込むフィールド',
+    'Every function in controlDict at once needs it too: plain postProcess then loads no fields, and each sampling function reports “Cannot find registered field” and writes nothing.': 'controlDict のすべての関数を一度に実行する場合も必要です。そのままの postProcess はフィールドを何も読み込まないため、サンプリングの関数はどれも「Cannot find registered field」と出して何も書き出しません。',
+    'Placed at the centre of the mesh (from blockMeshDict).': 'メッシュの中心に置きました（blockMeshDict から）。',
+    "Along the mesh's longest direction, through its centre (from blockMeshDict).": 'メッシュの中心を通り、最も長い方向に沿っています（blockMeshDict から）。',
+    "Through the centre of the mesh, across its thinnest direction (from blockMeshDict) — a 2-D case's mid-plane.": 'メッシュの中心を通り、最も薄い方向に垂直です（blockMeshDict から）— 2 次元ケースの中央面です。',
+    'Moved to the centre of the mesh (from blockMeshDict).': 'メッシュの中心に移しました（blockMeshDict から）。',
+    "This is snappyHexMesh's background box: check the 3-D view that it is in the fluid, not inside a solid body.": 'これは snappyHexMesh の背景ボックスです。固体の中ではなく流体の中にあるか、3D ビューで確認してください。',
+    "Background runs continue": "バックグラウンド実行は続きます",
+    "Don't remind me again": "今後は表示しない",
+    "{name} in {case} (pid {pid})": "{case} の {name}（pid {pid}）",
+    "Still running in the background, and it keeps going after FoDE closes:":
+        "次の実行はバックグラウンドで動作中で、FoDE を閉じても続きます:",
+    "To check on a run or stop it, open its case in FoDE again: a "
+    "badge beside the case name shows the run.":
+        "実行の確認や停止は、そのケースを FoDE で再び開いて行います。"
+        "ケース名の横にバッジで実行が表示されます。",
+    "Shutting down or logging out of the computer ends it.":
+        "コンピューターをシャットダウンするかログアウトすると、実行は終了します。",
+    "● {name} running in background": "● {name} をバックグラウンド実行中",
+    "■ Stopping {name}…": "■ {name} を停止中…",
+    "{name} running": "{name} 実行中",
+    "stopping {name}": "{name} 停止中",
+    "{name} (pid {pid}) is running in the background in this case, "
+    "writing {log}; it keeps going if FoDE closes. Click to stop "
+    "it or view its log summary.":
+        "{name}（pid {pid}）がこのケースでバックグラウンド実行中で、{log} に書き込んでいます。"
+        "FoDE を閉じても続きます。クリックすると停止やログの要約表示ができます。",
+    "Decomposed (collated): {n} processors": "分割済み（collated）: {n} プロセッサ",
+    "Decomposed: 1 processor": "分割済み: 1 プロセッサ",
+    "Decomposed: {n} processors": "分割済み: {n} プロセッサ",
+    "Not reconstructed yet: {times} — decomposePar -force would delete them.":
+        "未再構築: {times} — decomposePar -force を実行すると削除されます。",
+    "Right-click for reconstructPar or deleting processor*.":
+        "右クリックで reconstructPar や processor* の削除を実行できます。",
+    "Running in background: {name} (pid {pid})": "バックグラウンド実行中: {name}（pid {pid}）",
+    "Started with Keep running after FoDE closes; writes {log}. Right-click "
+    "to stop it or view the log summary.":
+        "「FoDE を閉じても実行を続ける」で開始した実行です。{log} に書き込みます。"
+        "右クリックで停止やログの要約表示ができます。",
+    "Stopping {name} (pid {pid}) — requested {at}": "{name} を停止中（pid {pid}）— {at} に要求",
+    "The background run": "バックグラウンド実行",
+    "Times in processor*: {times}": "processor* の時刻: {times}",
+    "none": "なし",
+    "stopAt in controlDict is back to {value}.": "controlDict の stopAt を {value} に戻しました。",
+    "stopAt in controlDict was changed while the run stopped, so FoDE left "
+    "it as it is.":
+        "停止の間に controlDict の stopAt が変更されたため、FoDE はそのままにしました。",
+    "stopAt writeNow is set: the solver stops after writing its current "
+    "time step, which can take as long as one step.":
+        "stopAt writeNow を設定済みです。ソルバーは現在の時間ステップを書き出してから"
+        "停止します。最大で 1 ステップ分の時間がかかります。",
+    "{name} ended without finishing cleanly: its log has no final End line, "
+    "so it may have crashed or been killed, and the last time written ({t}) "
+    "may be incomplete. Check {log}.":
+        "{name} は正常に終了しませんでした。ログの最後に End の行がないため、"
+        "異常終了したか強制終了された可能性があり、最後に書き出された時刻（{t}）は"
+        "不完全かもしれません。{log} を確認してください。",
+    "{name} ended without finishing cleanly: its log has no final "
+    "End line, so it may have crashed or been killed. No time "
+    "directory was written. Check {log}.":
+        "{name} は正常に終了しませんでした。ログの最後に End の行がないため、"
+        "異常終了したか強制終了された可能性があります。時間ディレクトリは"
+        "書き出されていません。{log} を確認してください。",
+    "{name} has finished in the background; its output is in {log}.":
+        "{name} のバックグラウンド実行が終了しました。出力は {log} にあります。",
+    "{name} has stopped. Last time written: {t}.":
+        "{name} が停止しました。最後に書き出された時刻: {t}。",
+    "{name} has stopped. No time directory was written.":
+        "{name} が停止しました。時間ディレクトリは書き出されていません。",
+    "Background run in progress": "バックグラウンド実行中",
+    "Keep running after FoDE closes (run in the background)":
+        "FoDE を閉じても実行を続ける（バックグラウンドで実行）",
+    "No background run": "バックグラウンド実行はありません",
+    "No background run started from FoDE is going in this case.":
+        "このケースでは、FoDE から開始したバックグラウンド実行は動いていません。",
+    "The output goes straight to the log; the Terminal tab follows "
+    "it, and Ctrl+C there stops only the following, not the run. "
+    "Edits saved to controlDict, fvSchemes or fvSolution while it "
+    "runs take effect in it. Stop it with Tools > Stop Background "
+    "Run, which makes the solver write the current time first.":
+        "出力はログに直接書かれます。Terminal タブはそれを追って表示し、そこでの"
+        "Ctrl+C は表示を止めるだけで、実行は止めません。実行中に controlDict、"
+        "fvSchemes、fvSolution へ保存した編集は、その実行に反映されます。止めるには "
+        "Tools > Stop Background Run を使います。ソルバーは先に現在の時刻を書き出します。",
+    "controlDict has stopAt {value}, so the solver will stop "
+    "right after it starts — set it back (usually endTime) first.":
+        "controlDict の stopAt が {value} のため、ソルバーは開始直後に停止します — "
+        "先に元の値（通常は endTime）に戻してください。",
+    "controlDict sets runTimeModifiable off, so the running "
+    "solver never re-reads it and cannot be asked to stop. "
+    "To end it anyway, run kill -- -{pid} in a terminal (the "
+    "minus before the pid ends the whole run, mpirun and "
+    "solver included) — the current time step is then lost.":
+        "controlDict で runTimeModifiable がオフのため、実行中のソルバーは"
+        "これを読み直さず、停止を求めることができません。それでも終了するには、"
+        "ターミナルで kill -- -{pid} を実行してください（pid の前のマイナスで、"
+        "mpirun やソルバーを含む実行全体が終了します）— その場合、現在の時間ステップは失われます。",
+    "system/controlDict has unsaved edits. Save or reload it "
+    "first, so the stop request and your edits do not "
+    "overwrite each other.":
+        "system/controlDict に未保存の編集があります。停止の要求と編集が互いを"
+        "上書きしないよう、先に保存するか読み込み直してください。",
+    "{name} is running in the background in this case (pid "
+    "{pid}). Wait for it to finish before {what}, or stop it "
+    "with Tools > Stop Background Run.":
+        "{name} がこのケースでバックグラウンド実行中です（pid {pid}）。"
+        "{what}前に終了を待つか、Tools > Stop Background Run で停止してください。",
+    "Checking {path}…": "{path} を確認しています…",
+    "Stopped before anything was deleted.": "何も削除しないうちに停止しました。",
     "Deletion stopped": "削除を停止しました",
     "Stopped after {done} of {total} directories. Everything "
     "deleted so far also exists at the case root, and nothing "

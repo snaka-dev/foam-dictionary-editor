@@ -14,11 +14,13 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QPushButton,
     QSplitter,
     QStatusBar,
     QTabWidget,
     QToolBar,
+    QToolButton,
     QTreeView,
     QVBoxLayout,
     QWidget,
@@ -27,6 +29,7 @@ from PySide6.QtWidgets import (
 from app_config import get_app_config
 from i18n import tr
 from model.tree_model import FoamTreeModel
+from services.background_run import BackgroundRun
 from ui.app_state import AppState
 from ui.case_navigation import CaseNavigator
 from ui.fonts import button_pixel_width, icon_pixel_size
@@ -40,6 +43,7 @@ from ui.layout_constants import (
     SPLITTER_UPPER_HEIGHT,
     STATUS_NORMAL,
 )
+from ui.mixins._background_run_ops import _BackgroundRunOpsMixin
 from ui.mixins._boundary_ops import _BoundaryOpsMixin
 from ui.mixins._case_nav_ops import _CaseNavOpsMixin
 from ui.mixins._case_ops import _CaseOpsMixin
@@ -47,9 +51,11 @@ from ui.mixins._diff_ops import _DiffOpsMixin
 from ui.mixins._file_mgmt_ops import _FileManagementOpsMixin
 from ui.mixins._file_ops import _FileOpsMixin
 from ui.mixins._foam_monitor_ops import _FoamMonitorOpsMixin
+from ui.mixins._function_object_ops import _FunctionObjectOpsMixin
 from ui.mixins._menu_bar_ops import _MenuBarOpsMixin
 from ui.mixins._model_ops import _ModelOpsMixin
 from ui.mixins._panel_ops import _PanelOpsMixin
+from ui.mixins._processor_ops import _ProcessorOpsMixin
 from ui.mixins._tools_ops import _ToolsOpsMixin
 from ui.mixins._tree_crud_ops import _TreeCrudOpsMixin
 from ui.mixins._tree_sync_ops import _TreeSyncOpsMixin
@@ -104,6 +110,9 @@ class MainWindow(
     _CaseNavOpsMixin,
     _FoamMonitorOpsMixin,
     _ToolsOpsMixin,
+    _ProcessorOpsMixin,
+    _BackgroundRunOpsMixin,
+    _FunctionObjectOpsMixin,
     _FileOpsMixin,
     _FileManagementOpsMixin,
     _TreeCrudOpsMixin,
@@ -121,6 +130,12 @@ class MainWindow(
         self.setWindowTitle(tr("foam dictionary editor"))
 
         self.state = AppState()
+        # " — icoFoam running" in the window title while the open case has a
+        # background run; set by _update_background_badge.
+        self._background_title = ""
+        # Every case whose background run FoDE has seen this session, so the
+        # close-time reminder covers runs in cases no longer open.
+        self._background_cases: set[str] = set()
         self._foam_monitor_action: QAction | None = None
         self._restore_0dir_action: QAction | None = None
         self._run_blockmesh_action: QAction | None = None
@@ -130,6 +145,12 @@ class MainWindow(
         self._run_checkmesh_action: QAction | None = None
         self._run_decomposepar_action: QAction | None = None
         self._run_solver_action: QAction | None = None
+        self._add_function_object_action: QAction | None = None
+        self._run_post_process_action: QAction | None = None
+        # Whether the open Add Function Object dialog has brought the 3-D
+        # view forward yet (ui/mixins/_function_object_ops.py).
+        self._preview_shown = False
+        self._stop_background_run_action: QAction | None = None
         self._run_reconstructpar_action: QAction | None = None
         self._delete_processor_dirs_action: QAction | None = None
         self._run_allrun_action: QAction | None = None
@@ -220,6 +241,17 @@ class MainWindow(
         self.current_case_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.current_case_label.setToolTip(tr("Current case name"))
 
+        # Shown beside the case name only while the case has a background
+        # run: the file list's row says the same, but the bottom of a list is
+        # the last place anyone looks. Click for the run's two actions.
+        self.background_run_btn = QToolButton()
+        self.background_run_btn.setAutoRaise(True)
+        self.background_run_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        badge_menu = QMenu(self.background_run_btn)
+        badge_menu.addAction(tr("Stop Background Run"), self._on_stop_background_run_clicked)
+        badge_menu.addAction(tr("View Log Summary…"), self._on_view_log_summary_clicked)
+        self.background_run_btn.setMenu(badge_menu)
+
         self.current_file_label = QLabel("-")
         self.current_file_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.current_file_label.setToolTip(tr("Current file name"))
@@ -234,6 +266,16 @@ class MainWindow(
         self._file_list_refresh_timer.setSingleShot(True)
         self._file_list_refresh_timer.setInterval(400)
         self._file_list_refresh_timer.timeout.connect(self._reload_file_list)
+        # Re-armed by _poll_background_run while the open case has a background
+        # run or a pending stop (ui/mixins/_background_run_ops.py); _background_seen is
+        # the run it last saw, so it can tell "finished" from "never started".
+        self._background_run_timer = QTimer(self)
+        self._background_run_timer.setSingleShot(True)
+        self._background_run_timer.setInterval(2000)
+        self._background_run_timer.timeout.connect(self._poll_background_run)
+        self._background_seen: tuple[str, BackgroundRun] | None = None
+        # The listed files _prime_viewer has read for the 3-D view, by path.
+        self._viewer_primed: dict = {}
 
         self._action_toolbar = QToolBar(self)
         # Harmless today -- there is nothing to save/restore a toolbar layout
@@ -279,6 +321,9 @@ class MainWindow(
         self._action_toolbar.addSeparator()
         self._action_toolbar.addWidget(QLabel(tr("Case:")))
         self._action_toolbar.addWidget(self.current_case_label)
+        # A toolbar widget is hidden through the action addWidget returns.
+        self._background_badge_action = self._action_toolbar.addWidget(self.background_run_btn)
+        self._background_badge_action.setVisible(False)
         # QToolBar has no addSpacing; a fixed-width empty widget is the
         # native equivalent of the old layout's addSpacing(16) between the
         # two labels.
@@ -572,6 +617,12 @@ class MainWindow(
         self.file_list_panel.remove_extra_dir_requested.connect(self._on_remove_extra_dir)
         self.file_list_panel.refresh_requested.connect(self._reload_file_list)
         self.file_list_panel.copy_into_case_requested.connect(self._on_copy_into_case_requested)
+        flp = self.file_list_panel
+        flp.reconstruct_requested.connect(self._on_run_reconstructpar_clicked)
+        flp.delete_processors_requested.connect(self._on_delete_processor_dirs_clicked)
+        flp.stop_background_requested.connect(self._on_stop_background_run_clicked)
+        flp.view_log_summary_requested.connect(self._on_view_log_summary_clicked)
+        flp.run_post_process_requested.connect(self._on_run_post_process_for_file)
         nav = self._case_navigator
         nav.browser_requested.connect(self._on_open_case_browser)
         nav.open_case_requested.connect(self._on_case_nav_open_requested)
@@ -661,6 +712,10 @@ class MainWindow(
         if not self._confirm_discard_if_needed():
             event.ignore()
             return
+        # After both questions that can cancel the close, so it only appears
+        # when FoDE really is closing; before the save, so "Don't remind me
+        # again" is stored.
+        self._remind_background_runs()
         cfg = get_app_config()
         # "Reset All Settings" deleted app_config.json earlier in this run.
         # Capturing the layout and window size below would recreate the file and
