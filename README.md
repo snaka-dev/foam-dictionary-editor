@@ -2,7 +2,7 @@
 
 **A desktop editor for OpenFOAM cases** — open a case, see what its dictionaries describe, edit them with help on every key, and run the case without memorising commands. FoDE (pronounced "foh-dee") is free and open source, written in Python with PySide6.
 
-🎬 [Demo movies](docs/DEMO_SCRIPTS.md) (twelve, on Vimeo) · 📖 [User Guide](USER_GUIDE.md) · 🖼️ [Screenshots](docs/SCREENSHOTS.md) · 📄 Published in [*SoftwareX*](https://doi.org/10.1016/j.softx.2026.102852) — see [Citation](#citation)
+🎬 [Demo movies](docs/DEMO_SCRIPTS.md) (fifteen, on Vimeo) · 📖 [User Guide](USER_GUIDE.md) · 🖼️ [Screenshots](docs/SCREENSHOTS.md) · 📄 Published in [*SoftwareX*](https://doi.org/10.1016/j.softx.2026.102852) — see [Citation](#citation)
 
 ![Main window — Tree and Editor tabs](docs/images/main-window-tree-editor.png)
 
@@ -12,6 +12,7 @@
 - **Get help on every key.** Select a setting and the side panel explains it, lists the valid choices, and says which OpenFOAM versions support it. Turbulence models come with the paper that defines them and their default coefficients. → [Detail pane](USER_GUIDE.md#detail-pane)
 - **All boundary conditions in one table.** Every patch against every field, editable in place, instead of opening `0/U`, `0/p`, `0/k`… one by one. → [Boundary view](USER_GUIDE.md#boundary-view)
 - **Run the case from the menu.** blockMesh, setFields, the solver — in parallel, or in the background so it keeps going after you close FoDE — each with a dialog that shows the exact command, and a short summary of the log afterwards. → [Run Solver](USER_GUIDE.md#run-solver)
+- **Help with a first run.** Check Case finds the classic mistakes — a patch with no boundary condition, a `controlDict` that writes nothing — before anything runs; when a run fails anyway, the log summary explains the error in plain words and opens the file at the line. → [Check Case](USER_GUIDE.md#check-case)
 - **Add post-processing without knowing the dictionary.** Probes, line graphs, cutting planes and forces from a form, drawn in 3-D as you fill it in. → [Add Function Object](USER_GUIDE.md#add-function-object)
 - **Compare with a working case.** Put your case beside a tutorial: differences are coloured, and one right-click adopts a value. → [Case comparison](USER_GUIDE.md#case-comparison)
 
@@ -63,8 +64,9 @@ This uses `tutorials/damBreak`, which comes with FoDE.
 3. **See it:** open the **BlockMesh** tab. The mesh, the water column from `setFieldsDict` and the two gauge lines are drawn. *If the tab is missing,* untick **xterm terminal** at the top of the **Terminal** tab: the 3-D view and that terminal cannot share the graphics card, so they take turns.
 4. **Read and edit:** click `system/controlDict`, then a row in the **Tree** tab — the side panel explains the key and lists its choices. Change a value and save with `Ctrl+S`.
 5. **Check the boundaries:** the **Boundary** tab shows every patch against every field.
-6. **Run it** (the run writes its mesh and results into the opened folder, so copy the tutorial first with **Case > Duplicate Case…** if you want to keep the repository clean): **Tools > Run blockMesh…**, then **Tools > Run setFields…** (its *Restore 0/ from 0.orig/ first* box is ticked for you), then **Tools > Run Solver…**. Each shows the command before it runs; the output appears in the Terminal and is saved to `log.*`.
-7. **Look at the result:** **Tools > View Log Summary…** condenses the solver log; **Tools > Open Mesh in ParaView…** opens the case for viewing.
+6. **Check before running:** **Tools > Check Case…** lists anything that would stop the run, with the file and line. Here it reports that `0/` is missing; the next step creates it from `0.orig/`.
+7. **Run it** (the run writes its mesh and results into the opened folder, so copy the tutorial first with **Case > Duplicate Case…** if you want to keep the repository clean): **Tools > Run blockMesh…**, then **Tools > Run setFields…** (its *Restore 0/ from 0.orig/ first* box is ticked for you), then **Tools > Run Solver…**. Each shows the command before it runs; the output appears in the Terminal and is saved to `log.*`.
+8. **Look at the result:** **Tools > View Log Summary…** condenses the solver log, and explains the error if the run failed; **Tools > Open Mesh in ParaView…** opens the case for viewing.
 
 To start from your own case instead, open it the same way, or drag its folder onto the window. **Case > Duplicate from Case Library…** copies an OpenFOAM tutorial into a folder of your own to start from.
 
@@ -105,7 +107,9 @@ Each heading links to the full description in the [User Guide](USER_GUIDE.md).
 - blockMesh, snappyHexMesh, topoSet, setFields, checkMesh, decomposePar, reconstructPar and the solver, each from a dialog that shows the command; `Allrun`/`Allclean`; [runs that outlive FoDE](USER_GUIDE.md#background-runs-and-stop-background-run), stopped cleanly at a written time.
 - [Add function objects](USER_GUIDE.md#add-function-object) from your installation's own templates, and [run postProcess](USER_GUIDE.md#run-postprocess) on existing results.
 - [Delete processor\* directories](USER_GUIDE.md#delete-processor-directories) only after FoDE has checked that the reconstructed results are complete.
-- [Log summaries](USER_GUIDE.md#view-log-summary), [foamMonitor](USER_GUIDE.md#foammonitor-launcher) residual plots, and ParaView.
+- [Check Case](USER_GUIDE.md#check-case) before a run, and [log summaries](USER_GUIDE.md#view-log-summary) that explain the error after a failed one.
+- [foamMonitor](USER_GUIDE.md#foammonitor-launcher) residual plots, and ParaView.
+- [Allrun Steps](USER_GUIDE.md#allrun-steps): a case's `Allrun` as steps marked done or failed from their logs, run one at a time; [Create Allrun from Logs](USER_GUIDE.md#create-allrun-from-logs) writes an `Allrun`, `Allclean` and `Allrun-parallel` for a case built by hand.
 
 **[Finding out how others do it](USER_GUIDE.md#find-openfoam-examples)**
 - Search your installation's tutorials for a keyword and see it in use; [compare your case](USER_GUIDE.md#case-comparison) with one and adopt its values.
@@ -150,7 +154,7 @@ The `cavity/` cases, `snappyMultiRegionHeater`, `damBreak`, and `pitzDaily` are 
 
 - [User Guide](USER_GUIDE.md) — every panel, menu and workflow.
 - [Screenshots](docs/SCREENSHOTS.md) — annotated pictures of the app.
-- [Demo movies](docs/DEMO_SCRIPTS.md) — twelve short walkthroughs on Vimeo, with their shot-by-shot scripts. Start with [Edit, see, run](https://vimeo.com/1218332419?texttrack=en) (~94 s), or watch [the whole workflow](https://vimeo.com/1217899060?texttrack=en) (~3 min 41 s).
+- [Demo movies](docs/DEMO_SCRIPTS.md) — fifteen short walkthroughs on Vimeo, with their shot-by-shot scripts. Start with [Edit, see, run](https://vimeo.com/1218332419?texttrack=en) (~94 s), or watch [the whole workflow](https://vimeo.com/1217899060?texttrack=en) (~3 min 41 s).
 - [Release notes](RELEASE_NOTES.md) — what changed in each version.
 - [Developer guide](DEVELOPER.md) — project structure, development setup and tests.
 

@@ -196,6 +196,8 @@ TRANSLATIONS: dict[str, str] = {
     # above and "blockMesh" embedded in the Tools-menu strings.
     "pyvista / pyvistaqt is not installed.\nRun:  pip install pyvista pyvistaqt":
         "pyvista / pyvistaqt がインストールされていません。\n次を実行してください:  pip install pyvista pyvistaqt",
+    'The 3-D view could not start: {error}':
+        '3D ビューを起動できませんでした: {error}',
     "Mouse:  drag = rotate  |  Shift+drag = pan  |  scroll / right-drag = zoom  |  R = reset camera  |  F = fly to point":
         "マウス:  ドラッグ = 回転  |  Shift+ドラッグ = パン  |  "
         "スクロール / 右ドラッグ = ズーム  |  R = カメラをリセット  |  F = ポイントへ移動",
@@ -884,6 +886,358 @@ TRANSLATIONS: dict[str, str] = {
     "Copy 0/ as-is instead of decomposing the fields":
         "場を分割せず 0/ をそのままコピー",
     "Decompose the latest time directory only": "最新の時間ディレクトリのみ分割",
+
+    # ── File list: suffixed variants ──────────────────────────────────────────
+    'A variant of {base}. OpenFOAM reads it only when a command names it (-dict …) or a script copies it over {base}; editing it does not change {base}.':
+        '{base} の派生ファイルです。OpenFOAM がこれを読むのは、コマンドが名前で指定したとき（-dict …）か、スクリプトが {base} に上書きコピーしたときだけです。これを編集しても {base} は変わりません。',
+
+    # ── Files changed outside FoDE (save guard, Reload File from Disk) ────────
+    'File Changed on Disk':
+        'ディスク上のファイルが変更されています',
+    'Files Changed on Disk':
+        'ディスク上のファイルが変更されています',
+    'Reload File from Disk':
+        'ファイルをディスクから再読み込み',
+    'Reload from Disk':
+        'ディスクから再読み込み',
+    'Reloaded from disk: {name}':
+        'ディスクから再読み込みしました: {name}',
+    'Save Them Anyway':
+        'それでも保存',
+    'Save the Others Only':
+        'ほかのファイルだけ保存',
+    'These files were changed or deleted by another program after FoDE read them:\n\n{files}\n\nSaving them replaces those versions with yours.':
+        'これらのファイルは、FoDE が読み込んだ後に別のプログラムによって変更または削除されました:\n\n{files}\n\n保存すると、それらの版があなたの版で置き換わります。',
+    'This file was changed or deleted by another program after FoDE read it:\n\n{files}\n\nSaving replaces that version with yours. To see the other version first, cancel and use Reload File from Disk (F5), which discards your unsaved edits.\n\nSave anyway?':
+        'このファイルは、FoDE が読み込んだ後に別のプログラムによって変更または削除されました:\n\n{files}\n\n保存すると、その版があなたの版で置き換わります。先にもう一方の版を見るには、キャンセルして「ファイルをディスクから再読み込み」(F5) を使ってください（保存していない編集は破棄されます）。\n\nそれでも保存しますか?',
+    '{name} (deleted)':
+        '{name}（削除済み）',
+    '{name} has unsaved changes. Reloading replaces them with the file on disk. Reload?':
+        '{name} には保存していない変更があります。再読み込みすると、それらはディスク上のファイルで置き換わります。再読み込みしますか?',
+    '{name} no longer exists on disk.':
+        '{name} はもうディスク上にありません。',
+
+    # ── View Log Summary: advice ──────────────────────────────────────────────
+    'A patch has no boundary condition':
+        '境界条件のないパッチがあります',
+    'Decomposition does not add up':
+        '領域分割の数が合いません',
+    'Dictionary syntax error':
+        '辞書の書式エラー',
+    'Did you mean "{suggestion}"?':
+        '"{suggestion}" のことではありませんか?',
+    "Every patch of the mesh needs an entry in each field's boundaryField, and {field} has none for {patch}. Add one, or check that the name matches constant/polyMesh/boundary exactly (names are case-sensitive). Tools > Check Case… finds these before a run.":
+        'メッシュのすべてのパッチは各場の boundaryField に項目が必要ですが、{field} には {patch} の項目がありません。項目を追加するか、名前が constant/polyMesh/boundary と完全に一致しているか（大文字と小文字は区別されます）確認してください。Tools > Check Case… なら実行前に見つけられます。',
+    'Missing entry: {key}':
+        '項目がありません: {key}',
+    'Missing file: {path}':
+        'ファイルがありません: {path}',
+    'No mesh':
+        'メッシュがありません',
+    'No pressure reference':
+        '圧力の基準がありません',
+    'Open {file}':
+        '{file} を開く',
+    'Open {file} at line {line}':
+        '{file} の {line} 行目を開く',
+    'OpenFOAM could not read the dictionary: "{message}". Look for an unbalanced brace or bracket, or a missing \';\', at or just before the line it names — the problem is often a line or two earlier.':
+        'OpenFOAM は辞書を読めませんでした: "{message}"。示された行かその直前で、対応の取れていない括弧や抜けた \';\' を探してください — 原因は 1、2 行前にあることがよくあります。',
+    'OpenFOAM does not know the {what} "{name}". It is usually a misspelling (names are case-sensitive), or a name from the other OpenFOAM fork or another version — the log lists the names this installation accepts.':
+        'OpenFOAM は {what} "{name}" を知りません。たいていは綴り間違い（大文字と小文字は区別されます）か、もう一方の OpenFOAM フォークや別のバージョンの名前です — このインストールが受け付ける名前はログに一覧があります。',
+    "OpenFOAM needs the entry {key} in {dict}, and it is not there. Add it — Find OpenFOAM Examples shows how the tutorials write it — or check its spelling, and that the entry before it ends with ';'.":
+        "OpenFOAM は {dict} に項目 {key} を必要としていますが、ありません。追加してください（Find OpenFOAM Examples でチュートリアルでの書き方を確認できます）。または綴りと、その前の項目が ';' で終わっているかを確認してください。",
+    'Patch type and boundary condition disagree':
+        'パッチタイプと境界条件が食い違っています',
+    'Temperature could not be calculated':
+        '温度を計算できませんでした',
+    'The case is set up for {want} processes but the run was started with {got}. Use mpirun -np {want}, or change numberOfSubdomains and run decomposePar again.':
+        'ケースは {want} プロセス用に設定されていますが、実行は {got} プロセスで始まりました。mpirun -np {want} を使うか、numberOfSubdomains を変えて decomposePar を再実行してください。',
+    "The mesh says the patch is of type {patch_type}, but {field} gives it {field_type}. For empty, symmetry, wedge and cyclic patches the field's type must be the patch's type. Change the field, or change the patch type in blockMeshDict and re-run blockMesh.":
+        'メッシュではこのパッチのタイプは {patch_type} ですが、{field} は {field_type} を与えています。empty、symmetry、wedge、cyclic のパッチでは、場のタイプはパッチのタイプと同じでなければなりません。場を直すか、blockMeshDict でパッチのタイプを変えて blockMesh を再実行してください。',
+    'The run crashed at time {time} with the Courant number at {courant}. Above about 1 most solvers become unstable: lower deltaT, or set adjustTimeStep yes with maxCo in controlDict so the solver chooses it.':
+        '計算は時刻 {time} で、クーラン数 {courant} の状態で異常終了しました。クーラン数がおよそ 1 を超えるとほとんどのソルバーは不安定になります: deltaT を小さくするか、controlDict で adjustTimeStep yes と maxCo を設定してソルバーに選ばせてください。',
+    'The solution diverged (floating point exception)':
+        '解が発散しました（浮動小数点例外）',
+    'The solution diverged and the run crashed. Common causes: a deltaT that is too large, a boundary condition that does not fit the flow, a poor mesh (run checkMesh), or schemes that are too aggressive for a first run.':
+        '解が発散して計算が異常終了しました。よくある原因: 大きすぎる deltaT、流れに合わない境界条件、質の悪いメッシュ（checkMesh を実行してください）、初回の計算には攻めすぎたスキーム。',
+    'The solver could not find {path}. Create it, copy it from a tutorial (Find OpenFOAM Examples), or check whether the case was written for another OpenFOAM version that names the file differently (Tools > Check Case… tells).':
+        'ソルバーは {path} を見つけられませんでした。作成するか、チュートリアルからコピーする（Find OpenFOAM Examples）か、ファイル名の異なる別の OpenFOAM バージョン向けに書かれたケースでないか確認してください（Tools > Check Case… で分かります）。',
+    "The solver could not find {path}. This case keeps its initial fields in {orig}/ — copy them with Tools > Restore 0/ from 0.orig, which is what the tutorial's Allrun does first.":
+        'ソルバーは {path} を見つけられませんでした。このケースは初期場を {orig}/ に置いています — Tools > Restore 0/ from 0.orig でコピーしてください（チュートリアルの Allrun が最初に行う操作です）。',
+    'The temperature could not be recovered from the energy — usually because the solution has already diverged and the energy is unphysical. Look at the boundary and initial conditions for T and p, and try a smaller deltaT.':
+        'エネルギーから温度を求められませんでした — たいていは解がすでに発散し、エネルギーが非物理的になっているためです。T と p の境界条件と初期条件を見直し、deltaT を小さくしてみてください。',
+    'There is no mesh yet (constant/polyMesh). Run blockMesh, or snappyHexMesh, first — Tools > Run blockMesh….':
+        'まだメッシュ（constant/polyMesh）がありません。先に blockMesh か snappyHexMesh を実行してください — Tools > Run blockMesh…。',
+    'Unknown name: {name}':
+        '未知の名前: {name}',
+    'What went wrong':
+        '何が起きたか',
+    'Wrong number of processes':
+        'プロセス数が違います',
+    'n ({n}) splits the domain into {product} pieces, but numberOfSubdomains is {count}. Make the product of n equal numberOfSubdomains.':
+        'n ({n}) は領域を {product} 個に分けますが、numberOfSubdomains は {count} です。n の積を numberOfSubdomains と等しくしてください。',
+    'the field':
+        'その場',
+    "{field} has no fixed value on any boundary, so its level is undefined. Set pRefCell and pRefValue (or pRefPoint) in the solver's dictionary in fvSolution (PISO, PIMPLE or SIMPLE), as the cavity tutorial does — or give {field} a fixedValue boundary such as an outlet.":
+        '{field} はどの境界でも値が固定されていないため、水準が定まりません。cavity チュートリアルのように、fvSolution のソルバー辞書（PISO、PIMPLE、SIMPLE）に pRefCell と pRefValue（または pRefPoint）を設定するか、出口などで {field} に fixedValue の境界を与えてください。',
+    "{key} is written in {dict}, yet OpenFOAM could not find it. That almost always means the entry before it is missing its closing ';' (so it swallowed {key}), or a brace is out of place. Check the line above it.":
+        "{key} は {dict} に書かれているのに、OpenFOAM はそれを見つけられませんでした。ほぼ間違いなく、その前の項目の末尾の ';' が抜けている（そのため {key} を飲み込んだ）か、括弧の位置がずれています。その上の行を確認してください。",
+
+    # ── Tools > Allrun Steps… ─────────────────────────────────────────────────
+    'Allrun Steps':
+        'Allrun のステップ',
+    'Allrun Steps…':
+        'Allrun のステップ…',
+    'An earlier step was run again after it, so its results may be out of date — run it again.':
+        'その後に前のステップが再実行されたため、結果が古い可能性があります — もう一度実行してください。',
+    'Check Case found problems that will stop the solver:':
+        'Check Case が、ソルバーを止める問題を見つけました:',
+    'Done':
+        '完了',
+    'Done (check)':
+        '完了（要確認）',
+    'Failed':
+        '失敗',
+    'FoDE will send this to the terminal:':
+        'FoDE は次をターミナルに送ります:',
+    'For some steps the application could not be told (a shell variable).':
+        '一部のステップは、実行するアプリケーションを特定できませんでした（シェル変数）。',
+    'Incomplete':
+        '未完了',
+    'Running':
+        '実行中',
+    'It ran after an earlier step failed or did not finish, so its results may be wrong — run it again once that step is fixed.':
+        '前のステップが失敗または未完了のまま実行されたため、結果が誤っている可能性があります — そのステップを直してから、もう一度実行してください。',
+    'It sits inside an if/for block: the script may not run it.':
+        'if/for ブロックの中にあるため、スクリプトが実行しない場合があります。',
+    'Log':
+        'ログ',
+    'No {log} yet: the script will run this step.':
+        '{log} はまだありません: スクリプトはこのステップを実行します。',
+    'Not run':
+        '未実行',
+    'Not tracked: this command leaves no log.':
+        '追跡しません: このコマンドはログを残しません。',
+    'Open Log':
+        'ログを開く',
+    'Run From Here':
+        'ここから実行',
+    'Run This Step':
+        'このステップを実行',
+    'Running the Allrun again skips this step, because its log exists.':
+        'ログがあるため、Allrun を再実行してもこのステップは飛ばされます。',
+    'Save All and Run':
+        'すべて保存して実行',
+    "Show the case's Allrun as steps, each marked done, failed or not run from its log, and run them one at a time":
+        'ケースの Allrun をステップとして表示し、それぞれをログから完了・失敗・未実行と判定して、1 つずつ実行します',
+    'Some files have unsaved changes; the step reads its files from disk.':
+        '保存していない変更のあるファイルがあります。ステップはファイルをディスクから読みます。',
+    'State':
+        '状態',
+    'Step':
+        'ステップ',
+    'Steps the script runs in other directories are not listed.':
+        'スクリプトがほかのディレクトリで実行するステップは表示しません。',
+    'The application this step runs could not be told, so neither can its log.':
+        'このステップが実行するアプリケーションを特定できないため、そのログも特定できません。',
+    'The script always re-runs this step (-o/-a).':
+        'スクリプトはこのステップを常に再実行します（-o/-a）。',
+    'These logs exist and will be overwritten, so the steps run again: {logs}.':
+        '次のログがすでにあり、上書きしてステップを再実行します: {logs}。',
+    'This script has loops or conditions: the steps it holds are listed, but Run From Here is off, since its lines do not run in a straight line.':
+        'このスクリプトにはループや条件分岐があります: 含まれるステップは表示しますが、行が一直線には実行されないため「ここから実行」は使えません。',
+    'running an Allrun step':
+        'Allrun のステップを実行する',
+    '{case} has no Allrun script. Tutorials keep their workflow in one; FoDE can write one from the case\'s log files.':
+        '{case} には Allrun スクリプトがありません。チュートリアルは手順を Allrun に書いています。FoDE はケースのログファイルから Allrun を書くことができます。',
+    '{log} ends with End.':
+        '{log} は End で終わっています。',
+    '{log} has neither End nor an error: the step is still running, or was stopped.':
+        '{log} には End もエラーもありません: ステップが実行中か、途中で止められました。',
+    '{log} has neither End nor an error, and nothing is writing it any more: the step was stopped or killed.':
+        '{log} には End もエラーもなく、もう書き込んでいるプロセスもありません: ステップは途中で止められたか、強制終了されました。',
+    '{log} is being written: the step is running now.':
+        '{log} に書き込み中です: ステップは今実行中です。',
+    '{log} holds an error. Double-click to see it explained in View Log Summary.':
+        '{log} にエラーがあります。ダブルクリックすると View Log Summary で説明を表示します。',
+    'Script:':
+        'スクリプト:',
+    'Which script?':
+        'どのスクリプト?',
+    'This case has a serial Allrun and an Allrun-parallel. Which one should run?':
+        'このケースには逐次実行の Allrun と Allrun-parallel があります。どちらを実行しますか?',
+    'Add Command':
+        'コマンドを追加',
+    'Add Command…':
+        'コマンドを追加…',
+    'Add a line to the script below the selected step. An OpenFOAM application is written with runApplication, so it gets a log.':
+        '選択したステップの下にスクリプトの行を追加します。OpenFOAM のアプリケーションは runApplication で書かれるので、ログが残ります。',
+    'Added by you. An OpenFOAM application is written with runApplication, so it writes a log; anything else is written as you typed it.':
+        'あなたが追加した行です。OpenFOAM のアプリケーションは runApplication で書かれるのでログが残ります。それ以外は入力したとおりに書かれます。',
+    'Added for Allrun-parallel, and written there only: decomposePar splits the case before the parallel run, reconstructPar puts the results back into time directories after it.':
+        'Allrun-parallel のために追加され、そこにだけ書かれます。decomposePar は並列計算の前にケースを分割し、reconstructPar は計算の後に結果を時刻ディレクトリに戻します。',
+    'Allrun-parallel only':
+        'Allrun-parallel のみ',
+    'Also create Allrun-parallel ({n} processors): the steps before the solver go in an Allrun.pre that both scripts call':
+        'Allrun-parallel（{n} プロセッサ）も作成: ソルバーより前のステップは、両方のスクリプトが呼び出す Allrun.pre に入ります',
+    'Command to add below the selected step (for example decomposePar):':
+        '選択したステップの下に追加するコマンド（例: decomposePar）:',
+    'Needs a solver step and a decomposeParDict with more than one subdomain.':
+        'ソルバーのステップと、サブドメインが 2 つ以上の decomposeParDict が必要です。',
+    'Remove a command you added.':
+        '追加したコマンドを削除します。',
+    'The case already has {files}.':
+        'このケースにはすでに {files} があります。',
+    'Tick the {solver} step: Allrun.pre ends and Allrun-parallel starts there.':
+        '{solver} のステップにチェックを入れてください。そこで Allrun.pre が終わり、Allrun-parallel が始まります。',
+    'added by you':
+        'あなたが追加',
+    '{script}: {done} of {total} steps done; {app} is running.':
+        '{script}: {total} ステップ中 {done} ステップ完了。{app} を実行中です。',
+    '{script}: {done} of {total} steps done.':
+        '{script}: {total} ステップ中 {done} ステップ完了。',
+
+    # ── Tools > Create Allrun from Logs… ──────────────────────────────────────
+    "A step rewrites 0/ and the case has no 0.orig/, so running the Allrun again starts from the last run's fields. Tutorials keep a clean copy in 0.orig/.":
+        '0/ を書き換えるステップがあるのに 0.orig/ がないため、Allrun をもう一度実行すると前回の実行結果の場から始まります。チュートリアルは元の状態を 0.orig/ に保存しています。',
+    'Added by FoDE: copies 0.orig/ to 0/ after meshing, so every run starts from the same initial fields.':
+        'FoDE が追加: メッシュ生成の後に 0.orig/ を 0/ にコピーし、毎回同じ初期場から実行が始まるようにします。',
+    'Allclean would delete: {files}.':
+        'Allclean は次のファイルを削除します: {files}。',
+    'Also create Allclean':
+        'Allclean も作成する',
+    'Also create Allclean (the case already has one)':
+        'Allclean も作成する（このケースにはすでにあります）',
+    'Could not write the script: {error}':
+        'スクリプトを書き込めませんでした: {error}',
+    'Create':
+        '作成',
+    'Create Allrun from Logs':
+        'ログから Allrun を作成',
+    'Create Allrun from Logs…':
+        'ログから Allrun を作成…',
+    'Created {files}.':
+        '{files} を作成しました。',
+    'Down':
+        '下へ',
+    'Found no steps: the case has no log.* files from OpenFOAM applications, and no blockMeshDict or controlDict application to suggest them from.':
+        'ステップが見つかりません: OpenFOAM アプリケーションの log.* ファイルがなく、ステップを推測する元になる blockMeshDict や controlDict の application もありません。',
+    "Foundation's cleanCase deletes every file that has a .orig copy beside it.":
+        'Foundation 版の cleanCase は、隣に .orig のコピーがあるファイルをすべて削除します。',
+    'From {log}.':
+        '{log} から。',
+    'Its log ends with an error, so it is unticked. Tick it if the step belongs in the run and fix the cause before running the Allrun.':
+        'ログがエラーで終わっているため、チェックを外しています。このステップが必要ならチェックを入れ、Allrun を実行する前に原因を直してください。',
+    'Its log has neither End nor an error: the run was stopped or is still running.':
+        'ログには End もエラーもありません: 実行が途中で止められたか、まだ実行中です。',
+    'Its log is older than the parallel run, but in a fresh run there is nothing to reconstruct before it, so it was moved after it.':
+        'ログは並列実行より古いのですが、最初から実行する場合はその前に再構築するものがないため、並列実行の後へ移動しました。',
+    'Its place is a guess: topoSet can come before or after snappyHexMesh, depending on what its sets are for. Move it if needed.':
+        '位置は推測です: topoSet は、作るセットの用途によって snappyHexMesh の前にも後にも来ます。必要なら移動してください。',
+    'Logs left out: {logs}.':
+        '含めなかったログ: {logs}。',
+    'No log says this step ran; suggested because the case has {file}.':
+        'このステップを実行したログはありません。ケースに {file} があるため提案しています。',
+    'No ticked step makes the mesh, so the Allclean keeps constant/polyMesh instead of calling cleanCase, which would delete it.':
+        'メッシュを作るステップにチェックがないため、Allclean は cleanCase を呼ばずに constant/polyMesh を残します（cleanCase はこれを削除します）。',
+    'Only commands that wrote a log are listed: a cp, a foamDictionary edit or a tool run without tee is not. A tool run twice appears once, and edits made between steps are not replayed.':
+        'ログを書いたコマンドだけを表示します: cp、foamDictionary による編集、tee なしで実行したツールは含まれません。2 回実行したツールは 1 回だけ表示され、ステップの間に行った編集は再現されません。',
+    'The Allrun restores 0/ from 0.orig/: make changes to initial and boundary conditions in 0.orig/, or they are lost on the next run.':
+        'Allrun は 0/ を 0.orig/ から復元します: 初期条件や境界条件の変更は 0.orig/ で行ってください。そうしないと次の実行で失われます。',
+    'The case has no logs, so these steps are suggested from its dictionaries. Check them and their order before creating the script.':
+        'ケースにログがないため、これらのステップは辞書から推測したものです。スクリプトを作成する前に、ステップとその順序を確認してください。',
+    'This case already has an Allrun; FoDE never replaces one. Tools > Allrun Steps… shows its steps.':
+        'このケースにはすでに Allrun があります。FoDE は既存の Allrun を置き換えません。Tools > Allrun Steps… でそのステップを表示できます。',
+    'This tool only reports and changes nothing a later step reads, so it is unticked. Tick it to keep the check in the script.':
+        'このツールは結果を表示するだけで、後のステップが読むものを何も変えないため、チェックを外しています。スクリプトにこの確認を残すならチェックを入れてください。',
+    'Untick a step to leave it out; drag a step, or use Up and Down, to move it.':
+        'チェックを外したステップは含めません。ステップはドラッグするか「上へ」「下へ」で移動できます。',
+    'Write an Allrun (and Allclean) for this case from its log files':
+        'このケースのログファイルから Allrun（と Allclean）を書きます',
+    'Write an Allrun and Allclean for a case that has none, from the commands its log files record':
+        'Allrun のないケースに、ログファイルが記録したコマンドから Allrun と Allclean を書きます',
+    'added':
+        '追加',
+    'changes nothing':
+        '変更なし',
+    'did not finish':
+        '未完了',
+    'failed':
+        '失敗',
+    'moved':
+        '移動',
+    'position guessed':
+        '位置は推測',
+    'suggested':
+        '提案',
+    '{file} appeared while the dialog was open and was left as it is.':
+        'ダイアログを開いている間に {file} ができたため、そのままにしました。',
+    '{log}: an earlier run of a listed step':
+        '{log}: 一覧にあるステップの以前の実行',
+    "{log}: not an OpenFOAM application's log":
+        '{log}: OpenFOAM アプリケーションのログではありません',
+
+    # ── Check Case… (Tools menu) ──────────────────────────────────────────────
+    "Boundary conditions were not checked: there is no mesh yet, and this case's mesh does not come from blockMeshDict alone. Check again after meshing.":
+        '境界条件はチェックしていません: まだメッシュがなく、このケースのメッシュは blockMeshDict だけからは決まりません。メッシュ生成の後にもう一度チェックしてください。',
+    'Check Again':
+        '再チェック',
+    'Check Case':
+        'ケースをチェック',
+    'Check Case…':
+        'ケースをチェック…',
+    'Double-click a problem to open the file at that line.':
+        '問題をダブルクリックすると、そのファイルの該当行を開きます。',
+    'Look for the classic mistakes that stop a first run — missing boundary conditions, mismatched patch types, a controlDict that writes nothing, a wrong decomposition — before running':
+        '初回の実行を止める典型的な間違い（境界条件の抜け、パッチタイプの不一致、何も書き出さない controlDict、誤った領域分割など）を実行前に探します',
+    'Multi-region case: boundary conditions are checked once the region meshes exist.':
+        'マルチリージョンのケース: 境界条件は各リージョンのメッシュができてからチェックします。',
+    'No problems found in {case}.':
+        '{case} に問題は見つかりませんでした。',
+    'Patch {patch} is of type {patch_type} in the mesh, so {field} must give it type {patch_type} too, not {field_type} — the solver stops with "inconsistent patch and patchField types".':
+        'パッチ {patch} はメッシュ上でタイプ {patch_type} なので、{field} でも {field_type} ではなく {patch_type} にする必要があります — ソルバーは "inconsistent patch and patchField types" で停止します。',
+    'Problem':
+        '問題',
+    'Severity':
+        '重要度',
+    'The run starts at time {start}, which is already endTime ({end}), so the solver will do nothing. To run further, raise endTime.':
+        '計算は時刻 {start} から始まりますが、これはすでに endTime ({end}) なので、ソルバーは何もしません。続けて計算するには endTime を大きくしてください。',
+    'There is no 0/ directory, so the solver will stop with "cannot find file 0/…". This case keeps its initial fields in 0.orig/ — copy them with Tools > Restore 0/ from 0.orig (what the tutorial\'s Allrun does first).':
+        '0/ ディレクトリがないため、ソルバーは "cannot find file 0/…" で停止します。このケースは初期場を 0.orig/ に置いています — Tools > Restore 0/ from 0.orig でコピーしてください（チュートリアルの Allrun が最初に行う操作です）。',
+    'Warning':
+        '警告',
+    'Where':
+        '場所',
+    'constant/{name} is missing, and {solver} reads it.':
+        'constant/{name} がありませんが、{solver} はこれを読みます。',
+    'deltaT ({delta_t}) is longer than the whole run ({run}), so the solver takes at most a single step, past endTime.':
+        'deltaT ({delta_t}) が計算全体の長さ ({run}) より長いため、ソルバーは endTime を越える 1 ステップしか進みません。',
+    'numberOfSubdomains is {count}, but the case is decomposed into {pieces} — re-run decomposePar before a parallel run.':
+        'numberOfSubdomains は {count} ですが、ケースは {pieces} 個に分割されています — 並列計算の前に decomposePar を再実行してください。',
+    'stopAt is {value}, so the solver will stop right after it starts. Set it back to endTime unless that is what you want.':
+        'stopAt が {value} なので、ソルバーは開始直後に停止します。意図したものでなければ endTime に戻してください。',
+    'system/controlDict is missing — every solver reads it.':
+        'system/controlDict がありません — すべてのソルバーがこれを読みます。',
+    'writeInterval ({interval}) is longer than the run ({run}), so no results will be written.':
+        'writeInterval ({interval}) が計算の長さ ({run}) より長いため、結果は何も書き出されません。',
+    'writeInterval is {interval} time steps, but the run is only {run} steps long, so no results will be written.':
+        'writeInterval は {interval} タイムステップですが、計算は {run} ステップしかないため、結果は何も書き出されません。',
+    '{case}: {errors} error(s) that will stop a run, {warnings} warning(s).':
+        '{case}: 実行を止めるエラー {errors} 件、警告 {warnings} 件。',
+    "{field} gives patch {patch} type {field_type}, but the mesh patch is of type {patch_type}. Change the field's type, or the patch's type (in blockMeshDict, then re-run blockMesh).":
+        '{field} はパッチ {patch} にタイプ {field_type} を与えていますが、メッシュ上のパッチは {patch_type} です。場のタイプを変えるか、パッチのタイプを変えてください（blockMeshDict を直して blockMesh を再実行）。',
+    '{field} has entries that match no patch of the mesh: {entries}. A misspelt patch name?':
+        '{field} に、メッシュのどのパッチにも一致しない項目があります: {entries}。パッチ名の綴り間違いではありませんか?',
+    '{field} has no boundaryField entry for patch {patches}, so the solver will stop with "Cannot find patchField entry". Add an entry for it, or check its spelling against the mesh.':
+        '{field} の boundaryField にパッチ {patches} の項目がないため、ソルバーは "Cannot find patchField entry" で停止します。項目を追加するか、メッシュのパッチ名と綴りを照らし合わせてください。',
+    '{method} decomposition n ({n}) makes {product} pieces, but numberOfSubdomains is {count}, so decomposePar will stop with "Wrong number of … divisions".':
+        '{method} 分割の n ({n}) は {product} 個に分けますが、numberOfSubdomains は {count} なので、decomposePar は "Wrong number of … divisions" で停止します。',
+    '{path}: boundaryField not checked — it uses an #include or $macro that could not be followed.':
+        '{path}: boundaryField はチェックしていません — たどれない #include または $macro を使っています。',
+    '{solver} on this OpenFOAM reads constant/{want}, but the case has {have} — the OpenFOAM Foundation name for it. Copy it to {want} and check its entries, which differ between the two.':
+        'この OpenFOAM の {solver} は constant/{want} を読みますが、ケースにあるのは {have}（OpenFOAM Foundation での名前）です。{want} にコピーし、両者で異なる項目を確認してください。',
+    '…and {n} more — see Tools > Check Case….':
+        '…ほか {n} 件 — Tools > Check Case… を参照してください。',
 
     # ── Run decomposePar… / Run Solver… (Tools menu) ──────────────────────────
     "Run decomposePar…": "decomposePar を実行…",

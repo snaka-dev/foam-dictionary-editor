@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtWidgets import QDialog, QMessageBox
 
 from i18n import tr
+from services.allrun import available_scripts
 from services.background_run import (
     STOPPING_VALUES,
     active_run,
@@ -419,6 +420,7 @@ class _ToolsOpsMixin(_Base):
             case_dir, unsaved
         )
         warnings += parallel_warnings
+        warnings += self._case_check_solver_warnings(case_dir)
 
         dlg = RunSolverDialog(
             case_dir,
@@ -463,12 +465,8 @@ class _ToolsOpsMixin(_Base):
         if self._refuse_while_running(tr("running another command")):
             return
         case_dir = self.state.current_case_dir
-        if not os.path.isfile(os.path.join(case_dir, "Allrun")):
-            QMessageBox.warning(
-                self,
-                tr("No Allrun script"),
-                tr("This case has no Allrun script to run."),
-            )
+        script = self._choose_allrun_script(case_dir)
+        if script is None:
             return
         logs = sorted(
             name
@@ -529,13 +527,44 @@ class _ToolsOpsMixin(_Base):
                 return
             prefix = ""
         if detach:
-            cmd = background_command(["./Allrun"], "log.Allrun", "Allrun", prefix)
+            cmd = background_command([f"./{script}"], f"log.{script}", script, prefix)
         else:
-            cmd = f"{prefix}./Allrun"
+            cmd = f"{prefix}./{script}"
         self._run_in_terminal(cmd)
         if detach:
             self._background_cases.add(case_dir)
             self._background_run_timer.start()
+
+    def _choose_allrun_script(self, case_dir: str) -> str | None:
+        """Allrun, or Allrun-parallel when the user picks it; None to stop.
+
+        Asked only when the case has both -- the tutorials' serial and
+        parallel twins (see services/allrun.SCRIPT_NAMES).
+        """
+        scripts = available_scripts(case_dir)
+        if not scripts:
+            QMessageBox.warning(
+                self,
+                tr("No Allrun script"),
+                tr("This case has no Allrun script to run."),
+            )
+            return None
+        if len(scripts) == 1:
+            return scripts[0]
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setWindowTitle(tr("Which script?"))
+        box.setText(tr(
+            "This case has a serial Allrun and an Allrun-parallel. Which one should run?"
+        ))
+        buttons = [(box.addButton(name, QMessageBox.ButtonRole.AcceptRole), name) for name in scripts]
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        try:
+            box.exec()
+            clicked = box.clickedButton()
+            return next((name for button, name in buttons if button is clicked), None)
+        finally:
+            box.deleteLater()
 
     def _reload_clean_file_from_disk(self, path: str) -> None:
         """Drop FoDE's copy of *path*, unless edited, so it is read afresh."""
@@ -620,10 +649,14 @@ class _ToolsOpsMixin(_Base):
     def _on_view_log_summary_clicked(self) -> None:
         if not self.state.current_case_dir:
             return
-        self._show_cached_dialog(
-            "_log_summary_dialog",
-            lambda: LogSummaryDialog(self.state.current_case_dir, parent=self),
-        )
+        case_dir = self.state.current_case_dir
+
+        def _make() -> LogSummaryDialog:
+            dialog = LogSummaryDialog(case_dir, parent=self)
+            dialog.open_requested.connect(self._open_file_at_line)
+            return dialog
+
+        self._show_cached_dialog("_log_summary_dialog", _make)
 
     def _on_find_examples_clicked(self) -> None:
         def _make_find_examples_dialog() -> FindExamplesDialog:
@@ -694,6 +727,9 @@ class _ToolsOpsMixin(_Base):
         for action in (
             self._open_paraview_action,
             self._view_log_summary_action,
+            self._check_case_action,
+            self._allrun_steps_action,
+            self._create_allrun_action,
             self._delete_processor_dirs_action,
             self._stop_background_run_action,
             self._add_function_object_action,

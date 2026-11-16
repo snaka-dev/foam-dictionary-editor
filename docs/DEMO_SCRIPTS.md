@@ -18,6 +18,9 @@ Every movie below is **scripted in full and runs**: `tools/demo_driver.py` drive
 | 10 — Post-processing without the dictionary | `damBreak-function-objects` | bundled `tutorials/damBreak` | ~56 s | https://vimeo.com/1244300225?texttrack=en |
 | 11 — A run that outlives FoDE | `damBreak-background-run` | bundled `tutorials/damBreak` | ~85 s | https://vimeo.com/1244300224?texttrack=en |
 | 12 — Running in parallel | `damBreak-parallel-run` | bundled `tutorials/damBreak` | ~100 s | https://vimeo.com/1244516337?texttrack=en |
+| 13 — An Allrun from your logs | `damBreak-create-allrun` | bundled `tutorials/damBreak` | ~80 s | https://vimeo.com/1247139406?texttrack=en |
+| 14 — An Allrun with no logs | `damBreak-create-allrun-fresh` | bundled `tutorials/damBreak` | ~60 s | https://vimeo.com/1247139407?texttrack=en |
+| 15 — Serial and parallel Allruns | `cavity-create-allrun-parallel` | bundled `tutorials/cavity/cavity` | ~95 s | https://vimeo.com/1247139405?texttrack=en |
 
 ## Choosing what to show
 
@@ -282,6 +285,68 @@ Layout: the **BlockMesh** tab with a wider file list than the other scenes, beca
 | 1:31 | Deleted | Status bar *Deleted the processor\* time directories except 1 (5.5 MB)*; the line reads **times 1** | Deleted — the status bar says what was kept, and the file list shows the one time left in the processors. |
 
 The beat to protect is **1:21**: the confirmation is the one place the movie shows FoDE refusing to take the user's word for it, and its text — what will be deleted, what is kept, and that every file was checked — is the argument. The run itself takes about three seconds on four processors, so the 0:48 dwell is the narration's, not the solver's.
+
+## Movie 13 — An Allrun from your logs (`damBreak`, ~80 s)
+
+**Scene:** `damBreak-create-allrun`. **Case:** bundled `tutorials/damBreak`, run by hand before the take. **What it argues:** a case built by typing tools one at a time already knows how it was run — its logs say so — and FoDE turns that into an Allrun you review before anything is written.
+
+The take starts from a case with logs and no Allrun: `case_prepare` deletes the bundled `Allrun`/`Allclean` and runs `blockMesh`, `checkMesh`, `setFields` and `interFoam` each into its own `log.*`, before the window opens.
+
+| At | Beat | On screen | Narration |
+|---|---|---|---|
+| 0:00 | The case | `damBreak` with `log.*` files and no `Allrun` | This damBreak was run by hand: blockMesh, checkMesh, setFields and interFoam, typed one at a time. Its logs remember every step, but there is no Allrun to do it again. |
+| 0:09 | Allrun Steps | **Tools > Allrun Steps…**: *damBreak has no Allrun script…* and **Create Allrun from Logs…** | Allrun Steps shows a case's Allrun as steps. This case has none, so it offers to write one from the logs. |
+| 0:13 | The proposal | The Create Allrun dialog: the checklist above the Allrun preview | Every log begins with the command that wrote it and when it started, so the steps come out in the order they ran, with their options. The Allrun is previewed below as you go. |
+| 0:20 | Read-only | `checkMesh` selected, unticked, **[changes nothing]** | checkMesh only reports, so it is left unticked. Tick it to keep the check. |
+| 0:26 | Restore 0 | `restore0Dir` selected, **[added]** | FoDE adds one step: restore 0 from 0.orig after meshing, so every run starts from the same fields. |
+| 0:31 | Allclean | The **Allclean** tab: `cleanCase0` | An Allclean comes with it, to put the case back the way it was before a run. |
+| 0:39 | Created | **Create**; `Allrun` and `Allclean` in the file list, the Allrun in the editor | Create writes both scripts, executable, and opens the Allrun in the editor. |
+| 0:48 | Steps | Allrun Steps again: *3 of 3 steps done* | Allrun Steps now reads it: every step done, from the logs that were already there. |
+| 0:55 | Run it | **Tools > Run Allrun Script**: *Case already run?* | Now the case runs from its Allrun. The logs are still there, so FoDE offers to clean first. |
+| 0:59 | Running | **Clean, then run**; *interFoam is running*, then *3 of 3 steps done* | The steps window follows the run: a step reads Running while its log is being written, then Done. |
+
+The beat to protect is **0:13**: the order and options come from the logs, and nothing is written until the person watching has seen both scripts. Allrun Steps is opened a second time at 0:48 because on the take's display, which has no window manager, opening the Allrun in the editor raises the main window over it; on a desktop it stays on top.
+
+## Movie 14 — An Allrun with no logs (`damBreak`, ~60 s)
+
+**Scene:** `damBreak-create-allrun-fresh`. **Case:** bundled `tutorials/damBreak`. **What it argues:** a case that has never run can still get an Allrun — suggested from its dictionaries, marked as a suggestion — and for damBreak the suggestion is the tutorial's own script.
+
+`case_prepare` only deletes the bundled `Allrun`/`Allclean`, so the case has no logs.
+
+| At | Beat | On screen | Narration |
+|---|---|---|---|
+| 0:00 | The case | `damBreak`, no `log.*` and no `Allrun` | A fresh copy of damBreak: no Allrun, and nothing run yet, so there are no logs either. |
+| 0:06 | The suggestion | **Tools > Create Allrun from Logs…**: *The case has no logs, so these steps are suggested from its dictionaries…* | With no logs to read, FoDE suggests the steps from the case's dictionaries: a blockMeshDict means blockMesh, a setFieldsDict means setFields, and controlDict names the solver. |
+| 0:13 | Why | `blockMesh` selected: *suggested because the case has system/blockMeshDict* | Each row says why it is there. These are suggestions, so check them and their order. |
+| 0:19 | Created | **Create**; the Allrun in the editor, its comment *Suggested from the case's dictionaries* | The Allrun opens in the editor, saying at the top that it was suggested, not read from logs. |
+| 0:28 | Steps | **Tools > Allrun Steps…**: *0 of 3 steps done* | Nothing has run yet. |
+| 0:34 | Run it | **Tools > Run Allrun Script** and its confirmation | Run it. FoDE asks first, because an Allrun runs the solver too. |
+| 0:37 | Running | **Yes**; the steps go Running, then Done, to *3 of 3 steps done* | The steps window follows the run: the suggestion is the tutorial's own Allrun, step for step. |
+
+A case with snappyHexMesh or topoSet gets a less certain suggestion — topoSet's place is marked as a guess — which is why this movie uses damBreak and says "check them".
+
+## Movie 15 — Serial and parallel Allruns (`cavity`, ~95 s)
+
+**Scene:** `cavity-create-allrun-parallel`. **Case:** bundled `tutorials/cavity/cavity`. **What it argues:** one checklist gives both scripts the tutorials keep — a serial `Allrun` and an `Allrun-parallel` sharing an `Allrun.pre` — and a step no log could show can be typed in; FoDE then follows whichever script you run.
+
+The bundled cavity has no `Allrun` and no logs, and a `decomposeParDict` (9 subdomains) it never uses, so nothing needs preparing.
+
+| At | Beat | On screen | Narration |
+|---|---|---|---|
+| 0:00 | The case | `cavity`, no `log.*` and no `Allrun`; `system/decomposeParDict` in the file list | The cavity tutorial, freshly copied: no Allrun and no logs. It has a decomposeParDict, but that alone does not mean it runs in parallel. |
+| 0:07 | The suggestion | **Tools > Create Allrun from Logs…**: blockMesh, icoFoam; *Also create Allrun-parallel (9 processors)* unticked | So FoDE suggests blockMesh and icoFoam, run serially. |
+| 0:12 | Parallel | The box ticked: decomposePar and reconstructPar rows, *[Allrun-parallel only]* | Tick Also create Allrun-parallel: decomposePar and reconstructPar are added around the solver, marked for the parallel script only. |
+| 0:18 | Allrun.pre | The **Allrun.pre** tab: `runApplication blockMesh` | The steps before the solver go in Allrun.pre, which both scripts call. |
+| 0:23 | Allrun | The **Allrun** tab: `./Allrun.pre`, `runApplication icoFoam` | Allrun calls it, then runs icoFoam serially. |
+| 0:28 | Allrun-parallel | The **Allrun-parallel** tab: `./Allrun.pre`, decomposePar, `runParallel icoFoam`, reconstructPar | Allrun-parallel calls it too, then decomposes the case, runs icoFoam on nine processors and puts the results back together. |
+| 0:37 | Add a command | `reconstructPar` selected, **Add Command…**, *postProcess -func vorticity* typed | A step the logs cannot show goes in with Add Command. |
+| 0:41 | Typed | The new row *runApplication postProcess -func vorticity [added by you]* | An OpenFOAM application is written with runApplication, so it writes a log like every other step. |
+| 0:46 | Created | **Create**; `Allrun`, `Allrun-parallel`, `Allrun.pre`, `Allclean` in the file list | Create writes all four scripts and opens the Allrun. |
+| 0:56 | Pick the script | **Tools > Allrun Steps…**, the **Script** picker set to *Allrun-parallel*: *0 of 5 steps done* | With both scripts, Allrun Steps asks which one to follow. |
+| 1:05 | Run it | **Tools > Run Allrun Script**: *This case has a serial Allrun and an Allrun-parallel…* | Run Allrun Script asks too. |
+| 1:12 | Running | **Allrun-parallel**, **Yes**; icoFoam *Running* on 9 processes, then *5 of 5 steps done*, `0/vorticity`… in the file list | Allrun-parallel runs: blockMesh from Allrun.pre, decomposePar, icoFoam on nine processors, reconstructPar, then postProcess. |
+
+The typed command lands in both scripts, after the solver; in `Allrun-parallel` it runs after `reconstructPar`, on the reconstructed times.
 
 ## Recording
 

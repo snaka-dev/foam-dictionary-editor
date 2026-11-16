@@ -8,6 +8,7 @@ import subprocess
 from foam.nodes import FoamNode
 from model.tree_model import FoamTreeModel
 from services.case_files_config import CaseFilesConfig
+from services.disk_stamp import DiskStamp
 
 
 @dataclasses.dataclass
@@ -81,6 +82,10 @@ class AppState:
     file_buffers: dict[str, str] = dataclasses.field(default_factory=dict)
     file_dirty: dict[str, bool] = dataclasses.field(default_factory=dict)
     text_dirty: bool = False
+    # path -> the file as FoDE last read or wrote it, so a save can tell an
+    # outside change from its own (services/disk_stamp.py). Absent for a
+    # buffer FoDE never read from disk; such a file is saved unasked.
+    disk_stamps: dict[str, DiskStamp] = dataclasses.field(default_factory=dict)
     # Absolute paths of `#include` targets outside the case directory. Rebuilt
     # by _case_file_paths on every file-list load; the single source of truth
     # for _is_read_only, which gates every write path.

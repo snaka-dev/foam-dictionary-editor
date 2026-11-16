@@ -28,6 +28,7 @@ from services.case_loader import (
     detect_poly_mesh,
     detect_time_dirs,
     list_directory_files,
+    listed_variant_base,
 )
 from services.solver_run import DecompositionStatus, decomposition_status
 from ui import viewer_dicts
@@ -49,6 +50,10 @@ _TIME_DIRS_ROLE = Qt.ItemDataRole.UserRole + 4
 _EXTRA_DIR_HEADER_ROLE = Qt.ItemDataRole.UserRole + 5
 # True on file items with no dictionary tree (run logs); rendered dimmed.
 _TEXT_ONLY_ROLE = Qt.ItemDataRole.UserRole + 6
+# The listed dictionary this row is a suffixed variant of (decomposeParDict.4
+# -> decomposeParDict), or None. Such rows are dimmed: OpenFOAM reads them
+# only when a command names them or a script copies them into place.
+_VARIANT_ROLE = Qt.ItemDataRole.UserRole + 10
 
 # True on file items the include scan added (a target of some `#include`).
 _INCLUDED_ROLE = Qt.ItemDataRole.UserRole + 7
@@ -151,6 +156,8 @@ class FileListPanel(QWidget):
     # Emitted when the user requests to delete a directory: (case_dir, group_name)
     delete_dir_requested = Signal(str, str)
     save_file_requested = Signal()
+    # Re-read this file from disk, dropping FoDE's copy (path).
+    reload_file_requested = Signal(str)
     # (path, overlay key); an empty key returns the file to automatic detection.
     viewer_kind_requested = Signal(str, str)
     # Emitted when the user clicks the manual refresh button
@@ -397,7 +404,7 @@ class FileListPanel(QWidget):
             color = QColor(c.file_diff_none_fg)       # gray  — visited, no diffs
         elif item.data(_READ_ONLY_ROLE):
             color = QColor(c.file_read_only_fg)
-        elif item.data(_TEXT_ONLY_ROLE):
+        elif item.data(_TEXT_ONLY_ROLE) or item.data(_VARIANT_ROLE):
             color = QColor(c.file_text_only_fg)
         elif is_extra:
             color = QColor(c.file_extra_fg)
@@ -542,6 +549,7 @@ class FileListPanel(QWidget):
             return b.built()
 
         add(tr("Save File\tCtrl+S"), self.save_file_requested.emit)
+        add(tr("Reload from Disk"), lambda: self.reload_file_requested.emit(path))
         menu.addSeparator()
         if item.data(_EXTRA_FILE_ROLE):
             add(
@@ -762,6 +770,8 @@ def _make_item(
     item.setData(_READ_ONLY_ROLE, is_read_only)
     is_text_only = is_log_filename(Path(path).name)
     item.setData(_TEXT_ONLY_ROLE, is_text_only)
+    variant_of = listed_variant_base(path) if not is_included else None
+    item.setData(_VARIANT_ROLE, variant_of)
 
     tooltip = path
     if is_symlink:
@@ -777,11 +787,17 @@ def _make_item(
         )
     if is_read_only:
         tooltip += f"\n({tr('read-only — outside the case directory')})"
+    if variant_of:
+        tooltip += "\n" + tr(
+            "A variant of {base}. OpenFOAM reads it only when a command names it "
+            "(-dict …) or a script copies it over {base}; editing it does not "
+            "change {base}."
+        ).format(base=variant_of)
     item.setToolTip(tooltip)
 
     if is_read_only:
         item.setForeground(QColor(colors().file_read_only_fg))
-    elif is_text_only:
+    elif is_text_only or variant_of:
         item.setForeground(QColor(colors().file_text_only_fg))
     elif is_extra:
         item.setForeground(QColor(colors().file_extra_fg))

@@ -913,3 +913,73 @@ class TestVariantDictFiles:
         dest = tmp_path / "copy"
         copy_visible_files(str(case), dest)   # dest is a Path, not a str
         assert (dest / "system" / "topoSetDict-slices").is_file()
+
+
+class TestSuffixedVariants:
+    """Suffixed variants of every other listed dictionary, gated by their header.
+
+    `decomposeParDict.4`, `controlDict.orig`, `refineMeshDict.tier6`: complete
+    dictionaries a command names with `-dict` or a script copies into place.
+    A separator must follow the listed name and the file's own `FoamFile`
+    `object` must agree (foam/variants.py), which keeps out different
+    dictionaries that share a prefix, copy-pasted headers and fragments.
+    """
+
+    @staticmethod
+    def _dict(obj: str, body: str = "") -> str:
+        return (
+            "FoamFile\n{\n    version 2.0;\n    format ascii;\n    class dictionary;\n"
+            f"    object {obj};\n}}\n{body}"
+        )
+
+    @pytest.fixture
+    def case(self, tmp_path):
+        case_dir = tmp_path / "case"
+        (case_dir / "system").mkdir(parents=True)
+        (case_dir / "constant").mkdir()
+        (case_dir / "system" / "controlDict").write_text(self._dict("controlDict"))
+        (case_dir / "system" / "decomposeParDict").write_text(self._dict("decomposeParDict"))
+        return case_dir
+
+    def _names(self, case):
+        return sorted(os.path.relpath(p, case) for p in list_case_files(str(case)))
+
+    @pytest.mark.parametrize("name, obj", [
+        ("decomposeParDict.4", "decomposeParDict"),
+        ("decomposeParDict-2x3x2", "decomposeParDict"),
+        ("controlDict.orig", "controlDict"),
+        ("controlDict.flow", "controlDict.flow"),
+    ])
+    def test_a_variant_with_an_agreeing_header_is_listed(self, case, name, obj):
+        (case / "system" / name).write_text(self._dict(obj))
+        assert os.path.join("system", name) in self._names(case)
+
+    def test_constant_variants_too(self, case):
+        (case / "constant" / "dynamicMeshDict.sixDoF").write_text(self._dict("dynamicMeshDict.sixDoF"))
+        assert os.path.join("constant", "dynamicMeshDict.sixDoF") in self._names(case)
+
+    @pytest.mark.parametrize("name, text", [
+        ("controlDict.backup", "// no header\n"),                 # a fragment
+        ("decomposeParDict.4", "FoamFile { object fvSchemes; }\n"),  # a copy-pasted header
+        ("sampleDict", "FoamFile { object sampleDict; }\n"),     # no separator after "sample"
+    ])
+    def test_not_a_variant(self, case, name, text):
+        (case / "system" / name).write_text(text)
+        assert os.path.join("system", name) not in self._names(case)
+
+    def test_listed_variant_base(self, case):
+        from services.case_loader import listed_variant_base
+
+        (case / "system" / "decomposeParDict.4").write_text(self._dict("decomposeParDict"))
+        (case / "system" / "topoSetDict-slices").write_text("actions ();")
+        assert listed_variant_base(str(case / "system" / "decomposeParDict.4")) == "decomposeParDict"
+        # The viewer dictionaries' prefix rule needs no header.
+        assert listed_variant_base(str(case / "system" / "topoSetDict-slices")) == "topoSetDict"
+        assert listed_variant_base(str(case / "system" / "controlDict")) is None
+
+    def test_per_phase_reacting_dictionaries(self, case):
+        for name in ("chemistryProperties.gas", "combustionProperties.vapour"):
+            (case / "constant" / name).write_text(self._dict(name))
+        names = self._names(case)
+        assert os.path.join("constant", "chemistryProperties.gas") in names
+        assert os.path.join("constant", "combustionProperties.vapour") in names

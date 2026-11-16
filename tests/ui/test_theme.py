@@ -173,9 +173,50 @@ def test_unknown_mode_falls_back_to_system(qapp):
     assert theme.active_mode() == "system"
 
 
-def test_apply_theme_installs_selection_stylesheet(qapp):
-    apply_theme(qapp, "dark")
-    qss = qapp.styleSheet()
+def test_fusion_gets_no_selection_stylesheet(qapp):
+    # Fusion paints the selection from the palette; the stylesheet would make
+    # it draw a selected checkable row's tick white on a white box.
+    apply_theme(qapp, "light")
+    assert "::item:selected" not in qapp.styleSheet()
+
+
+def test_selected_checked_row_shows_its_tick(qapp, qtbot):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QListWidget, QListWidgetItem, QStyle, QStyleOptionViewItem
+
+    apply_theme(qapp, "light")
+    view = QListWidget()
+    qtbot.addWidget(view)
+    item = QListWidgetItem("ticked")
+    item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+    item.setCheckState(Qt.CheckState.Checked)
+    view.addItem(item)
+    view.show()
+    view.setCurrentRow(0)
+    qapp.processEvents()
+    option = QStyleOptionViewItem()
+    option.rect = view.visualItemRect(item)
+    option.features |= QStyleOptionViewItem.ViewItemFeature.HasCheckIndicator
+    box = view.style().subElementRect(QStyle.SubElement.SE_ItemViewItemCheckIndicator, option, view)
+    image = view.viewport().grab().toImage()
+    # Inside the box only: its border is dark whatever the tick looks like.
+    inner = box.adjusted(3, 3, -3, -3)
+    darkest = min(
+        QColor(image.pixel(x, y)).lightness()
+        for x in range(inner.left(), inner.right() + 1)
+        for y in range(inner.top(), inner.bottom() + 1)
+    )
+    assert darkest < 100, "the tick of a selected, checked row is not drawn dark"
+
+
+def test_other_styles_get_the_selection_stylesheet(qapp):
+    saved_style = qapp.style().name()
+    qapp.setStyle("Windows")
+    try:
+        apply_theme(qapp, "system")
+        qss = qapp.styleSheet()
+    finally:
+        qapp.setStyle(saved_style)
     fill = qapp.palette().color(QPalette.ColorGroup.Active, QPalette.ColorRole.Highlight)
     text = qapp.palette().color(QPalette.ColorGroup.Active, QPalette.ColorRole.HighlightedText)
     # Both halves of the pair must be named, or the platform style is free to

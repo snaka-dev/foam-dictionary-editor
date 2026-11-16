@@ -210,8 +210,9 @@ def included_files(
     ``(new_paths, origin_labels, read_only_paths)``:
 
     * ``new_paths`` -- resolved include targets **not already in** ``paths``,
-      in a stable order. A ``.gz`` resolution is excluded, because
-      ``foam.utils.read_foam_file`` cannot decompress it.
+      in a stable order. A ``.gz`` resolution is listed like any other:
+      ``foam.utils.read_foam_file`` decompresses it and ``write_foam_file``
+      compresses it again on save.
     * ``origin_labels`` -- path -> a human label naming the including file(s).
     * ``read_only_paths`` -- the subset that lies outside ``case_dir``.
     """
@@ -224,7 +225,7 @@ def included_files(
 
     for hit in scan_includes(case_dir, paths, etc_dirs=etc_dirs):
         target = hit.resolved.path
-        if target is None or target.suffix == ".gz":
+        if target is None:
             continue
         key = _dedupe_key(str(target))
         if key in known:

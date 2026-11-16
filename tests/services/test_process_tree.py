@@ -9,7 +9,12 @@ import time
 
 import pytest
 
-from services.process_tree import ProcessInfo, child_processes, running_command_names
+from services.process_tree import (
+    ProcessInfo,
+    child_processes,
+    files_written_in,
+    running_command_names,
+)
 
 
 def _proc(tmp_path, pid, comm, ppid, pgrp=None):
@@ -186,3 +191,28 @@ def test_a_tail_beside_a_real_job(tmp_path):
     assert running_command_names(100, proc_root=str(tmp_path)) == ["simpleFoam"]
     assert follower_pids(100, proc_root=str(tmp_path)) == [101]
     assert follower_pids(None, proc_root=str(tmp_path)) == []
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="reads /proc")
+def test_files_written_in_sees_writers_not_readers(tmp_path):
+    (tmp_path / "log.read").write_text("x\n")
+    # A writer holding log.write open, like a solver under runApplication,
+    # and a reader holding log.read open, like `tail -f`.
+    writer = subprocess.Popen(["sh", "-c", "exec 3>log.write; exec sleep 30"], cwd=tmp_path)
+    reader = subprocess.Popen(["sh", "-c", "exec 3<log.read; exec sleep 30"], cwd=tmp_path)
+    try:
+        deadline = time.monotonic() + 5
+        found = files_written_in(str(tmp_path))
+        while found is not None and "log.write" not in found and time.monotonic() < deadline:
+            time.sleep(0.05)
+            found = files_written_in(str(tmp_path))
+        assert found == {"log.write"}
+    finally:
+        for proc in (writer, reader):
+            proc.kill()
+            proc.wait()
+    assert files_written_in(str(tmp_path)) == set()
+
+
+def test_files_written_in_without_proc(tmp_path):
+    assert files_written_in(str(tmp_path), proc_root=str(tmp_path / "nowhere")) is None

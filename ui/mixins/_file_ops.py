@@ -2,6 +2,7 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -14,10 +15,18 @@ from foam.include_expand import clear_expand_cache
 from foam.include_resolver import ResolvedInclude
 from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser, ParseError
-from foam.utils import is_large_non_foam_file, is_script_text, is_text_only, read_foam_file
+from foam.utils import (
+    is_large_non_foam_file,
+    is_script_text,
+    is_text_only,
+    read_foam_file,
+    write_foam_file,
+)
+from foam.variants import clear_variant_cache
 from i18n import tr
 from services.case_files_config import CaseFilesConfig
 from services.case_loader import FIELD_DIRS, list_case_files
+from services.disk_stamp import DELETED, changed_since, take_stamp
 from services.include_scan import (
     clear_scan_cache,
     included_files,
@@ -71,6 +80,7 @@ class _FileOpsMixin(_Base):
 
         clear_scan_cache()  # the memos are per case; bound them on a switch
         clear_expand_cache()
+        clear_variant_cache()
         paths, extra, extra_dir_paths, origins = self._case_file_paths(directory)
         self.file_list_panel.load_files(
             paths,
@@ -82,6 +92,7 @@ class _FileOpsMixin(_Base):
 
         self.state.file_buffers.clear()
         self.state.file_dirty.clear()
+        self.state.disk_stamps.clear()
         self.state.parsed_roots.clear()
         self.state.viewer_include_sources.clear()
         self._viewer_primed.clear()
@@ -94,6 +105,10 @@ class _FileOpsMixin(_Base):
             self.terminal_panel.set_working_directory(directory)
         if self._log_summary_dialog is not None:
             self._log_summary_dialog.set_case_dir(directory)
+        if self._case_check_dialog is not None and self._case_check_dialog.isVisible():
+            self._refresh_case_check()
+        if self._allrun_steps_dialog is not None and self._allrun_steps_dialog.isVisible():
+            self._refresh_allrun_steps()
         # Bolds the open case in the Cases tab and the Case Browser. It does
         # not move either view: yanking the user's browsing position around
         # because a case was opened would be the wrong kind of helpful.
@@ -245,6 +260,23 @@ class _FileOpsMixin(_Base):
         self.load_selected_file(target)
         self.file_list_panel.select_file(target)
 
+    def _open_file_at_line(self, path: str, line: int) -> None:
+        """Open *path* in the editor at *line* (0: just open it).
+
+        Used by Check Case's findings and View Log Summary's advice. A
+        directory or a vanished file opens nothing.
+        """
+        if not os.path.isfile(path):
+            return
+        if not self.file_list_panel.has_file(path):
+            self._reload_file_list()
+        self.load_selected_file(path)
+        self.file_list_panel.select_file(path)
+        if line > 0 and self.state.current_file == path:
+            self.editor_panel.jump_to_node(line, line)
+        self.raise_()
+        self.activateWindow()
+
     # ── load / save ───────────────────────────────────────────────────────────
 
     def _parse_and_update(self, path: str, text: str) -> OpenFoamParser:
@@ -308,6 +340,7 @@ class _FileOpsMixin(_Base):
                 return
             self.state.file_buffers[path] = text
             self.state.file_dirty[path] = False
+            self._record_disk_stamp(path, text)
 
         try:
             self.state.current_file = path
@@ -375,8 +408,13 @@ class _FileOpsMixin(_Base):
             return
 
         text = self.editor_panel.get_text()
+        if self._changed_outside([self.state.current_file]) and not self._confirm_overwrite(
+            [self.state.current_file]
+        ):
+            return
         try:
-            Path(self.state.current_file).write_text(text, encoding="utf-8")
+            write_foam_file(self.state.current_file, text)
+            self._record_disk_stamp(self.state.current_file, text)
             self.state.file_buffers[self.state.current_file] = text
             self.state.file_dirty[self.state.current_file] = False
             self.state.text_dirty = False
@@ -431,12 +469,24 @@ class _FileOpsMixin(_Base):
             self.statusBar().showMessage(tr("No unsaved files."), STATUS_SHORT)
             return
 
+        changed = self._changed_outside(dirty_paths)
+        if changed:
+            choice = self._ask_overwrite_many(changed)
+            if choice is None:
+                return
+            if not choice:
+                # "Save the others": the changed files keep their edits, unsaved.
+                dirty_paths = [p for p in dirty_paths if p not in changed]
+                if not dirty_paths:
+                    return
+
         saved = []
         failed = []
         for path in dirty_paths:
             text = self.state.file_buffers.get(path, "")
             try:
-                Path(path).write_text(text, encoding="utf-8")
+                write_foam_file(path, text)
+                self._record_disk_stamp(path, text)
                 self.state.file_buffers[path] = text
                 self.state.file_dirty[path] = False
                 self.file_list_panel.mark_dirty(path, False)
@@ -517,7 +567,121 @@ class _FileOpsMixin(_Base):
     def _purge_file_caches(self, path: str) -> None:
         self.state.file_buffers.pop(path, None)
         self.state.file_dirty.pop(path, None)
+        self.state.disk_stamps.pop(path, None)
         self.state.parsed_roots.pop(path, None)
+
+    # ── changes made outside FoDE ─────────────────────────────────────────────
+
+    def _record_disk_stamp(self, path: str, text: str) -> None:
+        """Remember *path* as holding *text* now (just read or written)."""
+        stamp = take_stamp(path, text)
+        if stamp is None:
+            self.state.disk_stamps.pop(path, None)
+        else:
+            self.state.disk_stamps[path] = stamp
+
+    def _changed_outside(self, paths: list[str]) -> dict[str, str]:
+        """Those of *paths* changed or deleted on disk since FoDE read them.
+
+        Maps each to services/disk_stamp's ``CHANGED``/``DELETED``. A path
+        with no stamp (a buffer FoDE never read from disk) is never listed.
+        """
+        found: dict[str, str] = {}
+        for path in paths:
+            stamp = self.state.disk_stamps.get(path)
+            if stamp is None:
+                continue
+            status = changed_since(path, stamp)
+            if status:
+                found[path] = status
+        return found
+
+    def _outside_change_lines(self, changed: dict[str, str] | list[str]) -> str:
+        statuses = changed if isinstance(changed, dict) else self._changed_outside(changed)
+        lines = []
+        for path, status in statuses.items():
+            name = self._case_relative(path) or path
+            lines.append(
+                tr("{name} (deleted)").format(name=name) if status == DELETED else str(name)
+            )
+        return "\n".join(lines)
+
+    def _confirm_overwrite(self, paths: list[str]) -> bool:
+        """Ask before saving over one file changed outside FoDE."""
+        return self._confirm(
+            tr("File Changed on Disk"),
+            tr(
+                "This file was changed or deleted by another program after FoDE "
+                "read it:\n\n{files}\n\nSaving replaces that version with "
+                "yours. To see the other version first, cancel and use Reload "
+                "File from Disk (F5), which discards your unsaved edits.\n\n"
+                "Save anyway?"
+            ).format(files=self._outside_change_lines(paths)),
+        )
+
+    def _ask_overwrite_many(self, changed: dict[str, str]) -> bool | None:
+        """For Save Case: True overwrite them, False save only the others, None cancel."""
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle(tr("Files Changed on Disk"))
+        box.setText(
+            tr(
+                "These files were changed or deleted by another program after "
+                "FoDE read them:\n\n{files}\n\nSaving them replaces those "
+                "versions with yours."
+            ).format(files=self._outside_change_lines(changed))
+        )
+        overwrite = box.addButton(tr("Save Them Anyway"), QMessageBox.ButtonRole.AcceptRole)
+        others = box.addButton(tr("Save the Others Only"), QMessageBox.ButtonRole.ActionRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is overwrite:
+            return True
+        if clicked is others:
+            return False
+        return None
+
+    def reload_file_from_disk(self, path: str | None = None) -> None:
+        """Re-read *path* (default: the open file) from disk, dropping FoDE's copy.
+
+        Asks first when the copy has unsaved edits. Undoable with the tree's
+        Ctrl+Z, which brings the previous text back as an unsaved edit.
+        """
+        path = path or self.state.current_file
+        if not path:
+            return
+        name = self._case_relative(path) or path
+        if not os.path.isfile(path):
+            self._error(
+                tr("Reload File from Disk"),
+                tr("{name} no longer exists on disk.").format(name=name),
+            )
+            return
+        was_current = path == self.state.current_file
+        if was_current:
+            self._save_current_buffer()
+        if self.state.file_dirty.get(path) and not self._confirm(
+            tr("Reload File from Disk"),
+            tr(
+                "{name} has unsaved changes. Reloading replaces them with the "
+                "file on disk. Reload?"
+            ).format(name=name),
+        ):
+            return
+        if path in self.state.file_buffers:
+            self._checkpoint_for_undo([path])
+        if was_current:
+            self._clear_current_file()
+        self._purge_file_caches(path)
+        self.file_list_panel.mark_dirty(path, False)
+        if was_current:
+            self.load_selected_file(path)
+        self._refresh_include_dependents(path)
+        self._reload_file_list()
+        self.statusBar().showMessage(
+            tr("Reloaded from disk: {name}").format(name=name), STATUS_NORMAL
+        )
 
     def _is_auto_scan_group(self, group: str) -> bool:
         """Return True if group is fully scanned (FIELD_DIRS or extra dirs)."""

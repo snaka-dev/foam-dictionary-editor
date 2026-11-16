@@ -88,6 +88,7 @@ TOOLS_OPS_METHODS = [
     "_on_run_reconstructpar_clicked",
     "_reload_clean_file_from_disk",
     "_on_run_allrun_clicked",
+    "_choose_allrun_script",
     "_on_run_allclean_clicked",
     "_on_clean_case_clicked",
     "_show_cached_dialog",
@@ -120,6 +121,13 @@ BACKGROUND_RUN_OPS_METHODS = [
 
 FILE_OPS_METHODS = [
     "_load_case_dir",
+    "_record_disk_stamp",
+    "_changed_outside",
+    "_outside_change_lines",
+    "_confirm_overwrite",
+    "_ask_overwrite_many",
+    "reload_file_from_disk",
+    "_open_file_at_line",
     "_case_file_paths",
     "_case_relative",
     "_reload_file_list",
@@ -358,9 +366,44 @@ def test_function_object_ops_owns_its_methods():
     assert missing == [], f"_FunctionObjectOpsMixin is missing {missing}"
 
 
+ALLRUN_OPS_METHODS = [
+    "_read_allrun_plan",
+    "_on_allrun_steps_clicked",
+    "_refresh_allrun_steps",
+    "_on_allrun_run_requested",
+    "_confirm_allrun_command",
+    "_runs_the_solver",
+    "_on_allrun_log_requested",
+    "_on_create_allrun_clicked",
+    "_write_new_scripts",
+]
+
+
+def test_allrun_ops_owns_its_methods():
+    from ui.mixins._allrun_ops import _AllrunOpsMixin
+    missing = [m for m in ALLRUN_OPS_METHODS if m not in _AllrunOpsMixin.__dict__]
+    assert missing == [], f"_AllrunOpsMixin is missing {missing}"
+
+
+CASE_CHECK_OPS_METHODS = [
+    "_run_case_check",
+    "_on_check_case_clicked",
+    "_refresh_case_check",
+    "_case_check_solver_warnings",
+]
+
+
+def test_case_check_ops_owns_its_methods():
+    from ui.mixins._case_check_ops import _CaseCheckOpsMixin
+    missing = [m for m in CASE_CHECK_OPS_METHODS if m not in _CaseCheckOpsMixin.__dict__]
+    assert missing == [], f"_CaseCheckOpsMixin is missing {missing}"
+
+
 def test_no_duplicate_methods_across_mixins():
+    from ui.mixins._allrun_ops import _AllrunOpsMixin
     from ui.mixins._background_run_ops import _BackgroundRunOpsMixin
     from ui.mixins._boundary_ops import _BoundaryOpsMixin
+    from ui.mixins._case_check_ops import _CaseCheckOpsMixin
     from ui.mixins._case_ops import _CaseOpsMixin
     from ui.mixins._diff_ops import _DiffOpsMixin
     from ui.mixins._file_mgmt_ops import _FileManagementOpsMixin
@@ -390,6 +433,8 @@ def test_no_duplicate_methods_across_mixins():
         ("_ProcessorOpsMixin",      set(_ProcessorOpsMixin.__dict__)),
         ("_BackgroundRunOpsMixin",  set(_BackgroundRunOpsMixin.__dict__)),
         ("_FunctionObjectOpsMixin", set(_FunctionObjectOpsMixin.__dict__)),
+        ("_CaseCheckOpsMixin",      set(_CaseCheckOpsMixin.__dict__)),
+        ("_AllrunOpsMixin",         set(_AllrunOpsMixin.__dict__)),
         ("_ModelOpsMixin",          set(_ModelOpsMixin.__dict__)),
         ("_UiOpsMixin",             set(_UiOpsMixin.__dict__)),
         ("_UndoOpsMixin",           set(_UndoOpsMixin.__dict__)),
@@ -399,7 +444,8 @@ def test_no_duplicate_methods_across_mixins():
         _TreeCrudOpsMixin, _TreeSyncOpsMixin, _BoundaryOpsMixin,
         _DiffOpsMixin, _PanelOpsMixin, _FoamMonitorOpsMixin,
         _ToolsOpsMixin, _ProcessorOpsMixin, _BackgroundRunOpsMixin,
-        _FunctionObjectOpsMixin, _ModelOpsMixin, _UiOpsMixin, _UndoOpsMixin,
+        _FunctionObjectOpsMixin, _CaseCheckOpsMixin, _AllrunOpsMixin, _ModelOpsMixin,
+        _UiOpsMixin, _UndoOpsMixin,
     ]
     method_groups = [
         (name, {k for k in methods if not k.startswith("__") and callable(getattr(m, k, None))})
@@ -422,8 +468,10 @@ def test_no_duplicate_methods_across_mixins():
 
 def test_main_window_inherits_all_mixins(qapp):
     from ui.main_window import MainWindow
+    from ui.mixins._allrun_ops import _AllrunOpsMixin
     from ui.mixins._background_run_ops import _BackgroundRunOpsMixin
     from ui.mixins._boundary_ops import _BoundaryOpsMixin
+    from ui.mixins._case_check_ops import _CaseCheckOpsMixin
     from ui.mixins._case_nav_ops import _CaseNavOpsMixin
     from ui.mixins._case_ops import _CaseOpsMixin
     from ui.mixins._diff_ops import _DiffOpsMixin
@@ -456,6 +504,8 @@ def test_main_window_inherits_all_mixins(qapp):
     assert issubclass(MainWindow, _ProcessorOpsMixin)
     assert issubclass(MainWindow, _BackgroundRunOpsMixin)
     assert issubclass(MainWindow, _FunctionObjectOpsMixin)
+    assert issubclass(MainWindow, _CaseCheckOpsMixin)
+    assert issubclass(MainWindow, _AllrunOpsMixin)
     assert issubclass(MainWindow, _ModelOpsMixin)
     assert issubclass(MainWindow, _UiOpsMixin)
     assert issubclass(MainWindow, _UndoOpsMixin)
@@ -663,6 +713,8 @@ def test_all_mixin_methods_are_assigned_to_a_list():
         "PROCESSOR_OPS_METHODS": PROCESSOR_OPS_METHODS,
         "BACKGROUND_RUN_OPS_METHODS": BACKGROUND_RUN_OPS_METHODS,
         "FUNCTION_OBJECT_OPS_METHODS": FUNCTION_OBJECT_OPS_METHODS,
+        "CASE_CHECK_OPS_METHODS": CASE_CHECK_OPS_METHODS,
+        "ALLRUN_OPS_METHODS": ALLRUN_OPS_METHODS,
         "FILE_OPS_METHODS": FILE_OPS_METHODS,
         "FILE_MGMT_OPS_METHODS": FILE_MGMT_OPS_METHODS,
         "TREE_CRUD_OPS_METHODS": TREE_CRUD_OPS_METHODS,

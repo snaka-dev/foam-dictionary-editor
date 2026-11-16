@@ -1,0 +1,47 @@
+1
+00:00:00,000 --> 00:00:07,200
+The cavity tutorial, freshly copied: no Allrun and no logs. It has a decomposeParDict, but that alone does not mean it runs in parallel.
+
+2
+00:00:07,200 --> 00:00:12,800
+So FoDE suggests blockMesh and icoFoam, run serially.
+
+3
+00:00:12,800 --> 00:00:18,800
+Tick Also create Allrun-parallel: decomposePar and reconstructPar are added around the solver, marked for the parallel script only.
+
+4
+00:00:18,800 --> 00:00:23,830
+The steps before the solver go in Allrun.pre, which both scripts call.
+
+5
+00:00:23,830 --> 00:00:28,362
+Allrun calls it, then runs icoFoam serially.
+
+6
+00:00:28,362 --> 00:00:37,198
+Allrun-parallel calls it too, then decomposes the case, runs icoFoam on nine processors and puts the results back together.
+
+7
+00:00:37,198 --> 00:00:41,798
+A step the logs cannot show goes in with Add Command.
+
+8
+00:00:41,798 --> 00:00:46,799
+An OpenFOAM application is written with runApplication, so it writes a log like every other step.
+
+9
+00:00:46,799 --> 00:00:56,867
+Create writes all four scripts and opens the Allrun.
+
+10
+00:00:56,867 --> 00:01:05,400
+With both scripts, Allrun Steps asks which one to follow.
+
+11
+00:01:05,400 --> 00:01:12,647
+Run Allrun Script asks too.
+
+12
+00:01:12,647 --> 00:01:16,647
+Allrun-parallel runs: blockMesh from Allrun.pre, decomposePar, icoFoam on nine processors, reconstructPar, then postProcess.

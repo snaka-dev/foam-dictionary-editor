@@ -19,8 +19,9 @@ FoDE に同梱されている damBreak チュートリアル（`tutorials/damBre
 3. **3D で見る:** **BlockMesh** タブを開きます。メッシュ、`setFieldsDict` の水柱、2 本のゲージ線が描画されます。*タブがない場合は*、**Terminal** タブ上部の **xterm terminal** のチェックを外してください。3D ビューとそのターミナルはグラフィックスカードを共有できないため、交代で使われます。[BlockMesh パネル](#blockmesh-パネル) と [ターミナルタブ](#ターミナルタブ) を参照。
 4. **読んで編集する:** `system/controlDict` をクリックし、**Tree** タブの行を選びます。隣の**詳細ペイン**がそのキーを説明し、選択肢を示します。値を変えて `Ctrl+S` で保存します。[ツリーとテキストの編集フロー](#ツリーとテキストの編集フロー) と [詳細ペイン](#詳細ペイン) を参照。
 5. **境界を確認する:** **Boundary** タブにすべてのパッチとすべてのフィールドが並びます。[境界条件ビュー](#境界条件ビュー) を参照。
-6. **実行する:** **Tools > Run blockMesh…**、続けて **Tools > Run setFields…**（*Restore 0/ from 0.orig/ first* は最初からチェックされています）、そして **Tools > Run Solver…** を選びます。いずれも実行前にコマンドが表示され、出力は Terminal に現れて `log.*` に保存されます。[Tools メニュー](#tools-メニュー) を参照。
-7. **結果を見る:** **Tools > View Log Summary…** でソルバーのログが要約され、**Tools > Open Mesh in ParaView…** でケースを ParaView で開けます。[View Log Summary](#view-log-summary) を参照。
+6. **実行前に確認する:** **Tools > Check Case…** が、初回の実行を止めることの多い間違い（境界条件のないパッチ、何も書き出さない `controlDict` など）を探し、ファイルを該当行で開きます。同梱の damBreak では、エラーが 1 件出ます: `0.orig/` があるのに `0/` がありません。次の手順の *Restore 0/ from 0.orig/ first* がそれを作ります。[Check Case](#check-case) を参照。
+7. **実行する:** **Tools > Run blockMesh…**、続けて **Tools > Run setFields…**（*Restore 0/ from 0.orig/ first* は最初からチェックされています）、そして **Tools > Run Solver…** を選びます。いずれも実行前にコマンドが表示され、出力は Terminal に現れて `log.*` に保存されます。[Tools メニュー](#tools-メニュー) を参照。
+8. **結果を見る:** **Tools > View Log Summary…** でソルバーのログが要約され、実行が失敗していればエラーを平易な言葉で説明します。**Tools > Open Mesh in ParaView…** でケースを ParaView で開けます。[View Log Summary](#view-log-summary) を参照。
 
 実行するとメッシュと結果は開いたフォルダに書き込まれるため、リポジトリを汚したくない場合は、先に **Case > Duplicate Case…** でチュートリアルをコピーし、そのコピーを開いてください。自分のケースから始めるには、同じ方法でそのケースを開きます。**Case > Duplicate from Case Library…** は OpenFOAM のチュートリアルを自分のフォルダにコピーして出発点にできます。[ケースライブラリ](#ケースライブラリ) を参照。
 
@@ -43,6 +44,8 @@ FoDE に同梱されている damBreak チュートリアル（`tutorials/damBre
   - [数値型の自動昇格](#数値型の自動昇格)
   - [編集値の検証](#編集値の検証)
 - [エディタの挙動](#エディタの挙動)
+  - [圧縮ファイル](#圧縮ファイル)
+  - [別のプログラムが変更したファイル](#別のプログラムが変更したファイル)
   - [コード折りたたみ](#コード折りたたみ)
 - [ツリーキーフィルターとエディタ同期](#ツリーキーフィルターとエディタ同期)
   - [ツリーキーフィルター](#ツリーキーフィルター)
@@ -141,6 +144,7 @@ FoDE に同梱されている damBreak チュートリアル（`tutorials/damBre
 - [Run checkMesh](#run-checkmesh)
 - [Add Function Object](#add-function-object)
 - [Run postProcess](#run-postprocess)
+- [Check Case](#check-case)
 - [Run decomposePar](#run-decomposepar)
 - [Run Solver](#run-solver)
 - [Background runs and Stop Background Run](#background-runs-and-stop-background-run)
@@ -148,6 +152,8 @@ FoDE に同梱されている damBreak チュートリアル（`tutorials/damBre
 - [Run reconstructPar](#run-reconstructpar)
 - [Delete processor* Directories](#delete-processor-directories)
 - [Run Allrun Script](#run-allrun-script)
+- [Allrun Steps](#allrun-steps)
+- [Create Allrun from Logs](#create-allrun-from-logs)
 - [Open Mesh in ParaView](#open-mesh-in-paraview)
 - [Run Allclean Script](#run-allclean-script)
 - [Clean Case (foamCleanTutorials)](#clean-case-foamcleantutorials)
@@ -237,6 +243,8 @@ FoDE に同梱されている damBreak チュートリアル（`tutorials/damBre
 | エディタでテキストを検索する | [Editor ツールバー](#現在のui構成) |
 | キーボードショートカットを調べる | [キーボードショートカット](#キーボードショートカット) |
 | FoDE から OpenFOAM コマンドを実行する | [Tools メニュー](#tools-メニュー) / [ターミナルタブ](#ターミナルタブ) |
+| 初回の実行を止める間違いを、実行前に見つける | [Check Case](#check-case) |
+| 実行がエラーで止まった理由を知る | [View Log Summary](#view-log-summary) |
 | メッシュが最新かどうかを確認する | [メッシュ有無・古さのインジケーター](#メッシュ有無古さのインジケーター) |
 | FoDE を離れずに blockMesh を実行・0/ を復元する | [Run blockMesh](#run-blockmesh) / [Restore 0/ from 0.orig](#restore-0-from-0orig) |
 | FoDE を離れずに snappyHexMesh・topoSet を実行する | [Run snappyHexMesh](#run-snappyhexmesh) / [Run topoSet](#run-toposet) |
@@ -247,8 +255,10 @@ FoDE に同梱されている damBreak チュートリアル（`tutorials/damBre
 | 辞書の書き方を知らなくても、プローブ・サンプル線・切断面を追加する | [Add Function Object](#add-function-object) |
 | ソルバーを再実行せずに、既存の結果をサンプリングしたり yPlus を一度だけ計算したりする | [Run postProcess](#run-postprocess) |
 | ケースのワークフロー全体を実行する、またはケースを初期状態にクリーンする | [Run Allrun Script](#run-allrun-script) / [Run Allclean Script](#run-allclean-script) / [Clean Case](#clean-case-foamcleantutorials) |
+| Allrun のどのステップが済んだかを見て、1 つずつ実行する | [Allrun Steps](#allrun-steps) |
+| ツールを 1 つずつ実行して作ったケースに Allrun を書く | [Create Allrun from Logs](#create-allrun-from-logs) |
 | ソルバー実行中に残差をプロットする | [foamMonitor ランチャー](#foammonitor-ランチャー) |
-| 数千行に及ぶ log.snappyHexMesh をスクロールせずに読む | [View Log Summary](#view-log-summary) |
+| 数千行に及ぶ `log.snappyHexMesh` をスクロールせずに読む | [View Log Summary](#view-log-summary) |
 | キーワードや function object が実際のケースでどう使われているか調べる | [Find OpenFOAM Examples](#find-openfoam-examples) |
 | バリアント（ターミナルなし・BlockMesh）を選ぶ | [バリアント](#バリアント) |
 | カスタムキーのスキーマを追加する | [スキーマモジュール設定](#スキーマモジュール設定) |
@@ -273,6 +283,8 @@ FoDE に同梱されている damBreak チュートリアル（`tutorials/damBre
 - **境界条件を 1 つの表に。** すべてのパッチとすべてのフィールドを並べて、その場で編集できます。パッチの追加・削除・リネームを全フィールドファイルにまとめて適用できます。→ [境界条件ビュー](#境界条件ビュー)
 - **辞書のための 3D ビューア。** `blockMeshDict` を 3D 表示し、`topoSetDict`・`snappyHexMeshDict`・`setFieldsDict`・サンプリングファイルの形状を重ねて描画します。メッシュを切る前に、ボックスの位置違いに気づけます。→ [BlockMesh パネル](#blockmesh-パネル)
 - **Tools メニューからケースを実行。** blockMesh、snappyHexMesh、setFields、ソルバー、`Allrun` などを、実際のコマンドを表示するダイアログから実行でき、実行後はログの要約も見られます。→ [Tools メニュー](#tools-メニュー)
+- **初回の実行を手助け。** Check Case が実行前に典型的な間違いを見つけ、それでも実行が失敗したときは、ログの要約が何が起きたかを説明してファイルを該当行で開きます。→ [Check Case](#check-case)、[View Log Summary](#view-log-summary)
+- **たどれる Allrun スクリプト。** ケースの `Allrun` のどのステップが済んだかを見て 1 つずつ実行したり、手で作ったケースのログから `Allrun`（と `Allrun-parallel`）を書いたりできます。→ [Allrun Steps](#allrun-steps)、[Create Allrun from Logs](#create-allrun-from-logs)
 - **FoDE を閉じても続く実行。** ソルバーをバックグラウンドで起動して FoDE を閉じ、あとで書き出し時刻を指定してきれいに停止できます。→ [Background runs](#background-runs-and-stop-background-run)
 - **辞書を知らなくても後処理を追加。** probes、線上のグラフ、切断面、forces をフォームから追加でき、入力中に 3D ビューへ描画されます。→ [Add Function Object](#add-function-object)
 - **動いているケースと比較。** 自分のケースをチュートリアルと並べると、差分が色分けされ、右クリック 1 回で値を取り込めます。→ [ケース比較](#ケース比較)
@@ -336,6 +348,7 @@ FoDE に同梱されている damBreak チュートリアル（`tutorials/damBre
 - Case > Save File `Ctrl+S`
 - Case > Save Case `Ctrl+Shift+S`
 - Case > Save as New Case…
+- Case > Reload File from Disk `F5` — 別のプログラムが変更した、開いているファイルを読み直します。[別のプログラムが変更したファイル](#別のプログラムが変更したファイル)を参照。
 - Case > Apply Text to Tree `Ctrl+Shift+A` — 下段タブバーの **▲ Apply Text to Tree** ボタンと同じ動作です。
 - Case > Reload from Tree — **▼ Reload from Tree** ボタンと同じ動作です。エディタのテキストを上書きし、ツリーへ未適用の編集を破棄するため、意図的にショートカットを割り当てていません。
 - Case > Duplicate Case…
@@ -398,7 +411,7 @@ FoDE に同梱されている damBreak チュートリアル（`tutorials/damBre
 
 ## 詳細ペイン
 
-右側の詳細ペインは、選択したノードのコンテキスト情報を表示し、値の編集を行う場所です。
+右側の詳細ペインは、選択したノードのコンテキスト情報を表示し、値の編集を行う場所です。通常ノードでは Key、Type、編集可能な Value フィールドを、`field_value` ノードでは Field Type、Field Name、Value を表示します。
 
 選択したキーにスキーマが定義されている場合、次の情報が表示されます。
 
@@ -421,8 +434,6 @@ OpenFOAM は辞書のキーを折に触れて改名しており、2 つのフォ
 
 新しいリリースに同梱されたモジュールは、一覧に自動的に追加されます。以前に削除したモジュールは削除されたままになります。
 
-通常ノードでは Key、Type、編集可能な Value フィールドも表示されます。`field_value` ノードでは Field Type、Field Name、Value を表示します。
-
 ### 数値型の自動昇格
 
 OpenFOAM は多くの場面で整数と浮動小数点数を厳密に区別しません。現在の型が `int` のノードに小数値（例: `0.5`）を入力すると、エラーや確認ダイアログなしに自動的に `scalar` へ型が昇格されます。Type 列は Apply Value の直後に更新されます。`scalar` ノードに整数値を入力しても型は `scalar` のまま維持されます。
@@ -438,6 +449,19 @@ OpenFOAM は多くの場面で整数と浮動小数点数を厳密に区別し�
 エディタは OpenFOAM 辞書ファイルのトークンに**シンタックスハイライト**を適用します: コメント（`//` および `/* */`）はグレー斜体、文字列リテラルは緑、`#ディレクティブ` は紫太字、`$マクロ` 参照はオレンジ、予約済みキーワード（`FoamFile`、`true`/`false`、`uniform`、`nonuniform` など）は青太字、数値はティール色で表示されます。エディタツールバーの **Highlight** ボタンでハイライトのオン／オフを切り替えられます。設定はセッションをまたいで保存されます。
 
 テキストエディタ内容に未保存の変更があるとウィンドウタイトルに `*` が付き、保存・ツリーからの再読み込み・Apply-to-Tree 成功後に外れます。
+
+### 圧縮ファイル
+
+gzip で圧縮されたファイル（OpenFOAM が `writeCompression on` のときに書く `0/U.gz` など）は通常のテキストとして開き、保存・バックアップ・新しいケースとして保存のいずれでも再び圧縮して書くので、OpenFOAM はこれまでどおり読めます。複製は、名前を `.gz` で終わらせたときに圧縮されます。
+
+### 別のプログラムが変更したファイル
+
+FoDE は、開いた各ファイルについて自分のコピーを持って作業します。別のプログラム（`foamDictionary -set`、`sed`、別のエディタ、ターミナルで実行したスクリプト）がそれらのファイルを書き換えても、FoDE のコピーはひとりでには変わりません:
+
+- **保存の前に確認します。** FoDE が読み込んだ後にディスク上で変更された、または削除されたファイルを保存（Save File または Save Case）しようとすると、FoDE はそのことを伝え、その版をあなたの版で置き換える前に確認します。Save Case はそのようなファイルをすべて列挙し、**Save Them Anyway**（それでも保存）、**Save the Others Only**（ほかのファイルだけ保存。該当ファイルの編集は未保存のまま残ります）、Cancel を選べます。タイムスタンプが更新されただけのファイルや、同じ内容で書き直されたファイルは数えません。
+- **Reload File from Disk**（Case メニュー、`F5`、またはファイル一覧のファイルの右クリックメニューの **Reload from Disk**）は、ファイルを読み直し、エディタ・ツリー・3-D ビューを更新します。保存していない編集があれば先に確認します。ツリーの Undo（ツリーで `Ctrl+Z`）で以前の版に戻せます。
+
+FoDE がファイルを自動で読み直すことはありません。そのため、再読み込みでツリーが勝手に動いたり、ウィンドウを切り替えた瞬間に質問が出たりすることはありません。
 
 ### コード折りたたみ
 
@@ -534,6 +558,7 @@ FoDE はケース内のすべてのファイルではなく、編集すること
 
 - **`system/` と `constant/`** — OpenFOAM のチュートリアルを調査して選んだ、よく知られた辞書名約 100 個です。`controlDict`、`fvSchemes`、`fvSolution`、`blockMeshDict`、`snappyHexMeshDict`、`transportProperties` などが含まれます。2 つの OpenFOAM フォークで名前が変わった辞書は、どちらの綴りも登録されており、ケースにあるほうが表示されます（`turbulenceProperties` / `momentumTransport`、`fvOptions` / `fvModels` + `fvConstraints`、`transportProperties` および `thermophysicalProperties` / `physicalProperties`）。`limestoneCloud1Properties` のような、1 つのケースにしかない名前は推測しません。
 - **3D ビューアが描画する 4 つの辞書の変種** — `system/` 内の、名前が `blockMeshDict`、`topoSetDict`、`snappyHexMeshDict`、`setFieldsDict` で始まるファイル。`topoSetDict-slices` や `topoSetDict.1` を `topoSetDict` と並べて持つケースでも、すべて一覧に表示されます。
+- **ほかの辞書のサフィックス付き派生ファイル** — `system/` と `constant/` の `decomposeParDict.4`、`controlDict.orig`、`refineMeshDict.tier6`、`dynamicMeshDict.sixDoF` など: 一覧済みの辞書名に区切り（`.`、`-`、`_` または数字）を付けた名前で、かつ自身の `FoamFile` ヘッダがその辞書かファイル自身を名乗るファイル。これらの行は淡色で表示されます。OpenFOAM がこうしたファイルを読むのは、コマンドが名前で指定したとき（`-dict …`）か、スクリプトが本来のファイルに上書きコピーしたときだけだからです — `decomposeParDict.4` を編集しても `decomposeParDict` は変わりません。ツールチップがそのことを伝え、詳細ペインは元の辞書と同じようにキーを説明します。別の辞書を名乗るヘッダのファイルや、ヘッダのないファイル（`#include` の断片）は一覧に載りません。必要なら **Add files** で追加してください。
 - **フィールドファイル** — `0/` と `0.orig/` の直下にあるすべてのファイル。
 - **フェーズバリアント** — `thermophysicalProperties.*`、`turbulenceProperties.*` とその仲間（例: `thermophysicalProperties.air`）。`constant/` と各リージョンの constant ディレクトリから集めます。
 - **ケースルートのスクリプト** — `Allrun`、`Allclean` などの `All*` スクリプト。[ケースルートのスクリプト](#ケースルートのスクリプト) を参照。
@@ -946,7 +971,7 @@ Cases タブ下端の **Browse…**、または **Case > Case Browser…** で�
 - 列は全ファイルにわたるパッチ名の和集合です。そのファイルに定義されていないパッチのセルは `–` で表示されます。
 - **セルテキスト** — そのパッチの `type` 値（例: `fixedValue`、`zeroGradient`、`noSlip`）。大規模データまたはバイナリデータを含むパッチには `†` マーカーが付きます。
 - **ツールチップ** — セルにホバーするとパッチ sub-dict の全テキストを表示します。`†` マーカーのあるセルでは、type と簡潔なデータ説明（`large data` または `binary data`）を表示します。
-- **Lines per cell** — パネル右上のスピンボックスで、セルあたりの表示行数を 1〜10 の範囲で指定できます（デフォルト: 1）。2 以上に設定すると、`type` 行の下にパッチ sub-dict の追加キー・値が表示されます。値が大きい・複雑なエントリは `key  …` として表示されます。
+- **Lines per cell** — パネル右上のスピンボックスで、セルあたりの表示行数を 1〜10 の範囲で指定できます（デフォルト: 1）。2 以上に設定すると、`type` 行の下にパッチ sub-dict の追加キー・値が表示されます。非一様リストはその要素数（`value  nonuniform List<scalar> (2250 values)`）、60 文字を超える値は `…` で切り詰めた形、バイナリデータは `(binary)`、sub-dict やリストは `key  ...` として表示されます。
 
 ### ディレクトリ切り替え
 
@@ -1293,9 +1318,10 @@ xterm ターミナルがアクティブな間は **⊞** ボタンが無効化�
 - [Add Function Object…](#add-function-object) — OpenFOAM インストールのテンプレートから probes、線上のグラフ、forces などを追加します。
 - [Run postProcess…](#run-postprocess) — すでにある結果に関数オブジェクトを実行します。
 
+- [Check Case…](#check-case) — 初回の実行を止める典型的な間違いを、実行前に探します。
 - [Run decomposePar…](#run-decomposepar)、[Run Solver…](#run-solver)、[Stop Background Run](#background-runs-and-stop-background-run)、[Run reconstructPar…](#run-reconstructpar)、[Delete processor\* Directories…](#delete-processor-directories) — 並列実行やバックグラウンド実行を最初から最後まで。
 
-- [Run Allrun Script](#run-allrun-script) — ケースのワークフロー全体。
+- [Run Allrun Script](#run-allrun-script) — ケースのワークフロー全体。[Allrun Steps…](#allrun-steps) — そのステップを 1 つずつ、それぞれログで判定して。[Create Allrun from Logs…](#create-allrun-from-logs) — Allrun のないケースに書きます。
 
 - [Open Mesh in ParaView…](#open-mesh-in-paraview)
 
@@ -1403,6 +1429,23 @@ OpenCFD の `visualization/surfaces` テンプレートは入れ子のリスト�
 
 出力は `log.postProcess`（Foundation 11 以降は `log.foamPostProcess`）に書かれ、ソルバーを通して実行する場合もソルバー自身のログには書きません。ケースにまだ結果がない場合や、未保存の編集があるファイルがある場合（postProcess はディスクから読むため）は警告します。他の Run ツールと同じく、Terminal タブでコマンドが実行中の間や、ケースでバックグラウンド実行が動いている間は拒否します。`controlDict` が実行する関数オブジェクトのファイル（`system/probes` など）を右クリックすると、その関数を選んだ状態で **これで postProcess を実行…** を開けます。
 
+## Check Case
+
+**Tools > Check Case…** を選択すると、初回の実行を止めることが最も多い間違いを、何かを実行する前に探します。保存していない編集も含めて、いま見えているとおりにケースを読み、見つかったものを一覧のウィンドウに表示します。このウィンドウは開いたまま修正作業ができます。問題を選択すると全文を読め、ダブルクリックするとそのファイルの該当行を開き、直し終えたら **Check Again** を押します。**Error** は実行（または `decomposePar`）を止めるもの、**Warning** は実行はできるがおそらく意図どおりにならないものです。
+
+チェックする内容:
+
+- **0/ がない**のに `0.orig/` がある: ソルバーは "cannot find file 0/…" で停止します。[Restore 0/ from 0.orig](#restore-0-from-0orig) でコピーしてください。チュートリアルの `Allrun` が最初に行う操作です。
+- **境界条件とメッシュの対応。** すべてのパッチは各場の `boundaryField` に項目が必要で、ないとソルバーは "Cannot find patchField entry" で停止します。項目は OpenFOAM と同じ数え方で数えます: パッチ自身の名前、パッチが属するグループ（壁パッチはすべて `wall`、`inGroups`、そして `#includeEtc "caseDicts/setConstraintTypes"` が扱う拘束タイプのグループ）、`".*Wall"` のような正規表現、そして `empty` パッチなら項目なしでも構いません。パッチは `constant/polyMesh/boundary` から、メッシュ生成前なら、ほかに何もメッシュを作り変えない場合に限り `blockMeshDict` から読みます。パッチが抜けているときは、どのパッチにも一致しない項目も表示します。同じ名前の綴り間違いであることが多いためです。
+- **一致が必要なパッチタイプ**: メッシュ上で `empty`、`symmetryPlane`、`symmetry`、`wedge` のパッチは、すべての場で同じタイプが必要です。逆に、場が `wall` や `patch` にこれらのタイプを与えることもできません（OpenFOAM の "inconsistent patch and patchField types"）。
+- **controlDict**: 計算より長い `writeInterval`（何も書き出されない）、計算全体より長い `deltaT`、すでに `endTime` から始まる計算（ソルバーは何もしません。続けるには `endTime` を大きくします）、そしてソルバーを開始直後に止める `stopAt writeNow` と `noWriteNow`。
+- **decomposeParDict**: `simple` と `hierarchical` 法では `n` の積が `numberOfSubdomains` と一致しないと、`decomposePar` が "Wrong number of … divisions" で停止します。`numberOfSubdomains` と食い違う `processor*` ディレクトリも報告します。
+- **ソルバーが読む辞書**（よく使う非圧縮性ソルバー: `icoFoam`、`simpleFoam`、`pimpleFoam`、`pisoFoam` とその派生、および Foundation の `foamRun` + `incompressibleFluid`）: `transportProperties`/`physicalProperties` と `turbulenceProperties`/`momentumTransport`。`physicalProperties` のように OpenFOAM Foundation の名前しかないケースは、旧名しか読まない OpenCFD 版 OpenFOAM では報告します。Foundation は両方を読みます。
+
+しないこと: 確信が持てないときは何も言いません。たどれない `#include` や `$macro` を使う場、メッシュが `snappyHexMesh` などで作られまだ生成されていないケース、各リージョンのメッシュができる前のマルチリージョンのケースはチェックせず、一覧の下の注記でそのことを伝えます。メッシュ生成の後にもう一度 Check Case を実行してください。ファイルを変更することはありません。
+
+見つかった内容は [Run Solver](#run-solver) の警告にも表示されます。
+
 ## Run decomposePar
 
 **Tools > Run decomposePar…** を選択すると、`system/decomposeParDict` の設定に従って、並列計算用にケースを `processorN/` ディレクトリへ分割します（分割数は `numberOfSubdomains`）。[オプションダイアログ](#run-ダイアログの仕組み)には `-force`（既存の `processor*` ディレクトリを先に削除）、`-copyZero`（場を分割せず `0/` をそのままコピー）、`-latestTime`、`-region` が並びます。ケースがすでに分割済みの場合はダイアログにその旨が表示され、`-force` が最初からチェックされています。`-force` がないと decomposePar は実行を拒否するためです。
@@ -1431,6 +1474,7 @@ OpenCFD の `visualization/surfaces` テンプレートは入れ子のリスト�
 - その他のオプション（`-noFunctionObjects` など）を指定する **Extra options**。
 - **FoDE を閉じても実行を続ける（バックグラウンドで実行）**: Linux のみ。既定でチェックされることはありません。[Background runs](#background-runs-and-stop-background-run) を参照。
 - `controlDict` の `stopAt` が `writeNow`（または `noWriteNow`、`nextWrite`）の場合の警告。ソルバーが開始直後に停止してしまうためです。以前の実行を手で止めたときの残りであることが多い設定です。
+- [Check Case](#check-case) が見つけた問題（境界条件の抜けなど）を、ファイルと行付きで表示します。最初の 4 件を表示し、残りは Tools > Check Case… で確認できます。
 - **既存の log.<ソルバー名>**: そのログがすでにある場合（典型的には最新時刻から計算を継続する場合）にだけ表示されます。どちらの場合も、ただの `log.<ソルバー名>` が常に最新の実行です。
   - デフォルトの **名前を変えて残す: log.<ソルバー名>.[サフィックス]** は、実行前に古いログを別名に移します。サフィックスには次の `partN` が入っており（既存の最大番号の次なので、番号は実行順に並びます）、`before-refine` のように自分で入力することもできます。サフィックスは記憶されず、毎回次の空いている `partN` から始まります。
   - **上書きする** を選ぶと古いログを置き換えます。
@@ -1440,7 +1484,7 @@ OpenCFD の `visualization/surfaces` テンプレートは入れ子のリスト�
 
 ## Background runs and Stop Background Run
 
-Terminal タブで始めた実行は、FoDE を閉じると終了します。長い計算では、[Run Solver](#run-solver) または [Run Allrun Script](#run-allrun-script) の確認ダイアログで **FoDE を閉じても実行を続ける（バックグラウンドで実行）** をチェックしてください。実行はターミナルから切り離され、出力は `log.<ソルバー名>`（または `log.Allrun`）に直接書かれ、FoDE やターミナルを閉じても止まりません。Terminal タブは実行が終わるまでログを追って表示します。そこでの Ctrl+C は表示を止めるだけです。
+Terminal タブで始めた実行は、FoDE を閉じると終了します。長い計算では、[Run Solver](#run-solver) または [Run Allrun Script](#run-allrun-script) の確認ダイアログで **FoDE を閉じても実行を続ける（バックグラウンドで実行）** をチェックしてください。実行はターミナルから切り離され、出力は `log.<ソルバー名>`（または `log.Allrun`、`log.Allrun-parallel`）に直接書かれ、FoDE やターミナルを閉じても止まりません。Terminal タブは実行が終わるまでログを追って表示します。そこでの Ctrl+C は表示を止めるだけです。
 
 実行中は次のように表示されます:
 
@@ -1530,11 +1574,48 @@ kill -9 -- -<pid>     # 最初のもので止まらない場合のみ
 
 ## Run Allrun Script
 
-**Tools > Run Allrun Script** を選択すると、ケースの `./Allrun` スクリプト — 通常はメッシュ生成・フィールド初期化・ソルバー本体までのワークフロー全体 — を Terminal タブで実行できます（自動的にそのタブへ切り替わります）。ケースに `Allrun` スクリプトがない場合は警告ダイアログが表示されます。ソルバー実行には長時間かかることがあるため、まず確認ダイアログが表示されます。なお Simple ターミナルモードでは実行中のジョブを中断できません（xterm ターミナルは Ctrl+C に対応しています）。
+**Tools > Run Allrun Script** を選択すると、ケースの `./Allrun` スクリプト — 通常はメッシュ生成・フィールド初期化・ソルバー本体までのワークフロー全体 — を Terminal タブで実行できます（自動的にそのタブへ切り替わります）。ケースに `Allrun` スクリプトがない場合は警告ダイアログが表示されます。[Create Allrun from Logs](#create-allrun-from-logs) で書くことができます。ケースに `Allrun-parallel` もあれば、FoDE はまずどちらを実行するかを尋ねます。ソルバー実行には長時間かかることがあるため、まず確認ダイアログが表示されます。なお Simple ターミナルモードでは実行中のジョブを中断できません（xterm ターミナルは Ctrl+C に対応しています）。
 
 ケースに既に `log.*` ファイルがある場合は別のダイアログが表示されます。OpenFOAM の Allrun ヘルパー関数（`runApplication`/`runParallel`）は `log.*` ファイルが既に存在するステップをスキップする（「already run … remove log file to re-run」）ため、実行済みのケースで `./Allrun` をそのまま実行しても何も起きないように見えることがあります。ダイアログは既存のログファイルを列挙し、3 つの選択肢を提示します: **クリーンしてから実行**（`foamCleanTutorials && ./Allrun` を送信 — 標準的な `./Allclean && ./Allrun` イディオム。[Clean Case](#clean-case-foamcleantutorials) を参照）、**そのまま実行**（`./Allrun` をそのまま送信し、実行済みステップはスキップされます）、**キャンセル**。どちらのダイアログにも、Linux では **FoDE を閉じても実行を続ける** があります。[Background runs](#background-runs-and-stop-background-run) を参照。
 
 `Allrun` の各ステップはそれぞれ `log.<アプリケーション>` ファイルを書き出すため、[View Log Summary](#view-log-summary) や [foamMonitor](#foammonitor-ランチャー) は通常どおり結果に対して利用できます。
+
+## Allrun Steps
+
+**Tools > Allrun Steps…** を選択すると、ケースの `Allrun` をステップ — `runApplication`/`runParallel` の各行 — の一覧として表示し、それぞれをログで判定します: `log.<アプリケーション>` が正常に終わっていれば **Done**（完了）、エラーがあれば **Failed**（失敗）、プロセスがまだログに書き込んでいれば **Running**（実行中）、どちらもなく書き込むプロセスもなければ **Incomplete**（未完了。途中で止められたか強制終了された）、ログがなければ **Not run**（未実行）。これは Allrun 自身の判断と同じです: Allrun はログがすでにあるステップを飛ばします。ほかのコマンド（`restore0Dir`、`cp` など）はログを残さないので淡色で表示します。ウィンドウは開いたままにでき、ステップの実行中は自動で更新されます。
+
+**Done (check)**（完了・要確認）は、ステップは終わったものの前のステップを反映していない可能性があることを示します: 前のステップが失敗または未完了だった（Allrun は失敗しても先へ進むので、壊れた `setFields` が書かなかった場でソルバーが「完了」し得ます）か、前のステップが後で再実行されたかです。ステップを選択すると、その状態の意味が一覧の下に表示されます。
+
+- **Run This Step** は、選択したステップを Allrun とまったく同じ `runApplication` の行で Terminal タブで実行します。ただしログがあっても必ず実行します（ログは上書きされます）。
+- **Run From Here** は、選択した行とその後のすべてを実行し、最初の失敗で止まります。ループや条件分岐を持つスクリプトでは、行が一直線に実行されないため使えません。
+- **Open Log**（またはステップをダブルクリック）は、そのログを [View Log Summary](#view-log-summary) で開き、失敗はそこで説明されます。
+
+何かを実行する前に、正確なコマンドと上書きするログが表示されます。範囲にソルバーのステップが含まれれば [Check Case](#check-case) のエラーも表示し、未保存のファイルがあれば先に保存できます。スクリプトがほかのディレクトリで実行するステップは表示しません。`Allrun` のないケースには表示するステップがなく、代わりにウィンドウが [Create Allrun from Logs…](#create-allrun-from-logs) を出します。
+
+`Allrun` と `Allrun-parallel` — チュートリアルの、同じワークフローの逐次版と並列版 — の両方があるケースでは、一覧の上の **Script**（スクリプト）で表示するほうを選べます。スクリプトが呼び出す `./Allrun.pre` のステップは、その名前を横に付けて表示します。
+
+## Create Allrun from Logs
+
+**Tools > Create Allrun from Logs…** を選択すると、`Allrun` も `Allclean` もないケース — たとえばツールを 1 つずつ実行して作ったあなた自身のケース — にそれらを書きます。ケースに `Allrun` がないとき、[Allrun Steps](#allrun-steps) のウィンドウにも同じボタンがあります。スクリプトができれば、Allrun Steps、[Run Allrun Script](#run-allrun-script)、[Run Allclean Script](#run-allclean-script) がそのケースで使えます。
+
+ステップはケースの `log.*` ファイルから取ります。OpenFOAM のログはどれも、正確なコマンドライン、開始時刻、使ったプロセス数で始まるため、FoDE は何を、どのオプションで、逐次か並列か、どの順序で実行したかが分かります。Tools メニューからの実行はどれもこのログを書き、`| tee log.<アプリケーション>` を付けて入力したコマンドも同様です。ケースに明らかに必要なのにログを残さなかったステップ — `blockMeshDict` はあるのに `log.blockMesh` がない — は加えて **suggested**（提案）と表示します。ログがまったくなければ、一覧全体がケースの辞書からの提案です。作成する前に確認してください。
+
+ファイルを書く前に、すべてを確認できます:
+
+- **チェックリスト。** チェックを外したステップは含めません。ドラッグするか **Up**/**Down**（上へ／下へ）で移動できます。ログがエラーで終わっているステップは最初からチェックが外れており（**failed**、失敗）、`checkMesh` のように何も変えない確認も同様です（**changes nothing**、変更なし）。行を選ぶと、その出どころが表示されます。
+- **Add Command…**（コマンドを追加）。選択したステップの下に行を加えます。ログからは分からないもの — `cp`、`foamDictionary` による編集、まだ実行していないステップ — のためです。OpenFOAM のアプリケーション（たとえば `decomposePar -force`）は `runApplication decomposePar -force` と書かれるので、ログが残り、Allrun Steps で追えます。それ以外は入力したとおりに書かれます。**Remove**（削除）は追加した行を取り除きます。
+- **プレビュー。** タブは書かれるとおりのスクリプトを表示し、一覧の変更にすべて追従します。
+- **Also create Allclean**（Allclean も作成する）。チェックを外すと Allrun だけを書きます。既存の `Allclean` は残します。
+- **Also create Allrun-parallel**（Allrun-parallel も作成する）。チュートリアルと同じ形で、ワークフローを 2 通り書きます: ソルバーより前のステップは `Allrun.pre` に入り、`Allrun` はそれを呼んでからソルバーを逐次実行し、`Allrun-parallel` はそれを呼んでから `decomposePar`、`system/decomposeParDict` のプロセッサ数での `runParallel` によるソルバー、`reconstructPar` を実行します。チェックを入れると `decomposePar` と `reconstructPar` の行（**Allrun-parallel only**、Allrun-parallel のみ）が加わり、ほかの行と同じようにチェックを外したり移動したりできます。ケースがすでに並列で実行されていれば最初からチェックが入っており、ソルバーのステップとサブドメインが 2 つ以上の `decomposeParDict` があるときだけ選べます。
+
+**Create**（作成）をクリックすると、スクリプトを実行可能として書き、Allrun をエディタで開きます。既存の `Allrun` は決して置き換えず、`Allrun.pre` と `Allrun-parallel` も同様です: ケースにどちらかがあれば **Also create Allrun-parallel** は選べません。
+
+知っておくとよいこと:
+
+- **ログを書いたコマンドだけを含めます。** `cp`、`foamDictionary` による編集、`tee` なしで実行したツールは欠けるので、**Add Command…** で加えてください。2 回実行したツールは、ログが上書きされているため 1 回だけ表示されます。ステップの間に行った編集は再現されません: スクリプトが再現するのは最終的な辞書で、その履歴ではありません。
+- **ケースに `0.orig/` があれば、** Allrun はチュートリアルと同じく、メッシュ生成の後に `0/` をそこから復元します。以後、初期条件や境界条件の変更は `0.orig/` で行ってください。そうしないと次の実行で失われます。
+- **`decomposeParDict` があるだけでは並列実行になりません。** 多くのチュートリアルは並列で実行するかどうかに関係なくこれを持っているので、ログがないとき FoDE が並列実行を提案するのは、`processor*` ディレクトリがあってケースがそのように実行されたと分かるときだけです。それ以外は **Also create Allrun-parallel** にチェックを入れてください。
+- **Allclean がメッシュを削除するのは、Allrun がそれを作り直せるときだけです。** OpenFOAM の `cleanCase` は `constant/polyMesh` を削除します。チェックの入ったステップのどれもメッシュを作らないとき（たとえば取り込んだメッシュ）、Allclean はメッシュを残し、時刻ディレクトリ、`processor*`、`postProcessing`、ログだけを削除します。
 
 ## Open Mesh in ParaView
 
@@ -1574,7 +1655,9 @@ kill -9 -- -<pid>     # 最初のもので止まらない場合のみ
   - どの種類でも、繰り返される警告（反復ごとの変位警告など）は件数付きの 1 行にまとめられ、致命的エラーは常に全文表示されます。
 - **Raw Log** — 要約で省略された内容を確認できるよう、加工していないファイル内容をそのまま表示します。
 
-[Find OpenFOAM Examples](#find-openfoam-examples) と同様に — そして FoDE の他のダイアログとは異なり — このダイアログは**非モーダル**です。ツリー・エディタ・ターミナルでの作業を続けながらメインウィンドウの横に表示したままにできるため、辞書の設定内容とログの結果を見比べながら作業できます。このアクションはケースが開かれていればいつでも利用でき、ターミナルパネルや FoDE 内でのメッシュコマンド実行を必要としません。既存の `log.*` ファイルであれば動作します。
+FoDE が認識できるエラーでログが終わっている場合は、タブの上の **What went wrong**（何が起きたか）欄が、そのエラーを平易な言葉で説明し、よくある原因と直すべき点を示します。OpenFOAM がファイルと行を示している場合は、そのファイルをエディタの該当行で開くリンクも付きます。対象は初回の実行でよく出会うエラーです: 境界条件のないパッチ、綴りを誤った名前（ログ自身に載っている一覧から最も近い正しい名前を示します — `noSlp` → `noSlip`）、食い違うパッチタイプ、項目の欠落（項目が実は書かれている場合のよくある原因 — その前の行の `;` 抜け — も含みます）、圧力の基準がない（`pRefCell`）、ファイルや `0/` がない（`0.orig` から復元します）、メッシュがない、数の合わない領域分割、`mpirun` のプロセス数の誤り、書式エラー、そして発散した計算（浮動小数点例外。クーラン数が 1 を超えていた場合は `deltaT` を指摘し、`controlDict` のその行を開きます）。OpenFOAM の両フォークの文言を認識します。認識できないエラーには助言を出しません — エラーそのものは要約の **Errors** に引き続き表示されます。
+
+[Find OpenFOAM Examples](#find-openfoam-examples)、[Check Case](#check-case)、[Allrun Steps](#allrun-steps) と同様に、このウィンドウは**非モーダル**です。ツリー・エディタ・ターミナルでの作業を続けながらメインウィンドウの横に表示したままにできるため、辞書の設定内容とログの結果を見比べながら作業できます。このアクションはケースが開かれていればいつでも利用でき、ターミナルパネルや FoDE 内でのメッシュコマンド実行を必要としません。既存の `log.*` ファイルであれば動作します。
 
 ## Find OpenFOAM Examples
 
@@ -1582,7 +1665,7 @@ kill -9 -- -<pid>     # 最初のもので止まらない場合のみ
 
 **Tools > Find OpenFOAM Examples…**（**Case > Find OpenFOAM Examples…** からも開けます）を選択すると、ローカルの OpenFOAM インストールからキーワードや設定の実際の使用例を検索できます。「`nOuterCorrectors` は実際どう使うのか」「`forces` の function object には何を書くのか」といった、従来は `find`/`grep` の知識が必要だった疑問に答えるための機能です。ダイアログは 2 つの検索対象を持ち、それぞれチェックボックスで切り替えられます。
 
-- **チュートリアル** — インストールの `tutorials/` ディレクトリに同梱されている約 550 の例題ケース。
+- **チュートリアル** — インストールの `tutorials/` ディレクトリに同梱されている数百の例題ケース。
 - **caseDicts テンプレート** — `etc/caseDicts/` 配下の厳選ファイル。`controlDict` の `functions {}` ブロックで `#includeFunc <名前>` として利用できる `postProcessing/` の function object テンプレートや、`annotated/` 配下の注釈付き例題辞書を含みます。
 
 **インストールの選択。** 上部のセレクタには、マシン上で見つかった OpenFOAM インストールが一覧表示されます。FoDE を環境設定済みのシェルから起動した場合はその環境（`WM_PROJECT_DIR`/`FOAM_TUTORIALS`/`FOAM_ETC`）が、さらに `/usr/lib/openfoam/`、`/opt/`、`~/OpenFOAM/` から自動検出されたインストールが新しい順に並びます。**Browse…** で任意のディレクトリ（インストールルートまたは `tutorials/` ディレクトリそのもの）を指定でき、その選択は `app_config.json`（`openfoam_dir` キー）に保存されて次回も初期選択されます。
@@ -1887,9 +1970,15 @@ OpenCFD/ESI Group（openfoam.com）と OpenFOAM Foundation（openfoam.org）の 
 
 **3D ビューがない。BlockMesh タブが見当たらない。** 3D ビューアと xterm ターミナルはグラフィックスカードを共有できないため、交代で使われます。xterm モードの間はタブが非表示になり、**View > BlockMesh 3-D Panel** はグレーアウトします。Terminal タブ上部の **xterm terminal** のチェックを外すとタブが戻ります。または `--variant no-terminal-blockmesh` で起動すると、ターミナルがなく、3D ビューが常に表示されます。タブにインストールの案内が表示される場合は、`pyvista` と `pyvistaqt` をインストールしてください。[ターミナルタブ](#ターミナルタブ)、[バリアント](#バリアント)、[BlockMesh パネル](#blockmesh-パネル) を参照。
 
+**BlockMesh タブに「3D ビューを起動できませんでした」と表示される。** 3-D ビューがグラフィックスの準備に失敗しました。メッセージに理由が示され、FoDE のほかの部分は 3-D ビューなしで動きます。多くは、リモートデスクトップや SSH 接続などで、グラフィックスドライバが OpenGL を提供できないことが原因です。グラフィックスドライバを更新するか、そのマシン自身の画面で FoDE を実行すると、たいてい解決します。`--variant no-terminal` でも 3-D ビューなしで開けます。解決しない場合は、そのメッセージを報告してください（README の「質問と報告」を参照）。
+
 **Tools メニューの項目がグレーアウトしている。** ほとんどの項目はケースを開いている必要があり、コマンドを送る項目には Terminal パネルも必要です（`no-terminal` バリアントにはありません）。項目が有効なのに、実行せずメッセージが表示される場合は、Terminal タブでコマンドが実行中か、ケースで[バックグラウンド実行](#background-runs-and-stop-background-run)が動いています。終わるのを待つか、停止してください。[Tools メニュー](#tools-メニュー) を参照。
 
 **コマンドが「command not found」になる（`blockMesh`、`interFoam` など）。** FoDE を起動したシェルで OpenFOAM が source されていません。そのシェルで OpenFOAM の `bashrc` を source してから FoDE を起動し直してください。内蔵ターミナルはその環境を引き継ぎます。[Tools メニュー](#tools-メニュー) を参照。
+
+**実行がエラーで止まった。** そのログを **Tools > View Log Summary…** で開いてください。初回の実行でよく出会うエラーなら、**What went wrong** 欄がエラーの意味と直すべき点を示し、ファイルと行へのリンクを付けます。次に実行する前に、**Tools > Check Case…** が、実行せずに同じ間違いの多くを見つけます。[View Log Summary](#view-log-summary) と [Check Case](#check-case) を参照。
+
+**Run Allrun Script が何もしないように見える。** OpenFOAM の `runApplication` は、`log.*` ファイルがすでにあるステップを飛ばします。そのため実行済みのケースでは、Allrun は "already run" と表示して先へ進みます。FoDE が尋ねたときに **Clean, then run** を選ぶか、[Allrun Steps](#allrun-steps) で 1 つのステップだけを再実行してください。[Run Allrun Script](#run-allrun-script) を参照。
 
 **高解像度の画面でウィンドウが半分の大きさに見える。** Qt がデスクトップのスケーリングを認識していません。`python3 main.py --ui-scale 150` で起動するか、**Settings > UI Scale** を設定してください。ほかの方法は[デスクトップは拡大されているのに FoDE だけ小さい場合](#デスクトップは拡大されているのに-fode-だけ小さい場合)にあります。
 
@@ -1939,6 +2028,7 @@ OpenCFD/ESI Group（openfoam.com）と OpenFOAM Foundation（openfoam.org）の 
 - **関数オブジェクト（function object）** — ソルバーと一緒に動く後処理（probes、forces、サンプリング線など）。`controlDict` の `functions` に列挙されます。[Add Function Object](#add-function-object) を参照。
 - **`0.orig`** — 初期場のまっさらなコピー。`setFields` などは `0/` を上書きするため、チュートリアルはクリーンな実行の前に `0.orig/` から `0/` を復元します。[Restore 0/ from 0.orig](#restore-0-from-0orig) を参照。
 - **分割済み / `processor*`（decomposed）** — 並列実行では、`decomposePar` がケースを `processor0`、`processor1`、… のディレクトリに分割し、`reconstructPar` が結果を元に戻します。[Run decomposePar](#run-decomposepar) と [Run reconstructPar](#run-reconstructpar) を参照。
+- **`Allrun` / `log.*`** — `Allrun` は、ケースのワークフロー全体（メッシュ、フィールド、ソルバー）を実行するスクリプトで、どのチュートリアルにもあります。実行する各ステップは、その出力を `log.blockMesh` や `log.icoFoam` のような `log.<アプリケーション>` ファイルに書きます。FoDE の Run ツールも同じログを書きます。[Allrun Steps](#allrun-steps) を参照。
 - **source 済みの環境（sourced environment）** — OpenFOAM の `bashrc` を実行済みのシェル。OpenFOAM のコマンドと変数（`WM_PROJECT_DIR`、`FOAM_TUTORIALS` など）が使えます。FoDE と内蔵ターミナルは、起動時の環境を使います。
 
 ## 対応構文とノード型

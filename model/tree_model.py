@@ -12,6 +12,7 @@ from foam.utils import (
     format_embedded_value,
     format_leaf_value,
     non_block_rows,
+    summarize_nonuniform_list,
 )
 from foam.value_parse import set_node_value
 from ui.theme import colors
@@ -347,10 +348,7 @@ class FoamTreeModel(QAbstractItemModel):
             ).strip()
 
         if t == "nonuniform_list":
-            parts = str(node.value).split(None, 3)
-            list_type = parts[1] if len(parts) > 1 else "List"
-            count_str = parts[2] if len(parts) > 2 and parts[2] != "(" else "?"
-            return f"nonuniform {list_type} ({count_str} values)"
+            return summarize_nonuniform_list(node.value)
 
         return format_leaf_value(t, node.value)
 

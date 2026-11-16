@@ -1,5 +1,37 @@
 # リリースノート
 
+## v1.20.0 — 2026-11-16
+
+### 新機能
+
+- **Tools > Check Case… が、初回の実行を止める間違いを実行前に探すようになりました。** 保存していない編集も含めて、いま見えているとおりにケースを読み、問題ごとにファイルと行を示して一覧表示します。ダブルクリックするとそのファイルの該当行を開き、ウィンドウを開いたまま修正して Check Again を押せます。チェックするのは次の内容です: `0.orig/` があるのに `0/` がないこと。境界条件のないパッチ（"Cannot find patchField entry"）— パッチ名、`wall` や `#includeEtc "caseDicts/setConstraintTypes"` が扱うグループ、正規表現、`empty` パッチなら項目なし、という OpenFOAM と同じ数え方で、`constant/polyMesh/boundary` か、メッシュ生成前なら `blockMeshDict` と照合します。場がタイプを食い違わせている `empty`/`symmetryPlane`/`symmetry`/`wedge` のパッチ。何も書き出さない、大きすぎる 1 ステップしか進まない、すでに `endTime` から始まる、`stopAt writeNow` が残っている `controlDict`。`n` の積が `numberOfSubdomains` と一致しない `simple`/`hierarchical` 分割。そしてよく使う非圧縮性ソルバーでの `transportProperties`/`turbulenceProperties` の欠落 — OpenCFD 版 OpenFOAM が読まない OpenFOAM Foundation の名前（`physicalProperties`、`momentumTransport`）で書かれたケースも含みます。各チェックは実際のソルバーのエラーと照らし合わせて確かめており、確信が持てないときは何も言いません: v2606 と Foundation-12 のツリーのすべてのチュートリアルで、出す指摘は意図的な `stopAt writeNow` の設定 4 件と本物のバグ 1 件（v2606 の interIsoFoam/standingWave は出荷状態のままでは分割できません）だけです。Run Solver のダイアログも、同じ指摘を警告に表示するようになりました。
+- **View Log Summary が、初回の実行で出会うエラーを平易な言葉で説明するようになりました。** 認識できるエラーでログが終わっていると、タブの上の「何が起きたか」欄が、その意味、よくある原因、直すべき点を示し、OpenFOAM が示すファイルを該当行で開くリンクを付けます。対象は、境界条件のないパッチ、綴りを誤った名前（ログ自身が出力する一覧から最も近い正しい名前を示します — `noSlp` → `noSlip`、`kEpsilonn` → `kEpsilon`）、食い違うパッチタイプ、項目の欠落（項目が実はファイルにある場合は、それを飲み込んだ前の行の典型的な `;` 抜け）、圧力の基準がない、ファイルや `0/` がない、メッシュがない、数の合わない領域分割、誤った `mpirun -np`、書式エラー、そして発散した計算（異常終了直前のクーラン数を引用し、`controlDict` の `deltaT` を開きます）です。各パターンは、わざと壊したチュートリアルのコピーで実際の OpenFOAM v2606 が書いたログから取り、文言の異なる OpenFOAM Foundation についてはそのソースから取りました。認識できないエラーには、推測ではなく何も出しません。
+- **Tools > Allrun Steps… が、ケースの Allrun を、たどって 1 つずつ実行できるステップとして表示します。** ケース自身の `Allrun` の `runApplication`/`runParallel` の各行を一覧にし、ログから完了・失敗・実行中・未完了・未実行と判定します — Allrun が何を飛ばすかを決めるのとまったく同じ方法です。プロセスがまだログに書き込んでいる間は実行中と表示するので、途中で止めたステップと区別できます。前のステップが失敗した後に、または前のステップが再実行される前に終わったステップは **Done (check)**（要確認）と表示します: Allrun は失敗しても先へ進むため、壊れた `setFields` が書かなかった場でソルバーが「完了」し得るからです。**Run This Step** は選択したステップを、ログがあってもスクリプトと同じに実行し、**Run From Here** は失敗で止まりつつ最後まで実行し、**Open Log** はログを View Log Summary で表示して失敗を説明します。実行前に、正確なコマンド、上書きするログ、ソルバーのステップでは Check Case のエラーを表示します。OpenFOAM v2606 と Foundation 12 のすべてのチュートリアルの Allrun と、実際の Allrun の実行で確認しました。
+- **Tools > Create Allrun from Logs… が、Allrun のないケースに Allrun と Allclean を書きます。** ステップはケースの `log.*` ファイルから取ります — OpenFOAM のログはどれも、正確なコマンド、開始時刻、使ったプロセス数を記録しています — そのため、ツールを 1 つずつ実行して作ったケースに、同じことを同じ順序で行う（`runParallel` も含む）スクリプトができます。ケースに明らかに必要なのにログを残さなかったステップ（`log.blockMesh` のない `blockMeshDict`）は提案として表示し、ログがまったくなければケースの辞書からステップを提案します。何かを書く前に、両スクリプトのライブプレビューの横でチェックリストを確認し（チェックを外す、並べ替える）、既存の `Allrun` は決して置き換えません。スクリプトはチュートリアルの形で、インストールされた OpenFOAM にあるヘルパーだけを使い（`restore0Dir` と `cleanCase0` は OpenCFD にしかない）、ケースに `0.orig/` があればメッシュ生成の後に `0/` を復元します。`cleanCase` は `constant/polyMesh` を削除するため、Allrun が作り直せないメッシュは Allclean が残します。Allrun のないケースでは、Allrun Steps のウィンドウにも同じボタンがあります。実際の OpenFOAM v2606 のチュートリアルを実行し、その Allrun を削除してログから作り直して確認しました: 試した 6 ケースすべてで、生成した Allclean と Allrun が問題なく実行できました。
+
+  **逐次と並列をまとめて。** チェックボックス **Also create Allrun-parallel** はチュートリアルと同じ形でワークフローを書きます: ソルバーより前のステップは `Allrun.pre` に入り、`Allrun` はその後にソルバーを逐次実行し、`Allrun-parallel` は `decomposePar`、`decomposeParDict` のプロセッサ数での並列ソルバー、`reconstructPar` を実行します。ケースがすでに並列で実行されていれば最初からチェックが入ります。`decomposeParDict` があるだけではチェックは入りません。多くのチュートリアルはそれを持ちながら逐次で実行するからです。**Add Command…** はログからは分からない行を加え、OpenFOAM のアプリケーションなら `runApplication` で書くのでログが残ります。提案する並列実行は `reconstructPar` で終わります。両方のスクリプトがあるケースでは、Allrun Steps に追うスクリプトの選択欄が出て、Run Allrun Script はどちらを実行するかを尋ねます。実際の v2606 の cavity（9 プロセッサ）と damBreak（4 プロセッサ）のコピーで、生成した Allrun、Allclean、Allrun-parallel がいずれも最後まで実行でき、`reconstructPar` が時刻を書き戻すことを確認しました。
+
+### 改善
+
+- **ファイル一覧に、チュートリアルが辞書の横に置くサフィックス付きの派生ファイルが表示されるようになりました** — `decomposeParDict.4`/`.8`/`.16`、`controlDict.orig`、`refineMeshDict.tier6`、`extrudeMeshDict.1`、`dynamicMeshDict.sixDoF` など。これまでは手で追加する必要がありました。名前が一覧済みの辞書名に区切りを付けたもので、かつ自身の `FoamFile` ヘッダが一致するファイルを載せるので、接頭辞が同じだけの別の辞書（`gravitationalProperties` は `g` の派生ではありません）、コピペのヘッダ、`#include` の断片は除外されます。これらの行は淡色で表示され、ツールチップが、OpenFOAM はコマンドが名前で指定したときかスクリプトがコピーしたときにしかこのファイルを読まないこと、つまり `decomposeParDict.4` を編集しても `decomposeParDict` は変わらないことを伝えます。詳細ペインは元の辞書と同じようにキーを説明します。相ごとの `chemistryProperties.gas` や `combustionProperties.vapour` も表示されます。ローカルの 13 チュートリアルツリーでは、4,855 ケースのうち 309 ケースで行が増えます。
+
+### バグ修正
+
+- **最後に BlockMesh タブを開いたまま閉じても、FoDE が開くようになりました。** 新しくインストールすると入る pyvistaqt 0.13 では、Windows でも Linux でも、3-D ビューを復元して起動すると `SystemError` で止まり、ウィンドウが開きませんでした。Tree や Boundary タブで閉じるか、`app_config.json` を消すと避けられました。pyvistaqt 0.13 では 3-D ビューが初めて表示されるときに Qt がウィンドウを作り直し、その作り直しが、まだ作成中の 3-D ビューをもう一度起動していました。3-D ビューは一度だけ起動するようになりました。それでも起動できないときは BlockMesh タブに理由が表示され、FoDE の他の部分は動きます。
+- **Boundary ビューのセルに非一様リストの全体が表示されなくなりました。** セルの行数を 2 行以上にしていると、`value` が `nonuniform List<…>` のパッチ（`postProcess` が `wallHeatFlux`、`wallGradT`、`gradT` などの場を `0/` に書き出すと、壁パッチごとに数千個の数値を持ちます）の数値がすべて 1 行に並び、列が表の幅いっぱいに広がっていました。セルにはツリーと同じ要約 `value  nonuniform List<scalar> (2250 values)` を表示し、その他の 60 文字を超える値も `…` で切り詰めます。
+- **別のプログラムが変更したファイルを、保存で黙って上書きしなくなりました。** FoDE は開いた各ファイルのコピーを持っており、`foamDictionary -set`、`sed`、別のエディタ、スクリプトがそれを書き換えても気づかず、次の Save File や Save Case で何も言わずにその版を置き換えていました。保存の前に確認するようになりました: FoDE が読み込んだ後にディスク上で変更・削除されたファイルを示し、置き換えるかどうかを選べます（Save Case ではほかのファイルだけ保存することもできます）。タイムスタンプが更新されただけのファイルや、同じ内容で書き直されたファイルは報告しません。新しい **Case > Reload File from Disk**（`F5`、ファイルの右クリックメニューにもあります）はファイルを読み直し、エディタ・ツリー・3-D ビューを更新します。保存していない編集があれば先に確認し、ツリーの Undo で戻せます。
+- **圧縮ファイルが壊れなくなりました。** gzip で圧縮された場（OpenFOAM が `writeCompression on` のときに書く `0/U.gz` など）は読めないバイト列として開かれ、編集していなくても習慣的な Ctrl+S 一回で、有効な gzip ファイルでなくなるよう書き換えられ、OpenFOAM が読めなくなっていました。通常のテキストとして開くようになり、Save File、Save Case、Create Backup、Duplicate、Save as New Case のいずれでも再び圧縮して書きます。`#include` で取り込まれる `.gz` ファイルも一覧に載ります。FoDE が編集して圧縮した場で OpenFOAM v2606 を実行して確認しました。
+- **チェックリストでチェック済みの行が、選択中にチェックなしに見えなくなりました。** light テーマ（およびデスクトップが Qt の Fusion スタイルを使う場合の system テーマ）では、選択中の行のチェックマークが選択時の白い文字色で、白いチェックボックスの上に描かれていたため、チェックが見えなくなっていました。Create Allrun from Logs、Clean Backups、Export Shapes as STL など、すべてのチェックリストが対象です。行を選ぶとチェックが外れたように、別の行を選ぶと再びチェックされたように見えていました。チェックマークは他の行と同じく濃い色で描かれるようになりました。選択の色は変わりません。
+
+### ドキュメント
+
+- **Allrun のツールのデモ動画 3 本。** いずれも同梱チュートリアルを使う `tools/demo_specs.json` のシーンです。[ログから Allrun を作る](https://vimeo.com/1247139406?texttrack=ja)（約 80 秒）は、ツールを 1 つずつ実行したログから damBreak の Allrun を作り、Allrun Steps でたどります。[ログがないときの Allrun](https://vimeo.com/1247139407?texttrack=ja)（約 60 秒）は、辞書だけからステップを提案します。[逐次と並列の Allrun](https://vimeo.com/1247139405?texttrack=ja)（約 95 秒）は、cavity の Allrun.pre、Allrun、Allrun-parallel を書き、入力した `postProcess` の行を加え、並列スクリプトを 9 プロセッサで実行します。
+- **README とユーザーガイドが、新しい初心者向けツールへ案内するようになりました。** 5 分間のツアーはソルバーの前に Check Case を実行し、失敗した実行はログの要約が説明することを伝えます。Check Case、ログの助言、Allrun Steps、Create Allrun が、機能一覧、**目的別ガイド**の表、**トラブルシューティング**（エラーで止まった実行、何もしないように見える Allrun、「3D ビューを起動できませんでした」の新しい項目）、**用語集**に載りました。開発者ガイドの目次は Tools メニューの小節まで届き、テストの一覧はすべてのテストファイルを扱います。
+
+### 内部変更
+
+- **`tests/test_docs.py` がマニュアルの整合性を保ちます。** ガイドの目次に節が抜けている、`#アンカー` のリンク先がない、日本語版の見出しが英語版と違う、テストファイルが開発者ガイドのテスト一覧にない、README の動画の本数がデモの表と食い違う、といったときに失敗します。開発者ガイドには、リリース前にまだ読んで確かめるべき点のチェックリストを加えました。
+
 ## v1.19.0 — 2026-11-07
 
 ### 新機能

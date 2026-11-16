@@ -2,7 +2,7 @@
 
 **OpenFOAM のケースを扱うデスクトップエディタです。** ケースを開くと辞書の内容が目に見え、すべてのキーに説明が付いた状態で編集でき、コマンドを覚えていなくてもケースを実行できます。FoDE（読み方: "フォーディー"）は Python と PySide6 で書かれた、無料のオープンソースソフトウェアです。
 
-🎬 [デモ動画](docs/DEMO_SCRIPTS_ja.md)（12 本、Vimeo）· 📖 [ユーザーガイド](USER_GUIDE_ja.md) · 🖼️ [スクリーンショット](docs/SCREENSHOTS_ja.md) · 📄 [*SoftwareX*](https://doi.org/10.1016/j.softx.2026.102852) に掲載 — 「[引用](#引用)」を参照
+🎬 [デモ動画](docs/DEMO_SCRIPTS_ja.md)（15 本、Vimeo）· 📖 [ユーザーガイド](USER_GUIDE_ja.md) · 🖼️ [スクリーンショット](docs/SCREENSHOTS_ja.md) · 📄 [*SoftwareX*](https://doi.org/10.1016/j.softx.2026.102852) に掲載 — 「[引用](#引用)」を参照
 
 ![メインウィンドウ — Tree と Editor タブ](docs/images/main-window-tree-editor.png)
 
@@ -12,6 +12,7 @@
 - **すべてのキーに説明が付く。** 設定を選ぶと、横のパネルがその意味、選べる値、対応する OpenFOAM のバージョンを示します。乱流モデルには、そのモデルを定義した論文と係数の既定値が付きます。→ [詳細ペイン](USER_GUIDE_ja.md#詳細ペイン)
 - **境界条件を 1 つの表で。** すべてのパッチとすべてのフィールドを 1 つの表で見て、その場で編集できます。`0/U`・`0/p`・`0/k`… を 1 つずつ開く必要はありません。→ [境界条件ビュー](USER_GUIDE_ja.md#境界条件ビュー)
 - **メニューからケースを実行。** blockMesh、setFields、ソルバー — 並列でも、FoDE を閉じても続くバックグラウンドでも実行でき、どれも実行するコマンドをそのまま見せるダイアログから始まります。終わったらログの要約も見られます。→ [Run Solver](USER_GUIDE_ja.md#run-solver)
+- **初回の実行を手助け。** Check Case が、境界条件のないパッチや何も書き出さない `controlDict` といった典型的な間違いを実行前に見つけます。それでも実行が失敗したときは、ログの要約がエラーを平易な言葉で説明し、ファイルを該当行で開きます。→ [Check Case](USER_GUIDE_ja.md#check-case)
 - **辞書を知らなくても後処理を追加。** プローブ、ライングラフ、切断面、力をフォームから追加でき、入力するそばから 3D に描かれます。→ [Add Function Object](USER_GUIDE_ja.md#add-function-object)
 - **動くケースと比べる。** 自分のケースをチュートリアルと並べると、違いが色分けされ、右クリック 1 回で値を取り込めます。→ [ケース比較](USER_GUIDE_ja.md#ケース比較)
 
@@ -63,8 +64,9 @@ FoDE に同梱の `tutorials/damBreak` を使います。
 3. **見てみます:** **BlockMesh** タブを開くと、メッシュ、`setFieldsDict` の水柱、2 本のゲージ線が描かれています。*タブが見当たらない場合は、* **Terminal** タブ上部の **xterm terminal** のチェックを外してください。3D ビューとこのターミナルはグラフィックスカードを共有できないため、交代で使います。
 4. **読んで編集します:** `system/controlDict` をクリックし、**Tree** タブの行を選ぶと、横のパネルがキーの意味と選べる値を示します。値を変えて `Ctrl+S` で保存します。
 5. **境界条件を確認します:** **Boundary** タブに、すべてのパッチとすべてのフィールドが表になっています。
-6. **実行します**（実行するとメッシュと結果は開いたフォルダに書き込まれるため、リポジトリを汚したくない場合は、先に **Case > Duplicate Case…** でチュートリアルをコピーしてください）**:** **Tools > Run blockMesh…**、続いて **Tools > Run setFields…**（*Restore 0/ from 0.orig/ first* にはあらかじめチェックが入っています）、そして **Tools > Run Solver…**。どれも実行前にコマンドを示し、出力は Terminal に表示されて `log.*` に保存されます。
-7. **結果を見ます:** **Tools > View Log Summary…** でソルバーのログを要約し、**Tools > Open Mesh in ParaView…** でケースを ParaView で開きます。
+6. **実行前に確認します:** **Tools > Check Case…** が、実行を止めるものをファイルと行とともに一覧にします。ここでは `0/` がないと報告されますが、次の手順で `0.orig/` から作られます。
+7. **実行します**（実行するとメッシュと結果は開いたフォルダに書き込まれるため、リポジトリを汚したくない場合は、先に **Case > Duplicate Case…** でチュートリアルをコピーしてください）**:** **Tools > Run blockMesh…**、続いて **Tools > Run setFields…**（*Restore 0/ from 0.orig/ first* にはあらかじめチェックが入っています）、そして **Tools > Run Solver…**。どれも実行前にコマンドを示し、出力は Terminal に表示されて `log.*` に保存されます。
+8. **結果を見ます:** **Tools > View Log Summary…** でソルバーのログを要約し（実行が失敗していればエラーを説明します）、**Tools > Open Mesh in ParaView…** でケースを ParaView で開きます。
 
 自分のケースから始めるときも同じように開くか、フォルダをウィンドウにドラッグしてください。**Case > Duplicate from Case Library…** を使うと、OpenFOAM のチュートリアルを自分のフォルダにコピーして出発点にできます。
 
@@ -105,7 +107,9 @@ FoDE に同梱の `tutorials/damBreak` を使います。
 - blockMesh、snappyHexMesh、topoSet、setFields、checkMesh、decomposePar、reconstructPar とソルバーを、コマンドを示すダイアログから実行。`Allrun`/`Allclean` も。[FoDE を閉じても続く実行](USER_GUIDE_ja.md#background-runs-and-stop-background-run)は、書き出し済みの時刻できれいに止められます。
 - インストールに含まれるテンプレートから[関数オブジェクトを追加](USER_GUIDE_ja.md#add-function-object)し、既存の結果に [postProcess を実行](USER_GUIDE_ja.md#run-postprocess)。
 - 再構築した結果が完全であることを FoDE が確かめてから [processor\* ディレクトリを削除](USER_GUIDE_ja.md#delete-processor-directories)。
-- [ログの要約](USER_GUIDE_ja.md#view-log-summary)、[foamMonitor](USER_GUIDE_ja.md#foammonitor-ランチャー) による残差のプロット、ParaView。
+- 実行前の [Check Case](USER_GUIDE_ja.md#check-case) と、失敗した実行のエラーを説明する[ログの要約](USER_GUIDE_ja.md#view-log-summary)。
+- [foamMonitor](USER_GUIDE_ja.md#foammonitor-ランチャー) による残差のプロット、ParaView。
+- [Allrun Steps](USER_GUIDE_ja.md#allrun-steps): ケースの `Allrun` を、ログから完了・失敗を判定したステップとして表示し、1 つずつ実行。[Create Allrun from Logs](USER_GUIDE_ja.md#create-allrun-from-logs) は、手で作ったケースに `Allrun`、`Allclean`、`Allrun-parallel` を書きます。
 
 **[他の人の書き方を知る](USER_GUIDE_ja.md#find-openfoam-examples)**
 - インストールのチュートリアルからキーワードを検索して使用例を見られます。そのケースと[自分のケースを比較](USER_GUIDE_ja.md#ケース比較)し、値を取り込むこともできます。
@@ -150,7 +154,7 @@ python3 main.py --variant no-terminal-blockmesh   # ターミナルなし、3D �
 
 - [ユーザーガイド](USER_GUIDE_ja.md) — すべてのパネル・メニュー・操作手順。
 - [スクリーンショット](docs/SCREENSHOTS_ja.md) — 注釈付きの画面写真。
-- [デモ動画](docs/DEMO_SCRIPTS_ja.md) — Vimeo の短い紹介動画 12 本と、ショットごとの台本。まずは [編集し、見て、実行する](https://vimeo.com/1218332419?texttrack=ja)（約 94 秒）から。[ワークフロー全体](https://vimeo.com/1217899060?texttrack=ja)（約 3 分 41 秒）もあります。
+- [デモ動画](docs/DEMO_SCRIPTS_ja.md) — Vimeo の短い紹介動画 15 本と、ショットごとの台本。まずは [編集し、見て、実行する](https://vimeo.com/1218332419?texttrack=ja)（約 94 秒）から。[ワークフロー全体](https://vimeo.com/1217899060?texttrack=ja)（約 3 分 41 秒）もあります。
 - [リリースノート](RELEASE_NOTES_ja.md) — バージョンごとの変更点。
 - [開発者ガイド](DEVELOPER_ja.md) — プロジェクト構成、開発環境、テスト。
 

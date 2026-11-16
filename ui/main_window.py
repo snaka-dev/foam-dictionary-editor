@@ -43,8 +43,10 @@ from ui.layout_constants import (
     SPLITTER_UPPER_HEIGHT,
     STATUS_NORMAL,
 )
+from ui.mixins._allrun_ops import _AllrunOpsMixin
 from ui.mixins._background_run_ops import _BackgroundRunOpsMixin
 from ui.mixins._boundary_ops import _BoundaryOpsMixin
+from ui.mixins._case_check_ops import _CaseCheckOpsMixin
 from ui.mixins._case_nav_ops import _CaseNavOpsMixin
 from ui.mixins._case_ops import _CaseOpsMixin
 from ui.mixins._diff_ops import _DiffOpsMixin
@@ -83,7 +85,9 @@ if TYPE_CHECKING:
     # stack is not loaded unless the BlockMesh feature is enabled; the two
     # dialogs are imported lazily in ui/mixins/_tools_ops.py since they are
     # only ever needed once the user opens them.
+    from ui.dialogs.allrun_steps_dialog import AllrunStepsDialog
     from ui.dialogs.case_browser_dialog import CaseBrowserDialog
+    from ui.dialogs.case_check_dialog import CaseCheckDialog
     from ui.dialogs.find_examples_dialog import FindExamplesDialog
     from ui.dialogs.log_summary_dialog import LogSummaryDialog
     from ui.panels.block_mesh_panel import BlockMeshPanel
@@ -113,6 +117,8 @@ class MainWindow(
     _ProcessorOpsMixin,
     _BackgroundRunOpsMixin,
     _FunctionObjectOpsMixin,
+    _CaseCheckOpsMixin,
+    _AllrunOpsMixin,
     _FileOpsMixin,
     _FileManagementOpsMixin,
     _TreeCrudOpsMixin,
@@ -159,6 +165,11 @@ class MainWindow(
         self._open_paraview_action: QAction | None = None
         self._view_log_summary_action: QAction | None = None
         self._log_summary_dialog: LogSummaryDialog | None = None
+        self._check_case_action: QAction | None = None
+        self._case_check_dialog: CaseCheckDialog | None = None
+        self._allrun_steps_action: QAction | None = None
+        self._create_allrun_action: QAction | None = None
+        self._allrun_steps_dialog: AllrunStepsDialog | None = None
         self._find_examples_dialog: FindExamplesDialog | None = None
         self._case_browser_dialog: CaseBrowserDialog | None = None
 
@@ -613,6 +624,7 @@ class MainWindow(
         self.file_list_panel.delete_file_requested.connect(self._on_delete_file_requested)
         self.file_list_panel.delete_dir_requested.connect(self._on_delete_dir_requested)
         self.file_list_panel.save_file_requested.connect(self.save_file)
+        self.file_list_panel.reload_file_requested.connect(self.reload_file_from_disk)
         self.file_list_panel.add_time_dir_requested.connect(self._on_add_time_dir)
         self.file_list_panel.remove_extra_dir_requested.connect(self._on_remove_extra_dir)
         self.file_list_panel.refresh_requested.connect(self._reload_file_list)

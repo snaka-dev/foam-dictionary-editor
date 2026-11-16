@@ -1,0 +1,127 @@
+/*---------------------------------------------------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2606                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+Build  : _481094f-20260618 OPENFOAM=2606 version=2606
+Arch   : "LSB;label=32;scalar=64"
+Exec   : icoFoam
+I/O    : uncollated
+Case   : {CASE}
+nProcs : 1
+trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+memory pool : not available
+fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+
+--> FOAM Warning : allowSystemOperations : Allowing user-supplied system call operations.
+                   This can be a security risk if running untrusted cases
+                   through e.g. 'coded' on-the-fly-compilation functionality.
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+Create time
+
+Create mesh for time = 0
+
+
+PISO: Operating solver in PISO mode
+
+Reading transportProperties
+
+Reading field p
+
+Reading field U
+
+Reading/calculating face flux field phi
+
+
+Starting time loop
+
+Time = 0.005
+
+Courant Number mean: 0 max: 0
+
+
+--> FOAM FATAL IO ERROR: (openfoam-2606)
+Unknown discretisation type lineer
+
+Valid discretisation types :
+
+64
+(
+CoBlended
+Gamma
+GammaV
+LUST
+MUSCL
+MUSCLV
+Minmod
+MinmodV
+OSPRE
+OSPREV
+Phi
+QUICK
+QUICKV
+SFCD
+SFCDV
+SuperBee
+SuperBeeV
+UMIST
+UMISTV
+biLinearFit
+blended
+cellCoBlended
+clippedLinear
+cubic
+cubicUpwindFit
+deferredCorrection
+downwind
+filteredLinear
+filteredLinear2
+filteredLinear2V
+filteredLinear3
+filteredLinear3V
+fixedBlended
+limitWith
+limitedCubic
+limitedCubicV
+limitedLinear
+limitedLinearV
+limiterBlended
+linear
+linearFit
+linearPureUpwindFit
+linearUpwind
+linearUpwindV
+localBlended
+localMax
+localMin
+midPoint
+outletStabilised
+pointLinear
+quadraticFit
+quadraticLinearFit
+quadraticLinearUpwindFit
+quadraticUpwindFit
+reverseLinear
+skewCorrected
+upwind
+vanAlbada
+vanAlbadaV
+vanLeer
+vanLeerV
+weighted
+weightedFlux
+zoneBlended
+)
+
+
+
+file: system/fvSchemes/divSchemes/div(phi,U) at line 31.
+
+    From static Foam::tmp<Foam::surfaceInterpolationScheme<Type> > Foam::surfaceInterpolationScheme<Type>::New(const Foam::fvMesh&, const Foam::surfaceScalarField&, Foam::Istream&) [with Type = Foam::Vector<double>; Foam::surfaceScalarField = Foam::GeometricField<double, Foam::fvsPatchField, Foam::surfaceMesh>]
+    in file lnInclude/surfaceInterpolationScheme.C at line 108.
+
+FOAM exiting
+

@@ -18,6 +18,9 @@
 | 10 — 辞書を知らなくてもできる後処理 | `damBreak-function-objects` | 同梱 `tutorials/damBreak` | 約 56 秒 | https://vimeo.com/1244300225?texttrack=ja |
 | 11 — FoDE より長く続く計算 | `damBreak-background-run` | 同梱 `tutorials/damBreak` | 約 85 秒 | https://vimeo.com/1244300224?texttrack=ja |
 | 12 — 並列で計算する | `damBreak-parallel-run` | 同梱 `tutorials/damBreak` | 約 100 秒 | https://vimeo.com/1244516337?texttrack=ja |
+| 13 — ログから Allrun を作る | `damBreak-create-allrun` | 同梱 `tutorials/damBreak` | 約 80 秒 | https://vimeo.com/1247139406?texttrack=ja |
+| 14 — ログがないときの Allrun | `damBreak-create-allrun-fresh` | 同梱 `tutorials/damBreak` | 約 60 秒 | https://vimeo.com/1247139407?texttrack=ja |
+| 15 — 逐次と並列の Allrun | `cavity-create-allrun-parallel` | 同梱 `tutorials/cavity/cavity` | 約 95 秒 | https://vimeo.com/1247139405?texttrack=ja |
 
 ## 何を見せるかの選定
 
@@ -282,6 +285,68 @@ FoDE 以外のアプリケーションを操作する唯一のシーンでもあ
 | 1:31 | 削除済み | ステータスバーに *Deleted the processor\* time directories except 1 (5.5 MB)*、行は **times 1** に | 削除しました。ステータスバーが何を残したかを示し、ファイル一覧はプロセッサに残った 1 つの時刻を示します。 |
 
 守るべきショットは **1:21** です。この確認は、FoDE がユーザーの言葉をそのまま信じずに確かめる様子を見せる唯一の場面で、何を削除し、何を残し、すべてのファイルを確認したというその文面こそが主張だからです。計算自体は 4 プロセッサで約 3 秒なので、0:48 の表示時間はソルバーではなくナレーションに合わせています。
+
+## 動画 13 — ログから Allrun を作る（`damBreak`、約 80 秒）
+
+**シーン:** `damBreak-create-allrun`。**ケース:** 同梱 `tutorials/damBreak`（テイクの前に手作業で実行）。**伝えること:** ツールを 1 つずつ打って作ったケースは、どう実行したかをすでに知っている — ログに書いてある — ので、FoDE はそれを Allrun にし、書き込む前に確認できるようにする。
+
+テイクはログがあって Allrun がないケースから始まります。ウィンドウが開く前に、`case_prepare` が同梱の `Allrun`/`Allclean` を削除し、`blockMesh`、`checkMesh`、`setFields`、`interFoam` をそれぞれ自分の `log.*` に書き出して実行します。
+
+| 時刻 | ビート | 画面 | ナレーション |
+|---|---|---|---|
+| 0:00 | ケース | `log.*` があり `Allrun` がない `damBreak` | この damBreak は手作業で実行しました。blockMesh、checkMesh、setFields、interFoam を 1 つずつ打ち込んで。ログはすべてのステップを覚えていますが、もう一度実行するための Allrun がありません。 |
+| 0:09 | Allrun Steps | **Tools > Allrun Steps…**: *damBreak has no Allrun script…* と **Create Allrun from Logs…** | Allrun Steps は、ケースの Allrun をステップとして表示します。このケースにはないので、ログから書くことを提案します。 |
+| 0:13 | 提案 | Create Allrun ダイアログ: チェックリストの下に Allrun のプレビュー | どのログも、それを書いたコマンドと開始時刻から始まるので、ステップは実行した順に、オプション付きで並びます。Allrun は操作に合わせて下にプレビューされます。 |
+| 0:20 | 読むだけ | `checkMesh` を選択、チェックなし、**[changes nothing]** | checkMesh は報告するだけなので、チェックを外してあります。確認を残したければチェックします。 |
+| 0:26 | 0 の復元 | `restore0Dir` を選択、**[added]** | FoDE は 1 つステップを加えます。メッシュ作成の後に 0.orig から 0 を復元し、毎回同じ場から計算を始めるためです。 |
+| 0:31 | Allclean | **Allclean** タブ: `cleanCase0` | Allclean も一緒に作り、計算の前の状態にケースを戻せるようにします。 |
+| 0:39 | 作成 | **Create**。ファイル一覧に `Allrun` と `Allclean`、エディタに Allrun | Create で両方のスクリプトを実行可能にして書き、Allrun をエディタで開きます。 |
+| 0:48 | ステップ | もう一度 Allrun Steps: *3 of 3 steps done* | Allrun Steps はそれを読みます。すでにあったログから、全ステップが完了です。 |
+| 0:55 | 実行 | **Tools > Run Allrun Script**: *Case already run?* | では Allrun からケースを実行します。ログが残っているので、FoDE は先に掃除することを提案します。 |
+| 0:59 | 実行中 | **Clean, then run**。*interFoam is running*、その後 *3 of 3 steps done* | ステップのウィンドウは実行を追います。ログが書き込まれている間は Running、その後 Done になります。 |
+
+守るべきビートは **0:13** です。順序とオプションはログから来ており、見ている人が両方のスクリプトを確認するまで何も書き込まれません。0:48 で Allrun Steps をもう一度開くのは、ウィンドウマネージャのないテイクのディスプレイでは、エディタで Allrun を開くとメインウィンドウがその上に来るためです。デスクトップでは手前に残ります。
+
+## 動画 14 — ログがないときの Allrun（`damBreak`、約 60 秒）
+
+**シーン:** `damBreak-create-allrun-fresh`。**ケース:** 同梱 `tutorials/damBreak`。**伝えること:** 一度も実行していないケースでも Allrun を作れる — 辞書から提案し、提案だと明示する — そして damBreak では、その提案がチュートリアル自身のスクリプトと同じになる。
+
+`case_prepare` は同梱の `Allrun`/`Allclean` を削除するだけなので、ケースにはログがありません。
+
+| 時刻 | ビート | 画面 | ナレーション |
+|---|---|---|---|
+| 0:00 | ケース | `log.*` も `Allrun` もない `damBreak` | damBreak を新しくコピーしたところです。Allrun はなく、まだ何も実行していないので、ログもありません。 |
+| 0:06 | 提案 | **Tools > Create Allrun from Logs…**: *The case has no logs, so these steps are suggested from its dictionaries…* | 読むログがないので、FoDE はケースの辞書からステップを提案します。blockMeshDict があれば blockMesh、setFieldsDict があれば setFields、ソルバーは controlDict が指定します。 |
+| 0:13 | 理由 | `blockMesh` を選択: *suggested because the case has system/blockMeshDict* | 各行は、なぜそこにあるかを示します。提案なので、ステップとその順序を確認してください。 |
+| 0:19 | 作成 | **Create**。エディタに Allrun、先頭のコメント *Suggested from the case's dictionaries* | Allrun がエディタで開き、ログから読んだのではなく提案したものだと先頭に書かれています。 |
+| 0:28 | ステップ | **Tools > Allrun Steps…**: *0 of 3 steps done* | まだ何も実行していません。 |
+| 0:34 | 実行 | **Tools > Run Allrun Script** とその確認 | 実行します。Allrun はソルバーも実行するので、FoDE は先に確認します。 |
+| 0:37 | 実行中 | **Yes**。ステップが Running、その後 Done になり、*3 of 3 steps done* に | ステップのウィンドウは実行を追います。提案は、ステップごとにチュートリアル自身の Allrun と同じです。 |
+
+snappyHexMesh や topoSet のあるケースでは提案の確かさが下がります — topoSet の位置は推測と明示されます — そのため、この動画は damBreak を使い、「確認してください」と言っています。
+
+## 動画 15 — 逐次と並列の Allrun（`cavity`、約 95 秒）
+
+**シーン:** `cavity-create-allrun-parallel`。**ケース:** 同梱 `tutorials/cavity/cavity`。**伝えること:** 1 つのチェックリストから、チュートリアルが持つ 2 つのスクリプト — `Allrun.pre` を共有する逐次の `Allrun` と `Allrun-parallel` — ができ、ログでは分からないステップは入力して加えられる。FoDE はどちらを実行しても追う。
+
+同梱の cavity には `Allrun` もログもなく、使わない `decomposeParDict`（9 サブドメイン）があるので、準備は不要です。
+
+| 時刻 | ビート | 画面 | ナレーション |
+|---|---|---|---|
+| 0:00 | ケース | `log.*` も `Allrun` もない `cavity`。ファイル一覧に `system/decomposeParDict` | cavity チュートリアルを新しくコピーしたところです。Allrun もログもありません。decomposeParDict はありますが、それだけでは並列で実行するとは限りません。 |
+| 0:07 | 提案 | **Tools > Create Allrun from Logs…**: blockMesh、icoFoam。*Also create Allrun-parallel (9 processors)* はチェックなし | そのため FoDE は、blockMesh と icoFoam を逐次で実行するよう提案します。 |
+| 0:12 | 並列 | チェックを入れる: decomposePar と reconstructPar の行、*[Allrun-parallel only]* | Also create Allrun-parallel にチェックを入れると、ソルバーの前後に decomposePar と reconstructPar が加わり、並列のスクリプト専用と示されます。 |
+| 0:18 | Allrun.pre | **Allrun.pre** タブ: `runApplication blockMesh` | ソルバーより前のステップは、両方のスクリプトが呼び出す Allrun.pre に入ります。 |
+| 0:23 | Allrun | **Allrun** タブ: `./Allrun.pre`、`runApplication icoFoam` | Allrun はそれを呼んでから、icoFoam を逐次で実行します。 |
+| 0:28 | Allrun-parallel | **Allrun-parallel** タブ: `./Allrun.pre`、decomposePar、`runParallel icoFoam`、reconstructPar | Allrun-parallel もそれを呼び、ケースを分割して icoFoam を 9 プロセッサで実行し、結果を元に戻します。 |
+| 0:37 | コマンドの追加 | `reconstructPar` を選択、**Add Command…**、*postProcess -func vorticity* を入力 | ログでは分からないステップは、Add Command で加えます。 |
+| 0:41 | 入力した行 | 新しい行 *runApplication postProcess -func vorticity [added by you]* | OpenFOAM のアプリケーションは runApplication で書かれるので、ほかのステップと同じくログが残ります。 |
+| 0:46 | 作成 | **Create**。ファイル一覧に `Allrun`、`Allrun-parallel`、`Allrun.pre`、`Allclean` | Create は 4 つのスクリプトをすべて書き、Allrun を開きます。 |
+| 0:56 | スクリプトの選択 | **Tools > Allrun Steps…**、**Script** を *Allrun-parallel* に: *0 of 5 steps done* | スクリプトが 2 つあるので、Allrun Steps はどちらを追うかを選ばせます。 |
+| 1:05 | 実行 | **Tools > Run Allrun Script**: *This case has a serial Allrun and an Allrun-parallel…* | Run Allrun Script も尋ねます。 |
+| 1:12 | 実行中 | **Allrun-parallel**、**Yes**。icoFoam が 9 プロセスで *Running*、その後 *5 of 5 steps done*。ファイル一覧に `0/vorticity`… | Allrun-parallel が実行されます: Allrun.pre の blockMesh、decomposePar、9 プロセッサでの icoFoam、reconstructPar、そして postProcess。 |
+
+入力したコマンドは、両方のスクリプトのソルバーの後に入ります。`Allrun-parallel` では `reconstructPar` の後、元に戻した時刻に対して実行されます。
 
 ## 収録
 

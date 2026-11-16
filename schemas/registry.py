@@ -6,6 +6,7 @@ import importlib
 import logging
 from pathlib import Path
 
+from foam.variants import variant_base
 from schemas._base import ChoiceItem, KeySchema, _versions_text
 from schemas.builtin import get_default_schema_config
 from schemas.config_store import load_schema_config, save_schema_config
@@ -148,7 +149,7 @@ class SchemaRegistry:
         """
         if not file_path or not key_name:
             return None
-        file_name = Path(file_path).name
+        file_name = self._schema_file_name(file_path)
         per_file = self._file_key_schemas.get(file_name, {})
         if parent_key:
             schema = per_file.get(f"{parent_key}.{key_name}")
@@ -181,6 +182,19 @@ class SchemaRegistry:
             if any(closed):
                 return None
         return per_file.get(key_name)
+
+    def _schema_file_name(self, file_path: str) -> str:
+        """The schema table a file reads from: its own name, or its base's.
+
+        A suffixed variant (``decomposeParDict.4``, ``controlDict.orig``) is the
+        same kind of dictionary, so it answers from the base dictionary's table
+        when it has none of its own -- the same separator + header test the file
+        list uses (foam/variants.py).
+        """
+        file_name = Path(file_path).name
+        if file_name in self._file_key_schemas:
+            return file_name
+        return variant_base(file_path, self._file_key_schemas) or file_name
 
     def choices_for_file_key(
         self,

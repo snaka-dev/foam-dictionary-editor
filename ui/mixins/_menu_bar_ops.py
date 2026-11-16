@@ -64,6 +64,10 @@ class _MenuBarOpsMixin(_Base):
         case_menu.addAction(self._save_file_action)
         case_menu.addAction(self._save_case_action)
         case_menu.addAction(tr("Save as New Case…")).triggered.connect(self.save_as_new_case)
+        # Re-reads the open file after another program changed it. A
+        # shortcut is safe here, unlike Reload Case's: it asks before
+        # discarding unsaved edits, and Ctrl+Z undoes it.
+        _act(case_menu, tr("Reload File from Disk"),  "F5", lambda: self.reload_file_from_disk())
         case_menu.addSeparator()
         # Also on the bottom tab bar (see _build_tree_text_sync_bar).  Reload
         # from Tree deliberately has no shortcut: it overwrites the editor text,
@@ -250,7 +254,16 @@ class _MenuBarOpsMixin(_Base):
             self._on_run_post_process_clicked,
         )
         tools_menu.addSeparator()
-        # Running the case itself, rather than preparing it.
+        # Running the case itself, rather than preparing it -- the check first.
+        self._check_case_action = _tool_act(
+            tr("Check Case…"),
+            tr(
+                "Look for the classic mistakes that stop a first run — missing "
+                "boundary conditions, mismatched patch types, a controlDict "
+                "that writes nothing, a wrong decomposition — before running"
+            ),
+            self._on_check_case_clicked,
+        )
         self._run_decomposepar_action = _tool_act(
             tr("Run decomposePar…"),
             tr(
@@ -300,6 +313,22 @@ class _MenuBarOpsMixin(_Base):
                 "workflow, including the solver"
             ),
             self._on_run_allrun_clicked,
+        )
+        self._allrun_steps_action = _tool_act(
+            tr("Allrun Steps…"),
+            tr(
+                "Show the case's Allrun as steps, each marked done, failed or not "
+                "run from its log, and run them one at a time"
+            ),
+            self._on_allrun_steps_clicked,
+        )
+        self._create_allrun_action = _tool_act(
+            tr("Create Allrun from Logs…"),
+            tr(
+                "Write an Allrun and Allclean for a case that has none, from the "
+                "commands its log files record"
+            ),
+            self._on_create_allrun_clicked,
         )
         tools_menu.addSeparator()
         # A viewer, not a run -- its own group too.

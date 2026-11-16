@@ -1,0 +1,83 @@
+/*---------------------------------------------------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2606                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+Build  : _481094f-20260618 OPENFOAM=2606 version=2606
+Arch   : "LSB;label=32;scalar=64"
+Exec   : simpleFoam
+I/O    : uncollated
+Case   : {CASE}
+nProcs : 1
+trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+memory pool : not available
+fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+
+--> FOAM Warning : allowSystemOperations : Allowing user-supplied system call operations.
+                   This can be a security risk if running untrusted cases
+                   through e.g. 'coded' on-the-fly-compilation functionality.
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+Create time
+
+Create mesh for time = 0
+
+
+SIMPLE: convergence criteria
+    field p	 tolerance 0.01
+    field U	 tolerance 0.001
+    field "(k|epsilon|omega|f|v2)"	 tolerance 0.001
+
+Reading field p
+
+Reading field U
+
+Reading/calculating face flux field phi
+
+Selecting incompressible transport model Newtonian
+Selecting turbulence model type RAS
+Selecting RAS turbulence model kEpsilonn
+
+
+--> FOAM FATAL IO ERROR: (openfoam-2606)
+Unknown RAS model type kEpsilonn
+
+Valid RAS model types :
+
+22
+(
+EBRSM
+GEKO
+LRR
+LamBremhorstKE
+LaunderSharmaKE
+LienCubicKE
+LienLeschziner
+RNGkEpsilon
+SSG
+ShihQuadraticKE
+SpalartAllmaras
+kEpsilon
+kEpsilonLopesdaCosta
+kEpsilonPhitF
+kL
+kOmega
+kOmegaSST
+kOmegaSSTLM
+kOmegaSSTSAS
+kkLOmega
+qZeta
+realizableKE
+)
+
+
+
+file: constant/turbulenceProperties/RAS at line 23 to 27.
+
+    From static Foam::autoPtr<Foam::RASModel<BasicTurbulenceModel> > Foam::RASModel<BasicTurbulenceModel>::New(const alphaField&, const rhoField&, const Foam::volVectorField&, const Foam::surfaceScalarField&, const Foam::surfaceScalarField&, const transportModel&, const Foam::word&) [with BasicTurbulenceModel = Foam::IncompressibleTurbulenceModel<Foam::transportModel>; alphaField = Foam::geometricOneField; rhoField = Foam::geometricOneField; Foam::volVectorField = Foam::GeometricField<Foam::Vector<double>, Foam::fvPatchField, Foam::volMesh>; Foam::surfaceScalarField = Foam::GeometricField<double, Foam::fvsPatchField, Foam::surfaceMesh>; transportModel = Foam::transportModel]
+    in file ../turbulenceModels/lnInclude/RASModel.C at line 152.
+
+FOAM exiting
+

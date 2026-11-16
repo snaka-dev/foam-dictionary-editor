@@ -164,6 +164,12 @@ class Scene:
     # OpenFOAM `etc/bashrc` to source, typically. Watching someone set up their
     # shell is not the demo.
     terminal_prelude: list[str] = field(default_factory=list)
+    # Shell commands run in the copied case before the window opens, each
+    # with bash in the case directory, stopping at the first that fails. For a
+    # starting state no bundled case ships in: Movie 13's case has been run by
+    # hand, so it has logs and no Allrun. Unlike terminal_prelude these finish
+    # before the window opens, so nothing on screen depends on their timing.
+    case_prepare: list[str] = field(default_factory=list)
 
 
 def load_spec(path: Path, cases_dir: Path, workdir: Path) -> list[Scene]:
@@ -173,6 +179,7 @@ def load_spec(path: Path, cases_dir: Path, workdir: Path) -> list[Scene]:
     known = {
         "state", "steps", "note", "theme", "case_source", "workdir",
         "terminal_prelude", "copy_also", "clean", "case_library", "browse_dir",
+        "case_prepare",
     }
 
     scenes: list[Scene] = []
@@ -215,6 +222,7 @@ def load_spec(path: Path, cases_dir: Path, workdir: Path) -> list[Scene]:
             case_library=_expand(entry.get("case_library", ""), cases_dir, workdir),
             browse_dir=_expand(entry.get("browse_dir", ""), cases_dir, workdir),
             terminal_prelude=list(entry.get("terminal_prelude") or []),
+            case_prepare=list(entry.get("case_prepare") or []),
             copy_also=[
                 {"source": _expand(item["source"], cases_dir, workdir),
                  "into": _expand(item["into"], cases_dir, workdir)}
@@ -271,6 +279,17 @@ def prepare_case(scene: Scene) -> None:
         if target.exists():
             shutil.rmtree(target)
             print(f"  clean: {target}")
+
+    if scene.case_prepare and not scene.workdir:
+        raise SystemExit(f"{scene.name}: case_prepare needs a case_source to run in")
+    for command in scene.case_prepare:
+        print(f"  prepare: {command}")
+        done = subprocess.run(
+            ["bash", "-c", command], cwd=scene.workdir,
+            stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=False,
+        )
+        if done.returncode != 0:
+            raise SystemExit(f"{scene.name}: case_prepare failed ({done.returncode}): {command}")
 
 
 def seed_app_config(scene: Scene, workdir: Path) -> None:
@@ -829,7 +848,13 @@ def _table_cell_point(window, names: list[str]):
 
 
 def _tab_point(window, label: str):
-    for tabs in (window.upper_tabs, window.bottom_tabs, window.left_tabs):
+    from PySide6.QtWidgets import QApplication, QTabWidget
+
+    # An open dialog's own tabs first, for the reason "button" gives: while a
+    # dialog is up it is what the step is about (Create Allrun's previews).
+    dialog = QApplication.activeModalWidget()
+    own = [t for t in dialog.findChildren(QTabWidget) if t.isVisible()] if dialog else []
+    for tabs in (*own, window.upper_tabs, window.bottom_tabs, window.left_tabs):
         bar = tabs.tabBar()
         for i in range(tabs.count()):
             if _plain(tabs.tabText(i)) == _plain(label):
@@ -1181,9 +1206,14 @@ class Runner:
         x, y, w, h = (int(v) for v in step["rect"])
 
         def go() -> None:
-            from PySide6.QtWidgets import QApplication
+            from PySide6.QtWidgets import QApplication, QDialog
 
-            dialog = QApplication.activeModalWidget() or QApplication.activeWindow()
+            # A non-modal dialog (Allrun Steps) is not the active window yet
+            # on a display with no window manager, so activeWindow() would be
+            # the main window -- and the first take moved that instead.
+            shown = [w for w in QApplication.topLevelWidgets()
+                     if isinstance(w, QDialog) and w.isVisible()]
+            dialog = QApplication.activeModalWidget() or (shown[-1] if shown else None)
             if dialog is None:
                 raise TargetError("place: no dialog is open")
             dialog.setGeometry(x, y, w, h)

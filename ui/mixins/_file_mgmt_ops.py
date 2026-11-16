@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from foam.include_resolver import ResolvedInclude
-from foam.utils import read_foam_file
+from foam.utils import read_foam_file, write_foam_file
 from i18n import tr
 from services.backup_files import find_backup_files
 from services.case_files_config import CaseFilesConfig
@@ -81,7 +81,7 @@ class _FileManagementOpsMixin(_Base):
 
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(_foamfile_template(group, target.name), encoding="utf-8")
+            write_foam_file(target, _foamfile_template(group, target.name))
         except OSError as e:
             self._error(tr("Create File Error"), tr("Could not create file:\n{e}").format(e=e))
             return
@@ -160,7 +160,8 @@ class _FileManagementOpsMixin(_Base):
             has_unsaved = False
 
         try:
-            backup_path.write_text(content, encoding="utf-8")
+            # Same format as the source, so renaming the backup back restores it.
+            write_foam_file(backup_path, content, compress=p.name.endswith(".gz"))
         except Exception as e:
             self._error(tr("Backup Error"), tr("Could not write backup:\n{e}").format(e=e))
             return False
@@ -366,7 +367,7 @@ class _FileManagementOpsMixin(_Base):
         content = re.sub(r'(object\s+)\S+;', rf'\g<1>{dest.name};', content, count=1)
 
         try:
-            dest.write_text(content, encoding="utf-8")
+            write_foam_file(dest, content)
         except OSError as e:
             self._error(tr("Duplicate Error"), tr("Could not write file:\n{e}").format(e=e))
             return

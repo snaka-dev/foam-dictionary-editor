@@ -19,6 +19,7 @@ from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 
 from app_config import get_app_config
 from foam.include_expand import clear_expand_cache
+from foam.variants import clear_variant_cache
 from i18n import tr
 from services.case_fs_ops import (
     Precheck,
@@ -332,10 +333,12 @@ class _CaseNavOpsMixin(_Base):
         self._file_list_refresh_timer.stop()
         clear_scan_cache()
         clear_expand_cache()
+        clear_variant_cache()
         self.state.current_case_dir = None
         self.state.case_files_config = None
         self.state.file_buffers.clear()
         self.state.file_dirty.clear()
+        self.state.disk_stamps.clear()
         self.state.parsed_roots.clear()
         self.state.viewer_include_sources.clear()
         self._viewer_primed.clear()
@@ -347,6 +350,10 @@ class _CaseNavOpsMixin(_Base):
             self.block_mesh_panel.clear()
         if self._log_summary_dialog is not None:
             self._log_summary_dialog.set_case_dir("")
+        if self._case_check_dialog is not None:
+            self._case_check_dialog.hide()
+        if self._allrun_steps_dialog is not None:
+            self._allrun_steps_dialog.hide()
         self._clear_diff()
         self._case_navigator.set_current_case(None)
         self._update_case_label()

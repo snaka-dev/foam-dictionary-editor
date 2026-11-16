@@ -1979,6 +1979,443 @@
           "say": "Deleted — the status bar says what was kept, and the file list shows the one time left in the processors."
         }
       ]
+    },
+    "damBreak-create-allrun": {
+      "note": "Movie 13: a case run by hand gets an Allrun written from its logs, then runs from it.",
+      "theme": "light",
+      "case_source": "{repo}/tutorials/damBreak",
+      "workdir": "{work}/damBreak",
+      "case_prepare": [
+        "rm -f Allrun Allclean",
+        "source /usr/lib/openfoam/openfoam2606/etc/bashrc && cp -r 0.orig 0 && blockMesh > log.blockMesh 2>&1 && checkMesh > log.checkMesh 2>&1 && setFields > log.setFields 2>&1 && interFoam > log.interFoam 2>&1"
+      ],
+      "terminal_prelude": [
+        "source /usr/lib/openfoam/openfoam2606/etc/bashrc",
+        "clear"
+      ],
+      "state": {
+        "block_mesh_visible": true,
+        "side_by_side": false,
+        "upper_tab": "BlockMesh",
+        "splitter_sizes": {
+          "main": [
+            220,
+            1060
+          ],
+          "right": [
+            540,
+            230
+          ],
+          "right_upper": [
+            1060,
+            0,
+            0
+          ]
+        }
+      },
+      "steps": [
+        {
+          "do": "wait",
+          "ms": 4500,
+          "beat": "the case",
+          "say": "This damBreak was run by hand: blockMesh, checkMesh, setFields and interFoam, typed one at a time. Its logs remember every step, but there is no Allrun to do it again."
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 800,
+          "beat": "Allrun Steps"
+        },
+        {
+          "do": "click",
+          "menu_item": "Allrun Steps…",
+          "then": 1200
+        },
+        {
+          "do": "place",
+          "rect": [
+            640,
+            70,
+            620,
+            400
+          ],
+          "then": 3500,
+          "say": "Allrun Steps shows a case's Allrun as steps. This case has none, so it offers to write one from the logs."
+        },
+        {
+          "do": "click",
+          "button": "Create Allrun from Logs…",
+          "then": 5500,
+          "beat": "the proposal",
+          "say": "Every log begins with the command that wrote it and when it started, so the steps come out in the order they ran, with their options. The Allrun is previewed below as you go."
+        },
+        {
+          "do": "click",
+          "item": "checkMesh",
+          "then": 4500,
+          "beat": "read-only",
+          "say": "checkMesh only reports, so it is left unticked. Tick it to keep the check."
+        },
+        {
+          "do": "click",
+          "item": "restore0Dir",
+          "then": 4500,
+          "beat": "restore 0",
+          "say": "FoDE adds one step: restore 0 from 0.orig after meshing, so every run starts from the same fields."
+        },
+        {
+          "do": "click",
+          "tab": "Allclean",
+          "then": 4000,
+          "beat": "Allclean",
+          "say": "An Allclean comes with it, to put the case back the way it was before a run."
+        },
+        {
+          "do": "click",
+          "tab": "Allrun",
+          "then": 1200
+        },
+        {
+          "do": "click",
+          "button": "Create",
+          "then": 3000,
+          "beat": "created",
+          "say": "Create writes both scripts, executable, and opens the Allrun in the editor."
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 800
+        },
+        {
+          "do": "click",
+          "menu_item": "Allrun Steps…",
+          "then": 800
+        },
+        {
+          "do": "place",
+          "rect": [
+            640,
+            70,
+            620,
+            400
+          ],
+          "then": 5000,
+          "beat": "steps",
+          "say": "Allrun Steps now reads it: every step done, from the logs that were already there."
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 800,
+          "beat": "run it"
+        },
+        {
+          "do": "click",
+          "menu_item": "Run Allrun Script",
+          "then": 2500,
+          "say": "Now the case runs from its Allrun. The logs are still there, so FoDE offers to clean first."
+        },
+        {
+          "do": "click",
+          "button": "Clean, then run",
+          "then": 14000,
+          "beat": "running",
+          "say": "The steps window follows the run: a step reads Running while its log is being written, then Done."
+        },
+        {
+          "do": "wait",
+          "ms": 3000,
+          "beat": "done"
+        }
+      ]
+    },
+    "damBreak-create-allrun-fresh": {
+      "note": "Movie 14: a fresh case with no logs gets an Allrun suggested from its dictionaries, and runs from it.",
+      "theme": "light",
+      "case_source": "{repo}/tutorials/damBreak",
+      "workdir": "{work}/damBreak",
+      "case_prepare": [
+        "rm -f Allrun Allclean"
+      ],
+      "terminal_prelude": [
+        "source /usr/lib/openfoam/openfoam2606/etc/bashrc",
+        "clear"
+      ],
+      "state": {
+        "block_mesh_visible": true,
+        "side_by_side": false,
+        "upper_tab": "BlockMesh",
+        "splitter_sizes": {
+          "main": [
+            220,
+            1060
+          ],
+          "right": [
+            540,
+            230
+          ],
+          "right_upper": [
+            1060,
+            0,
+            0
+          ]
+        }
+      },
+      "steps": [
+        {
+          "do": "wait",
+          "ms": 4000,
+          "beat": "the case",
+          "say": "A fresh copy of damBreak: no Allrun, and nothing run yet, so there are no logs either."
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 800,
+          "beat": "the suggestion"
+        },
+        {
+          "do": "click",
+          "menu_item": "Create Allrun from Logs…",
+          "then": 5500,
+          "say": "With no logs to read, FoDE suggests the steps from the case's dictionaries: a blockMeshDict means blockMesh, a setFieldsDict means setFields, and controlDict names the solver."
+        },
+        {
+          "do": "click",
+          "item": "blockMesh",
+          "then": 4500,
+          "beat": "why",
+          "say": "Each row says why it is there. These are suggestions, so check them and their order."
+        },
+        {
+          "do": "click",
+          "button": "Create",
+          "then": 3500,
+          "beat": "created",
+          "say": "The Allrun opens in the editor, saying at the top that it was suggested, not read from logs."
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 800
+        },
+        {
+          "do": "click",
+          "menu_item": "Allrun Steps…",
+          "then": 800
+        },
+        {
+          "do": "place",
+          "rect": [
+            640,
+            70,
+            620,
+            400
+          ],
+          "then": 3000,
+          "beat": "steps",
+          "say": "Nothing has run yet."
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 800,
+          "beat": "run it"
+        },
+        {
+          "do": "click",
+          "menu_item": "Run Allrun Script",
+          "then": 2500,
+          "say": "Run it. FoDE asks first, because an Allrun runs the solver too."
+        },
+        {
+          "do": "click",
+          "button": "Yes",
+          "then": 16000,
+          "beat": "running",
+          "say": "The steps window follows the run: the suggestion is the tutorial's own Allrun, step for step."
+        },
+        {
+          "do": "wait",
+          "ms": 3000,
+          "beat": "done"
+        }
+      ]
+    },
+    "cavity-create-allrun-parallel": {
+      "note": "Movie 15: an Allrun and an Allrun-parallel sharing an Allrun.pre, and a command typed in.",
+      "theme": "light",
+      "case_source": "{repo}/tutorials/cavity/cavity",
+      "workdir": "{work}/cavity",
+      "terminal_prelude": [
+        "source /usr/lib/openfoam/openfoam2606/etc/bashrc",
+        "clear"
+      ],
+      "state": {
+        "block_mesh_visible": true,
+        "side_by_side": false,
+        "upper_tab": "BlockMesh",
+        "splitter_sizes": {
+          "main": [
+            220,
+            1060
+          ],
+          "right": [
+            540,
+            230
+          ],
+          "right_upper": [
+            1060,
+            0,
+            0
+          ]
+        }
+      },
+      "steps": [
+        {
+          "do": "wait",
+          "ms": 4500,
+          "beat": "the case",
+          "say": "The cavity tutorial, freshly copied: no Allrun and no logs. It has a decomposeParDict, but that alone does not mean it runs in parallel."
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 800,
+          "beat": "the suggestion"
+        },
+        {
+          "do": "click",
+          "menu_item": "Create Allrun from Logs…",
+          "then": 4500,
+          "say": "So FoDE suggests blockMesh and icoFoam, run serially."
+        },
+        {
+          "do": "click",
+          "button": "Also create Allrun-parallel",
+          "then": 5000,
+          "beat": "parallel",
+          "say": "Tick Also create Allrun-parallel: decomposePar and reconstructPar are added around the solver, marked for the parallel script only."
+        },
+        {
+          "do": "click",
+          "tab": "Allrun.pre",
+          "then": 4000,
+          "beat": "Allrun.pre",
+          "say": "The steps before the solver go in Allrun.pre, which both scripts call."
+        },
+        {
+          "do": "click",
+          "tab": "Allrun",
+          "then": 3500,
+          "beat": "Allrun",
+          "say": "Allrun calls it, then runs icoFoam serially."
+        },
+        {
+          "do": "click",
+          "tab": "Allrun-parallel",
+          "then": 5000,
+          "beat": "Allrun-parallel",
+          "say": "Allrun-parallel calls it too, then decomposes the case, runs icoFoam on nine processors and puts the results back together."
+        },
+        {
+          "do": "click",
+          "item": "reconstructPar",
+          "then": 1200,
+          "beat": "add a command"
+        },
+        {
+          "do": "click",
+          "button": "Add Command…",
+          "then": 1500,
+          "say": "A step the logs cannot show goes in with Add Command."
+        },
+        {
+          "do": "type",
+          "text": "postProcess -func vorticity",
+          "then": 800
+        },
+        {
+          "do": "key",
+          "keys": "Return",
+          "then": 4500,
+          "say": "An OpenFOAM application is written with runApplication, so it writes a log like every other step."
+        },
+        {
+          "do": "click",
+          "button": "Create",
+          "then": 3000,
+          "beat": "created",
+          "say": "Create writes all four scripts and opens the Allrun."
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 800,
+          "beat": "pick the script"
+        },
+        {
+          "do": "click",
+          "menu_item": "Allrun Steps…",
+          "then": 800
+        },
+        {
+          "do": "place",
+          "rect": [
+            640,
+            70,
+            620,
+            400
+          ],
+          "then": 1500
+        },
+        {
+          "do": "click",
+          "widget": "_allrun_steps_dialog._script_combo",
+          "then": 800,
+          "say": "With both scripts, Allrun Steps asks which one to follow."
+        },
+        {
+          "do": "key",
+          "keys": "Down",
+          "then": 400
+        },
+        {
+          "do": "key",
+          "keys": "Return",
+          "then": 3500
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 800,
+          "beat": "run it"
+        },
+        {
+          "do": "click",
+          "menu_item": "Run Allrun Script",
+          "then": 2500,
+          "say": "Run Allrun Script asks too."
+        },
+        {
+          "do": "click",
+          "button": "Allrun-parallel",
+          "then": 2000
+        },
+        {
+          "do": "click",
+          "button": "Yes",
+          "then": 15000,
+          "beat": "running",
+          "say": "Allrun-parallel runs: blockMesh from Allrun.pre, decomposePar, icoFoam on nine processors, reconstructPar, then postProcess."
+        },
+        {
+          "do": "wait",
+          "ms": 3000,
+          "beat": "done"
+        }
+      ]
     }
   }
 }

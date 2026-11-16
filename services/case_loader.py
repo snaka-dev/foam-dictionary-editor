@@ -6,6 +6,8 @@ import dataclasses
 import re
 from pathlib import Path
 
+from foam.variants import variant_base
+
 # Files offered for every case. Both forks are covered, so the list carries a
 # name and its post-rename successor side by side: only one of each pair exists
 # in a given case, and `list_case_files` skips whatever is absent. Foundation
@@ -193,6 +195,10 @@ REGION_CONSTANT_FILES = [
 # reactions.vapour). The glob needs a literal dot, so "thermo" here does not
 # also collect thermophysicalProperties.
 PHASE_FILE_BASES = [
+    # Per-phase reacting setups (chemistryProperties.gas, combustionProperties.vapour):
+    # measured in 37 tutorial files across the thirteen local trees.
+    "chemistryProperties",
+    "combustionProperties",
     "momentumTransport",
     "physicalProperties",
     "reactions",
@@ -250,6 +256,55 @@ VARIANT_FILE_BASES = (
     "snappyHexMeshDict",
     "topoSetDict",
 )
+
+# Where a suffixed variant of any other listed dictionary is looked for, and the
+# names it may be a variant of: the TARGET_FILES that live directly in that
+# directory. See foam/variants.py for the rule (separator + header object).
+_VARIANT_DIRS = ("system", "constant")
+_TARGET_BASES: dict[str, frozenset[str]] = {
+    d: frozenset(t.split("/", 1)[1] for t in TARGET_FILES if t.startswith(d + "/") and t.count("/") == 1)
+    for d in _VARIANT_DIRS
+}
+
+
+def listed_variant_base(path: str) -> str | None:
+    """The listed dictionary *path* is a suffixed variant of, or None.
+
+    Covers both rules that list variants: the viewer dictionaries' prefix match
+    (``topoSetDict-slices``, header or not) and the header-checked rule for every
+    other name (``decomposeParDict.4``). The file list dims such rows and says
+    OpenFOAM reads them only when a command names them.
+    """
+    p = Path(path)
+    parent = p.parent.name
+    if parent == "system":
+        for stem in VARIANT_FILE_BASES:
+            if p.name != stem and p.name.startswith(stem):
+                return stem
+    if parent in _VARIANT_DIRS:
+        return variant_base(str(p), _TARGET_BASES[parent])
+    return None
+
+
+def _list_suffixed_variants(case_dir: str) -> list[str]:
+    """Suffixed variants of every listed dictionary in system/ and constant/.
+
+    ``decomposeParDict.4``, ``controlDict.orig``, ``refineMeshDict.tier6``: a
+    file whose name extends a listed name past a separator *and* whose header
+    agrees (foam/variants.py). Over the thirteen local tutorial trees this adds
+    about 630 rows in 319 of 4,855 cases; 93% see no change.
+    """
+    rows: list[str] = []
+    for sub in _VARIANT_DIRS:
+        d = Path(case_dir) / sub
+        if not d.is_dir():
+            continue
+        bases = _TARGET_BASES[sub]
+        for f in sorted(d.iterdir(), key=lambda p: p.name.lower()):
+            if f.is_file() and not f.name.startswith(".") and variant_base(str(f), bases):
+                rows.append(str(f))
+    return rows
+
 
 def _list_phase_files(case_dir: str, subdir: str) -> list[str]:
     """Return files matching '<stem>.*' patterns in case_dir/subdir/."""
@@ -385,6 +440,10 @@ def list_case_files(
 
     # Extra copies of a viewer dictionary (e.g. topoSetDict-slices, topoSetDict.1)
     for s in _list_variant_files(case_dir):
+        _add(s)
+
+    # Suffixed variants of the other listed dictionaries (decomposeParDict.4, …)
+    for s in _list_suffixed_variants(case_dir):
         _add(s)
 
     # Field directories (0/, 0.orig/) — direct files and one level of region subdirs

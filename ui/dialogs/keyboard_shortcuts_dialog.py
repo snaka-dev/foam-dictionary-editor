@@ -56,6 +56,7 @@ _SECTIONS_DATA: list[tuple[str, list[tuple[str, str]]]] = [
         ("Open Case",          "Ctrl+O"),
         ("Save File",          "Ctrl+S"),
         ("Save Case",          "Ctrl+Shift+S"),
+        ("Reload File from Disk", "F5"),
         ("Apply Text to Tree", "Ctrl+Shift+A"),
         ("Find in Tree",       "Ctrl+Shift+T"),
         # Installed by the BlockMesh panel, but on a window-level QAction, so

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from app_config import get_app_config
 from app_config.defaults import DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH
+from foam.utils import write_foam_file
 from i18n import tr
 from services.case_copier import copy_visible_files
 from services.case_loader import is_openfoam_case
@@ -260,7 +261,7 @@ class _CaseOpsMixin(_Base):
                 rel = Path(path_str).relative_to(source)
                 dest_file = dest / rel
                 dest_file.parent.mkdir(parents=True, exist_ok=True)
-                dest_file.write_text(text, encoding="utf-8")
+                write_foam_file(dest_file, text)
             except Exception as e:
                 errors.append(f"{Path(path_str).name}: {e}")
 

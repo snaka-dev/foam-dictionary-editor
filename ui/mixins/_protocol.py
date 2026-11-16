@@ -67,12 +67,16 @@ from foam.include_expand import ExpandedTree
 from foam.include_resolver import ResolvedInclude
 from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser
+from services.allrun import AllrunPlan, Step
 from services.background_run import BackgroundRun, StopReport
+from services.case_check import CaseCheck
 from services.case_fs_ops import Precheck
 from services.solver_run import DeletionCheck, DeletionProblem, SolverInfo
 from ui.app_state import AppState, UndoSnapshot
 from ui.case_navigation import CaseNavigator
+from ui.dialogs.allrun_steps_dialog import AllrunStepsDialog
 from ui.dialogs.case_browser_dialog import CaseBrowserDialog
+from ui.dialogs.case_check_dialog import CaseCheckDialog
 from ui.dialogs.find_examples_dialog import FindExamplesDialog
 from ui.dialogs.log_summary_dialog import LogSummaryDialog
 from ui.dialogs.processor_delete_dialog import ProcessorDeleteDialog
@@ -129,6 +133,8 @@ class MainWindowProtocol(QMainWindow):
     _foam_monitor_timer: QTimer
     _file_list_refresh_timer: QTimer
     _log_summary_dialog: LogSummaryDialog | None
+    _case_check_dialog: CaseCheckDialog | None
+    _allrun_steps_dialog: AllrunStepsDialog | None
     _find_examples_dialog: FindExamplesDialog | None
 
     # ── shared actions (built by _build_shared_actions(), used by the toolbar
@@ -171,6 +177,9 @@ class MainWindowProtocol(QMainWindow):
     _clean_case_action: QAction | None
     _open_paraview_action: QAction | None
     _view_log_summary_action: QAction | None
+    _check_case_action: QAction | None
+    _allrun_steps_action: QAction | None
+    _create_allrun_action: QAction | None
 
     # ── from _BoundaryOpsMixin (ui/mixins/_boundary_ops.py) ───────────────────
     def _available_field_dirs(self) -> list[str]:
@@ -268,12 +277,23 @@ class MainWindowProtocol(QMainWindow):
     def _parse_and_update(self, path: str, text: str) -> OpenFoamParser:
         raise NotImplementedError
     def load_selected_file(self, path: str) -> None: ...
+    def _open_file_at_line(self, path: str, line: int) -> None: ...
     def save_file(self) -> None: ...
     def save_all_files(self) -> None: ...
     def reset_file_list(self) -> None: ...
     def _on_add_time_dir(self, dir_name: str) -> None: ...
     def _on_remove_extra_dir(self, rel_dir: str) -> None: ...
     def _purge_file_caches(self, path: str) -> None: ...
+    def _record_disk_stamp(self, path: str, text: str) -> None: ...
+    def _changed_outside(self, paths: list[str]) -> dict[str, str]:
+        raise NotImplementedError
+    def _outside_change_lines(self, changed: dict[str, str] | list[str]) -> str:
+        raise NotImplementedError
+    def _confirm_overwrite(self, paths: list[str]) -> bool:
+        raise NotImplementedError
+    def _ask_overwrite_many(self, changed: dict[str, str]) -> bool | None:
+        raise NotImplementedError
+    def reload_file_from_disk(self, path: str | None = None) -> None: ...
     def _is_auto_scan_group(self, group: str) -> bool:
         raise NotImplementedError
     def _case_file_paths(
@@ -361,6 +381,7 @@ class MainWindowProtocol(QMainWindow):
         raise NotImplementedError
     def _on_run_solver_clicked(self) -> None: ...
     def _on_run_allrun_clicked(self) -> None: ...
+    def _choose_allrun_script(self, case_dir: str) -> str | None: ...
     def _reload_clean_file_from_disk(self, path: str) -> None:
         raise NotImplementedError
     def _on_run_allclean_clicked(self) -> None: ...
@@ -507,6 +528,29 @@ class MainWindowProtocol(QMainWindow):
     def _update_file_label(self) -> None: ...
     def _update_window_title(self) -> None: ...
     def _update_sync_checkbox(self) -> None: ...
+
+    # ── from _CaseCheckOpsMixin (ui/mixins/_case_check_ops.py) ────────────────
+    def _run_case_check(self, case_dir: str) -> CaseCheck:
+        raise NotImplementedError
+    def _on_check_case_clicked(self) -> None: ...
+    def _refresh_case_check(self) -> None: ...
+    def _case_check_solver_warnings(self, case_dir: str) -> list[str]:
+        raise NotImplementedError
+
+    # ── from _AllrunOpsMixin (ui/mixins/_allrun_ops.py) ───────────────────────
+    def _read_allrun_plan(self, case_dir: str, script: str | None = None) -> AllrunPlan | None: ...
+    def _on_allrun_steps_clicked(self) -> None: ...
+    def _refresh_allrun_steps(self, script: str | None = None) -> None: ...
+    def _on_create_allrun_clicked(self) -> None: ...
+    def _write_new_scripts(self, case_dir: str, scripts: list[tuple[str, str]]) -> None: ...
+    def _on_allrun_run_requested(self, index: int, onwards: bool) -> None: ...
+    def _confirm_allrun_command(
+        self, case_dir: str, command: str, covered: list[Step], onwards: bool
+    ) -> bool:
+        raise NotImplementedError
+    def _runs_the_solver(self, case_dir: str, steps: list[Step]) -> bool:
+        raise NotImplementedError
+    def _on_allrun_log_requested(self, path: str) -> None: ...
 
     # ── from _UndoOpsMixin (ui/mixins/_undo_ops.py) ───────────────────────────
     def _setup_tree_undo(self) -> None: ...

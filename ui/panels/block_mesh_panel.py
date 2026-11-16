@@ -150,6 +150,11 @@ class BlockMeshPanel(QWidget):
         self._plotter: QtInteractor | None = None
         self._renderer: BlockMeshRenderer | None = None
         self._plotter_layout: QVBoxLayout | None = None
+        # Set when QtInteractor() raised: the panel then shows why instead.
+        self._plotter_failed = False
+        # True while QtInteractor() is being built, which can re-enter
+        # init_plotter through showEvent (see there).
+        self._plotter_starting = False
         self._vtx_table: QTableWidget | None = None
         self._selected_vertex: int | None = None
         self._selected_block: int | None = None
@@ -634,7 +639,37 @@ class BlockMeshPanel(QWidget):
     def init_plotter(self) -> None:
         if self._plotter is not None or self._plotter_layout is None:
             return
-        self._plotter = QtInteractor(self)
+        if self._plotter_failed or self._plotter_starting:
+            return
+        # QtInteractor() can re-enter this method. pyvistaqt 0.13 builds it on
+        # QOpenGLWidget, and the first one added to a window already on screen
+        # makes Qt recreate that window's native surface (raster -> OpenGL):
+        # the window is hidden and shown again, so showEvent -- and with
+        # _plotter still None, this method -- runs again inside the
+        # constructor. A second, nested QtInteractor then failed with
+        # "QOpenGLWidget.__init__ returned NULL", and since session restore
+        # selects a saved BlockMesh tab before the event loop starts, FoDE
+        # never opened. See DEVELOPER.md's "When the viewer cannot start".
+        self._plotter_starting = True
+        try:
+            self._plotter = QtInteractor(self)
+        except Exception as exc:  # noqa: BLE001 -- any failure here is the same to the user
+            # The viewer is optional: a failure must cost the 3-D view, not
+            # the app. Not retried: each showEvent would fail the same way.
+            self._plotter = None
+            self._plotter_failed = True
+            message = QLabel(
+                tr("The 3-D view could not start: {error}").format(
+                    error=f"{type(exc).__name__}: {exc}"
+                )
+            )
+            message.setWordWrap(True)
+            message.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            message.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            self._plotter_layout.addWidget(message)
+            return
+        finally:
+            self._plotter_starting = False
         self._plotter.set_background(colors().viewport_bg)
         self._plotter.setMinimumSize(0, 0)
         self._plotter_layout.addWidget(self._plotter)

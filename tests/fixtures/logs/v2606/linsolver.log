@@ -1,0 +1,61 @@
+/*---------------------------------------------------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2606                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+Build  : _481094f-20260618 OPENFOAM=2606 version=2606
+Arch   : "LSB;label=32;scalar=64"
+Exec   : icoFoam
+I/O    : uncollated
+Case   : {CASE}
+nProcs : 1
+trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+memory pool : not available
+fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+
+--> FOAM Warning : allowSystemOperations : Allowing user-supplied system call operations.
+                   This can be a security risk if running untrusted cases
+                   through e.g. 'coded' on-the-fly-compilation functionality.
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+Create time
+
+Create mesh for time = 0
+
+
+PISO: Operating solver in PISO mode
+
+Reading transportProperties
+
+Reading field p
+
+Reading field U
+
+Reading/calculating face flux field phi
+
+
+Starting time loop
+
+Time = 0.005
+
+Courant Number mean: 0 max: 0
+smoothSolver:  Solving for Ux, Initial residual = 1, Final residual = 8.90511e-06, No Iterations 19
+smoothSolver:  Solving for Uy, Initial residual = 0, Final residual = 0, No Iterations 0
+
+
+--> FOAM FATAL IO ERROR: (openfoam-2606)
+Unknown symmetric matrix solver type PCGG
+
+Valid symmetric matrix solver types :
+7(FPCG GAMG PBiCGStab PCG PPCG PPCR smoothSolver)
+
+
+file: system/fvSolution/solvers/p at line 21 to 24.
+
+    From static Foam::autoPtr<Foam::lduMatrix::solver> Foam::lduMatrix::solver::New(const Foam::word&, const Foam::word&, const Foam::lduMatrix&, const Foam::FieldField<Foam::Field, double>&, const Foam::FieldField<Foam::Field, double>&, const Foam::lduInterfaceFieldPtrsList&, const Foam::dictionary&)
+    in file matrices/lduMatrix/lduMatrix/lduMatrixSolver.C at line 76.
+
+FOAM exiting
+

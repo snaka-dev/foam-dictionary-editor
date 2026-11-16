@@ -19,8 +19,9 @@ A short tour with the damBreak tutorial that comes with FoDE (`tutorials/damBrea
 3. **See it in 3-D:** open the **BlockMesh** tab. The mesh, the water column from `setFieldsDict` and the two gauge lines are drawn. *If the tab is missing,* untick **xterm terminal** at the top of the **Terminal** tab: the 3-D view and that terminal cannot share the graphics card, so they take turns. See [BlockMesh panel](#blockmesh-panel) and [Terminal tab](#terminal-tab).
 4. **Read and edit:** click `system/controlDict`, then a row in the **Tree** tab — the **Detail pane** beside it explains the key and lists its choices. Change a value and save with `Ctrl+S`. See [Tree and text workflow](#tree-and-text-workflow) and [Detail pane](#detail-pane).
 5. **Check the boundaries:** the **Boundary** tab shows every patch against every field. See [Boundary view](#boundary-view).
-6. **Run it:** **Tools > Run blockMesh…**, then **Tools > Run setFields…** (its *Restore 0/ from 0.orig/ first* box is ticked for you), then **Tools > Run Solver…**. Each shows the command before it runs; the output appears in the Terminal and is saved to `log.*`. See [Tools menu](#tools-menu).
-7. **Look at the result:** **Tools > View Log Summary…** condenses the solver log, and **Tools > Open Mesh in ParaView…** opens the case for viewing. See [View Log Summary](#view-log-summary).
+6. **Check before running:** **Tools > Check Case…** looks for the mistakes that most often stop a first run — a patch with no boundary condition, a `controlDict` that writes nothing — and opens the file at the line. On damBreak as shipped it reports one error: `0/` is missing beside `0.orig/`. The next step's *Restore 0/ from 0.orig/ first* box creates it. See [Check Case](#check-case).
+7. **Run it:** **Tools > Run blockMesh…**, then **Tools > Run setFields…** (its *Restore 0/ from 0.orig/ first* box is ticked for you), then **Tools > Run Solver…**. Each shows the command before it runs; the output appears in the Terminal and is saved to `log.*`. See [Tools menu](#tools-menu).
+8. **Look at the result:** **Tools > View Log Summary…** condenses the solver log, and explains the error in plain words if the run failed; **Tools > Open Mesh in ParaView…** opens the case for viewing. See [View Log Summary](#view-log-summary).
 
 The run writes its mesh and results into the folder you opened, so if you want to keep the repository clean, copy the tutorial first with **Case > Duplicate Case…** and open the copy. To start from your own case, open it the same way. **Case > Duplicate from Case Library…** copies an OpenFOAM tutorial into a folder of your own to start from; see [Case Library](#case-library).
 
@@ -43,6 +44,8 @@ The run writes its mesh and results into the folder you opened, so if you want t
   - [Numeric type promotion](#numeric-type-promotion)
   - [Edit validation](#edit-validation)
 - [Editor behavior](#editor-behavior)
+  - [Compressed files](#compressed-files)
+  - [Files changed by other programs](#files-changed-by-other-programs)
   - [Code folding](#code-folding)
 - [Tree key filter and editor sync](#tree-key-filter-and-editor-sync)
   - [Tree key filter](#tree-key-filter)
@@ -141,6 +144,7 @@ The run writes its mesh and results into the folder you opened, so if you want t
 - [Run checkMesh](#run-checkmesh)
 - [Add Function Object](#add-function-object)
 - [Run postProcess](#run-postprocess)
+- [Check Case](#check-case)
 - [Run decomposePar](#run-decomposepar)
 - [Run Solver](#run-solver)
 - [Background runs and Stop Background Run](#background-runs-and-stop-background-run)
@@ -148,6 +152,8 @@ The run writes its mesh and results into the folder you opened, so if you want t
 - [Run reconstructPar](#run-reconstructpar)
 - [Delete processor* Directories](#delete-processor-directories)
 - [Run Allrun Script](#run-allrun-script)
+- [Allrun Steps](#allrun-steps)
+- [Create Allrun from Logs](#create-allrun-from-logs)
 - [Open Mesh in ParaView](#open-mesh-in-paraview)
 - [Run Allclean Script](#run-allclean-script)
 - [Clean Case (foamCleanTutorials)](#clean-case-foamcleantutorials)
@@ -237,6 +243,8 @@ The run writes its mesh and results into the folder you opened, so if you want t
 | Find text in the editor | [Editor toolbar](#current-ui-layout) |
 | Look up a keyboard shortcut | [Keyboard shortcuts](#keyboard-shortcuts) |
 | Run OpenFOAM commands from FoDE | [Tools menu](#tools-menu) / [Terminal tab](#terminal-tab) |
+| Find what would stop my first run, before running it | [Check Case](#check-case) |
+| Find out why a run stopped with an error | [View Log Summary](#view-log-summary) |
 | Check whether the mesh is up to date | [Mesh presence/staleness indicator](#mesh-presencestaleness-indicator) |
 | Run blockMesh or restore 0/ without leaving FoDE | [Run blockMesh](#run-blockmesh) / [Restore 0/ from 0.orig](#restore-0-from-0orig) |
 | Run snappyHexMesh or topoSet without leaving FoDE | [Run snappyHexMesh](#run-snappyhexmesh) / [Run topoSet](#run-toposet) |
@@ -247,8 +255,10 @@ The run writes its mesh and results into the folder you opened, so if you want t
 | Add probes, a sample line or a cutting plane without knowing the dictionary | [Add Function Object](#add-function-object) |
 | Sample results I already have, or get yPlus once, without rerunning the solver | [Run postProcess](#run-postprocess) |
 | Run the case's whole workflow, or clean it back to a pristine state | [Run Allrun Script](#run-allrun-script) / [Run Allclean Script](#run-allclean-script) / [Clean Case](#clean-case-foamcleantutorials) |
+| See which steps of an Allrun are done, and run them one at a time | [Allrun Steps](#allrun-steps) |
+| Write an Allrun for a case I built by running tools one at a time | [Create Allrun from Logs](#create-allrun-from-logs) |
 | Plot residuals while a solver is running | [foamMonitor launcher](#foammonitor-launcher) |
-| Read a long log.snappyHexMesh log without scrolling through thousands of lines | [View Log Summary](#view-log-summary) |
+| Read a long `log.snappyHexMesh` without scrolling through thousands of lines | [View Log Summary](#view-log-summary) |
 | See how a keyword or function object is used in real cases | [Find OpenFOAM Examples](#find-openfoam-examples) |
 | Choose a variant (no-terminal, BlockMesh) | [Variants](#variants) |
 | Add schema help for custom keys | [Schema module configuration](#schema-module-configuration) |
@@ -273,6 +283,8 @@ The run writes its mesh and results into the folder you opened, so if you want t
 - **All boundary conditions in one table.** Every patch against every field, editable in place; add, delete or rename a patch in every field file at once. → [Boundary view](#boundary-view)
 - **A 3-D viewer for your dictionaries.** `blockMeshDict` is drawn in 3-D, with the shapes from `topoSetDict`, `snappyHexMeshDict`, `setFieldsDict` and your sampling files drawn on top, so a box in the wrong place shows up before you mesh. → [BlockMesh panel](#blockmesh-panel)
 - **Run the case from the Tools menu.** blockMesh, snappyHexMesh, setFields, the solver, `Allrun` and more, each from a dialog that shows the exact command and followed by a short summary of the log. → [Tools menu](#tools-menu)
+- **Help with a first run.** Check Case finds the classic mistakes before anything runs, and when a run fails anyway, the log summary says what went wrong and opens the file at the line. → [Check Case](#check-case), [View Log Summary](#view-log-summary)
+- **Allrun scripts you can follow.** See which steps of a case's `Allrun` are done and run them one at a time, or write an `Allrun` (and an `Allrun-parallel`) from the logs of a case you built by hand. → [Allrun Steps](#allrun-steps), [Create Allrun from Logs](#create-allrun-from-logs)
 - **Runs that outlive FoDE.** Start the solver in the background, close FoDE, and stop it cleanly at a written time later. → [Background runs](#background-runs-and-stop-background-run)
 - **Post-processing without knowing the dictionary.** Probes, line graphs, cutting planes and forces from a form, drawn in 3-D as you fill it in. → [Add Function Object](#add-function-object)
 - **Compare with a working case.** Put your case beside a tutorial: differences are coloured, and one right-click adopts a value. → [Case comparison](#case-comparison)
@@ -336,6 +348,7 @@ The menu bar provides a **Case** menu, a **Settings** menu, a **View** menu, a *
 - Case > Save File `Ctrl+S`.
 - Case > Save Case `Ctrl+Shift+S`.
 - Case > Save as New Case…
+- Case > Reload File from Disk `F5` — re-read the open file after another program changed it. See [Files changed by other programs](#files-changed-by-other-programs).
 - Case > Apply Text to Tree `Ctrl+Shift+A` — the same action as the **▲ Apply Text to Tree** button on the lower tab bar.
 - Case > Reload from Tree — the same action as the **▼ Reload from Tree** button. Deliberately without a shortcut: it overwrites the editor text, discarding any edits not yet applied to the tree.
 - Case > Duplicate Case…
@@ -398,7 +411,7 @@ The editor is designed so that raw text editing remains available even when the 
 
 ## Detail pane
 
-The right-side detail pane shows contextual information for the selected node and lets you edit its value.
+The right-side detail pane shows contextual information for the selected node and lets you edit its value. For ordinary nodes it shows Key, Type, and an editable Value field; for `field_value` nodes, Field Type, Field Name, and Value.
 
 When a schema is defined for the selected key, the pane displays:
 
@@ -421,8 +434,6 @@ These help fields are populated from schema modules. The built-in schemas cover 
 
 Modules shipped with a new release are added to your list automatically. If you have previously removed a module, it stays removed.
 
-For ordinary nodes, the pane also shows Key, Type, and an editable Value field. For `field_value` nodes, the pane shows Field Type, Field Name, and Value.
-
 ### Numeric type promotion
 
 OpenFOAM does not strictly distinguish between integer and floating-point values in most contexts. When you enter a fractional value (for example `0.5`) for a node whose current type is `int`, the editor automatically promotes the node to `scalar` without an error or confirmation prompt. The Type column updates immediately to reflect the new type. Entering an integer value in a `scalar` node keeps the type as `scalar`.
@@ -438,6 +449,19 @@ The bottom editor is used for direct plain-text editing of OpenFOAM dictionary f
 The editor applies **syntax highlighting** to OpenFOAM dictionary tokens: comments (`//` and `/* */`) appear grey italic, string literals green, `#directives` purple bold, `$macro` references orange, reserved keywords (`FoamFile`, `true`/`false`, `uniform`, `nonuniform`, etc.) blue bold, and numbers teal. Use the **Highlight** button in the editor toolbar to toggle highlighting on or off; the preference is saved across sessions.
 
 The window title shows a `*` suffix when the editor content has unsaved changes, and clears it after save, reload from tree, or a successful apply-to-tree.
+
+### Compressed files
+
+A gzip-compressed file — `0/U.gz` and the like, which OpenFOAM writes under `writeCompression on` — opens as ordinary text, and saving it, backing it up or saving the case as a new one writes it compressed again, so OpenFOAM reads it as before. A duplicate is compressed when you give its name the `.gz` ending.
+
+### Files changed by other programs
+
+FoDE works on its own copy of each file it has opened. When another program rewrites one of those files — `foamDictionary -set`, `sed`, another editor, a script run in the terminal — FoDE's copy does not change by itself:
+
+- **Saving asks first.** If you save a file (Save File, or Save Case) that has changed on disk since FoDE read it, or has been deleted, FoDE says so and asks before replacing that version with yours. Save Case lists every such file and offers **Save Them Anyway**, **Save the Others Only** (those files keep your edits, unsaved), or Cancel. A file only touched, or rewritten with the same content, does not count.
+- **Reload File from Disk** (Case menu, `F5`, or **Reload from Disk** on a file's right-click menu in the file list) reads the file again, refreshing the editor, the tree and the 3-D view. If you have unsaved edits to it, it asks first; tree undo (`Ctrl+Z` in the tree) brings your previous version back.
+
+FoDE does not reload files by itself, so a reload never moves the tree under you or pops up a question while you are switching windows.
 
 ### Code folding
 
@@ -534,6 +558,7 @@ FoDE lists the dictionaries you are likely to edit rather than every file in the
 
 - **`system/` and `constant/`** — about a hundred well-known dictionary names, chosen by surveying the OpenFOAM tutorials: `controlDict`, `fvSchemes`, `fvSolution`, `blockMeshDict`, `snappyHexMeshDict`, `transportProperties` and so on. Where the two OpenFOAM forks renamed a dictionary, both spellings are known and whichever one your case has is listed (`turbulenceProperties` / `momentumTransport`, `fvOptions` / `fvModels` + `fvConstraints`, `transportProperties` and `thermophysicalProperties` / `physicalProperties`). Names that belong to one case alone — a Lagrangian cloud called `limestoneCloud1Properties`, say — are not guessed.
 - **Variants of the four dictionaries the 3-D viewer draws** — files in `system/` whose names start with `blockMeshDict`, `topoSetDict`, `snappyHexMeshDict` or `setFieldsDict`, so a case that keeps `topoSetDict-slices` or `topoSetDict.1` beside its `topoSetDict` lists them all.
+- **Suffixed variants of the other dictionaries** — `decomposeParDict.4`, `controlDict.orig`, `refineMeshDict.tier6`, `dynamicMeshDict.sixDoF` and the like, in `system/` and `constant/`: a file whose name is a listed dictionary's plus a separator (`.`, `-`, `_` or a digit) and whose own `FoamFile` header names that dictionary or the file itself. These rows are shown dimmed, because OpenFOAM reads such a file only when a command names it (`-dict …`) or a script copies it over the real one — editing `decomposeParDict.4` does not change `decomposeParDict`. The tooltip says so, and the Detail pane describes their keys like the base dictionary's. A file whose header claims some other dictionary, or that has no header (an `#include` fragment), is not listed; add it with **Add files** if you need it.
 - **Field files** — every file directly inside `0/` and `0.orig/`.
 - **Phase variants** — `thermophysicalProperties.*`, `turbulenceProperties.*` and their relatives (for example `thermophysicalProperties.air`), from `constant/` and from each region's constant directory.
 - **Case-root scripts** — `Allrun`, `Allclean` and the other `All*` scripts; see [Case-root scripts](#case-root-scripts).
@@ -946,7 +971,7 @@ In both orientations:
 - The column set is the union of all patch names across all field files; cells show `–` when a patch is not defined in a given file.
 - **Cell text** — the `type` value for that patch (e.g. `fixedValue`, `zeroGradient`, `noSlip`). A `†` marker is appended when the patch contains large or binary data that cannot be shown in the edit dialog.
 - **Tooltip** — hovering over a cell shows the full patch sub-dictionary text. For `†`-marked cells, the tooltip shows the type and a brief data description (`large data` or `binary data`) instead.
-- **Lines per cell** — a spin box at the top right of the panel controls how many lines are shown per cell (1–10, default 1). When set above 1, additional key-value entries from the patch sub-dictionary are shown below the `type` line. Entries with large or complex values display as `key  …`.
+- **Lines per cell** — a spin box at the top right of the panel controls how many lines are shown per cell (1–10, default 1). When set above 1, additional key-value entries from the patch sub-dictionary are shown below the `type` line. A non-uniform list shows as its size (`value  nonuniform List<scalar> (2250 values)`), a value longer than 60 characters is cut with `…`, binary data shows as `(binary)`, and a sub-dictionary or list shows as `key  ...`.
 
 ### Directory selector
 
@@ -1293,9 +1318,10 @@ Every item that sends a command refuses while the Terminal is still running some
 - [Add Function Object…](#add-function-object) — add probes, a line graph, forces and more from your installation's templates.
 - [Run postProcess…](#run-postprocess) — run function objects on results that already exist.
 
+- [Check Case…](#check-case) — look for the classic mistakes that stop a first run, before running.
 - [Run decomposePar…](#run-decomposepar), [Run Solver…](#run-solver), [Stop Background Run](#background-runs-and-stop-background-run), [Run reconstructPar…](#run-reconstructpar), [Delete processor\* Directories…](#delete-processor-directories) — a parallel or background run from start to finish.
 
-- [Run Allrun Script](#run-allrun-script) — the case's whole workflow.
+- [Run Allrun Script](#run-allrun-script) — the case's whole workflow; [Allrun Steps…](#allrun-steps) — its steps one at a time, each marked from its log; [Create Allrun from Logs…](#create-allrun-from-logs) — write one for a case that has none.
 
 - [Open Mesh in ParaView…](#open-mesh-in-paraview)
 
@@ -1403,6 +1429,23 @@ Select **Tools > Run postProcess…** to run function objects on results that al
 
 The output goes to `log.postProcess` (`log.foamPostProcess` on Foundation 11+), never to the solver's own log, even when the run goes through the solver. The dialog warns when the case has no results yet, and when files have unsaved edits, since postProcess reads them from disk. Like the other Run tools, it refuses while a command is running in the Terminal tab or a background run is going in the case. Right-clicking a function-object file that `controlDict` runs, such as `system/probes`, offers **Run postProcess with this…** with that function already chosen.
 
+## Check Case
+
+Select **Tools > Check Case…** to look for the mistakes that most often stop a first run, before anything runs. It reads the case as you see it, unsaved edits included, and lists what it finds in a window that can stay open while you fix things: select a problem to read it in full, double-click it to open the file at that line, and press **Check Again** when you are done. An **Error** will stop the run (or `decomposePar`); a **Warning** lets it run but probably not as you meant.
+
+What it checks:
+
+- **0/ is missing** while `0.orig/` exists: the solver stops with "cannot find file 0/…". Copy it with [Restore 0/ from 0.orig](#restore-0-from-0orig), which is what a tutorial's `Allrun` does first.
+- **Boundary conditions against the mesh.** Every patch needs an entry in each field's `boundaryField`, or the solver stops with "Cannot find patchField entry". An entry counts the way OpenFOAM counts it: the patch's own name, a group it is in (`wall` for every wall patch, `inGroups`, and the constraint groups `#includeEtc "caseDicts/setConstraintTypes"` covers), a regular expression such as `".*Wall"`, or nothing at all for an `empty` patch. The patches come from `constant/polyMesh/boundary`, or, before meshing, from `blockMeshDict` when nothing else will reshape the mesh. When a patch is missing, entries that match no patch are listed too, since they are often the same name misspelt.
+- **Patch types that must agree**: a patch that is `empty`, `symmetryPlane`, `symmetry` or `wedge` in the mesh needs the same type in every field, and a field cannot give one of those types to a `wall` or `patch` (OpenFOAM's "inconsistent patch and patchField types").
+- **controlDict**: a `writeInterval` longer than the run, so nothing is written; a `deltaT` longer than the whole run; a run that starts at `endTime` already, so the solver does nothing (raise `endTime` to continue); and `stopAt writeNow` or `noWriteNow`, which stops the solver right after it starts.
+- **decomposeParDict**: for the `simple` and `hierarchical` methods, `n` must multiply to `numberOfSubdomains`, or `decomposePar` stops with "Wrong number of … divisions"; and `processor*` directories that disagree with `numberOfSubdomains`.
+- **Dictionaries the solver reads**, for the common incompressible solvers (`icoFoam`, `simpleFoam`, `pimpleFoam`, `pisoFoam` and their variants, and Foundation's `foamRun` with `incompressibleFluid`): `transportProperties`/`physicalProperties` and `turbulenceProperties`/`momentumTransport`. A case that has only the OpenFOAM Foundation name, such as `physicalProperties`, is reported on OpenCFD's OpenFOAM, which reads only the old name; Foundation reads both.
+
+What it does not do: it says nothing when it cannot be sure. A field that uses an `#include` or `$macro` it cannot follow, a case whose mesh comes from `snappyHexMesh` or another utility and has not been made yet, and a multi-region case before its region meshes exist are left unchecked, and a note under the list says so. Run Check Case again after meshing. It never changes a file.
+
+Its findings also appear among [Run Solver](#run-solver)'s warnings.
+
 ## Run decomposePar
 
 Select **Tools > Run decomposePar…** to split the case into `processorN/` directories for a parallel run, as set out in `system/decomposeParDict` (the number of pieces is its `numberOfSubdomains`). The [options dialog](#how-a-run-dialog-works) offers `-force` (delete existing `processor*` directories first), `-copyZero` (copy `0/` as it is instead of decomposing the fields), `-latestTime` and `-region`. If the case is already decomposed, the dialog says so and `-force` starts ticked, because without it decomposePar refuses to run.
@@ -1431,6 +1474,7 @@ The dialog also carries:
 - **Extra options** for anything else, such as `-noFunctionObjects`.
 - **Keep running after FoDE closes (run in the background)**: on Linux. Never ticked by default. See [Background runs](#background-runs-and-stop-background-run).
 - A warning when `controlDict` has `stopAt writeNow` (or `noWriteNow`, `nextWrite`), which would stop the solver right after it starts — typically left over from stopping an earlier run by hand.
+- What [Check Case](#check-case) finds, such as a missing boundary condition, with the file and line; the first four are listed, and Tools > Check Case… shows the rest.
 - **Existing log.<solver>**: shown only when that log already exists, typically when you continue a run from its latest time. Either way, plain `log.<solver>` is always the latest run.
   - **Keep it as log.<solver>.[suffix]**, the default, moves the old log aside before the run starts. The suffix is pre-filled with the next `partN` (one past the highest already there, so the numbers stay in run order) and you can type your own, such as `before-refine`. The suffix is not remembered: each time, the field starts at the next free `partN`.
   - **Overwrite it** replaces the old log.
@@ -1440,7 +1484,7 @@ The output goes to `log.<solver>`, the same file name an `Allrun` script's `runA
 
 ## Background runs and Stop Background Run
 
-A run started in the Terminal tab ends when FoDE closes. For a long run, tick **Keep running after FoDE closes (run in the background)** in [Run Solver](#run-solver), or in the confirmation of [Run Allrun Script](#run-allrun-script). The run is then detached from the terminal, with its output written straight to `log.<solver>` (or `log.Allrun`), and closing FoDE or the terminal does not stop it. The Terminal tab follows the log until the run ends; Ctrl+C there stops only the following.
+A run started in the Terminal tab ends when FoDE closes. For a long run, tick **Keep running after FoDE closes (run in the background)** in [Run Solver](#run-solver), or in the confirmation of [Run Allrun Script](#run-allrun-script). The run is then detached from the terminal, with its output written straight to `log.<solver>` (or `log.Allrun`, `log.Allrun-parallel`), and closing FoDE or the terminal does not stop it. The Terminal tab follows the log until the run ends; Ctrl+C there stops only the following.
 
 What you see while it runs:
 
@@ -1530,11 +1574,48 @@ The deletion is permanent, not moved to the trash. It runs behind a progress win
 
 ## Run Allrun Script
 
-Select **Tools > Run Allrun Script** to run the case's `./Allrun` script in the Terminal tab (switched to automatically) — the case's full workflow, typically meshing, field initialisation, and the solver itself. A warning dialog is shown if the case has no `Allrun` script. Since solver runs can take a long time, a confirmation dialog is shown first; note that in Simple terminal mode a running job cannot be interrupted (the xterm terminal supports Ctrl+C).
+Select **Tools > Run Allrun Script** to run the case's `./Allrun` script in the Terminal tab (switched to automatically) — the case's full workflow, typically meshing, field initialisation, and the solver itself. A warning dialog is shown if the case has no `Allrun` script; [Create Allrun from Logs](#create-allrun-from-logs) can write one. If the case also has an `Allrun-parallel`, FoDE first asks which of the two to run. Since solver runs can take a long time, a confirmation dialog is shown first; note that in Simple terminal mode a running job cannot be interrupted (the xterm terminal supports Ctrl+C).
 
 If the case already has `log.*` files, a different dialog appears instead: OpenFOAM's Allrun helper functions (`runApplication`/`runParallel`) skip any step whose `log.*` file already exists ("already run … remove log file to re-run"), so on an already-run case a plain `./Allrun` may appear to do nothing. The dialog lists the existing log files and offers three choices: **Clean, then run** (sends `foamCleanTutorials && ./Allrun` — the standard `./Allclean && ./Allrun` idiom, see [Clean Case](#clean-case-foamcleantutorials)), **Run anyway** (sends `./Allrun` unchanged, with already-run steps skipped), or **Cancel**. Both dialogs carry **Keep running after FoDE closes** on Linux; see [Background runs](#background-runs-and-stop-background-run).
 
 Each `Allrun` step writes its own `log.<application>` file, so [View Log Summary](#view-log-summary) and [foamMonitor](#foammonitor-launcher) work on the results as usual.
+
+## Allrun Steps
+
+Select **Tools > Allrun Steps…** to see the case's `Allrun` as a list of steps — each `runApplication`/`runParallel` line — marked from its log: **Done** when `log.<application>` ends normally, **Failed** when it holds an error, **Running** while a process is still writing the log, **Incomplete** when it has neither and nothing writes it any more (the step was stopped or killed), **Not run** when there is no log. That is how the Allrun itself decides: it skips any step whose log already exists. Other commands (`restore0Dir`, `cp`, …) are listed greyed out, since they leave no log. The window can stay open; it updates by itself while a step runs.
+
+**Done (check)** means the step finished but may not reflect the steps before it: an earlier step failed or did not finish (an Allrun carries on after a failure, so the solver can "finish" on fields a broken `setFields` never wrote), or an earlier step was run again afterwards. Select a step to read what its state means under the list.
+
+- **Run This Step** runs the selected step in the Terminal tab exactly as the Allrun would — the same `runApplication` line — but always runs it, even if its log exists (the log is overwritten).
+- **Run From Here** runs the selected row and everything after it, stopping at the first failure. It is off for a script with loops or conditions, whose lines do not run in a straight line.
+- **Open Log** (or double-click a step) opens its log in [View Log Summary](#view-log-summary), where a failure is explained.
+
+Before anything runs you see the exact command and which logs it overwrites; if the range includes the solver step, [Check Case](#check-case)'s errors are listed too, and if files are unsaved you can save them first. Steps the script runs in other directories are not listed. A case without an `Allrun` has no steps to show; the window offers [Create Allrun from Logs…](#create-allrun-from-logs) instead.
+
+A case with both an `Allrun` and an `Allrun-parallel` — the tutorials' serial and parallel versions of the same workflow — gets a **Script** picker above the list to choose which one is shown. The steps of an `./Allrun.pre` the script calls are listed with that name beside them.
+
+## Create Allrun from Logs
+
+Select **Tools > Create Allrun from Logs…** to write an `Allrun` and `Allclean` for a case that has none — your own case, say, built by running tools one at a time. The [Allrun Steps](#allrun-steps) window offers the same button when the case has no `Allrun`. Once the scripts exist, Allrun Steps, [Run Allrun Script](#run-allrun-script) and [Run Allclean Script](#run-allclean-script) work for the case.
+
+The steps come from the case's `log.*` files. Every OpenFOAM log begins with the exact command line, when it started and how many processes it used, so FoDE knows what ran, with which options, serial or parallel, and in what order. Every run from the Tools menu writes such a log, and so does a command you typed with `| tee log.<application>`. Where the case clearly needs a step that left no log — a `blockMeshDict` but no `log.blockMesh` — it is added and marked **suggested**. With no logs at all, the whole list is suggested from the case's dictionaries; check it before creating.
+
+You review everything before any file is written:
+
+- **The checklist.** Untick a step to leave it out; drag it, or use **Up**/**Down**, to move it. A step whose log ends in an error starts unticked (**failed**), and so do checks that change nothing, such as `checkMesh` (**changes nothing**). Select a row to see where it came from.
+- **Add Command….** Adds a line below the selected step, for anything the logs cannot show — a `cp`, a `foamDictionary` edit, a step you never ran. An OpenFOAM application (`decomposePar -force`, say) is written as `runApplication decomposePar -force`, so it writes a log and Allrun Steps can follow it; anything else is written as you typed it. **Remove** takes out a line you added.
+- **The preview.** The tabs show the scripts exactly as they will be written, and follow every change to the list.
+- **Also create Allclean.** Untick it to write only the Allrun. An existing `Allclean` is kept.
+- **Also create Allrun-parallel.** Writes the workflow twice, the way the tutorials do: the steps before the solver go in an `Allrun.pre`; `Allrun` calls it and runs the solver serially; `Allrun-parallel` calls it, then runs `decomposePar`, the solver with `runParallel` on the processor count from `system/decomposeParDict`, and `reconstructPar`. Ticking it adds the `decomposePar` and `reconstructPar` rows (**Allrun-parallel only**), which you can untick or move like any other. The box is ticked from the start when the case has already run in parallel, and offered only when the case has a solver step and a `decomposeParDict` with more than one subdomain.
+
+Click **Create** to write the scripts, executable, and open the Allrun in the editor. An existing `Allrun` is never replaced, and neither is an `Allrun.pre` or `Allrun-parallel`: if the case has one, **Also create Allrun-parallel** is off.
+
+Worth knowing:
+
+- **Only commands that wrote a log are included.** A `cp`, an edit made with `foamDictionary`, or a tool run without `tee` is missing; add it with **Add Command…**. A tool run twice appears once, since its log was overwritten. Edits you made between steps are not replayed: the script reproduces your final dictionaries, not their history.
+- **If the case has a `0.orig/`,** the Allrun restores `0/` from it after meshing, as the tutorials do. Make changes to initial and boundary conditions in `0.orig/` from then on, or the next run loses them.
+- **A `decomposeParDict` alone does not make the run parallel.** Most tutorials carry one whether they run in parallel or not, so with no logs FoDE suggests a parallel run only when `processor*` directories show the case has been run that way. Otherwise tick **Also create Allrun-parallel**.
+- **The Allclean deletes the mesh only if the Allrun can rebuild it.** OpenFOAM's `cleanCase` deletes `constant/polyMesh`. When no ticked step makes the mesh (an imported mesh, for example), the Allclean keeps it, and removes only the time directories, `processor*`, `postProcessing` and the logs.
 
 ## Open Mesh in ParaView
 
@@ -1574,7 +1655,9 @@ Select **Tools > View Log Summary…** to open a condensed report of a `log.*` f
   - In every kind, repeated warnings (e.g. per-iteration displacement warnings) are collapsed into one line with a count, and fatal errors are always shown in full.
 - **Raw Log** — the untouched file contents, in case the summary omits something you need.
 
-Like [Find OpenFOAM Examples](#find-openfoam-examples) — and unlike FoDE's other dialogs — this one is **non-modal**: it can stay open beside the main window while you keep working in the tree, editor, or terminal, so you can cross-reference dictionary settings against the log's results. The action is available whenever a case is open; it does not require the terminal panel or a prior FoDE-run mesh command — any existing `log.*` file works.
+When the log ends in an error FoDE recognises, a **What went wrong** pane above the tabs explains it in plain words, says what usually causes it and what to change, and — when OpenFOAM names a file and line — has a link that opens the file in the editor at that line. It covers the errors a first run meets most: a patch with no boundary condition, a misspelt name (with the closest valid name, taken from the list in the log itself — `noSlp` → `noSlip`), patch types that disagree, a missing entry (including the usual cause when the entry *is* there: the line before it lacks its `;`), no pressure reference (`pRefCell`), a missing file or `0/` (restore it from `0.orig`), no mesh, a decomposition that does not add up, the wrong number of `mpirun` processes, a syntax error, and a run that diverged (a floating-point exception; when the Courant number was above 1, the advice points at `deltaT` and opens `controlDict` there). Both OpenFOAM forks' wordings are recognised. An error it does not recognise gets no advice — the error itself is still shown under **Errors** in the summary.
+
+Like [Find OpenFOAM Examples](#find-openfoam-examples), [Check Case](#check-case) and [Allrun Steps](#allrun-steps), this window is **non-modal**: it can stay open beside the main window while you keep working in the tree, editor, or terminal, so you can cross-reference dictionary settings against the log's results. The action is available whenever a case is open; it does not require the terminal panel or a prior FoDE-run mesh command — any existing `log.*` file works.
 
 ## Find OpenFOAM Examples
 
@@ -1582,7 +1665,7 @@ Like [Find OpenFOAM Examples](#find-openfoam-examples) — and unlike FoDE's oth
 
 Select **Tools > Find OpenFOAM Examples…** (also available as **Case > Find OpenFOAM Examples…**) to search a local OpenFOAM installation for real usage examples of a keyword or setting — the kind of question ("how is `nOuterCorrectors` actually used?", "what goes in a `forces` function object?") that otherwise requires `find`/`grep` skills. The dialog searches two sources, each toggleable with a checkbox:
 
-- **Tutorials** — the ~550 example cases shipped under the installation's `tutorials/` directory.
+- **Tutorials** — the hundreds of example cases shipped under the installation's `tutorials/` directory.
 - **caseDicts templates** — the curated files under `etc/caseDicts/`, including the `postProcessing/` function-object templates (usable in a `controlDict` `functions {}` block via `#includeFunc <name>`) and the fully annotated example dictionaries under `annotated/`.
 
 **Choosing an installation.** The selector at the top lists the OpenFOAM installations found on your machine: the sourced environment (`WM_PROJECT_DIR`/`FOAM_TUTORIALS`/`FOAM_ETC`) if FoDE was started from a sourced shell, plus auto-discovered installs under `/usr/lib/openfoam/`, `/opt/`, and `~/OpenFOAM/`, newest first. Use **Browse…** to point at any other directory (an install root or a bare `tutorials/` directory); a browsed choice is saved to `app_config.json` (`openfoam_dir` key) and preselected next time.
@@ -1887,9 +1970,15 @@ Changes are saved to `app_config.json` when the dialog is closed.
 
 **Where is the 3-D view? The BlockMesh tab is missing.** The 3-D viewer and the xterm terminal cannot share the graphics card, so they take turns: while xterm mode is on, the tab is hidden and **View > BlockMesh 3-D Panel** is greyed out. Untick **xterm terminal** at the top of the Terminal tab and the tab comes back, or start FoDE with `--variant no-terminal-blockmesh`, which has no terminal and always shows the 3-D view. If the tab shows an install prompt instead, install `pyvista` and `pyvistaqt`. See [Terminal tab](#terminal-tab), [Variants](#variants) and [BlockMesh panel](#blockmesh-panel).
 
+**The BlockMesh tab says "The 3-D view could not start".** The 3-D view failed to set up its graphics, and the message gives the reason; the rest of FoDE works without it. Usually the graphics driver cannot provide OpenGL — over a remote desktop or SSH connection, for example. Updating the graphics driver, or running FoDE on the machine's own display, usually helps; `--variant no-terminal` also opens without the 3-D view. Please report the message if it persists (see the README's *Help and feedback*).
+
 **A Tools menu item is greyed out.** Most items need an open case, and the ones that send a command need the Terminal panel, which the `no-terminal` variants do not have. If an item is enabled but answers with a message instead of running, a command is still running in the Terminal tab or a [background run](#background-runs-and-stop-background-run) is going in the case; wait for it, or stop it. See [Tools menu](#tools-menu).
 
 **A command says "command not found" (`blockMesh`, `interFoam`, …).** OpenFOAM is not sourced in the shell FoDE was started from. Source OpenFOAM's `bashrc` there and start FoDE again; the built-in terminal inherits that environment. See [Tools menu](#tools-menu).
+
+**A run stopped with an error.** Open **Tools > View Log Summary…** on its log: for the errors a first run meets most, a **What went wrong** pane says what the error means and what to change, with a link to the file and line. Before the next run, **Tools > Check Case…** finds many of the same mistakes without running anything. See [View Log Summary](#view-log-summary) and [Check Case](#check-case).
+
+**Run Allrun Script seems to do nothing.** OpenFOAM's `runApplication` skips every step whose `log.*` file already exists, so on a case that has been run, the Allrun prints "already run" and moves on. Choose **Clean, then run** when FoDE asks, or use [Allrun Steps](#allrun-steps) to run a single step again. See [Run Allrun Script](#run-allrun-script).
 
 **The window looks half-size on a high-resolution screen.** Qt did not pick up your desktop's scaling. Start FoDE with `python3 main.py --ui-scale 150`, or set **Settings > UI Scale**; the other ways out are in [When the desktop is scaled but FoDE is not](#when-the-desktop-is-scaled-but-fode-is-not).
 
@@ -1939,6 +2028,7 @@ The 3-D viewer keys work while the 3-D view has focus. The tree's `Ctrl+C`, `Ctr
 - **Function object** — post-processing that runs together with the solver (probes, forces, sampling lines, …), listed under `functions` in `controlDict`. See [Add Function Object](#add-function-object).
 - **`0.orig`** — a pristine copy of the initial fields. Utilities such as `setFields` overwrite `0/`, so tutorials restore it from `0.orig/` before a clean run; see [Restore 0/ from 0.orig](#restore-0-from-0orig).
 - **Decomposed / `processor*`** — for a parallel run, `decomposePar` splits the case into `processor0`, `processor1`, … directories, and `reconstructPar` merges the results back. See [Run decomposePar](#run-decomposepar) and [Run reconstructPar](#run-reconstructpar).
+- **`Allrun` / `log.*`** — `Allrun` is a case's script that runs its whole workflow (mesh, fields, solver), as every tutorial has. Each step it runs writes its output to a `log.<application>` file, such as `log.blockMesh` or `log.icoFoam`; FoDE's Run tools write the same logs. See [Allrun Steps](#allrun-steps).
 - **Sourced environment** — a shell in which OpenFOAM's `bashrc` has been run, so its commands and variables (`WM_PROJECT_DIR`, `FOAM_TUTORIALS`, …) are available. FoDE and its built-in terminal use the environment they were started from.
 
 ## Supported syntax and node types

@@ -1,0 +1,27 @@
+1
+00:00:00,000 --> 00:00:06,801
+A fresh copy of damBreak: no Allrun, and nothing run yet, so there are no logs either.
+
+2
+00:00:06,801 --> 00:00:13,398
+With no logs to read, FoDE suggests the steps from the case's dictionaries: a blockMeshDict means blockMesh, a setFieldsDict means setFields, and controlDict names the solver.
+
+3
+00:00:13,398 --> 00:00:19,390
+Each row says why it is there. These are suggestions, so check them and their order.
+
+4
+00:00:19,390 --> 00:00:28,547
+The Allrun opens in the editor, saying at the top that it was suggested, not read from logs.
+
+5
+00:00:28,547 --> 00:00:33,988
+Nothing has run yet.
+
+6
+00:00:33,988 --> 00:00:37,844
+Run it. FoDE asks first, because an Allrun runs the solver too.
+
+7
+00:00:37,844 --> 00:00:41,844
+The steps window follows the run: the suggestion is the tutorial's own Allrun, step for step.

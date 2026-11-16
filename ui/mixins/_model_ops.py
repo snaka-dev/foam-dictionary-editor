@@ -317,6 +317,9 @@ class _ModelOpsMixin(_Base):
                 text = read_foam_file(path)
             except OSError:
                 return None
+            # A buffer written later from this root (boundary edits, …)
+            # descends from this read: stamp it, for the save guard.
+            self._record_disk_stamp(path, text)
         try:
             root = OpenFoamParser(text).parse()
             self.state.parsed_roots[path] = root

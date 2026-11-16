@@ -213,3 +213,56 @@ def processes_in_directory(
         if here and not (exclude_tree_of is not None and ours(pid)):
             found.append(ProcessInfo(pid, name, pgrp))
     return found
+
+
+def files_written_in(directory: str, *, proc_root: str = "/proc") -> set[str] | None:
+    """Names of the files directly in *directory* that a process has open for writing.
+
+    Allrun Steps tells a step that is running from one that was stopped this
+    way: both leave a log with neither End nor an error, but only a running
+    one is still being written -- by the solver itself under ``runApplication``
+    and a background run, by ``tee`` under the Tools-menu commands. A ``tail``
+    following the log has it open read-only, so it does not count.
+
+    Only processes working in *directory* are looked at (every writer above
+    runs there; an Allrun ``cd``s into its own directory first), and only the
+    current user's are readable. None where there is no ``/proc``, so the
+    caller can tell "nothing is writing" from "cannot tell".
+    """
+    try:
+        entries = [e for e in os.listdir(proc_root) if e.isdigit()]
+    except OSError:
+        return None
+    target = os.path.realpath(directory)
+    found: set[str] = set()
+    for entry in entries:
+        base = os.path.join(proc_root, entry)
+        try:
+            cwd = os.path.realpath(os.readlink(os.path.join(base, "cwd")))
+            fds = os.listdir(os.path.join(base, "fd"))
+        except OSError:
+            continue
+        if not _inside(cwd, target):
+            continue
+        for fd in fds:
+            try:
+                path = os.readlink(os.path.join(base, "fd", fd))
+            except OSError:
+                continue
+            if os.path.dirname(path) != target or os.path.basename(path) in found:
+                continue
+            if _open_for_writing(os.path.join(base, "fdinfo", fd)):
+                found.add(os.path.basename(path))
+    return found
+
+
+def _open_for_writing(fdinfo: str) -> bool:
+    """Whether the ``flags:`` line of a ``/proc/<pid>/fdinfo/<fd>`` has O_WRONLY or O_RDWR."""
+    try:
+        with open(fdinfo, encoding="ascii", errors="replace") as f:
+            for line in f:
+                if line.startswith("flags:"):
+                    return int(line.split()[1], 8) & os.O_ACCMODE in (os.O_WRONLY, os.O_RDWR)
+    except (OSError, ValueError, IndexError):
+        pass
+    return False

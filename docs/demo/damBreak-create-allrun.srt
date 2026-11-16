@@ -1,0 +1,39 @@
+1
+00:00:00,000 --> 00:00:10,001
+This damBreak was run by hand: blockMesh, checkMesh, setFields and interFoam, typed one at a time. Its logs remember every step, but there is no Allrun to do it again.
+
+2
+00:00:10,001 --> 00:00:13,874
+Allrun Steps shows a case's Allrun as steps. This case has none, so it offers to write one from the logs.
+
+3
+00:00:13,874 --> 00:00:20,407
+Every log begins with the command that wrote it and when it started, so the steps come out in the order they ran, with their options. The Allrun is previewed below as you go.
+
+4
+00:00:20,407 --> 00:00:26,404
+checkMesh only reports, so it is left unticked. Tick it to keep the check.
+
+5
+00:00:26,404 --> 00:00:31,894
+FoDE adds one step: restore 0 from 0.orig after meshing, so every run starts from the same fields.
+
+6
+00:00:31,894 --> 00:00:39,796
+An Allclean comes with it, to put the case back the way it was before a run.
+
+7
+00:00:39,796 --> 00:00:48,157
+Create writes both scripts, executable, and opens the Allrun in the editor.
+
+8
+00:00:48,157 --> 00:00:55,397
+Allrun Steps now reads it: every step done, from the logs that were already there.
+
+9
+00:00:55,397 --> 00:00:59,257
+Now the case runs from its Allrun. The logs are still there, so FoDE offers to clean first.
+
+10
+00:00:59,257 --> 00:01:03,257
+The steps window follows the run: a step reads Running while its log is being written, then Done.

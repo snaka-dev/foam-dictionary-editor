@@ -479,4 +479,17 @@ def apply_theme(app: QApplication, mode: ThemeMode = "system") -> None:
         _active_is_dark = mode == "dark"
 
     app.setPalette(_normalise_selection(palette))
-    app.setStyleSheet(item_view_qss(app.palette()))
+    # Fusion fills a selected row from the palette, so the repaired pair needs
+    # no stylesheet there -- and the stylesheet's ``color`` is what Fusion then
+    # draws a checkable row's tick in, on the box's white fill: the selected
+    # row of a light-theme checklist looked unticked (Create Allrun from Logs,
+    # caught in a demo take). Other styles keep it, for the reason
+    # item_view_qss gives.
+    if _paints_selection_from_palette(app):
+        app.setStyleSheet("")
+    else:
+        app.setStyleSheet(item_view_qss(app.palette()))
+
+
+def _paints_selection_from_palette(app: QApplication) -> bool:
+    return app.style().name().lower() == "fusion"

@@ -209,13 +209,14 @@ class TestIncludedFiles:
         _new, origins, _ro = included_files(str(case), sources)
         assert origins[str(target)] == "0/U, 0/p +2 more"
 
-    def test_gz_target_is_not_listed(self, tmp_path):
-        # It resolves, but read_foam_file cannot decompress it.
+    def test_gz_target_is_listed(self, tmp_path):
+        # read_foam_file decompresses it and write_foam_file recompresses it,
+        # so a compressed include target is an ordinary row now.
         case = _case(tmp_path)
-        _write(case / "constant" / "big.gz")
+        target = _write(case / "constant" / "big.gz")
         src = _write(case / "constant" / "props", '#include "big"\n')
         new, _origins, _ro = included_files(str(case), [str(src)])
-        assert new == []
+        assert new == [str(target)]
 
     def test_unresolved_include_is_not_listed(self, tmp_path):
         case = _case(tmp_path)

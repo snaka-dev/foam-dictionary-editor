@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 
 from foam.boundary_patch import get_patch_type, patch_inner_text, value_complexity
 from foam.nodes import FoamNode
+from foam.utils import summarize_nonuniform_list
 from i18n import tr
 from model.boundary_model import BoundaryModel, extract_boundary
 from ui.theme import colors
@@ -46,6 +47,11 @@ _CSV_LINE_JOIN = "; "
 _CSV_LINE_TERMINATOR = "\n"
 
 
+# A cell's extra key-value line is cut here, so no single entry can widen a column
+# to the length of its value.
+_EXTRA_LINE_CHAR_LIMIT = 60
+
+
 def _is_printable(text: str) -> bool:
     """Return False if text contains non-printable control characters (binary data)."""
     return not any(c < "\x09" for c in text)
@@ -58,8 +64,14 @@ def _extra_patch_lines(patch_node: FoamNode, max_lines: int) -> list[str]:
         if child.name == "type":
             continue
         val = child.value
-        if isinstance(val, (str, int, float)) and str(val).strip():
+        if child.node_type == "nonuniform_list":
+            # The parser holds the whole list as one line; a postProcess-written
+            # field has thousands of values per patch, so show the tree's summary.
+            lines.append(f"{child.name}  {summarize_nonuniform_list(val)}")
+        elif isinstance(val, (str, int, float)) and str(val).strip():
             display = str(val).split("\n")[0].strip()
+            if len(display) > _EXTRA_LINE_CHAR_LIMIT:
+                display = display[:_EXTRA_LINE_CHAR_LIMIT].rstrip() + " …"
             lines.append(f"{child.name}  {display if _is_printable(display) else '(binary)'}")
         else:
             lines.append(f"{child.name}  ...")

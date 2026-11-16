@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import bisect
+import gzip
+import zlib
 from pathlib import Path
 
 from foam.nodes import FoamNode, NodeType
@@ -41,9 +43,16 @@ def is_large_non_foam_file(path: str | Path) -> tuple[bool, int]:
     if size < _LARGE_FILE_BYTES:
         return False, size
     try:
-        with open(p, "rb") as f:
-            header = f.read(_FOAM_SNIFF_BYTES)
+        if is_gzip_file(p):
+            # The compressed bytes say nothing; sniff the decompressed head.
+            with gzip.open(p, "rb") as f:
+                header = f.read(_FOAM_SNIFF_BYTES)
+        else:
+            with open(p, "rb") as f:
+                header = f.read(_FOAM_SNIFF_BYTES)
         return b"FoamFile" not in header, size
+    except (EOFError, zlib.error):
+        return False, size
     except OSError:
         return False, size
 
@@ -78,18 +87,65 @@ def is_script_path(path: str | Path) -> bool:
         return False
 
 
+_GZIP_MAGIC = b"\x1f\x8b"
+
+
+def is_gzip_file(path: str | Path) -> bool:
+    """True when the file starts with the gzip magic bytes, whatever its name."""
+    try:
+        with open(path, "rb") as f:
+            return f.read(2) == _GZIP_MAGIC
+    except OSError:
+        return False
+
+
 def read_foam_file(path: str | Path) -> str:
     """Read a file as text, trying UTF-8 then falling back to latin-1.
 
     OpenFOAM files are nominally ASCII/UTF-8, but some Windows-generated
     cases contain non-UTF-8 bytes in comments or string values.  latin-1
     can decode any byte sequence without data loss.
+
+    A gzip-compressed file (``0/U.gz`` under ``writeCompression on``) is
+    decompressed transparently, recognised by its magic bytes rather than its
+    name; ``write_foam_file`` compresses it again on the way out. Reading one
+    as plain text used to show the compressed bytes, and saving them destroyed
+    the file. A damaged archive raises ``OSError``, like an unreadable file.
     """
     p = Path(path)
+    if is_gzip_file(p):
+        try:
+            data = gzip.decompress(p.read_bytes())
+        except (EOFError, zlib.error, gzip.BadGzipFile) as e:
+            raise OSError(f"{p}: not a readable gzip file ({e})") from e
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            text = data.decode("latin-1")
+        # The same newline translation read_text applies to a plain file.
+        return text.replace("\r\n", "\n").replace("\r", "\n")
     try:
         return p.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         return p.read_text(encoding="latin-1")
+
+
+def write_foam_file(path: str | Path, text: str, *, compress: bool | None = None) -> None:
+    """Write *text* to *path*, gzip-compressed when the name ends in ``.gz``.
+
+    Every path that writes a buffer back goes through here, so a compressed
+    file stays compressed. The name decides by default, as it does for
+    OpenFOAM, which picks the gzip stream by the ``.gz`` suffix; *compress*
+    overrides it for a name that does not say (a backup ``U.gz.bak_…`` keeps
+    its source's format, so renaming it back restores a real ``U.gz``).
+    """
+    p = Path(path)
+    if compress is None:
+        compress = p.name.endswith(".gz")
+    if compress:
+        p.write_bytes(gzip.compress(text.encode("utf-8")))
+    else:
+        p.write_text(text, encoding="utf-8")
 
 
 def resolve_optionally_gzipped(path: Path) -> Path | None:
@@ -186,6 +242,19 @@ def classify_simple_value(text: str) -> tuple[NodeType, object]:
     if is_number(text):
         return "scalar", float(text)
     return "word", text
+
+
+def summarize_nonuniform_list(value: object) -> str:
+    """Summarise a ``nonuniform_list`` value as ``nonuniform List<T> (N values)``.
+
+    The parser keeps the whole list (thousands of numbers for a field written by
+    a solver or postProcess) as one string; every display site shows this
+    summary instead. Shared by model/tree_model.py and the boundary table.
+    """
+    parts = str(value).split(None, 3)
+    list_type = parts[1] if len(parts) > 1 else "List"
+    count_str = parts[2] if len(parts) > 2 and parts[2] != "(" else "?"
+    return f"nonuniform {list_type} ({count_str} values)"
 
 
 def format_leaf_value(node_type: NodeType, value) -> str:
