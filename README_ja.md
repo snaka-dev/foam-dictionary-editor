@@ -2,7 +2,7 @@
 
 **OpenFOAM のケースを扱うデスクトップエディタです。** ケースを開くと辞書の内容が目に見え、すべてのキーに説明が付いた状態で編集でき、コマンドを覚えていなくてもケースを実行できます。FoDE（読み方: "フォーディー"）は Python と PySide6 で書かれた、無料のオープンソースソフトウェアです。
 
-🎬 [デモ動画](docs/DEMO_SCRIPTS_ja.md)（15 本、Vimeo）· 📖 [ユーザーガイド](USER_GUIDE_ja.md) · 🖼️ [スクリーンショット](docs/SCREENSHOTS_ja.md) · 📄 [*SoftwareX*](https://doi.org/10.1016/j.softx.2026.102852) に掲載 — 「[引用](#引用)」を参照
+🎬 [デモ動画](docs/DEMO_SCRIPTS_ja.md)（16 本、Vimeo）· 📖 [ユーザーガイド](USER_GUIDE_ja.md) · 🖼️ [スクリーンショット](docs/SCREENSHOTS_ja.md) · 📄 [*SoftwareX*](https://doi.org/10.1016/j.softx.2026.102852) に掲載 — 「[引用](#引用)」を参照
 
 ![メインウィンドウ — Tree と Editor タブ](docs/images/main-window-tree-editor.png)
 
@@ -14,6 +14,7 @@
 - **メニューからケースを実行。** blockMesh、setFields、ソルバー — 並列でも、FoDE を閉じても続くバックグラウンドでも実行でき、どれも実行するコマンドをそのまま見せるダイアログから始まります。終わったらログの要約も見られます。→ [Run Solver](USER_GUIDE_ja.md#run-solver)
 - **初回の実行を手助け。** Check Case が、境界条件のないパッチや何も書き出さない `controlDict` といった典型的な間違いを実行前に見つけます。それでも実行が失敗したときは、ログの要約がエラーを平易な言葉で説明し、ファイルを該当行で開きます。→ [Check Case](USER_GUIDE_ja.md#check-case)
 - **辞書を知らなくても後処理を追加。** プローブ、ライングラフ、切断面、力をフォームから追加でき、入力するそばから 3D に描かれます。→ [Add Function Object](USER_GUIDE_ja.md#add-function-object)
+- **実行結果をプロット。** プローブ、力、サンプリングライン、残差を、複数のケースを 1 つのプロットに重ねて描けます。画像、出力時刻を追うアニメーション、見出し付きの CSV、あるいは同じプロットを描き直す Python や gnuplot のスクリプトとして保存できます。→ [Plot Results](USER_GUIDE_ja.md#plot-results)
 - **動くケースと比べる。** 自分のケースをチュートリアルと並べると、違いが色分けされ、右クリック 1 回で値を取り込めます。→ [ケース比較](USER_GUIDE_ja.md#ケース比較)
 
 ## 動作環境
@@ -29,10 +30,10 @@ git clone https://github.com/snaka-dev/foam-dictionary-editor
 cd foam-dictionary-editor
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt pyvista pyvistaqt
+pip install -r requirements.txt pyvista pyvistaqt matplotlib
 ```
 
-`pyvista` と `pyvistaqt` は 3D ビューアのためのものです。入れなくても他の機能はすべて動きますが、FoDE が見せてくれるものの多くはこのビューの中にあります。
+`pyvista` と `pyvistaqt` は 3D ビューアのためのものです。入れなくても他の機能はすべて動きますが、FoDE が見せてくれるものの多くはこのビューの中にあります。`matplotlib` は [Plot Results](USER_GUIDE_ja.md#plot-results) の描画に使い、同じくオプションです（pyvista を入れると一緒に入ります）。
 
 <details>
 <summary>初回起動時、ターミナルにはインターネット接続が必要です</summary>
@@ -108,7 +109,7 @@ FoDE に同梱の `tutorials/damBreak` を使います。
 - インストールに含まれるテンプレートから[関数オブジェクトを追加](USER_GUIDE_ja.md#add-function-object)し、既存の結果に [postProcess を実行](USER_GUIDE_ja.md#run-postprocess)。
 - 再構築した結果が完全であることを FoDE が確かめてから [processor\* ディレクトリを削除](USER_GUIDE_ja.md#delete-processor-directories)。
 - 実行前の [Check Case](USER_GUIDE_ja.md#check-case) と、失敗した実行のエラーを説明する[ログの要約](USER_GUIDE_ja.md#view-log-summary)。
-- [foamMonitor](USER_GUIDE_ja.md#foammonitor-ランチャー) による残差のプロット、ParaView。
+- [Plot Results](USER_GUIDE_ja.md#plot-results): プローブ、力、サンプリングライン、残差をプロットしてケース間で比較し、ソルバーの実行中は自動で追従し、出力時刻ごとにアニメーションにでき、画像や見出し付きの CSV として保存したり、matplotlib や gnuplot のスクリプトとしてエクスポートしたりできます。[foamMonitor](USER_GUIDE_ja.md#foammonitor-ランチャー) による残差のプロット、ParaView。
 - [Allrun Steps](USER_GUIDE_ja.md#allrun-steps): ケースの `Allrun` を、ログから完了・失敗を判定したステップとして表示し、1 つずつ実行。[Create Allrun from Logs](USER_GUIDE_ja.md#create-allrun-from-logs) は、手で作ったケースに `Allrun`、`Allclean`、`Allrun-parallel` を書きます。
 
 **[他の人の書き方を知る](USER_GUIDE_ja.md#find-openfoam-examples)**
@@ -154,7 +155,7 @@ python3 main.py --variant no-terminal-blockmesh   # ターミナルなし、3D �
 
 - [ユーザーガイド](USER_GUIDE_ja.md) — すべてのパネル・メニュー・操作手順。
 - [スクリーンショット](docs/SCREENSHOTS_ja.md) — 注釈付きの画面写真。
-- [デモ動画](docs/DEMO_SCRIPTS_ja.md) — Vimeo の短い紹介動画 15 本と、ショットごとの台本。まずは [編集し、見て、実行する](https://vimeo.com/1218332419?texttrack=ja)（約 94 秒）から。[ワークフロー全体](https://vimeo.com/1217899060?texttrack=ja)（約 3 分 41 秒）もあります。
+- [デモ動画](docs/DEMO_SCRIPTS_ja.md) — Vimeo の短い紹介動画 16 本と、ショットごとの台本。まずは [編集し、見て、実行する](https://vimeo.com/1218332419?texttrack=ja)（約 94 秒）から。[ワークフロー全体](https://vimeo.com/1217899060?texttrack=ja)（約 3 分 41 秒）もあります。
 - [リリースノート](RELEASE_NOTES_ja.md) — バージョンごとの変更点。
 - [開発者ガイド](DEVELOPER_ja.md) — プロジェクト構成、開発環境、テスト。
 
@@ -190,6 +191,7 @@ This offering is not approved or endorsed by OpenCFD Limited, producer and distr
 
 - [PySide6 (Qt for Python)](https://doc.qt.io/qtforpython/) — GUI フレームワーク（LGPL v3）
 - [pyVista](https://pyvista.org/) / [VTK](https://vtk.org/) — 3D ビューア（BSD-3-Clause、オプション）
+- [Matplotlib](https://matplotlib.org/) — Plot Results（PSF ベースの Matplotlib License、オプション）
 - [xterm.js](https://xtermjs.org/) — ターミナルパネルで使用するターミナルエミュレータ（MIT）。初回起動時に jsDelivr から自動ダウンロードされ `ui/xterm/` にキャッシュされます
 - [pytest](https://pytest.org/) / [pytest-qt](https://pytest-qt.readthedocs.io/) — テストフレームワーク（開発時のみ）
 

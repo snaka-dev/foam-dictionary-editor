@@ -360,11 +360,22 @@ class _MenuBarOpsMixin(_Base):
             ),
             self._on_view_log_summary_clicked,
         )
-        # Users reasonably look for "View Log Summary" under View, so the same
-        # QAction is listed there too (one action, two menus — enablement and
+        # Users reasonably look for the two viewers of what a run wrote --
+        # View Log Summary and Plot Results -- under View, so the same QActions
+        # are listed there too (one action, two menus — enablement and
         # behaviour stay in sync automatically).
+        self._plot_results_action = _tool_act(
+            tr("Plot Results…"),
+            tr(
+                "Plot what function objects wrote to postProcessing/ and the "
+                "residuals in solver logs; compare cases, save the plot or "
+                "export a script that draws it again"
+            ),
+            self._on_plot_results_clicked,
+        )
         view_menu.addSeparator()
         view_menu.addAction(self._view_log_summary_action)
+        view_menu.addAction(self._plot_results_action)
         tools_menu.addSeparator()
         tools_menu.addAction(self._find_examples_action)
 

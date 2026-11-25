@@ -29,7 +29,10 @@ from capture_dialog import (  # noqa: E402
 
 # Shots whose inputs come from the capture machine (a run case, an OpenFOAM
 # installation) versus ones whose inputs are bundled in the repository.
-_CONTEXT_BACKED = ("add-function-object", "case-browser", "find-examples", "log-summary")
+_CONTEXT_BACKED = (
+    "add-function-object", "case-browser", "data-file-viewer", "find-examples",
+    "log-summary", "plot-results",
+)
 _REPO_BACKED = ("run-post-process", "run-solver", "run-tool")
 
 
@@ -69,6 +72,12 @@ class TestDialogShots:
         for shot in DIALOG_SHOTS.values():
             assert (DEFAULT_OUT / shot.output).is_file(), shot.name
 
+    def test_the_plot_cases_are_not_under_a_home_directory(self):
+        # The data-file window prints the file's full path.
+        from capture_dialog import _PLOT_CASES
+
+        assert not str(_PLOT_CASES).startswith(str(Path.home()))
+
     def test_the_default_case_is_not_under_a_home_directory(self):
         # The log summary reproduces the log's own "Case:" line, so a case run
         # from $HOME would print the capturing user's name into the gallery.
@@ -87,7 +96,9 @@ class TestDialogShots:
         # have not made it yet" has to be a message, not a traceback. tmp_path is
         # a real directory that is neither a run case nor an OpenFOAM install, so
         # the shot's own precondition check is the thing that fires.
-        ctx = ShotContext(case_dir=tmp_path, installation=tmp_path / "nope")
+        ctx = ShotContext(
+            case_dir=tmp_path, installation=tmp_path / "nope", plot_cases=tmp_path / "nope"
+        )
         with pytest.raises(SystemExit) as excinfo:
             DIALOG_SHOTS[name].requires(ctx)
         assert str(excinfo.value).startswith("missing "), name

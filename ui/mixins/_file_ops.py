@@ -105,6 +105,7 @@ class _FileOpsMixin(_Base):
             self.terminal_panel.set_working_directory(directory)
         if self._log_summary_dialog is not None:
             self._log_summary_dialog.set_case_dir(directory)
+        self._plot_results_case_changed(directory)
         if self._case_check_dialog is not None and self._case_check_dialog.isVisible():
             self._refresh_case_check()
         if self._allrun_steps_dialog is not None and self._allrun_steps_dialog.isVisible():

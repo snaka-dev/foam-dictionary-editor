@@ -2,7 +2,7 @@
 
 **A desktop editor for OpenFOAM cases** — open a case, see what its dictionaries describe, edit them with help on every key, and run the case without memorising commands. FoDE (pronounced "foh-dee") is free and open source, written in Python with PySide6.
 
-🎬 [Demo movies](docs/DEMO_SCRIPTS.md) (fifteen, on Vimeo) · 📖 [User Guide](USER_GUIDE.md) · 🖼️ [Screenshots](docs/SCREENSHOTS.md) · 📄 Published in [*SoftwareX*](https://doi.org/10.1016/j.softx.2026.102852) — see [Citation](#citation)
+🎬 [Demo movies](docs/DEMO_SCRIPTS.md) (sixteen, on Vimeo) · 📖 [User Guide](USER_GUIDE.md) · 🖼️ [Screenshots](docs/SCREENSHOTS.md) · 📄 Published in [*SoftwareX*](https://doi.org/10.1016/j.softx.2026.102852) — see [Citation](#citation)
 
 ![Main window — Tree and Editor tabs](docs/images/main-window-tree-editor.png)
 
@@ -14,6 +14,7 @@
 - **Run the case from the menu.** blockMesh, setFields, the solver — in parallel, or in the background so it keeps going after you close FoDE — each with a dialog that shows the exact command, and a short summary of the log afterwards. → [Run Solver](USER_GUIDE.md#run-solver)
 - **Help with a first run.** Check Case finds the classic mistakes — a patch with no boundary condition, a `controlDict` that writes nothing — before anything runs; when a run fails anyway, the log summary explains the error in plain words and opens the file at the line. → [Check Case](USER_GUIDE.md#check-case)
 - **Add post-processing without knowing the dictionary.** Probes, line graphs, cutting planes and forces from a form, drawn in 3-D as you fill it in. → [Add Function Object](USER_GUIDE.md#add-function-object)
+- **Plot what the run wrote.** Probes, forces, sampled lines and residuals, several cases in one plot; save the image, an animation through the output times, the data as a CSV with headings, or a Python or gnuplot script that draws it again. → [Plot Results](USER_GUIDE.md#plot-results)
 - **Compare with a working case.** Put your case beside a tutorial: differences are coloured, and one right-click adopts a value. → [Case comparison](USER_GUIDE.md#case-comparison)
 
 ## Requirements
@@ -29,10 +30,10 @@ git clone https://github.com/snaka-dev/foam-dictionary-editor
 cd foam-dictionary-editor
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt pyvista pyvistaqt
+pip install -r requirements.txt pyvista pyvistaqt matplotlib
 ```
 
-`pyvista` and `pyvistaqt` give you the 3-D viewer. They are optional — leave them out and everything else works — but most of what FoDE shows you is in that view.
+`pyvista` and `pyvistaqt` give you the 3-D viewer. They are optional — leave them out and everything else works — but most of what FoDE shows you is in that view. `matplotlib` draws [Plot Results](USER_GUIDE.md#plot-results), and is optional in the same way. (pyvista installs it anyway.)
 
 <details>
 <summary>The terminal needs an internet connection on first launch</summary>
@@ -108,7 +109,7 @@ Each heading links to the full description in the [User Guide](USER_GUIDE.md).
 - [Add function objects](USER_GUIDE.md#add-function-object) from your installation's own templates, and [run postProcess](USER_GUIDE.md#run-postprocess) on existing results.
 - [Delete processor\* directories](USER_GUIDE.md#delete-processor-directories) only after FoDE has checked that the reconstructed results are complete.
 - [Check Case](USER_GUIDE.md#check-case) before a run, and [log summaries](USER_GUIDE.md#view-log-summary) that explain the error after a failed one.
-- [foamMonitor](USER_GUIDE.md#foammonitor-launcher) residual plots, and ParaView.
+- [Plot Results](USER_GUIDE.md#plot-results): probes, forces, sampled lines and residuals plotted and compared across cases, followed live while a solver runs, animated through the output times, and saved as an image, a CSV with headings or a matplotlib or gnuplot script; [foamMonitor](USER_GUIDE.md#foammonitor-launcher) residual plots, and ParaView.
 - [Allrun Steps](USER_GUIDE.md#allrun-steps): a case's `Allrun` as steps marked done or failed from their logs, run one at a time; [Create Allrun from Logs](USER_GUIDE.md#create-allrun-from-logs) writes an `Allrun`, `Allclean` and `Allrun-parallel` for a case built by hand.
 
 **[Finding out how others do it](USER_GUIDE.md#find-openfoam-examples)**
@@ -154,7 +155,7 @@ The `cavity/` cases, `snappyMultiRegionHeater`, `damBreak`, and `pitzDaily` are 
 
 - [User Guide](USER_GUIDE.md) — every panel, menu and workflow.
 - [Screenshots](docs/SCREENSHOTS.md) — annotated pictures of the app.
-- [Demo movies](docs/DEMO_SCRIPTS.md) — fifteen short walkthroughs on Vimeo, with their shot-by-shot scripts. Start with [Edit, see, run](https://vimeo.com/1218332419?texttrack=en) (~94 s), or watch [the whole workflow](https://vimeo.com/1217899060?texttrack=en) (~3 min 41 s).
+- [Demo movies](docs/DEMO_SCRIPTS.md) — sixteen short walkthroughs on Vimeo, with their shot-by-shot scripts. Start with [Edit, see, run](https://vimeo.com/1218332419?texttrack=en) (~94 s), or watch [the whole workflow](https://vimeo.com/1217899060?texttrack=en) (~3 min 41 s).
 - [Release notes](RELEASE_NOTES.md) — what changed in each version.
 - [Developer guide](DEVELOPER.md) — project structure, development setup and tests.
 
@@ -190,6 +191,7 @@ This offering is not approved or endorsed by OpenCFD Limited, producer and distr
 
 - [PySide6 (Qt for Python)](https://doc.qt.io/qtforpython/) — GUI framework (LGPL v3)
 - [pyVista](https://pyvista.org/) / [VTK](https://vtk.org/) — the 3-D viewer (BSD-3-Clause, optional)
+- [Matplotlib](https://matplotlib.org/) — Plot Results (PSF-based Matplotlib License, optional)
 - [xterm.js](https://xtermjs.org/) — Terminal emulator used in the Terminal panel (MIT). Downloaded automatically from jsDelivr on first launch and cached in `ui/xterm/`
 - [pytest](https://pytest.org/) / [pytest-qt](https://pytest-qt.readthedocs.io/) — Test framework (development only)
 

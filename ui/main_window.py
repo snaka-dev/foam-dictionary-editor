@@ -57,6 +57,7 @@ from ui.mixins._function_object_ops import _FunctionObjectOpsMixin
 from ui.mixins._menu_bar_ops import _MenuBarOpsMixin
 from ui.mixins._model_ops import _ModelOpsMixin
 from ui.mixins._panel_ops import _PanelOpsMixin
+from ui.mixins._plot_ops import _PlotOpsMixin
 from ui.mixins._processor_ops import _ProcessorOpsMixin
 from ui.mixins._tools_ops import _ToolsOpsMixin
 from ui.mixins._tree_crud_ops import _TreeCrudOpsMixin
@@ -90,6 +91,7 @@ if TYPE_CHECKING:
     from ui.dialogs.case_check_dialog import CaseCheckDialog
     from ui.dialogs.find_examples_dialog import FindExamplesDialog
     from ui.dialogs.log_summary_dialog import LogSummaryDialog
+    from ui.dialogs.plot_results_dialog import PlotResultsDialog
     from ui.panels.block_mesh_panel import BlockMeshPanel
 
 # Floors, not caps, for a handful of pinned buttons -- see ui/fonts.py's
@@ -119,6 +121,7 @@ class MainWindow(
     _FunctionObjectOpsMixin,
     _CaseCheckOpsMixin,
     _AllrunOpsMixin,
+    _PlotOpsMixin,
     _FileOpsMixin,
     _FileManagementOpsMixin,
     _TreeCrudOpsMixin,
@@ -165,6 +168,8 @@ class MainWindow(
         self._open_paraview_action: QAction | None = None
         self._view_log_summary_action: QAction | None = None
         self._log_summary_dialog: LogSummaryDialog | None = None
+        self._plot_results_action: QAction | None = None
+        self._plot_results_dialog: PlotResultsDialog | None = None
         self._check_case_action: QAction | None = None
         self._case_check_dialog: CaseCheckDialog | None = None
         self._allrun_steps_action: QAction | None = None

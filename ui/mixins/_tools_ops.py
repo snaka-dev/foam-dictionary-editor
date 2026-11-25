@@ -727,6 +727,7 @@ class _ToolsOpsMixin(_Base):
         for action in (
             self._open_paraview_action,
             self._view_log_summary_action,
+            self._plot_results_action,
             self._check_case_action,
             self._allrun_steps_action,
             self._create_allrun_action,

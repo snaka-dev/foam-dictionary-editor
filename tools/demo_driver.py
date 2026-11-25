@@ -641,17 +641,23 @@ def resolve(window, target: dict[str, Any]):
         return _tab_point(window, target["tab"])
     if "widget" in target:
         return _centre(_attr_path(window, target["widget"]))
-    if "button" in target:
-        # Dialogs come first: while one is up it is what the step is about, and
-        # a main-window button of the same name would be unreachable anyway.
+    if "legend" in target:
+        return _plot_legend_point(_attr_path(window, target["legend"]))
+    # Dialogs come first: while one is up it is what the step is about, and a
+    # main-window button of the same name would be unreachable anyway. A
+    # non-modal window is not the active one on a display with no window
+    # manager, so a step about one names it with "in" (an attribute path, like
+    # "widget"), which wins over both.
+    if "in" in target:
+        root = _attr_path(window, target["in"])
+    else:
         root = QApplication.activeModalWidget() or QApplication.activeWindow() or window
+    if "button" in target:
         return _centre(_named_button(root, target["button"]))
     if "field" in target:
-        root = QApplication.activeModalWidget() or QApplication.activeWindow() or window
         return _centre(_labelled_field(root, target["field"]))
     if "item" in target:
-        root = QApplication.activeModalWidget() or QApplication.activeWindow() or window
-        return _dialog_item_point(root, target["item"])
+        return _dialog_item_point(root, target["item"], bool(target.get("check")))
     raise TargetError(f"step target names nothing resolvable: {target!r}")
 
 
@@ -667,6 +673,13 @@ def _attr_path(window, dotted: str):
     """Follow a dotted attribute path from the window, e.g. `editor_panel`."""
     obj: Any = window
     for part in dotted.split("."):
+        # A number indexes a list: Plot Results keeps its file windows in
+        # `_viewers`, and `_plot_results_dialog._viewers.0` is the first.
+        if part.isdigit() and isinstance(obj, (list, tuple)):
+            obj = obj[int(part)] if int(part) < len(obj) else None
+            if obj is None:
+                raise TargetError(f"no widget at {dotted!r}")
+            continue
         obj = getattr(obj, part, None)
         if obj is None:
             raise TargetError(f"no widget at {dotted!r}")
@@ -889,7 +902,56 @@ def _named_button(root, label: str):
     raise TargetError(f"no button labelled {label!r} in {root.windowTitle() or root}")
 
 
-def _dialog_item_point(root, label: str):
+def _plot_legend_point(dialog):
+    """The centre of the legend on Plot Results' canvas, where a drag grabs it.
+
+    matplotlib measures in device pixels from the bottom left; Qt in logical
+    pixels from the top left.
+    """
+    canvas = dialog.canvas
+    axes = dialog.figure.axes
+    legend = axes[0].get_legend() if axes else None
+    if legend is None or not canvas.isVisible():
+        raise TargetError("the plot has no legend on screen")
+    canvas.draw()
+    box = legend.get_window_extent()
+    ratio = canvas.devicePixelRatioF() or 1.0
+    from PySide6.QtCore import QPoint
+
+    x = (box.x0 + box.width / 2) / ratio
+    y = canvas.height() - (box.y0 + box.height / 2) / ratio
+    return canvas.mapToGlobal(QPoint(round(x), round(y)))
+
+
+def _tree_path_item(root, path: list[str]):
+    """A tree row by the texts of it and its ancestors, from the top level.
+
+    For a row whose own text repeats under several parents -- Plot Results
+    lists the same data sets under every case.
+    """
+    from PySide6.QtWidgets import QTreeWidget
+
+    wanted = [_plain(p) for p in path]
+    for tree in root.findChildren(QTreeWidget):
+        if not tree.isVisible():
+            continue
+        items = [tree.topLevelItem(i) for i in range(tree.topLevelItemCount())]
+        found = None
+        for depth, text in enumerate(wanted):
+            match = [i for i in items if _plain(i.text(0)) == text]
+            if len(match) != 1:
+                found = None
+                break
+            found = match[0]
+            if depth < len(wanted) - 1:
+                found.setExpanded(True)
+                items = [found.child(i) for i in range(found.childCount())]
+        if found is not None:
+            return tree, found
+    raise TargetError(f"no tree row at {' > '.join(path)} in {root.windowTitle() or root}")
+
+
+def _dialog_item_point(root, label: str | list[str], check: bool = False):
     """A row of a dialog's tree or list, by its text -- Add Function Object's
     template tree, say, whose rows are data read out of an installation.
 
@@ -900,6 +962,9 @@ def _dialog_item_point(root, label: str):
     """
     from PySide6.QtWidgets import QListWidget, QTreeWidget, QTreeWidgetItemIterator
 
+    if isinstance(label, list):
+        view, item = _tree_path_item(root, label)
+        return _item_rect_point(view, item, check)
     wanted = _plain(label)
     exact, partial = [], []
     for tree in root.findChildren(QTreeWidget):
@@ -939,8 +1004,24 @@ def _dialog_item_point(root, label: str):
         what = "matches more than one" if found else "matches nothing"
         raise TargetError(f"item {label!r} {what} in {root.windowTitle() or root}")
     view, item = found[0]
+    return _item_rect_point(view, item, check)
+
+
+def _item_rect_point(view, item, check: bool):
     view.scrollToItem(item)
     rect = view.visualItemRect(item)
+    if check:
+        # The row's checkbox rather than its text: a click on the text selects
+        # a checkable row without ticking it. The indicator sits at the left of
+        # the cell, after the focus margin.
+        from PySide6.QtCore import QPoint
+        from PySide6.QtWidgets import QStyle
+
+        style = view.style()
+        margin = style.pixelMetric(QStyle.PixelMetric.PM_FocusFrameHMargin, None, view) + 1
+        width = style.pixelMetric(QStyle.PixelMetric.PM_IndicatorWidth, None, view)
+        point = QPoint(rect.left() + margin + width // 2, rect.center().y())
+        return view.viewport().mapToGlobal(point)
     return view.viewport().mapToGlobal(rect.center())
 
 

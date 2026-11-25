@@ -37,7 +37,7 @@ disk file
 - [スキーマシステム](#スキーマシステム)：[スキーマモジュールの書き方](#スキーマモジュールの書き方)、[KeySchema と ChoiceItem](#keyschema-と-choiceitem)、[キーが何であるかの記録: `status` フィールド](#キーが何であるかの記録-status-フィールド)、[キーを省略したときどうなるか: `default` と `required`](#キーを省略したときどうなるか-default-と-required)、[生成モジュール（foamlore からのベンダリング）](#生成モジュールfoamlore-からのベンダリング)、[SchemaRegistry](#schemaregistry)、[設定: デフォルトは置換ではなくマージ](#設定-デフォルトは置換ではなくマージ)
 - [差分アルゴリズム](#差分アルゴリズム)：[API](#api)、[ステータス値](#ステータス値)、[再帰とスキップ](#再帰とスキップ)
 - [インクルードの解決](#インクルードの解決)：[3-D ビューア向けのインクルード展開](#3-d-ビューア向けのインクルード展開)
-- [ケースとファイル](#ケースとファイル)：[サフィックス付きの派生ファイル](#サフィックス付きの派生ファイル)、[ケースナビゲーション](#ケースナビゲーション)、[追加ディレクトリ](#追加ディレクトリ)、[ケースルートのスクリプト](#ケースルートのスクリプト)、[同じ辞書が複数あるケース](#同じ辞書が複数あるケース)、[ツールメニュー](#ツールメニュー)（[Run ダイアログ](#run-ダイアログの仕組み)、[postProcess](#postprocess-とソルバ)、[バックグラウンド実行](#バックグラウンド実行)、[processor\* の削除](#processor-ディレクトリの削除)、[Allrun のステップ](#allrun-のステップ)、[ログから Allrun を作成](#ログから-allrun-を作成)、[ログの助言](#ログの助言)、[Check Case](#check-case)、[モジュール](#tools-メニューの背後のモジュール)）
+- [ケースとファイル](#ケースとファイル)：[サフィックス付きの派生ファイル](#サフィックス付きの派生ファイル)、[ケースナビゲーション](#ケースナビゲーション)、[追加ディレクトリ](#追加ディレクトリ)、[ケースルートのスクリプト](#ケースルートのスクリプト)、[同じ辞書が複数あるケース](#同じ辞書が複数あるケース)、[ツールメニュー](#ツールメニュー)（[Run ダイアログ](#run-ダイアログの仕組み)、[postProcess](#postprocess-とソルバ)、[バックグラウンド実行](#バックグラウンド実行)、[processor\* の削除](#processor-ディレクトリの削除)、[Allrun のステップ](#allrun-のステップ)、[ログから Allrun を作成](#ログから-allrun-を作成)、[ログの助言](#ログの助言)、[Check Case](#check-case)、[Plot Results](#plot-results)、[モジュール](#tools-メニューの背後のモジュール)）
 - [メインウィンドウの挙動](#メインウィンドウの挙動)：[ツリーとエディタの同期](#ツリーとエディタの同期)、[バウンダリパネルとエディタのナビゲーション](#バウンダリパネルとエディタのナビゲーション)、[ダーティ状態の追跡](#ダーティ状態の追跡)、[ツリーのコピー・ペーストショートカット](#ツリーのコピーペーストショートカット)、[ブロックの選択と CRUD](#ブロックの選択と-crud)、[ツリー編集の Undo/Redo](#ツリー編集の-undoredo)、[3-D ビューアのオーバーレイ](#3-d-ビューアのオーバーレイ)、[レイアウトとパネル](#レイアウトとパネル)、[セッションの復元](#セッションの復元)
 - [UI の規約](#ui-の規約)：[国際化（i18n）](#国際化i18n)、[テーマと配色](#テーマと配色)、[フォントサイズと表示スケーリング](#フォントサイズと表示スケーリング)、[GPU / OpenGL に関する注意](#gpu--opengl-に関する注意)、[ツールバーとメニューの構造](#ツールバーとメニューの構造)、[キーワードスキャナ](#キーワードスキャナ)、[ウィジェットと補助モジュール](#ウィジェットと補助モジュール)
 - [ドキュメント用ツール](#ドキュメント用ツール)：[スクリーンショットの撮影](#スクリーンショットの撮影)、[デモ動画の収録](#デモ動画の収録)
@@ -305,7 +305,7 @@ mypy
 
 ### `ui/mixins/` 分割の型付け
 
-`ui/main_window.py` の `MainWindow` は 20 個の mixin と `QMainWindow` から構成されています(下記「プロジェクト構成」の `ui/mixins/` の項目を参照)。各 mixin はランタイム上は共通の基底クラスを持たないただのクラスであり、実際の合成は `MainWindow` がそれらすべてを継承した時点で初めて成立します。これは `mypy` にとって問題です。`mypy` は各 mixin モジュールを単独で型チェックするため、素の `class _FileOpsMixin:` では `self` がいずれ `.tree` や `.state`、`._load_tree()` を持つことを知る術がありません。
+`ui/main_window.py` の `MainWindow` は 21 個の mixin と `QMainWindow` から構成されています(下記「プロジェクト構成」の `ui/mixins/` の項目を参照)。各 mixin はランタイム上は共通の基底クラスを持たないただのクラスであり、実際の合成は `MainWindow` がそれらすべてを継承した時点で初めて成立します。これは `mypy` にとって問題です。`mypy` は各 mixin モジュールを単独で型チェックするため、素の `class _FileOpsMixin:` では `self` がいずれ `.tree` や `.state`、`._load_tree()` を持つことを知る術がありません。
 
 `ui/mixins/_protocol.py` の `MainWindowProtocol`(`QMainWindow` を継承する通常のクラスであり、`typing.Protocol` ではありません — mypy は非 protocol を基底に持つ protocol を拒否します)が、その結合済みの全体像を宣言しています。`MainWindow.__init__`/`_build_ui()` が設定するすべてのウィジェット/状態属性、そしてどの mixin が定義するメソッドも、実物と一致するシグネチャで宣言されています。各 mixin は次のようにします:
 
@@ -473,6 +473,16 @@ foam-dictionary-editor/
 │   │   ├── _topo_set.py              # topoSet 文法: セットごとのソース/サイズの集約
 │   │   ├── _solver.py                # ソルバー文法: タイムループのステップ・残差・Courant 数・実行時間
 │   │   └── _generic.py               # フォールバック文法: 未認識ログの末尾表示
+│   ├── plot_data/                    # パッケージ: Plot Results のデータ — find_sources()/load_source()
+│   │   ├── __init__.py               # 再エクスポート
+│   │   ├── _reader.py                # 自己完結した表・ログ読み込み。エクスポートしたスクリプトに埋め込む
+│   │   └── _discover.py              # postProcessing/ の走査、リスタートの区間、ソルバーログ、キャッシュ
+│   ├── plot_animation.py             # Plot Results のアニメーション: コマ、固定した範囲、GIF/MP4/PNG の書き出し
+│   ├── plot_export.py                # データを見出し付き CSV と .source.txt に
+│   ├── plot_output.py                # Plot Results が書き込んでよい場所、アトミックな書き込み
+│   ├── plot_render.py                # draw(): PlotSpec を matplotlib の Figure に描く
+│   ├── plot_script.py                # python_script()/gnuplot_script(): プロットをスクリプトとして書き出す
+│   ├── plot_spec.py                  # PlotSpec/Series/Axis + resolve(): プロットが何を示すか
 │   ├── post_process.py               # 既存結果への関数オブジェクト実行（postProcess）
 │   ├── process_tree.py               # Linux /proc: Terminal タブのシェルが実行中のもの
 │   ├── solver_run.py                 # Run Solver/decomposePar と processor* 削除チェックの読み取り
@@ -511,6 +521,7 @@ foam-dictionary-editor/
 │   │   ├── _menu_bar_ops.py          # mixin: Case/Settings/View/Tools/Help メニューの構築
 │   │   ├── _model_ops.py             # Mixin: バッファ・ツリー状態、ダーティ追跡、パースキャッシュ
 │   │   ├── _panel_ops.py             # Mixin: BlockMesh パネルおよびターミナルモード切替ハンドラ
+│   │   ├── _plot_ops.py              # mixin: Tools > Plot Results…
 │   │   ├── _processor_ops.py         # mixin: Tools > Delete processor* Directories…
 │   │   ├── _tools_ops.py             # mixin: Tools メニューの各アクション（ツール・ソルバ・Allrun・ParaView 等）
 │   │   ├── _tree_crud_ops.py         # mixin: ツリー項目の CRUD（コピペ・追加・複製・コメントアウト・削除）
@@ -528,6 +539,7 @@ foam-dictionary-editor/
 │   │   ├── case_browser_dialog.py    # CaseBrowserDialog: 非モーダルの 2 ペイン Case Browser
 │   │   ├── case_library_dialog.py
 │   │   ├── clean_backups_dialog.py
+│   │   ├── data_file_viewer.py       # DataFileViewer: Plot Results のデータファイルを読み取り専用で表示
 │   │   ├── duplicate_case_dialog.py  # DuplicateCaseDialog: 「_copy」接尾辞、既定で全ファイルをコピー
 │   │   ├── export_stl_dialog.py      # ExportStlDialog: 選択した形状を .stl に書き出す
 │   │   ├── find_examples_dialog.py   # FindExamplesDialog: 非モーダルのチュートリアル検索（QThread）
@@ -535,9 +547,11 @@ foam-dictionary-editor/
 │   │   ├── function_object_dialog.py  # FunctionObjectDialog: テンプレート木・生成フォーム・ライブプレビュー
 │   │   ├── generate_keywords_dialog.py  # GenerateKeywordsDialog: keyword_generator を QThread で実行
 │   │   ├── keyboard_shortcuts_dialog.py
+│   │   ├── line_settings_dialog.py   # LineSettingsDialog: プロットした線 1 本の凡例・X の列・スタイル
 │   │   ├── log_summary_dialog.py     # LogSummaryDialog: 非モーダルの Summary／Raw Log ビューア
 │   │   ├── manage_extra_files_dialog.py
 │   │   ├── openfoam_resources_dialog.py
+│   │   ├── plot_results_dialog.py    # PlotResultsDialog: 非モーダルのプロットウィンドウ（matplotlib）
 │   │   ├── processor_delete_dialog.py  # ProcessorDeleteDialog: Delete processor* の確認
 │   │   ├── rename_boundary_dialog.py  # Rename Boundary ダイアログ + find_rename_targets() スキャナ
 │   │   ├── reset_settings_dialog.py
@@ -1175,7 +1189,7 @@ FoDE がケースとその中のファイルを見つけ、一覧にし、開き
 
 ### ツールメニュー
 
-Tools メニューは `ui/mixins/_menu_bar_ops.py` が構築し、ハンドラは `_tools_ops.py`（メッシュツール・ソルバ・`decomposePar`/`reconstructPar`・Allrun スクリプト・ParaView・ログサマリの実行）、`_processor_ops.py`（`processor*` の削除）、`_background_run_ops.py`（FoDE より長く続く実行）、`_function_object_ops.py`（関数オブジェクトの追加）、`_case_check_ops.py`（Check Case）、`_allrun_ops.py`（Allrun Steps、Create Allrun from Logs）、`_foam_monitor_ops.py` にあります。Qt を必要としないロジックは `services/` にあります。全体を貫く規則が 1 つあります。ターミナルへコマンドを送るアクションは、まず `_refuse_while_running` を呼びます。ターミナルが使用中だとコマンドが待ち行列に入るか、xterm ターミナルでは `mpirun` に入力として飲み込まれてしまうためです。
+Tools メニューは `ui/mixins/_menu_bar_ops.py` が構築し、ハンドラは `_tools_ops.py`（メッシュツール・ソルバ・`decomposePar`/`reconstructPar`・Allrun スクリプト・ParaView・ログサマリの実行）、`_processor_ops.py`（`processor*` の削除）、`_background_run_ops.py`（FoDE より長く続く実行）、`_function_object_ops.py`（関数オブジェクトの追加）、`_case_check_ops.py`（Check Case）、`_allrun_ops.py`（Allrun Steps、Create Allrun from Logs）、`_plot_ops.py`（Plot Results）、`_foam_monitor_ops.py` にあります。Qt を必要としないロジックは `services/` にあります。全体を貫く規則が 1 つあります。ターミナルへコマンドを送るアクションは、まず `_refuse_while_running` を呼びます。ターミナルが使用中だとコマンドが待ち行列に入るか、xterm ターミナルでは `mpirun` に入力として飲み込まれてしまうためです。
 
 #### Run ダイアログの仕組み
 
@@ -1299,6 +1313,31 @@ Qt 非依存の `services/allrun_create.py` がステップを提案します。
 
 チェックを追加するには: `case_check.py` にコード（と `FINDING_CODES`）、`case_check_text.py` にその文と `i18n/ja.py` の項目、サービスのテストに指摘を起こすケース、そしてコーパスでの実行です — 壊していないチュートリアルでの新しい指摘は、それが正しい理由をレビュアーが確かめられるまでは誤検出です。
 
+#### Plot Results
+
+**Tools > Plot Results…** は、ケースのテキスト出力 — 関数オブジェクトが `postProcessing/` の下に書くものと、ソルバーログの残差 — をプロットします。ウィンドウ、保存した画像、エクスポートしたスクリプトが食い違わないよう、層を分けています:
+
+- `services/plot_data/`（Qt 非依存）がデータを見つけて読みます。`_discover.find_sources()` は `postProcessing/` を 4 階層まで走査して時刻ディレクトリを持つディレクトリを探し（なのでリージョンのサブディレクトリも扱えます）、ファイルを `Source` にまとめます。関数オブジェクトが追記していく **series** は、リスタートでできた区間 — 新しい `<startTime>/` ディレクトリや、既存ファイルの横に OpenCFD が作る `force_<time>.dat`（`writeFile::newFileAtTime`。Foundation 7 の `logFiles` も同じ）— を開始時刻順につなぎ、重なった区間は後の区間で置き換えます。**profile** は時刻ごとに 1 ファイルのサンプリングセット（`.xy`/`.csv`/`.raw`）です。**residuals** は `log.*` で、名前ではなく内容（先頭 256 KB に `Initial residual` と `Time =` のステップがあること）で判断します。`log.fluentMeshToFoam` はソルバーではなく、`log.foamRun` はソルバーだからです。`Source.key` はケースからの相対パスから時刻ディレクトリを除いたもので、「Plot This Column in Every Case」はこれでケース間を対応づけます。形状の出力（`.vtp`、`.vtk` など）は拡張子で、その他のファイルは先頭 4 KB を見て除外します。表は `(mtime_ns, size)` でキャッシュします。
+- `services/plot_data/_reader.py` は 1 ファイルを解析し、**自己完結**しています（標準ライブラリのみ、プロジェクト内の import なし）。エクスポートする Python スクリプトがそのソースをそのまま埋め込むためで、`tests/services/test_plot_data.py` がその写しを `-I` で import して、この状態を保ちます。同じ理由で、凍結ビルドはこれをデータとして同梱します（`foam-dictionary-editor.spec`）。
+- `services/plot_spec.py` はプロットが何を示すかです。`PlotSpec`（系列 — それぞれのサンプル時刻、X の列、ラベル、スタイルを含む —、軸、タイトル、グリッド、凡例とその位置、文字の大きさ、画像サイズ、コマ数/秒）は JSON にできるデータで、`resolve()` が各系列を読み込み、NaN の点を落とし（そのステップで解かれなかった残差や、リスタート区間にない列。NaN があると線がそこで切れます）、両方の出力が読む凡例のラベルと軸タイトルを確定させます。
+- `services/plot_render.draw()` は resolve 済みの spec を `matplotlib.figure.Figure` に描きます（pyplot を使わないのでグローバルな状態を持ちません）。`services/plot_script.py` は同じ spec を書き出します。matplotlib のスクリプトはプロットの呼び出しが `draw()` と 1 対 1 で対応し、gnuplot のスクリプトには `.dat` のスナップショットが付きます。`tests/services/test_plot_script.py` はエクスポートしたスクリプトを実行し、その figure を `draw()` のものと要素ごと（線、ラベル、スケール、範囲、目盛り、凡例の文字と位置、サイズ）に比べます。片方だけを変えると、もう片方が追いつくまでテストが失敗します。凡例の位置は両方が呼ぶ `plot_spec.legend_kwargs()` を通ります。ウィンドウでドラッグした凡例は `legend_loc = "custom"` と `legend_at`（凡例の左下隅の位置を軸に対する割合で表したもの。ダイアログはマウスを離したときの凡例の範囲から読みます）として保存され、これは matplotlib のタプル形式の `loc` の意味そのものです。gnuplot には `set key at graph x, graph y left bottom` を書き出します。
+- `services/plot_animation.py` はサンプリングラインを出力時刻ごとに進め（コマ、固定した範囲、時刻表示）、GIF/MP4/PNG のコマを書き出します。`services/plot_export.py` はデータやプロット中の線を見出し付きの CSV と `.source.txt` に書き出します。`services/plot_output.py` はそのどれもがどこに書いてよいかの規則で、アトミックに書き込みます。
+- `ui/dialogs/plot_results_dialog.py` はウィジェットから spec を組み立てるだけで、プロットのロジックは持ちません。横に `line_settings_dialog.py`（線 1 本の設定）と `data_file_viewer.py`（データファイルの読み取り専用表示）があります。このダイアログはモジュールレベルで matplotlib を import するので、`ui/mixins/_plot_ops.py` が import の前に matplotlib の有無を確かめます。
+
+**ファイル形式**は、OpenCFD v2512/v2606 の実際の出力と、Foundation のビルドがないため Foundation 7/dev のソースから調べました。表を書く関数オブジェクトはすべて `writeFile` の流儀（`writeCommented`/`writeTabbed`: `#` のコメント行が並び、データ直前の 1 行が列名）に従います。リーダーはヘッダーではなく**最初のデータ行の形**を基準にします。最上位のセルは数値、単語、括弧のグループのいずれかで、数値 1 つにつき 1 列に平らにします。ヘッダーは、そのトークン数がセル数と一致するとき（各セルを展開: 3 成分ベクトルは `_x/_y/_z`、6 と 9 はテンソル成分、Foundation の入れ子 `forces(pressure viscous)` と `((p) (v))` は `forces_pressure_x`…）か、平らにした幅と一致するときに使います。OpenCFD のビンごとの翼ファイルは 1 つのヘッダー名で 10 列を指すので `Cd(per bin) [i]` と番号を振り、プローブの列は `probe<N>` にします。単語はプロットしません（solverInfo のソルバー名や `N/A`）が、x が繰り返す中で値の変わる単語の列 — パッチごとに 1 行の `wallShearStress`、フィールドごとに 1 行の `fieldMinMax` — は、単語ごとの列の組に組み替えます。真偽値では組み替えません。ファイルの途中で繰り返されるヘッダー（メッシュのトポロジー変更で書き直される。`surfaceFieldValue` で確認）は他のコメントと同じく読み飛ばし、幅の違う行は誤読せず数えるだけにします。サンプリングセット: Foundation 10 以降の raw ライターは `#` のヘッダーを書き（`setWriter::writeTableHeader`）、区間を空行で区切ります。OpenCFD と古い Foundation はヘッダーを書かず、フィールド名をファイル名に入れます（`<set>_<f1>_<f2>.xy`。スカラーがベクトルより先）。これを列数と突き合わせて解読します。`_` で分かれた部分をつなぎ直すすべての方法（`p_rgh`）と、両方の軸の幅（1 列。セットの `axis` に応じて x、y、z、線に沿った距離のいずれかで、ファイルからはわからないため `position` と名付けます。または `x y z`）を試し、よく知られたスカラー（`p`、`k`、`alpha.*`）をベクトルとみなさない分け方を優先します。解読できない名前は `col N` になります。残差は、各ステップの各フィールドについて最初の `Initial residual` を使います。PIMPLE の外側補正や PISO の圧力補正で同じ行が繰り返されるためです。
+
+**ビューは保存する画像のプレビューです。** `_PreviewArea` がキャンバスを持ち、**Image size** の縦横比で、収まる限り大きく、`Dark` の余白（デスクトップのテーマでは `Mid` はほぼ白です）の中央に置きます。その前に figure の dpi を、その結果の 1 インチあたりのピクセル数にします。matplotlib の Qt の `resizeEvent` は figure のインチを「ウィジェットのピクセル ÷ figure の dpi」にするので、こうするとインチがリサイズ後も保たれ、ポイントで指定した文字がファイルと同じ割合を占めます。`_original_dpi` もいっしょに設定します（論理値。`figure.dpi` はそれにデバイスピクセル比を掛けたもの）。ウィンドウを別の比の画面に移すと、matplotlib はこの値から計算し直すためです。**Fit to window** はキャンバスを 100 dpi で領域いっぱいに戻します。一致は近いものの厳密ではありません。文字は描く解像度で測られ、グリフの幅は整数ピクセルに丸められ、`tight_layout` もそれに従うためです。`test_the_view_previews_the_saved_image` は軸と凡例を figure の 0.015 以内（Fit to window では約 0.09 ずれます）、目盛りとインチを厳密に比べます。
+
+**文字の大きさ**は `PlotSpec.title_size`/`label_size`/`tick_size`/`legend_size`（ポイント。None は matplotlib の既定）で、`_FontSizeSpin` で入力し、その Default（0）は `plot_render.default_font_sizes()`（`font.size` に対する相対値なので rcParams から読みます）の値を表示し、1 pt からではなくその値から増減します。rcParams ではなく明示的な `fontsize=` 引数と `tick_params(labelsize=)` として適用します。エクスポートしたスクリプトで、読む人が編集する呼び出しの中に見えるようにするためです。凡例の大きさは `legend_kwargs` が持ちます。gnuplot には、タイトル、ラベル、`set tics`、`set key` に `font ',<大きさ>'` を書きます。
+
+**線ごとの設定と保存したプロット。** `Series` は `x_column`（空なら最初の列）とスタイル（`color`、`linestyle`、`marker`、`linewidth`。空なら matplotlib の既定）も持ちます。`style_kwargs()` がこれを `Axes.plot` の引数にし、`draw()` とエクスポートしたスクリプトの両方が使います。スクリプトの `SERIES` の各項目は `x_column` と `style` を持ちます。gnuplot には最も近い `lc`/`dt`/`lw`/`pt` と `lines`/`points`/`linespoints` を書きます。Save Settings… は `spec_to_json(spec)`（`{"format": "fode-plot", "version": 1, "plot": …}`、ケースのパスは絶対パス）を書き、Load Settings… は `spec_from_json` で読みます。外枠より内側は `from_dict` と同じく寛容です（不正な色やスタイルは既定に戻ります）。`PlotResultsDialog.apply_spec` はチェック中のものを置き換え、ウィンドウにないケースを加え、見つからなかった線は例外にせず返します。
+
+**時刻とアニメーション。** サンプリングラインの時刻は、Line Settings で線ごとに選ぶ `Series.time` です（空なら最新）。データごとの時刻はありません。Time のスライダーはすべてのサンプリングラインをいっしょに動かします。位置 0 は通常のプロットで、それ以外は `plot_animation` のコマです（下のモジュールの項を参照）。`PlotResultsDialog.shown_spec()` は表示しているプロット（コマのときは、固定した軸、固定した色、時刻表示を含むそのコマ）で、すべての出力はこれから作ります。Save/Copy Image、両方のスクリプト（時刻表示を受け取ります）、Export Data です。Save Settings は設定したとおりのプロット `spec()` を保存します。`data_set_time()`（コマの時刻、なければ線が選んだ時刻、なければ最新）を Open File、Save as CSV、ツールチップが使います。
+
+**自動更新**は、`auto_refresh()` を呼ぶ 2 秒の `QTimer` です。チェックした列のあるケースを `find_sources` で走査し直し（新しい出力時刻やリスタートの区間でデータのパスが変わります）、5 回に 1 回はすべてのケースを走査し（新しいデータがあれば `reload(keep_view=True)` でツリーを作り直します）、チェックした列のファイルの状態を調べ、変化があったときだけ描き直します（`replot(keep_view=True)`）。`keep_view` は軸の範囲を FoDE が最後に描いたときの `_drawn_limits` と比べ、ユーザーのズームやパンを描き直した後に戻します。ウィンドウが隠れているか最小化されているとき、マウスのボタンが押されているとき（凡例のドラッグやズームの最中）は何もせず、プロット中のファイルが 50 MB を超えると 10 秒ごとに遅くします。`load_source` は変わったファイルを丸ごと読み直すためで、追記された部分だけを読むのは、実際のケースで必要になったときの次の段階です。リーダーの `_read_text` は改行で終わらない最後の行を捨てますが、それは 10 秒以内に変更されたファイルの場合だけです。ソルバーは 1 行ずつ追記するので、読み込みが行の途中に当たることがある（`1.2345` の `1.2`）一方、書き終えて手で保存した CSV は最後の改行がなくてもその行を保ちます。実行中の simpleFoam で確認しました。描き直し 1 回に 40–100 ms、何も新しくない確認は数 ms、終始 1 時間ステップにつきプローブ 1 行でした。
+
+まだしないこと: 大きなファイルの追記部分だけを読むこと、バイナリや VTK の出力の読み込み（これは ParaView の役目です）。
+
 #### Tools メニューの背後のモジュール
 
 - `services/background_run.py` — Qt 非依存: バックグラウンド実行と Stop Background Run の背後にある `background_command()`・`active_run()`・`request_stop()`・`finish_stop()`。[バックグラウンド実行](#バックグラウンド実行)を参照。
@@ -1310,6 +1349,10 @@ Qt 非依存の `services/allrun_create.py` がステップを提案します。
 - `services/function_templates.py` — Qt 非依存: OpenFOAM の関数オブジェクトのテンプレート（ユーザーのインストールの `etc/caseDicts/postProcessing`）の読み取りと入力 — `list_templates()`、`parse_template()`（各項目の種類を Foundation の `<placeholder>` またはキーと例の値から判断。`type/libs` は表示しない。C++ コードを含むテンプレートは入力欄にしない）、`render()`（編集した項目だけを書き換え、コメントや `#includeEtc` はバイト単位でそのまま）、`controlDict` の functions 用の `add_include_func()/function_names()`、選択肢用の `case_field_names()/case_patch_names()`。
 - `services/foam_monitor.py` — `patched_foam_monitor()`: インストール済み `foamMonitor` スクリプトを chmod-755 の一時ファイルへコピーし、gnuplot の reread 非推奨化に対応する修正を適用する（`reread` を `load ARG0` に置き換え、`ARG0` が設定されるよう gnuplot を `-e "load '$GPFILE'"` で起動する。同じ修正はローカルの未追跡ファイル `foamMonitor_gnuplot_reread_fix.patch` にもあり、`.gitignore` の `*.patch` で除外されている）。`ui/mixins/_foam_monitor_ops.py` はこの一時ファイルを起動する。
 - `services/example_search.py` — `discover_installations()/search_examples()`: OpenFOAM インストールを検出（`app_config/foam_env` による環境変数読み取り → 既知のパス）し、その `tutorials/` + `etc/caseDicts/` をキーワード走査して `SearchHit`（一致行、囲むチュートリアルケースのルート）を返す。
+- `services/plot_data/` — Qt 非依存: Plot Results のデータ — `find_sources()`、`load_source()`、自己完結したリーダー `_reader.py`（`read_table()`、`stitch()`、`read_log_residuals()`）。[Plot Results](#plot-results) を参照。
+- `services/plot_spec.py` — Qt 非依存: `PlotSpec`/`Series`/`Axis` と `resolve()` — プロットが何を示すか、読み込みとラベル付け。
+- `services/plot_render.py` — `draw()` — resolve 済みの spec を matplotlib の `Figure` に描く（pyplot なし）。ASCII 以外のラベルには CJK フォントで補います。
+- `services/plot_script.py` — Qt 非依存: `python_script()`（リーダーを埋め込み、`draw()` と対応）、`gnuplot_script()`/`gnuplot_data()`。
 - `services/log_advice.py` — Qt 非依存: `advise()` — View Log Summary の助言。FATAL ERROR のブロックと `sigFpe` のトレースを、開くファイルと行付きの `Advice` のコードに対応づけます。文面は `ui/log_advice_text.py`。[ログの助言](#ログの助言)を参照。
 - `services/log_summary/` — パッケージ: `parse_log()/format_summary()` が `blockMesh/snappyHexMesh/topoSet` およびソルバーの実行ログ（`log.*` の標準出力。`FoamNode` 辞書ツリーではない。ソルバーは名前ではなくタイムループの形で検出）を短い `LogSummary` レポートに要約。
 - `services/log_summary/__init__.py` — `LogSummary/LogWarning/PhaseSummary` を再エクスポート。`parse_log()` はユーティリティ名/形状で分岐し、`format_summary()` がレポートを整形。
@@ -1340,6 +1383,13 @@ Qt 非依存の `services/allrun_create.py` がステップを提案します。
 - `ui/case_check_text.py` — `services/case_check` のコードに対応する文（`finding_message`、`skip_message`、`severity_label`、`finding_location`）。すべてのコードに文があることを `tests/ui/test_case_check_ui.py` が確かめます。
 - `ui/log_advice_text.py` — `services/log_advice` のコードに対応するタイトルと説明（`advice_title`、`advice_text`）。
 - `ui/dialogs/log_summary_dialog.py` — `LogSummaryDialog`（「何が起きたか」の助言欄付き。そのリンクは `open_requested(path, line)` を発します）: 非モーダル（`find_examples_dialog` と同様。他のモーダルダイアログとは異なる）のファイル選択 + `Summary/Raw` Log タブ、`services/log_summary/` を利用。
+- `ui/mixins/_plot_ops.py` — Mixin: Tools > Plot Results… — matplotlib の有無を確かめ、`PlotResultsDialog` を表示します（`self._plot_results_dialog` として保持。`_load_case_dir` が新しく開いたケースを追加します）。
+- `ui/dialogs/plot_results_dialog.py` — `PlotResultsDialog`: 非モーダル。チェックするケース・データ・列、プロットの設定、Copy Image / Save Image / Export Script / Export Data。`PlotSpec` を組み立てるだけで、プロットのロジックは持ちません。データの右クリックメニューで、読み込んだファイル（`source_files()`: リスタートの各区間、または選んだサンプル時刻のファイル）を開けます。
+- `services/plot_animation.py` — Plot Results のアニメーション。`frame_times` はサンプリング（profile）の線の出力時刻の和集合を数値順に並べたもの（2 つの実行が時刻を共有することはまれで、共通部分では何も残らないことが多いため）。`frame_spec` は各サンプリングラインをコマの時刻までで最新の時刻に置き（最初の時刻より前は描かない）、すべての線がそろったときの位置の `C<n>` に色を固定して線が欠けても色の順がずれないようにし、`fixed_ranges`（ユーザーが空にした Min/Max ごとに、全コマのデータに matplotlib の 5 % の余白を付けたもの）を適用して軸を動かさないようにします。`draw(…, stamp=)` はコマの時刻を軸の右上の角の上に書きます。ウィンドウの `shown_spec()` は表示しているプロット（コマのときはそのコマ）で、すべての出力はこれから作ります（Save/Copy Image、`python_script(…, stamp)` と `gnuplot_script(…, stamp)` — `set label` と、gnuplot が知らない `C<n>` の色を tab10 の16進に変換 —、Export Data）。Save Settings は `spec()` を保存します。`data_set_time()`（コマの時刻、なければ Line Settings で線が選んだ時刻、なければ最新）を Open File、Save as CSV、ツールチップが使います。データごとの時刻はもうありません。サンプリングラインの時刻は Line Settings で設定する `Series.time` です。`AnimationWriter` は RGBA のコマを書き出し先の横の一時ファイル/フォルダーに集め、`finish` で名前を変えて置きます（GIF は Pillow でパレット画像として、MP4 は `ffmpeg` のパイプで偶数の大きさに埋めて、PNG は `<名前>_frames/` に。既存のフォルダーには書きません）。結果には一時ファイルの非公開の権限ではなく通常の権限を与え、`abort` はすべてを消します。
+- `services/plot_export.py` — データを見出し付きの表にします。`table_csv`（見出しは 1 行、`#` 行なし — コメント行は表計算ソフトでは不要な 1 行目になります — 欠けた値は空、数値は `repr` で書いて正確に読み戻せ、整数値は `.0` なし）、クリップボード用の `table_tsv`（表計算ソフトは貼り付け時に CSV の引用符を解釈しません）、`<名前>.source.txt` 用の `source_note`（つないだ順のファイル、サンプル時刻、`Table.naming` — 見出しがファイル自身のものか、名前から推定したか、ログのフィールドか、番号か）、`free_csv_path`（CSV *か*説明ファイルのどちらかがある名前は飛ばします）、Export Data… 用の `plotted_table`/`plotted_note`（1 つのデータの線はその x 列を共有し、そうでなければ線ごとに `<凡例の項目>: <列>` を見出しにした x/y の組を持ち、短いほうを空で埋めます。補間はしません）、`is_our_note`（説明ファイルの 1 行目は `NOTE_MARKER`。置き換える CSV のために FoDE が書いた説明ファイルはいっしょに置き換え、それ以外は確認します。保存ダイアログは CSV の名前しか確かめていないためです）。
+- `services/plot_output.py` — Plot Results が書き込んでよい場所: `refusal(path, protected)` は、OpenFOAM が持つケースのディレクトリ（`system`、`constant`、`postProcessing`、時刻、`processor*` など）の中、ケース最上位の既存のログ・`All*`・隠しファイル・`.foam`、プロット中のファイル、のいずれかならコードを返します（シンボリックリンクは両端で判定）。確認ではなく拒否にしているのは、「上書きしますか?」がユーザーが読まずに押してしまう箱だからで、gnuplot のエクスポートは `.dat` の名前をスクリプトから決めるため、forces のファイルの横に `force.gp` を置くと `force.dat` を置き換えてしまうところでした。`write_atomically` は同じフォルダーの一時ファイルに書いて `os.replace` し、置き換えたファイルのモードを保ちます。
+- `ui/dialogs/line_settings_dialog.py` — `LineSettingsDialog`: チェックした列の Line Settings…。凡例の文字、X の列、色、線種、マーカー、線幅。既定の状態は空の値として書くので、保存したプロットは自動の凡例や matplotlib の色の順に従い続け、固定されません。線種を「なし」にしてマーカーもない線には、何も描かれなくならないようマーカーを付けます。
+- `ui/dialogs/data_file_viewer.py` — `DataFileViewer`: それらのファイルの 1 つを非モーダル・読み取り専用で表示し、Reload と Show in Folder を備えます。メインのエディタを使わないのは、エディタが開いているケースに属し、ファイルを辞書として解析してしまうためで、Plot Results は複数のケースを扱います。`read_for_view()` は 16 MB を超えるファイルを最初の 200 行（列名）と最後の 4 MB（最新の値）で表示し、gzip も展開して読みます。
 - `ui/dialogs/processor_delete_dialog.py` — `ProcessorDeleteDialog`: Delete `processor*` の確認ダイアログ。選択肢が 2 つ（最新の時刻を残す、圧縮ファイルを最後まで読む）あり、`QMessageBox` には 1 つ分しか場所がないため `QDialog`。
 - `ui/dialogs/run_tool_dialog.py` — `RunToolDialog`: `services/tool_options.TOOL_SPECS` から構築される Tools メニュー「Run *」の汎用オプションダイアログ — 主要フラグのウィジェット、自由記述の追加オプション、ライブコマンドプレビュー、任意のプレフライト警告とシェルプレフィックスチェックボックス。サブクラス用フック `_build_extra_sections/_resolved_spec/_run_prefix/_parallel_np`。
 - `ui/dialogs/run_post_process_dialog.py` — `RunPostProcessDialog(RunToolDialog)`: 編集可能な関数一覧（`controlDict` の `#includeFunc` 名、続いてテンプレートの単発のもの）、手で変えるまで関数に追従する「ソルバーを通して実行」、並列。ログは `log.<tool>` でソルバーのログには書かない。
@@ -1842,6 +1892,12 @@ python3 tools/capture_dialog.py --list
 mkdir -p /tmp/OpenFOAM/run && cp -r "$FOAM_TUTORIALS/incompressible/simpleFoam/pitzDaily" /tmp/OpenFOAM/run/ && cd /tmp/OpenFOAM/run/pitzDaily && blockMesh > log.blockMesh 2>&1 && simpleFoam > log.simpleFoam 2>&1
 ```
 
+Plot Results のショット（`plot-results`、`data-file-viewer`）と動画 16 は、プローブとサンプリングラインを加えた pitzDaily を k-epsilon と k-omega SST で実行した 2 つの結果を読みます。`tools/stage_plot_cases.sh` が `/tmp/OpenFOAM/run/plot` に 10 秒ほどで作ります（`--plot-cases` で別の場所を指せます）。データファイルのウィンドウはファイルのフルパスを表示するため、これも `$HOME` の下には置きません。
+
+```bash
+tools/stage_plot_cases.sh            # [OPENFOAM_DIR] [DEST]。既定は v2606、/tmp/OpenFOAM/run/plot
+```
+
 同じルールは今後追加するショットにも適用されます。コミット前に画像へ `/home/<name>` が写っていないか確認してください。`find_foam_example.png` はこのルールより前の画像ですが、たまたま条件を満たしています。ユーザー名が `user` のマシンで撮影されており、写っているパスもインストール先の `/usr/lib/openfoam/openfoam2606/...` だけであるためです。
 
 各ショットは `build` と対になる `requires` を持ちます。`requires` は「このマシンにショットが読むものが揃っているか」に答え、足りないものを名指しして例外を送出します。これを `build` から分離しているため、`QApplication` なしにその判定ができ、結果としてテストで検証できます。2 つのショットは撮影マシン側が用意するもの（実行済みケース、OpenFOAM インストール）を読みますが、`run-tool` は同梱の `tutorials/damBreak` を読みます。このショットが見せたい「`0/` を復元する」前置きは、`0.orig/` を持つケースでしか現れないためです。つまりこのショットの入力はチェックアウトに同梱されています。
@@ -1911,6 +1967,10 @@ DISPLAY=:1 python3 tools/demo_driver.py damBreak-end-to-end --stage            #
 細かい点が 2 つ、いずれも痛い目を見て分かったものです。`xdotool mousemove --sync` は、ポインタが**現在いる位置**への移動では決して発生しないモーションイベントを待ち、数秒間ブロックします。イージングによって、ゆっくり動く区間の複数ティックが同じピクセルに丸められるため、移動しない移動はスキップしなければなりません。もう 1 つ、ステップのマウスボタンは `button` ではなく `with` です。`button` はすでにターゲット（クリックするプッシュボタンの名前）だからです。
 
 スクリーンショットツールがユーザの設定を汚さないために行っていることは、すべてそのまま当てはまります。テーマは保存された設定ではなく spec から取り、言語は英語に固定し、ウィンドウを閉じないので `closeEvent` が `app_config.json` を書くこともなく、VTK の後始末がクリーンな `shutdown()` の後でも abort しうるためプロセスは `os._exit` で終わります。
+
+**入れ子のディスプレイでは、非モーダルのウィンドウは決してアクティブになりません。** アクティブにするウィンドウマネージャがないためです。そのため、モーダルダイアログかアクティブなウィンドウを探す `button`/`field`/`item` は、Plot Results の後ろにあるメインウィンドウを探してしまいます。代わりにステップは `"in"` でウィンドウを指定します。`widget` と同じく `MainWindow` からの属性パスで、数字はリストの添字です（`_plot_results_dialog._viewers.0` は最初のデータファイルのウィンドウ）。動画 16 で、さらに 3 つの指定方法を加えました。`item` に `"check": true` を付けると、行の文字ではなく（文字のクリックは選択するだけです）チェックボックスをクリックします。`item` をリスト（`["pitzDaily-kEpsilon", "probes/U"]`）で与えると、祖先をたどってツリーの行を指定でき、どのケースの下にも同じ文字の行がある場合に使います。`"legend"`（プロットウィンドウのパス）は matplotlib の凡例の中心で、matplotlib の左下基準のデバイスピクセルから変換したもので、`drag` でつかむためのものです。アクティブにならないことは Qt のツールチップも隠していました。Qt はアクティブなウィンドウでしかツールチップを表示しないためです。`PlotResultsDialog` は `WA_AlwaysShowToolTips` を設定しています。このウィンドウはふだんアクティブなメインウィンドウの横に置かれるので、ユーザーにとってもこれが正しい動作です。
+
+**収録は、撮影者のデスクトップではなく専用の Xvfb で行えます。** `Xvfb :91 -screen 0 1280x800x24 &` を起動し、`DISPLAY=:91 … --on-this-display` とします。そのディスプレイには他に何もないので、実際の入力が誤って入り込む先がなく、デスクトップには何も表示されません。動画 16 はこの方法で収録しました。
 
 **1 つだけ、FoDE 以外のアプリケーションを操作するシーンがあります。** `cavity-full-workflow` は ParaView で終わります。ParaView は意味的には何も解決できないので、そのクリックは `point` ステップ、つまりリハーサルのスクリーンショットから読み取ったピクセル座標です。収録が既知のサイズでウィンドウマネージャのないディスプレイ上で行われ、ParaView が毎回原点に 1280×800 で開くからこそ成立しています。
 
@@ -2023,6 +2083,8 @@ DISPLAY=:1 python3 tools/demo_driver.py damBreak-end-to-end --stage            #
 - `test_foam_highlighter.py` — `FoamHighlighter`: コメント、文字列、`#directives`、`$macro` 参照、予約キーワード、数値（`wall0`/`inlet-1` のような識別子内の数字を色付けしない lookaround ガードを含む）、同じガードを共有するキーワードルール（`y0.1` や `off.1`、シェルの `config.fi` のようなドット付き識別子が分割されない）など。
 - `test_keyboard_shortcuts_dialog.py` — **Help > Keyboard Shortcuts** が実態と一致し、かつ画面に収まり続けることの検証。この一覧は手書きの表なので、ウィンドウが実際に登録しているショートカットとずれても何も止めるものがなかった — `Ctrl+S` はメニュー項目もこの一覧の記載も無いまま数リリース登録され続けていた。
 - `test_log_advice_ui.py` — すべての助言コードにタイトルと説明があること、その分岐、ダイアログの欄と `open:N` リンク、メインウィンドウがリンク先のファイルを該当行で開くこと。
+- `test_plot_results_ui.py` — Plot Results: データの一覧、チェックで列がプロットされること、残差で対数軸になること、ケースの比較（「すべてのケース」、ケースを外す）、Line Settings で選ぶ線のサンプル時刻（Open File もそれに従うこと）、設定がプロットに届くこと、Use Current View、画像サイズでのコピー、保存とエクスポートがファイルを書くこと、補正した名前で上書き前に確認すること、Reload、自動更新（変化があったときだけ描き直し、オフや非表示では動かず、ズームを保ち、新しい時刻やデータを拾うこと）、凡例の位置（選んだ位置と、ドラッグした位置にそのまま描き直されること）、データのツールチップと Open File / Show in Folder（ファイルごとに 1 つのウィンドウ、リスタートの区間ごとのメニュー項目）、Time の行がコマをプレビューし（軸の固定、時刻表示）、すべての出力 — 画像、スクリプト、Export Data、Open File — が表示中のコマに従うことPlay が最後で止まること、Save Animation が時刻ごとに 1 コマを書くこと、ビューが保存する画像と同じ配置になること（と Fit to window）、文字の大きさがプロットに届き、本当の既定値から増減すること、Line Settings…（チェックした列にだけ表示。凡例、色、マーカーのみ、線幅が線に届くこと）、設定を保存して新しいウィンドウにそのまま読み込めること、なくなったケースの報告、メニューの配線と matplotlib がないときのメッセージ。
+- `test_data_file_viewer.py` — Plot Results のデータファイル表示ウィンドウ: 小さいファイルは全体、大きいファイルは先頭と行単位の末尾、gzip の展開、一部だけ表示しているときの注記、Reload、読めないファイル。
 - `test_log_summary_dialog.py` — `LogSummaryDialog`: 非モーダルなウィンドウモダリティ、ケースディレクトリ内で最も新しく更新された `log.*` ファイルをデフォルト選択してその要約を表示すること、ファイルフィールド変更時の再パース、空のケースディレクトリでのフォールバックメッセージ。
 - `test_main_window_save_refresh.py` — `test_main_window_split.py` の構造チェックのみとは異なる、初めての振る舞いレベルの `MainWindow` テスト: 保存せずに編集しても `constant/polyMesh` メッシュインジケーターが変化しないこと、`save_file()`/`save_all_files()` のどちらも即座にファイル一覧を更新してなど。
 - `test_main_window_split.py` — Mixin 構造: 各 Mixin が正しいメソッドを保有すること（`_BoundaryOpsMixin` の `_on_patch_selected`、`_TreeCrudOpsMixin` の `_apply_comparison_value`、`_FoamMonitorOpsMixin` の foamMonitor 関連メソッドを含む）、Mixin 間の重複がないこと、`MainWindow` がすべての Mixin を継承していること。
@@ -2074,6 +2136,11 @@ DISPLAY=:1 python3 tools/demo_driver.py damBreak-end-to-end --stage            #
 - `test_log_summary.py` — `parse_log`/`format_summary`: `blockMesh` の Mesh Information/Patches 抽出と致命的エラー検出、`snappyHexMesh` の `Wrote mesh in` マーカーによるフェーズ分割・カテゴリごとの細分化反復回数・最終的なパッチ別レイヤーテーブル・件数付きの警告重複排除、`topoSet` のマルチソースセットの集約（`Read set` チェックポイントは新規セットではなく同一セットの継続として扱われること）など。
 - `test_tool_options.py` — `tool_options`: 期待される `TOOL_SPECS` の集合とデフォルトコマンド（snappyHexMesh のデフォルトでオンの `-overwrite`）、`build_args` の bool/value/file の仕様順処理、空値の省略、追加テキストの shlex 分割（閉じていない引用符 → `ValueError`）、古い未知フラグの無視など。
 - `test_solver_run.py` — `solver_run`: controlDict の `application`（通常・引用符付き・欠落・解析不能）、foamRun の `solver` モジュール（foamRun のときのみ）、foamMultiRun の `regionSolvers`、`numberOfSubdomains`（0 以下や `$var` は不明扱い）、ソルバー名の検証（シェルのメタ文字・パス・先頭の `-` を拒否）など。
+- `test_plot_animation.py` — コマが出力時刻の数値順の和集合であること。コマが各線を最新の時刻で持ち、まだない線を除くこと。色の固定。固定した範囲が全コマを覆い、設定した Min を保つこと。GIF、PNG、（ffmpeg があれば）MP4 の書き出しがすべてのコマを通常の権限で置くこと。取り消した保存が何も残さず、既存のコマのフォルダーを置き換えないこと。
+- `test_plot_data.py` — `plot_data`: 調べたすべての形式（OpenCFD と Foundation の forces、probes、solverInfo、途中で繰り返されるヘッダー、パッチごとの組み替え、ビンごとの列、ヘッダーのないサンプリングセットとあるもの、CSV、gzip）、リスタートの連結、ログの残差、探索とキャッシュ、書きかけの最後の行を書き込み中のファイルからだけ捨てること、リーダーが FoDE のものを何も import しないこと。
+- `test_plot_script.py` — `plot_spec`/`plot_render`/`plot_script`: エクスポートした Python スクリプトを実行し、その figure を `draw()` のものと要素ごとに比べること、単独で実行して PNG を保存すること、リーダーがそのまま埋め込まれること、ラベル、見つからない系列、CJK フォント、寛容な spec の往復、スタイル、文字の大きさ、選んだ X の列（figure の比較でも）、設定ファイルの外枠、gnuplot がインストールされていれば（線のスタイルを含む）gnuplot でのエクスポートの実行。
+- `test_plot_export.py` — Save as CSV の表: 見出しは 1 行、正確な数値、空の欠損、引用符付きの見出し、タブ区切りのコピー。使われている CSV や説明ファイルを避ける名前。見出しのないセットが解読した見出し付きで書き出され、説明ファイルに推定と書かれること。リスタートのファイルが順に並ぶこと。自分の説明ファイルの判別。Export Data… の表が、1 つのデータ内では x を共有し、ケースをまたぐと線ごとの組を保つこと。
+- `test_plot_output.py` — Plot Results の書き込みの規則: ケース自身のディレクトリ（時刻、`0.orig`、processor、`postProcessing` を含む）には書かないこと、最上位のログ・スクリプト・`.foam` を置き換えないこと、プロット中のファイルはどこにあっても守ること、シンボリックリンクは指す先で判定すること、アトミックな書き込みが失敗時に元のファイルを残すこと、エクスポートしたスクリプトの `savefig` が `.dat` の名前を書き込む前に拒むこと。
 - `test_post_process.py` — `post_process`: インストールからのツール判断。Add Function Object が提示するコマンド `post_process_command`（OpenCFD と Foundation 11 以降、結果がなければ空、最新の時刻が processor にしかなければ `mpirun … -parallel`）。
 - `test_process_tree.py` — 偽の `/proc` に対する `child_processes`/`running_command_names`（空白や括弧を含む `comm`、孫プロセスは報告しないこと、`tee` は名前から除くが実行中として数えること、`job_control` ではシェル自身の補助プロセスを無視し、独自のプロセスグループを持つジョブは報告すること、`/proc` がなければ何も報告しないこと）、実際のプロセスに対する `files_written_in`（書き込み用に開いたログは数え、読むだけのものは数えない。`/proc` がなければ None）となど。
 - `test_background_run.py` — `background_run`: コマンドの形（前置きが先、`tee` なし、`< /dev/null`、引数の引用は一度だけ）。`build_command(background=True)`。

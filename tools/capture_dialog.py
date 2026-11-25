@@ -115,12 +115,28 @@ _SETFIELDS_PREFIX = (
 )
 
 
+# The Plot Results shots read the two pitzDaily runs tools/stage_plot_cases.sh
+# makes. Under /tmp rather than $HOME because the data-file window prints the
+# file's full path.
+_PLOT_CASES = Path("/tmp/OpenFOAM/run/plot")
+_PLOT_CASE_NAMES = ("pitzDaily-kEpsilon", "pitzDaily-kOmegaSST")
+_PLOT_LINE = "postProcessing/lineSample/x0.1_k_p_U.xy"
+_PLOT_PROBE_FILE = "postProcessing/probes/0/U"
+_PLOT_RECIPE = (
+    "missing {what}\n"
+    "The Plot Results shots read two staged pitzDaily runs: "
+    "run tools/stage_plot_cases.sh first."
+)
+
+
 @dataclass(frozen=True)
 class ShotContext:
     """What a shot may need from the capture machine."""
 
     case_dir: Path
     installation: Path
+    # Where tools/stage_plot_cases.sh put the two runs Plot Results compares.
+    plot_cases: Path = _PLOT_CASES
 
 
 @dataclass(frozen=True)
@@ -370,6 +386,62 @@ def _prepare_run_solver(dialog, pump: Callable[[int], None]) -> None:
     pump(200)
 
 
+def _requires_plot_cases(ctx: ShotContext) -> None:
+    for name in _PLOT_CASE_NAMES:
+        case = ctx.plot_cases / name
+        if not (case / "log.simpleFoam").is_file() or not (case / "postProcessing").is_dir():
+            raise SystemExit(_PLOT_RECIPE.format(what=case))
+
+
+def _build_plot_results(ctx: ShotContext):
+    """Two turbulence models' velocity profiles at x = 0.1 m, compared.
+
+    Built through the dialog's own entry points -- add a case, tick a column
+    in every case -- so the tree shows what a user who did that would see.
+    """
+    from ui.dialogs.plot_results_dialog import PlotResultsDialog
+
+    first, second = (str(ctx.plot_cases / n) for n in _PLOT_CASE_NAMES)
+    dialog = PlotResultsDialog(first)
+    dialog.set_case_dir(second)
+    dialog.tick_in_all_cases(_PLOT_LINE, "U_x", True)
+    dialog.title_edit.setText("Velocity profile at x = 0.1 m")
+    dialog.x_fields.label.setText("y [m]")
+    dialog.y_fields.label.setText("U_x [m/s]")
+    dialog.legend_combo.setCurrentIndex(dialog.legend_combo.findData("upper left"))
+    # The first case's data set selected: the row a user would be looking at.
+    item = dialog._source_item(first, _PLOT_LINE)
+    if item is None:
+        raise SystemExit(f"no {_PLOT_LINE} in {first}: re-run tools/stage_plot_cases.sh")
+    dialog.tree.setCurrentItem(item)
+    dialog.replot()
+    return dialog
+
+
+def _prepare_plot_results(dialog, pump: Callable[[int], None]) -> None:
+    """Select the sampled line's data set and clear the toolbar's pointer readout.
+
+    The capture reads a live screen, and when the desktop's pointer happens
+    to rest over the plot, matplotlib's toolbar prints its coordinates --
+    "(x, y) = (-0.02293, 1.91)" -- into the gallery image.
+    """
+    pump(200)
+    # Selected again here, not only at build: the window's first focus lands
+    # on the tree and makes its top row current.
+    first = str(dialog.cases[0])
+    item = dialog._source_item(first, _PLOT_LINE)
+    if item is not None:
+        dialog.tree.setCurrentItem(item)
+    dialog.toolbar.set_message("")
+    pump(100)
+
+
+def _build_data_file_viewer(ctx: ShotContext):
+    from ui.dialogs.data_file_viewer import DataFileViewer
+
+    return DataFileViewer(str(ctx.plot_cases / _PLOT_CASE_NAMES[0] / _PLOT_PROBE_FILE))
+
+
 def _case_browser_dir(ctx: ShotContext) -> Path:
     """The directory the browser shows: a tutorials level of the installation.
 
@@ -478,6 +550,23 @@ DIALOG_SHOTS: dict[str, DialogShot] = {
             f"{_CASE_BROWSER_SELECTION} selected."
         ),
     ),
+    "plot-results": DialogShot(
+        name="plot-results",
+        output="plot-results-dialog.png",
+        size=(1200, 760),
+        requires=_requires_plot_cases,
+        build=_build_plot_results,
+        prepare=_prepare_plot_results,
+        note="Plot Results comparing two pitzDaily runs' velocity profiles (kEpsilon, kOmegaSST).",
+    ),
+    "data-file-viewer": DialogShot(
+        name="data-file-viewer",
+        output="data-file-viewer.png",
+        size=(760, 420),
+        requires=_requires_plot_cases,
+        build=_build_data_file_viewer,
+        note="A probes file opened read-only from Plot Results.",
+    ),
     "find-examples": DialogShot(
         name="find-examples",
         output="find_foam_example.png",
@@ -535,6 +624,7 @@ def _run_workers(names: list[str], args) -> int:
             "--theme", args.theme,
             "--case-dir", str(args.case_dir),
             "--installation", str(args.installation),
+            "--plot-cases", str(args.plot_cases),
             "--out", str(args.out),
             "--_worker",
         ]
@@ -559,6 +649,9 @@ def main(argv: list[str] | None = None) -> int:
                         metavar="DIR",
                         help="OpenFOAM installation the shots search "
                              f"(default: {DEFAULT_INSTALLATION})")
+    parser.add_argument("--plot-cases", type=Path, default=_PLOT_CASES, metavar="DIR",
+                        help="the two runs the Plot Results shots compare, as "
+                             f"tools/stage_plot_cases.sh makes them (default: {_PLOT_CASES})")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, metavar="DIR",
                         help=f"where the images go (default: {DEFAULT_OUT})")
     parser.add_argument("--_worker", action="store_true",
@@ -577,7 +670,8 @@ def main(argv: list[str] | None = None) -> int:
     if unknown:
         parser.error(f"unknown shot(s): {', '.join(unknown)}")
 
-    ctx = ShotContext(case_dir=args.case_dir, installation=args.installation)
+    ctx = ShotContext(case_dir=args.case_dir, installation=args.installation,
+                      plot_cases=args.plot_cases)
     if not args._worker:
         # One process per shot, for the reason capture_screenshots.py gives:
         # no shot should inherit stray state from the one before it. Here there

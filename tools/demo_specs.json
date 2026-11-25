@@ -2416,6 +2416,373 @@
           "beat": "done"
         }
       ]
+    },
+    "pitzDaily-plot-results": {
+      "note": "Movie 16: plotting what a run wrote, comparing two runs, and the files behind the plot.",
+      "theme": "light",
+      "case_source": "/tmp/OpenFOAM/run/plot/pitzDaily-kEpsilon",
+      "workdir": "{work}/pitzDaily-kEpsilon",
+      "copy_also": [
+        {
+          "source": "/tmp/OpenFOAM/run/plot/pitzDaily-kOmegaSST",
+          "into": "{work}/pitzDaily-kOmegaSST"
+        }
+      ],
+      "state": {
+        "block_mesh_visible": false,
+        "side_by_side": false,
+        "upper_tab": "Tree",
+        "current_file": "system/controlDict",
+        "splitter_sizes": {
+          "main": [
+            220,
+            1060
+          ],
+          "right": [
+            420,
+            350
+          ],
+          "right_upper": [
+            1060,
+            0,
+            0
+          ]
+        }
+      },
+      "steps": [
+        {
+          "do": "wait",
+          "ms": 5000,
+          "beat": "the run",
+          "say": "pitzDaily, run with the k-epsilon model. Its controlDict adds a probe and a line sampled across the channel."
+        },
+        {
+          "do": "click",
+          "menu": "Tools",
+          "then": 800,
+          "beat": "Plot Results"
+        },
+        {
+          "do": "click",
+          "menu_item": "Plot Results…",
+          "then": 1200
+        },
+        {
+          "do": "place",
+          "rect": [
+            40,
+            20,
+            1200,
+            760
+          ],
+          "then": 4000,
+          "say": "Plot Results lists everything the run wrote: the sampled line, the probes, and the residuals in the solver log."
+        },
+        {
+          "do": "click",
+          "item": "log.simpleFoam",
+          "in": "_plot_results_dialog",
+          "double": true,
+          "then": 1000,
+          "beat": "residuals"
+        },
+        {
+          "do": "click",
+          "item": "Ux",
+          "check": true,
+          "in": "_plot_results_dialog",
+          "then": 700
+        },
+        {
+          "do": "click",
+          "item": "p",
+          "check": true,
+          "in": "_plot_results_dialog",
+          "then": 4000,
+          "say": "Tick a column and it is plotted. Residuals get a log scale."
+        },
+        {
+          "do": "click",
+          "item": "Ux",
+          "check": true,
+          "in": "_plot_results_dialog",
+          "then": 500
+        },
+        {
+          "do": "click",
+          "item": "p",
+          "check": true,
+          "in": "_plot_results_dialog",
+          "then": 800
+        },
+        {
+          "do": "click",
+          "item": "lineSample/x0.1_k_p_U.xy",
+          "in": "_plot_results_dialog",
+          "double": true,
+          "then": 1000,
+          "beat": "a sampled line"
+        },
+        {
+          "do": "click",
+          "item": "U_x",
+          "check": true,
+          "in": "_plot_results_dialog",
+          "then": 3500,
+          "say": "A sampled line is plotted at its latest time: the velocity across the channel, behind the step."
+        },
+        {
+          "do": "click",
+          "widget": "_plot_results_dialog.time_slider",
+          "then": 600,
+          "say": "The Time slider steps it through its output times, the axes held still."
+        },
+        {
+          "do": "key",
+          "keys": "Home",
+          "then": 400
+        },
+        {
+          "do": "key",
+          "keys": "Right",
+          "then": 1500
+        },
+        {
+          "do": "key",
+          "keys": "Right",
+          "then": 1500
+        },
+        {
+          "do": "key",
+          "keys": "Right",
+          "then": 1500
+        },
+        {
+          "do": "key",
+          "keys": "Home",
+          "then": 1200
+        },
+        {
+          "do": "click",
+          "button": "Add Case…",
+          "in": "_plot_results_dialog",
+          "then": 2000,
+          "beat": "a second run",
+          "say": "Add Case brings in a second run: the same case with the k-omega SST model."
+        },
+        {
+          "do": "type",
+          "text": "{work}/pitzDaily-kOmegaSST",
+          "delay": 35,
+          "then": 700
+        },
+        {
+          "do": "key",
+          "keys": "Return",
+          "then": 1500
+        },
+        {
+          "do": "click",
+          "item": "U_x",
+          "in": "_plot_results_dialog",
+          "with": "right",
+          "then": 900,
+          "beat": "compare"
+        },
+        {
+          "do": "click",
+          "menu_item": "Plot This Column in Every Case",
+          "then": 5000,
+          "say": "Plot This Column in Every Case ticks it in both. The legend names only what tells the lines apart: the case and its sample time."
+        },
+        {
+          "do": "click",
+          "widget": "_plot_results_dialog.title_edit",
+          "then": 400,
+          "beat": "settings"
+        },
+        {
+          "do": "type",
+          "text": "Velocity at x = 0.1 m",
+          "delay": 35,
+          "then": 400
+        },
+        {
+          "do": "click",
+          "widget": "_plot_results_dialog.x_fields.label",
+          "then": 400
+        },
+        {
+          "do": "type",
+          "text": "y [m]",
+          "delay": 35,
+          "then": 400
+        },
+        {
+          "do": "click",
+          "widget": "_plot_results_dialog.y_fields.label",
+          "then": 400
+        },
+        {
+          "do": "type",
+          "text": "U_x [m/s]",
+          "delay": 35,
+          "then": 3000,
+          "say": "Title and axis labels go below the plot, beside ranges, tick spacing and log scales."
+        },
+        {
+          "do": "drag",
+          "legend": "_plot_results_dialog",
+          "by": [
+            280,
+            150
+          ],
+          "ms": 1200,
+          "then": 3500,
+          "beat": "the legend",
+          "say": "Drag the legend where you want it. Saved images and scripts put it there too."
+        },
+        {
+          "do": "click",
+          "widget": "_plot_results_dialog.legend_combo",
+          "then": 700,
+          "say": "Or pick a place from the list, outside the plot included."
+        },
+        {
+          "do": "key",
+          "keys": "Home",
+          "then": 200
+        },
+        {
+          "do": "key",
+          "keys": "Down",
+          "then": 120
+        },
+        {
+          "do": "key",
+          "keys": "Down",
+          "then": 120
+        },
+        {
+          "do": "key",
+          "keys": "Down",
+          "then": 120
+        },
+        {
+          "do": "key",
+          "keys": "Down",
+          "then": 120
+        },
+        {
+          "do": "key",
+          "keys": "Down",
+          "then": 120
+        },
+        {
+          "do": "key",
+          "keys": "Down",
+          "then": 120
+        },
+        {
+          "do": "key",
+          "keys": "Down",
+          "then": 120
+        },
+        {
+          "do": "key",
+          "keys": "Down",
+          "then": 120
+        },
+        {
+          "do": "key",
+          "keys": "Down",
+          "then": 120
+        },
+        {
+          "do": "key",
+          "keys": "Down",
+          "then": 120
+        },
+        {
+          "do": "key",
+          "keys": "Down",
+          "then": 120
+        },
+        {
+          "do": "key",
+          "keys": "Return",
+          "then": 3000
+        },
+        {
+          "do": "click",
+          "button": "Export Script",
+          "in": "_plot_results_dialog",
+          "then": 900,
+          "beat": "export"
+        },
+        {
+          "do": "click",
+          "menu_item": "Python (matplotlib)…",
+          "then": 2500,
+          "say": "Export Script writes a matplotlib or gnuplot script that draws this plot again, reading the case files each time it runs."
+        },
+        {
+          "do": "key",
+          "keys": "Return",
+          "then": 1500
+        },
+        {
+          "do": "click",
+          "button": "Export Data…",
+          "in": "_plot_results_dialog",
+          "then": 2500,
+          "beat": "the data",
+          "say": "Export Data saves the plotted lines themselves as a CSV with headings, and a note of where each came from."
+        },
+        {
+          "do": "key",
+          "keys": "Return",
+          "then": 1500
+        },
+        {
+          "do": "move",
+          "item": [
+            "pitzDaily-kEpsilon",
+            "probes/U"
+          ],
+          "in": "_plot_results_dialog",
+          "then": 4000,
+          "beat": "the files",
+          "say": "Hover over a data set to see the files it was read from."
+        },
+        {
+          "do": "click",
+          "item": [
+            "pitzDaily-kEpsilon",
+            "probes/U"
+          ],
+          "in": "_plot_results_dialog",
+          "with": "right",
+          "then": 900
+        },
+        {
+          "do": "click",
+          "menu_item": "Open File",
+          "then": 4500,
+          "say": "Right-click it to open the file itself, read-only: here, one velocity vector per probe per iteration."
+        },
+        {
+          "do": "click",
+          "button": "Close",
+          "in": "_plot_results_dialog._viewers.0",
+          "then": 2500
+        },
+        {
+          "do": "wait",
+          "ms": 2000,
+          "beat": "done"
+        }
+      ]
     }
   }
 }

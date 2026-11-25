@@ -119,6 +119,11 @@ BACKGROUND_RUN_OPS_METHODS = [
     "_show_stop_report",
 ]
 
+PLOT_OPS_METHODS = [
+    "_on_plot_results_clicked",
+    "_plot_results_case_changed",
+]
+
 FILE_OPS_METHODS = [
     "_load_case_dir",
     "_record_disk_stamp",
@@ -715,6 +720,7 @@ def test_all_mixin_methods_are_assigned_to_a_list():
         "FUNCTION_OBJECT_OPS_METHODS": FUNCTION_OBJECT_OPS_METHODS,
         "CASE_CHECK_OPS_METHODS": CASE_CHECK_OPS_METHODS,
         "ALLRUN_OPS_METHODS": ALLRUN_OPS_METHODS,
+        "PLOT_OPS_METHODS": PLOT_OPS_METHODS,
         "FILE_OPS_METHODS": FILE_OPS_METHODS,
         "FILE_MGMT_OPS_METHODS": FILE_MGMT_OPS_METHODS,
         "TREE_CRUD_OPS_METHODS": TREE_CRUD_OPS_METHODS,
@@ -750,3 +756,9 @@ def test_all_mixin_methods_are_assigned_to_a_list():
         "but no longer defined on any mixin -- remove the stale entry:\n"
         + "\n".join(f"  {name} -- listed in {', '.join(listed[name])}" for name in stale)
     )
+
+
+def test_plot_ops_owns_its_methods():
+    from ui.mixins._plot_ops import _PlotOpsMixin
+    missing = [m for m in PLOT_OPS_METHODS if m not in _PlotOpsMixin.__dict__]
+    assert missing == [], f"_PlotOpsMixin is missing {missing}"

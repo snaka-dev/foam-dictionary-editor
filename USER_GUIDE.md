@@ -158,6 +158,7 @@ The run writes its mesh and results into the folder you opened, so if you want t
 - [Run Allclean Script](#run-allclean-script)
 - [Clean Case (foamCleanTutorials)](#clean-case-foamcleantutorials)
 - [View Log Summary](#view-log-summary)
+- [Plot Results](#plot-results)
 - [Find OpenFOAM Examples](#find-openfoam-examples)
 
 **Configuration**
@@ -258,6 +259,7 @@ The run writes its mesh and results into the folder you opened, so if you want t
 | See which steps of an Allrun are done, and run them one at a time | [Allrun Steps](#allrun-steps) |
 | Write an Allrun for a case I built by running tools one at a time | [Create Allrun from Logs](#create-allrun-from-logs) |
 | Plot residuals while a solver is running | [foamMonitor launcher](#foammonitor-launcher) |
+| Plot probes, forces, a sampled line or the residuals of a run — live while it runs, or animated through its output times — compare cases, and save the plot, its data with headings, or a script that redraws it | [Plot Results](#plot-results) |
 | Read a long `log.snappyHexMesh` without scrolling through thousands of lines | [View Log Summary](#view-log-summary) |
 | See how a keyword or function object is used in real cases | [Find OpenFOAM Examples](#find-openfoam-examples) |
 | Choose a variant (no-terminal, BlockMesh) | [Variants](#variants) |
@@ -287,6 +289,7 @@ The run writes its mesh and results into the folder you opened, so if you want t
 - **Allrun scripts you can follow.** See which steps of a case's `Allrun` are done and run them one at a time, or write an `Allrun` (and an `Allrun-parallel`) from the logs of a case you built by hand. → [Allrun Steps](#allrun-steps), [Create Allrun from Logs](#create-allrun-from-logs)
 - **Runs that outlive FoDE.** Start the solver in the background, close FoDE, and stop it cleanly at a written time later. → [Background runs](#background-runs-and-stop-background-run)
 - **Post-processing without knowing the dictionary.** Probes, line graphs, cutting planes and forces from a form, drawn in 3-D as you fill it in. → [Add Function Object](#add-function-object)
+- **Plot what the run wrote.** Probes, forces, sampled lines and residuals as a plot, several cases in one; save it as an image, an animation through the output times, the data as a CSV with headings, or a Python or gnuplot script that draws it again. → [Plot Results](#plot-results)
 - **Compare with a working case.** Put your case beside a tutorial: differences are coloured, and one right-click adopts a value. → [Case comparison](#case-comparison)
 - **Find out how others do it.** Search your installation's tutorials for a keyword, or copy a tutorial as the start of a new case. → [Find OpenFOAM Examples](#find-openfoam-examples), [Case Library](#case-library)
 - **Manage whole cases.** Browse, open, move, rename, copy and delete cases without a file manager. → [Case navigator](#case-navigator)
@@ -369,6 +372,7 @@ The menu bar provides a **Case** menu, a **Settings** menu, a **View** menu, a *
 - View > BlockMesh 3-D Panel (checkable; shows or hides the BlockMesh tab. Grayed out — with the label "BlockMesh 3-D Panel  (unavailable: xterm active)" — while xterm terminal mode is active due to the GPU conflict).
 - View > Save Image… `Ctrl+Shift+I` — the same action as the **Save Image…** button in the BlockMesh panel; present only when that panel is available. See [BlockMesh panel](#blockmesh-panel).
 - View > View Log Summary… — the same action as Tools > View Log Summary…, listed here too for discoverability. See [View Log Summary](#view-log-summary).
+- View > Plot Results… — the same action as Tools > Plot Results…. See [Plot Results](#plot-results).
 
 **Settings menu:**
 
@@ -1288,7 +1292,7 @@ The **Tools** menu runs OpenFOAM for you and helps you prepare a run. This secti
 ### What the Tools need
 
 - **An open case.** Most items stay greyed out until a case is open. [Find OpenFOAM Examples](#find-openfoam-examples) is the exception: it works with no case open.
-- **The Terminal panel.** Items that run a command send it to the **Terminal** tab, which comes to the front by itself. The `no-terminal` variants have no Terminal tab, so those items stay greyed out there (see [Variants](#variants)). Items that run nothing in the terminal — [Add Function Object](#add-function-object), [Stop Background Run](#background-runs-and-stop-background-run), [Delete processor\* Directories](#delete-processor-directories), [Open Mesh in ParaView](#open-mesh-in-paraview), [View Log Summary](#view-log-summary) and [foamMonitor](#foammonitor-launcher) — need only a case.
+- **The Terminal panel.** Items that run a command send it to the **Terminal** tab, which comes to the front by itself. The `no-terminal` variants have no Terminal tab, so those items stay greyed out there (see [Variants](#variants)). Items that run nothing in the terminal — [Add Function Object](#add-function-object), [Stop Background Run](#background-runs-and-stop-background-run), [Delete processor\* Directories](#delete-processor-directories), [Open Mesh in ParaView](#open-mesh-in-paraview), [View Log Summary](#view-log-summary), [Plot Results](#plot-results) and [foamMonitor](#foammonitor-launcher) — need only a case.
 - **OpenFOAM, sourced.** FoDE does not bring OpenFOAM with it. The Terminal is a shell started from the one FoDE was started from, so source OpenFOAM's `bashrc` there before launching FoDE; otherwise `blockMesh` and the rest are "command not found". Editing and the 3-D view need no OpenFOAM.
 - **Linux or another Unix for some items.** [Background runs](#background-runs-and-stop-background-run) and the check for commands still running in the terminal need Linux; [foamMonitor](#foammonitor-launcher) is a Unix shell script, so it does nothing on Windows.
 
@@ -1327,7 +1331,7 @@ Every item that sends a command refuses while the Terminal is still running some
 
 - [Run Allclean Script](#run-allclean-script), [Clean Case (foamCleanTutorials)](#clean-case-foamcleantutorials) — clean the case back to a pristine state.
 
-- [View Log Summary…](#view-log-summary) — a short report on a `log.*` file.
+- [View Log Summary…](#view-log-summary) — a short report on a `log.*` file; [Plot Results…](#plot-results) — plot what the run wrote.
 
 - [Find OpenFOAM Examples…](#find-openfoam-examples) — search the tutorials for how a keyword is used (also in the **Case** menu).
 
@@ -1659,6 +1663,45 @@ When the log ends in an error FoDE recognises, a **What went wrong** pane above 
 
 Like [Find OpenFOAM Examples](#find-openfoam-examples), [Check Case](#check-case) and [Allrun Steps](#allrun-steps), this window is **non-modal**: it can stay open beside the main window while you keep working in the tree, editor, or terminal, so you can cross-reference dictionary settings against the log's results. The action is available whenever a case is open; it does not require the terminal panel or a prior FoDE-run mesh command — any existing `log.*` file works.
 
+## Plot Results
+
+![Plot Results window](docs/images/plot-results-dialog.png)
+
+Select **Tools > Plot Results…** (also in the **View** menu) to plot what a run wrote: the text files function objects put under `postProcessing/` — probes, forces, `surfaceFieldValue`, `fieldMinMax`, `solverInfo`, sampled lines and the like — and the residuals in the case's solver logs. It needs [matplotlib](https://matplotlib.org/) (`pip install matplotlib`); without it, the menu item says so.
+
+**Choosing what to plot.** The left side lists the open case and, under it, every data set FoDE found. Expand one to see its columns, and tick the ones to plot; the plot follows each tick. A vector is split into `_x`, `_y`, `_z` columns, each probe is named `probe0`, `probe1`, …, and a file that writes one row per patch or field (such as `wallShearStress`) gets a column set per patch. A run restarted from an earlier time is joined into one line, the restart's values replacing the overlap. A solver log (`log.simpleFoam`, …) lists the initial residual of each field per time step, and ticking one switches the y axis to a log scale; it goes back to linear once residuals are no longer all the plot shows, unless you ticked **Log scale** yourself.
+
+**Comparing cases.** **Add Case…** adds another case beside the first, and opening a case in the main window adds it too, so the cases you work through gather here. Right-click a column for **Plot This Column in Every Case**, which ticks the same column of the same data set in each case that has it. Each legend entry names only what tells its line apart from the others: comparing one column across cases, it is just the case name (and, for a sampled line, its time), with the column on the axis. **Remove Case** takes the selected case out again; **Reload** reads the files again and looks for new data sets.
+
+**Sampled lines.** A sampled set (`.xy`, `.csv`) is written once per output time. The latest time is plotted. The **Time** slider under the plot moves every sampled line through its times together (see *Animation* below); to hold one line at another time, choose it under **Sample time** in that line's **Line Settings…**. Open File, Save as CSV and the data set's tooltip follow the time shown.
+
+**Plot settings.** Below the plot: a title, and for each axis a label, a minimum and maximum, the spacing of the major ticks and a log-scale switch. Leave a field empty for the automatic choice. The toolbar above the plot zooms and pans (its home button goes back); **Use Current View** copies the range you zoomed to into Min and Max, and **Automatic Ranges** clears them. **Font sizes** sets the title, the axis labels, the numbers along the axes and the legend separately, in points. **Default** leaves matplotlib's size and shows what it is (*Default (12 pt)*); the arrows step from that size, so one click up gives 13 pt. Step down to the bottom, or type 0, to return to Default. Sizes are points on the saved image, so set them with the **Image size** in mind: a figure printed small needs larger text.
+
+**The legend.** The list beside **Legend** places it: **Best** (matplotlib picks the emptiest corner), a corner or edge, or **Outside right**, beside the plot, for when the lines leave no room inside. You can also drag the legend with the mouse; it stays where you drop it (inside the plot — **Outside right** is the way to put it outside), the list then reads **Where dragged**, and saved images and exported scripts put it there too. gnuplot has no "best" placement, so there **Best** becomes gnuplot's default top-right corner.
+
+**One line's settings.** Right-click a ticked column for **Line Settings…**: its legend label (leave it empty for the automatic one), for a sampled line its **Sample time** (**Latest** follows a running case), the column it is plotted against — a sampled line's `k` against `U_x`, say, rather than against position — its colour, line style, marker and width. Colour, style, marker and width each have a **Default** that follows matplotlib's own choice, so lines you leave alone keep taking the next colour in turn. Saved images and exported scripts draw the lines the same way.
+
+**What you see is the saved image.** The plot is drawn at its **Image size** — the same shape, the same text sizes relative to the plot, the same ticks and legend placement as the file **Save Image…** writes — and scaled to fit the window, with a grey margin where the shapes differ; *Preview at 78 %* beside it says how large it is shown. So a long legend that will cover the axis label on a small figure covers it here first, and changing the width, height or a font size shows at once what it does. Text is measured at the size it is drawn, so the preview can differ from the file by a pixel or so. Tick **Fit to window** to let the plot fill the window instead, for looking at the data rather than at the figure.
+
+**Saving.** **Copy Image** puts the plot on the clipboard and **Save Image…** writes PNG, SVG, PDF, JPEG, EPS or TIFF, both at the **Image size** in the plot settings (inches and dpi) rather than at the size of the window, so a saved plot looks the same however large the window is. **Export Script** writes a script that draws the plot again outside FoDE:
+
+- **Python (matplotlib)…** — a standalone `.py` file. It reads the case files again each time it runs (`python3 plot.py` opens a window, `python3 plot.py out.png` saves an image), so it picks up data written since, and it reads them with a copy of the code FoDE used, so the columns are the same. Edit it freely: the plot settings are plain matplotlib calls.
+- **gnuplot…** — a `.gp` script with a `.dat` file of the plotted points beside it (gnuplot cannot read OpenFOAM's `(x y z)` values directly, so the points are a snapshot). Run it with `gnuplot -p plot.gp` in the folder holding both.
+
+Plot Results only reads the case. What it saves goes beside the case's files, never among them: it will not save into `system/`, `constant/`, `postProcessing/`, a time directory or a `processor*` directory, and will not replace a log, an `All*` script, a data file it is plotting or any other file of the case's own, even if you confirm an overwrite. Save at the case's top level, in a folder of your own (`plots/`, say), or outside the case. A file it does replace is replaced whole or not at all.
+
+**Saving the data with headings.** Right-click a data set (or a column) for **Save as CSV…**: the whole table as FoDE reads it, one heading row and one column per number — vectors split into `_x`/`_y`/`_z`, a restarted run joined, a sampled line at the time shown — so it opens straight in a spreadsheet, and a sampled set OpenFOAM wrote without headings gets them. Empty cells are values the files do not have. Beside it goes `<name>.source.txt`, saying which files the table came from, in what order, and how its headings were obtained; when they were deduced from the file name, it says so, so you can check them against the sampling dictionary. **Export Data…**, beside the other buttons below the plot, does the same for what is plotted: lines from one data set share its x column; lines from different ones (two cases, a probe beside a sampled line) have no x values in common, so each keeps its own pair of columns, headed by its legend entry, rather than being interpolated onto a common one. **Copy as Table** puts the same table on the clipboard, tab-separated, for pasting into a spreadsheet. The original files are never changed. The name offered is one that is not taken; the save dialog asks before replacing a CSV you chose, and FoDE asks before replacing an existing `.source.txt`, unless it is the note of the very CSV being replaced. The rule for images and scripts above applies here too.
+
+**Looking at the files.** Hover over a data set to see which files it was read from. Right-click it (or one of its columns) for **Open File**, which shows the file read-only in a window of its own, and **Show in Folder**, which opens its folder in your file manager. A run restarted from an earlier time has a file per segment, and each gets its own entry. A file larger than 16 MB shows its first 200 lines, where the column names are, and its last 4 MB, the latest values. The `postProcessing/` folder itself is deliberately not in the file list: it grows with every write time, and its files are data, not dictionaries.
+
+**Animation.** When the plot holds a sampled line with two or more output times, a **Time** row appears under the plot. Drag its slider to step the sampled lines through their times, or press **Play**; position 0, **Latest**, is the ordinary plot. On a frame, **Save Image…**, **Copy Image**, **Export Script** and **Export Data…** all write the frame shown — fixed axes and time stamp included — so what you see is what you get; **Save Settings…** keeps the plot as you set it up. Each frame shows every sampled line at its latest time up to the frame's — a line that has no sample yet is left out until it has — while time series and residuals are drawn whole; the axes stay fixed across the frames (from every frame's data, unless you set Min and Max), each line keeps its colour, and the frame's time, *t = 200*, is written just above the plot's top-right corner. Comparing runs that wrote at different times, each line's legend entry shows its own time. **Save Animation…** writes the frames, at the **Image size** and the frame rate beside it, as a GIF (plays anywhere; choose a lower dpi to keep it small), an MP4 video (when `ffmpeg` is installed; much smaller) or numbered PNG images in a new folder (for LaTeX's `animate` package or your own tools). A cancelled save leaves nothing behind, and an existing folder is never written into.
+
+**Watching a run.** With **Auto-refresh** ticked (it is by default), the plot follows a running solver by itself: every 2 seconds the window checks the plotted files and redraws when they have grown, a new output time has been written or a new data set has appeared — *updated 18:28:43* beside the box says when it last did. A check that finds nothing new costs a few milliseconds, and nothing is read while the window is hidden. If you have zoomed or panned, the view stays where you put it; the toolbar's home button goes back to the whole plot. A row the solver is still writing is not read until it is finished, so a half-written number never appears as a spike. When the plotted files are large (over 50 MB in all) the check runs every 10 seconds, since a changed file is read whole.
+
+**Saving the settings.** **Save Settings…** writes what is plotted and how — the cases, the ticked columns and their sample times and line settings, the title, axes, legend and image size — to a `.plot.json` file; **Load Settings…** replaces the plot with one saved earlier, adding any case the window does not have. A line whose case, data set or column no longer exists is skipped and listed. The file names the cases by their full paths, so it reopens the same runs; to plot another run the same way, edit the paths in it.
+
+Like [View Log Summary](#view-log-summary), the window is non-modal and can stay open while you work.
+
 ## Find OpenFOAM Examples
 
 ![Find OpenFOAM Examples dialog](docs/images/find_foam_example.png)
@@ -1974,6 +2017,8 @@ Changes are saved to `app_config.json` when the dialog is closed.
 
 **A Tools menu item is greyed out.** Most items need an open case, and the ones that send a command need the Terminal panel, which the `no-terminal` variants do not have. If an item is enabled but answers with a message instead of running, a command is still running in the Terminal tab or a [background run](#background-runs-and-stop-background-run) is going in the case; wait for it, or stop it. See [Tools menu](#tools-menu).
 
+**Plot Results does not list my data, or a column has the wrong name.** It lists the text files function objects wrote under `postProcessing/` and the solver logs that hold `Initial residual` lines, so a case that has not run yet shows nothing; **Reload** (or Auto-refresh) picks up what a run writes later. Binary, VTK and other geometry output (`.vtp`, `.vtk`, surface files) is ParaView's to show and is skipped. A sampled set written without a heading line has its columns named from its file name; when that cannot be decoded they read `col 1`, `col 2`, … — open the file from the data set's right-click menu to see which is which. If the menu item only says to install matplotlib, run `pip install matplotlib` in the environment FoDE runs in and start it again. See [Plot Results](#plot-results).
+
 **A command says "command not found" (`blockMesh`, `interFoam`, …).** OpenFOAM is not sourced in the shell FoDE was started from. Source OpenFOAM's `bashrc` there and start FoDE again; the built-in terminal inherits that environment. See [Tools menu](#tools-menu).
 
 **A run stopped with an error.** Open **Tools > View Log Summary…** on its log: for the errors a first run meets most, a **What went wrong** pane says what the error means and what to change, with a link to the file and line. Before the next run, **Tools > Check Case…** finds many of the same mistakes without running anything. See [View Log Summary](#view-log-summary) and [Check Case](#check-case).
@@ -2026,6 +2071,7 @@ The 3-D viewer keys work while the 3-D view has focus. The tree's `Ctrl+C`, `Ctr
 - **Field file** — a file in `0/` such as `U`, `p` or `T`. It holds one field's initial values (`internalField`) and its boundary conditions (`boundaryField`).
 - **Patch** — a named piece of the mesh boundary, such as an inlet or a wall. Boundary conditions are set per patch and per field; the [Boundary view](#boundary-view) shows them all in one table.
 - **Function object** — post-processing that runs together with the solver (probes, forces, sampling lines, …), listed under `functions` in `controlDict`. See [Add Function Object](#add-function-object).
+- **`postProcessing/` / sampled line** — where function objects write their results, one folder per function and per start time. A **sampled line** (or set) is a function object's values along a line through the domain, written as a new file at every output time; probes, forces and most other function objects instead append a row per time step to one file. [Plot Results](#plot-results) reads both.
 - **`0.orig`** — a pristine copy of the initial fields. Utilities such as `setFields` overwrite `0/`, so tutorials restore it from `0.orig/` before a clean run; see [Restore 0/ from 0.orig](#restore-0-from-0orig).
 - **Decomposed / `processor*`** — for a parallel run, `decomposePar` splits the case into `processor0`, `processor1`, … directories, and `reconstructPar` merges the results back. See [Run decomposePar](#run-decomposepar) and [Run reconstructPar](#run-reconstructpar).
 - **`Allrun` / `log.*`** — `Allrun` is a case's script that runs its whole workflow (mesh, fields, solver), as every tutorial has. Each step it runs writes its output to a `log.<application>` file, such as `log.blockMesh` or `log.icoFoam`; FoDE's Run tools write the same logs. See [Allrun Steps](#allrun-steps).

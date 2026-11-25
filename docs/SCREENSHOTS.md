@@ -108,6 +108,16 @@ The options dialog behind the Tools menu's **Run …** actions, here for `setFie
 
 The non-modal View Log Summary dialog, reading the `log.simpleFoam` a `pitzDaily` run left behind — 2,898 lines of solver output condensed to what is on screen: how far the run got, whether it converged, where the residuals ended up, and whether it finished cleanly. The most recently written `log.*` in the case is picked automatically; **Browse…** chooses another, and the **Raw Log** tab holds the untouched text for when the summary is not enough. `blockMesh`, `snappyHexMesh` and `topoSet` logs each have their own grammar and report what matters for that utility instead — mesh sizes, refinement phases, per-set counts — and repeated warnings are grouped rather than listed one by one. Being non-modal, the dialog can sit beside the main window while you keep editing. See [View Log Summary](../USER_GUIDE.md#view-log-summary).
 
+### Plot Results
+
+![Plot Results window](images/plot-results-dialog.png)
+
+**Tools > Plot Results…** comparing two runs of `pitzDaily`, one with the k-epsilon model and one with k-omega SST: the streamwise velocity across the channel at x = 0.1 m, from a sampled line both runs wrote. The second case was added with **Add Case…** and the column ticked in both with **Plot This Column in Every Case**; the legend names only what tells the lines apart — the case and the sample time — and the column goes on the axis. The left side lists every data set the cases' `postProcessing/` folders and solver logs hold, the plot is shown as the saved image will look, scaled to fit, the **Time** row under it steps the sampled lines through their output times or saves them as an animation, the settings below set the title, axis labels, ranges, font sizes and the legend's place, and the buttons at the bottom copy or save the plot, write a matplotlib or gnuplot script that draws it again, or save the plotted data as a CSV with headings. See [Plot Results](../USER_GUIDE.md#plot-results).
+
+![A data file opened from Plot Results](images/data-file-viewer.png)
+
+Right-clicking a data set opens the file behind it read-only — here a probes file, one vector per probe per time step, which the plot window splits into `_x`/`_y`/`_z` columns. **Reload** reads it again while a run is still writing it.
+
 ### Tools menu
 
 ![Tools menu](images/tools-menu.png)

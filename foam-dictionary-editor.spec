@@ -31,6 +31,13 @@ icons_dir = project_root / "ui" / "assets" / "icons"
 if icons_dir.exists():
     datas.append((str(icons_dir), "ui/assets/icons"))
 
+# Plot Results' "Export Python script" copies this module's *source* into the
+# script it writes (services/plot_script.py reader_body()); a frozen build
+# holds only bytecode unless the .py is shipped as data beside it.
+plot_reader = project_root / "services" / "plot_data" / "_reader.py"
+if plot_reader.exists():
+    datas.append((str(plot_reader), "services/plot_data"))
+
 pyside_dir = Path(PySide6.__file__).resolve().parent
 plugin_dir = pyside_dir / "plugins"
 translations_dir = pyside_dir / "translations"

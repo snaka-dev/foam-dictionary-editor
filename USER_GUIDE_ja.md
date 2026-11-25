@@ -158,6 +158,7 @@ FoDE に同梱されている damBreak チュートリアル（`tutorials/damBre
 - [Run Allclean Script](#run-allclean-script)
 - [Clean Case (foamCleanTutorials)](#clean-case-foamcleantutorials)
 - [View Log Summary](#view-log-summary)
+- [Plot Results](#plot-results)
 - [Find OpenFOAM Examples](#find-openfoam-examples)
 
 **設定**
@@ -258,6 +259,7 @@ FoDE に同梱されている damBreak チュートリアル（`tutorials/damBre
 | Allrun のどのステップが済んだかを見て、1 つずつ実行する | [Allrun Steps](#allrun-steps) |
 | ツールを 1 つずつ実行して作ったケースに Allrun を書く | [Create Allrun from Logs](#create-allrun-from-logs) |
 | ソルバー実行中に残差をプロットする | [foamMonitor ランチャー](#foammonitor-ランチャー) |
+| プローブ、力、サンプリングライン、実行の残差をプロットし（実行中は自動で追従、出力時刻ごとのアニメーションも）、ケースを比較し、プロット、見出し付きのデータ、それを描き直すスクリプトを保存する | [Plot Results](#plot-results) |
 | 数千行に及ぶ `log.snappyHexMesh` をスクロールせずに読む | [View Log Summary](#view-log-summary) |
 | キーワードや function object が実際のケースでどう使われているか調べる | [Find OpenFOAM Examples](#find-openfoam-examples) |
 | バリアント（ターミナルなし・BlockMesh）を選ぶ | [バリアント](#バリアント) |
@@ -287,6 +289,7 @@ FoDE に同梱されている damBreak チュートリアル（`tutorials/damBre
 - **たどれる Allrun スクリプト。** ケースの `Allrun` のどのステップが済んだかを見て 1 つずつ実行したり、手で作ったケースのログから `Allrun`（と `Allrun-parallel`）を書いたりできます。→ [Allrun Steps](#allrun-steps)、[Create Allrun from Logs](#create-allrun-from-logs)
 - **FoDE を閉じても続く実行。** ソルバーをバックグラウンドで起動して FoDE を閉じ、あとで書き出し時刻を指定してきれいに停止できます。→ [Background runs](#background-runs-and-stop-background-run)
 - **辞書を知らなくても後処理を追加。** probes、線上のグラフ、切断面、forces をフォームから追加でき、入力中に 3D ビューへ描画されます。→ [Add Function Object](#add-function-object)
+- **実行結果をプロット。** プローブ、力、サンプリングライン、残差をプロットし、複数のケースを重ねて比較できます。画像、出力時刻を追うアニメーション、見出し付きの CSV、あるいは同じプロットを描き直す Python や gnuplot のスクリプトとして保存できます。→ [Plot Results](#plot-results)
 - **動いているケースと比較。** 自分のケースをチュートリアルと並べると、差分が色分けされ、右クリック 1 回で値を取り込めます。→ [ケース比較](#ケース比較)
 - **他の人の使い方を調べる。** インストール内のチュートリアルからキーワードを検索したり、チュートリアルを複製して新しいケースの出発点にしたりできます。→ [Find OpenFOAM Examples](#find-openfoam-examples)、[ケースライブラリ](#ケースライブラリ)
 - **ケース全体の管理。** ファイルマネージャなしで、ケースの閲覧・オープン・移動・リネーム・コピー・削除ができます。→ [ケースナビゲーター](#ケースナビゲーター)
@@ -369,6 +372,7 @@ FoDE に同梱されている damBreak チュートリアル（`tutorials/damBre
 - View > BlockMesh 3-D Panel（チェック式。BlockMesh タブの表示・非表示を切り替えます。xterm ターミナルモードが有効な場合は GPU 競合のためグレーアウトし、ラベルが **"BlockMesh 3-D Panel  (unavailable: xterm active)"** に変わります）
 - View > Save Image… `Ctrl+Shift+I` — BlockMesh パネルの **Save Image…** ボタンと同じアクションで、そのパネルが使える場合にのみ表示されます。[BlockMesh パネル](#blockmesh-パネル) を参照。
 - View > View Log Summary… — Tools > View Log Summary… と同じアクションで、見つけやすさのためここにも表示されます。[View Log Summary](#view-log-summary) を参照。
+- View > Plot Results… — Tools > Plot Results… と同じアクションです。[Plot Results](#plot-results) を参照。
 
 **Settings メニュー:**
 
@@ -1288,7 +1292,7 @@ xterm ターミナルがアクティブな間は **⊞** ボタンが無効化�
 ### ツールが必要とするもの
 
 - **開いているケース。** ほとんどの項目は、ケースを開くまでグレーアウトします。[Find OpenFOAM Examples](#find-openfoam-examples) は例外で、ケースを開いていなくても使えます。
-- **Terminal パネル。** コマンドを実行する項目は、そのコマンドを **Terminal** タブへ送り、タブは自動で前面に出ます。`no-terminal` バリアントには Terminal タブがないため、それらの項目はグレーアウトしたままです（[バリアント](#バリアント) を参照）。ターミナルで何も実行しない項目 — [Add Function Object](#add-function-object)、[Stop Background Run](#background-runs-and-stop-background-run)、[Delete processor\* Directories](#delete-processor-directories)、[Open Mesh in ParaView](#open-mesh-in-paraview)、[View Log Summary](#view-log-summary)、[foamMonitor](#foammonitor-ランチャー) — は、ケースだけあれば使えます。
+- **Terminal パネル。** コマンドを実行する項目は、そのコマンドを **Terminal** タブへ送り、タブは自動で前面に出ます。`no-terminal` バリアントには Terminal タブがないため、それらの項目はグレーアウトしたままです（[バリアント](#バリアント) を参照）。ターミナルで何も実行しない項目 — [Add Function Object](#add-function-object)、[Stop Background Run](#background-runs-and-stop-background-run)、[Delete processor\* Directories](#delete-processor-directories)、[Open Mesh in ParaView](#open-mesh-in-paraview)、[View Log Summary](#view-log-summary)、[Plot Results](#plot-results)、[foamMonitor](#foammonitor-ランチャー) — は、ケースだけあれば使えます。
 - **source 済みの OpenFOAM。** FoDE は OpenFOAM を同梱していません。Terminal は FoDE を起動したシェルから起動されるため、FoDE を起動する前にそのシェルで OpenFOAM の `bashrc` を source してください。そうしないと `blockMesh` などは「command not found」になります。編集と 3D ビューに OpenFOAM は不要です。
 - **一部の項目は Linux などの Unix が必要。** [Background runs](#background-runs-and-stop-background-run) と、ターミナルでコマンドが実行中かどうかの確認には Linux が必要です。[foamMonitor](#foammonitor-ランチャー) は Unix のシェルスクリプトなので、Windows では何もしません。
 
@@ -1327,7 +1331,7 @@ xterm ターミナルがアクティブな間は **⊞** ボタンが無効化�
 
 - [Run Allclean Script](#run-allclean-script)、[Clean Case (foamCleanTutorials)](#clean-case-foamcleantutorials) — ケースを初期状態にクリーンします。
 
-- [View Log Summary…](#view-log-summary) — `log.*` ファイルの短いレポート。
+- [View Log Summary…](#view-log-summary) — `log.*` ファイルの短いレポート。[Plot Results…](#plot-results) — 実行が書き出したデータのプロット。
 
 - [Find OpenFOAM Examples…](#find-openfoam-examples) — キーワードの使われ方をチュートリアルから検索します（**Case** メニューにもあります）。
 
@@ -1659,6 +1663,45 @@ FoDE が認識できるエラーでログが終わっている場合は、タブ
 
 [Find OpenFOAM Examples](#find-openfoam-examples)、[Check Case](#check-case)、[Allrun Steps](#allrun-steps) と同様に、このウィンドウは**非モーダル**です。ツリー・エディタ・ターミナルでの作業を続けながらメインウィンドウの横に表示したままにできるため、辞書の設定内容とログの結果を見比べながら作業できます。このアクションはケースが開かれていればいつでも利用でき、ターミナルパネルや FoDE 内でのメッシュコマンド実行を必要としません。既存の `log.*` ファイルであれば動作します。
 
+## Plot Results
+
+![Plot Results ウィンドウ](docs/images/plot-results-dialog.png)
+
+**Tools > Plot Results…**（**View** メニューにもあります）で、実行が書き出したデータをプロットします。対象は、関数オブジェクトが `postProcessing/` の下に書くテキストファイル — probes、forces、`surfaceFieldValue`、`fieldMinMax`、`solverInfo`、サンプリングラインなど — と、ケースのソルバーログに記録された残差です。[matplotlib](https://matplotlib.org/) が必要です（`pip install matplotlib`）。インストールされていない場合は、メニュー項目がそのことを伝えます。
+
+**プロットするデータを選ぶ。** 左側に開いているケースと、その下に FoDE が見つけたデータが並びます。データを展開すると列が表示されるので、プロットしたい列にチェックを入れてください。チェックするたびにプロットが更新されます。ベクトルは `_x`、`_y`、`_z` の列に分かれ、各プローブは `probe0`、`probe1`、… と名付けられます。パッチやフィールドごとに 1 行ずつ書くファイル（`wallShearStress` など）は、パッチごとの列の組になります。途中の時刻からリスタートした実行は 1 本の線につながり、重なった区間はリスタート後の値に置き換わります。ソルバーログ（`log.simpleFoam` など）には各フィールドの時間ステップごとの初期残差が並び、これにチェックを入れると Y 軸が対数になります。残差以外のものもプロットするようになると線形に戻ります（**Log scale** を自分でチェックした場合はそのままです）。
+
+**ケースを比較する。** **Add Case…** で別のケースを並べて追加できます。メインウィンドウでケースを開いた場合も追加されるので、作業したケースがここに集まります。列を右クリックして **Plot This Column in Every Case** を選ぶと、同じデータの同じ列を、それを持つすべてのケースでチェックします。凡例の各項目には、その線を他の線と区別する部分だけが書かれます。1 つの列を複数のケースで比べるときはケース名だけ（サンプリングラインではその時刻も）になり、列名は軸に書かれます。**Remove Case** は選択したケースを外し、**Reload** はファイルを読み直し、新しいデータを探します。
+
+**サンプリングライン。** サンプリングセット（`.xy`、`.csv`）は出力時刻ごとに書き出されます。プロットされるのは最新の時刻です。プロットの下の **Time** のスライダーは、すべてのサンプリングラインをいっしょに時刻ごとに進めます（後述の *アニメーション* を参照）。1 本の線だけを別の時刻にするには、その線の **Line Settings…** の **Sample time** で選んでください。Open File、Save as CSV、データのツールチップは、表示している時刻に従います。
+
+**プロットの設定。** プロットの下で、タイトルと、各軸のラベル、最小値と最大値、主目盛りの間隔、対数表示を設定できます。空欄にすると自動になります。プロット上部のツールバーでズームやパンができます（ホームボタンで元に戻ります）。**Use Current View** はズームした範囲を最小・最大に入れ、**Automatic Ranges** はそれらを空にします。**Font sizes** では、タイトル、軸ラベル、軸の目盛りの数字、凡例の文字の大きさをポイントで個別に設定できます。**Default** は matplotlib の大きさのままで、その値も表示します（*既定（12 pt）*）。矢印はその大きさから増減するので、上に 1 回押すと 13 pt になります。Default に戻すには、一番下まで下げるか 0 を入力してください。大きさは保存する画像上のポイントなので、**Image size** を考えて設定してください。小さく印刷する図には大きな文字が必要です。
+
+**凡例。** **Legend** の横のリストで位置を選びます。**Best**（matplotlib がいちばん空いている隅を選びます）、四隅や各辺、またはプロットの外側の **Outside right**（線が混んでいて中に置く場所がないときに）です。凡例はマウスでドラッグして動かすこともできます。離した位置にとどまり（プロットの内側。外側に置くには **Outside right** を使います）、リストは **Where dragged** になり、保存する画像やエクスポートするスクリプトでも同じ位置に置かれます。gnuplot には「best」に当たる配置がないため、gnuplot では **Best** は gnuplot の既定の右上になります。
+
+**線ごとの設定。** チェックした列を右クリックして **Line Settings…** を選ぶと、その線の凡例の文字（空欄なら自動）、サンプリングラインならその **Sample time**（**Latest** なら実行中のケースに追従します）、プロットする相手の列（たとえばサンプリングラインの `k` を位置ではなく `U_x` に対して）、色、線種、マーカー、線幅を設定できます。色、線種、マーカー、線幅には matplotlib の選択に従う **Default** があり、触らなかった線は順に次の色を使い続けます。保存する画像やエクスポートするスクリプトでも、線は同じように描かれます。
+
+**見えているのは保存する画像です。** プロットは **Image size** の大きさで描かれます。**Save Image…** が書くファイルと同じ形、プロットに対して同じ文字の大きさ、同じ目盛り、同じ凡例の位置で描き、ウィンドウに収まるよう拡大・縮小します。形が違う部分は灰色の余白になり、横の *78 % でプレビュー* が表示の倍率を示します。そのため、小さな図で長い凡例が軸ラベルに重なるなら、ここでも先に重なって見え、幅、高さ、文字の大きさを変えるとその効果がすぐに見えます。文字は描く大きさで測られるので、プレビューとファイルは 1 ピクセル程度違うことがあります。図ではなくデータを見たいときは、**Fit to window** にチェックを入れると、プロットがウィンドウいっぱいに表示されます。
+
+**保存する。** **Copy Image** はプロットをクリップボードにコピーし、**Save Image…** は PNG、SVG、PDF、JPEG、EPS、TIFF で保存します。どちらもウィンドウの大きさではなく、プロット設定の **Image size**（インチと dpi）で描くので、ウィンドウの大きさにかかわらず同じ見た目で保存されます。**Export Script** は、FoDE の外で同じプロットを描くスクリプトを書き出します:
+
+- **Python (matplotlib)…** — 単独で動く `.py` ファイルです。実行するたびにケースのファイルを読み直す（`python3 plot.py` でウィンドウを開き、`python3 plot.py out.png` で画像を保存）ので、その後に書き出されたデータも反映されます。読み込みには FoDE が使ったコードの写しを使うため、列も同じになります。プロットの設定は素の matplotlib の呼び出しなので、自由に編集できます。
+- **gnuplot…** — `.gp` スクリプトと、その横にプロットした点の `.dat` ファイルです（gnuplot は OpenFOAM の `(x y z)` 形式の値を直接読めないため、点はその時点のスナップショットです）。両方のファイルがあるフォルダで `gnuplot -p plot.gp` として実行してください。
+
+Plot Results はケースを読むだけです。保存するものはケースのファイルの横に置き、ファイルの中には混ぜません。`system/`、`constant/`、`postProcessing/`、時刻ディレクトリ、`processor*` ディレクトリには保存せず、ログ、`All*` スクリプト、プロット中のデータファイルなどケース自身のファイルは、上書きを確認しても置き換えません。ケースの最上位、自分で作ったフォルダー（`plots/` など）、またはケースの外に保存してください。置き換えるファイルは、全体が置き換わるか、まったく変わらないかのどちらかです。
+
+**見出し付きでデータを保存する。** データ（またはその列）を右クリックして **Save as CSV…** を選ぶと、FoDE が読んだとおりの表全体を保存します。見出しは 1 行で、数値 1 つにつき 1 列です。ベクトルは `_x`/`_y`/`_z` に分かれ、リスタートした実行はつながり、サンプリングラインは表示している時刻のものです。そのため表計算ソフトでそのまま開け、OpenFOAM が見出しなしで書いたサンプリングセットにも見出しが付きます。空のセルは、ファイルにない値です。横には `<名前>.source.txt` を置き、表がどのファイルからどの順に作られたか、見出しをどう得たかを記します。見出しをファイル名から推定した場合はそう書かれるので、サンプリングの辞書と照らし合わせて確かめられます。プロットの下のボタンの **Export Data…** は、プロット中のものについて同じことをします。1 つのデータの線はその x 列を共有します。別々のデータの線（2 つのケース、プローブとサンプリングライン）は x の値が共通しないので、共通の x に補間するのではなく、線ごとに凡例の項目を見出しにした列の組を持ちます。**Copy as Table** は同じ表をタブ区切りでクリップボードに入れ、表計算ソフトに貼り付けられます。元のファイルは一切変更しません。提案される名前は、まだ使われていないものです。選んだ CSV を置き換える前には保存ダイアログが確認し、既存の `.source.txt` を置き換える前には FoDE が確認します（置き換える CSV 自身の説明ファイルの場合を除きます）。前述の画像とスクリプトの規則もここに当てはまります。
+
+**ファイルを見る。** データにマウスを重ねると、読み込んだファイルが表示されます。データ（またはその列）を右クリックすると、ファイルを別ウィンドウに読み取り専用で表示する **Open File** と、ファイルマネージャーでフォルダーを開く **Show in Folder** があります。途中の時刻からリスタートした実行では区間ごとにファイルがあり、それぞれ別の項目になります。16 MB を超えるファイルは、列名のある最初の 200 行と、最新の値のある最後の 4 MB を表示します。`postProcessing/` フォルダー自体はあえてファイル一覧に出していません。書き出し時刻ごとに増えていき、中身は辞書ではなくデータだからです。
+
+**アニメーション。** 出力時刻が 2 つ以上あるサンプリングラインをプロットすると、プロットの下に **Time** の行が現れます。スライダーをドラッグするとサンプリングラインが時刻ごとに進み、**Play** で再生します。位置 0（**Latest**）は通常のプロットです。コマを表示しているときは、**Save Image…**、**Copy Image**、**Export Script**、**Export Data…** はどれも表示中のコマ（固定した軸と時刻表示を含む）を書き出すので、見たとおりのものが得られます。**Save Settings…** は設定したとおりのプロットを保存します。各コマでは、サンプリングラインをそのコマの時刻までで最新の時刻で描き（まだサンプルがない線は、できるまで描きません）、時系列と残差は全体を描きます。軸はコマの間で固定され（Min と Max を設定しなければ全コマのデータから決めます）、各線は色を保ち、コマの時刻 *t = 200* がプロットの右上の角のすぐ上に書かれます。異なる時刻に書き出した実行を比べるときは、各線の凡例にその線自身の時刻が表示されます。**Save Animation…** はコマを **Image size** と横のコマ数/秒で、GIF（どこでも再生できます。小さくするには dpi を下げてください）、MP4 動画（`ffmpeg` がインストールされている場合。ずっと小さくなります）、または新しいフォルダーに番号付きの PNG 画像（LaTeX の `animate` パッケージや自分のツール向け）として保存します。保存を取り消すと何も残らず、既存のフォルダーに書き込むことはありません。
+
+**実行を見守る。** **Auto-refresh** にチェックが入っていると（既定で入っています）、プロットは実行中のソルバーに自動で追従します。ウィンドウは 2 秒ごとにプロット中のファイルを確かめ、ファイルが伸びた、新しい出力時刻が書かれた、新しいデータが現れた、といった場合に描き直します。チェックボックスの横の *18:28:43 に更新* が最後に描き直した時刻です。何も新しくなければ確認は数ミリ秒で済み、ウィンドウが隠れている間は何も読みません。ズームやパンをしていれば、表示はそのまま保たれます（ツールバーのホームボタンでプロット全体に戻ります）。ソルバーが書いている途中の行は書き終わるまで読まないので、書きかけの数値が突出した値として現れることはありません。プロット中のファイルが大きい（合計 50 MB 超）ときは、変わったファイルを丸ごと読むため、確認は 10 秒ごとになります。
+
+**設定を保存する。** **Save Settings…** は、何をどうプロットしたか — ケース、チェックした列とそのサンプル時刻・線の設定、タイトル、軸、凡例、画像サイズ — を `.plot.json` ファイルに保存します。**Load Settings…** はプロットを以前に保存したもので置き換え、ウィンドウにないケースは加えます。ケース、データ、列がなくなっている線は飛ばし、一覧で知らせます。ファイルはケースをフルパスで記録するので、同じ実行結果を開き直します。別の実行を同じようにプロットするには、ファイルのパスを書き換えてください。
+
+[View Log Summary](#view-log-summary) と同じく、このウィンドウは非モーダルで、作業中も開いたままにできます。
+
 ## Find OpenFOAM Examples
 
 ![Find OpenFOAM Examples ダイアログ](docs/images/find_foam_example.png)
@@ -1974,6 +2017,8 @@ OpenCFD/ESI Group（openfoam.com）と OpenFOAM Foundation（openfoam.org）の 
 
 **Tools メニューの項目がグレーアウトしている。** ほとんどの項目はケースを開いている必要があり、コマンドを送る項目には Terminal パネルも必要です（`no-terminal` バリアントにはありません）。項目が有効なのに、実行せずメッセージが表示される場合は、Terminal タブでコマンドが実行中か、ケースで[バックグラウンド実行](#background-runs-and-stop-background-run)が動いています。終わるのを待つか、停止してください。[Tools メニュー](#tools-メニュー) を参照。
 
+**Plot Results に自分のデータが出てこない、または列の名前が違う。** Plot Results は、関数オブジェクトが `postProcessing/` の下に書いたテキストファイルと、`Initial residual` の行を含むソルバーログを一覧します。そのため、まだ実行していないケースには何も出ません。実行が後から書いたものは **Reload**（または Auto-refresh）で拾えます。バイナリ、VTK などの形状の出力（`.vtp`、`.vtk`、サーフェスのファイル）は ParaView で見るもので、読み飛ばします。見出しの行なしで書かれたサンプリングセットは、ファイル名から列の名前を付けます。解読できないときは `col 1`、`col 2`、… になるので、データの右クリックメニューからファイルを開いて、どれが何かを確かめてください。メニューの項目が matplotlib のインストールを求めるだけの場合は、FoDE を動かしている環境で `pip install matplotlib` を実行し、FoDE を起動し直してください。[Plot Results](#plot-results) を参照。
+
 **コマンドが「command not found」になる（`blockMesh`、`interFoam` など）。** FoDE を起動したシェルで OpenFOAM が source されていません。そのシェルで OpenFOAM の `bashrc` を source してから FoDE を起動し直してください。内蔵ターミナルはその環境を引き継ぎます。[Tools メニュー](#tools-メニュー) を参照。
 
 **実行がエラーで止まった。** そのログを **Tools > View Log Summary…** で開いてください。初回の実行でよく出会うエラーなら、**What went wrong** 欄がエラーの意味と直すべき点を示し、ファイルと行へのリンクを付けます。次に実行する前に、**Tools > Check Case…** が、実行せずに同じ間違いの多くを見つけます。[View Log Summary](#view-log-summary) と [Check Case](#check-case) を参照。
@@ -2026,6 +2071,7 @@ OpenCFD/ESI Group（openfoam.com）と OpenFOAM Foundation（openfoam.org）の 
 - **フィールドファイル（field file）** — `U`、`p`、`T` など `0/` にあるファイル。1 つの場の初期値（`internalField`）と境界条件（`boundaryField`）を持ちます。
 - **パッチ（patch）** — メッシュ境界の名前付きの一部（入口や壁など）。境界条件はパッチごと・フィールドごとに設定します。[境界条件ビュー](#境界条件ビュー)はそれらを 1 つの表に表示します。
 - **関数オブジェクト（function object）** — ソルバーと一緒に動く後処理（probes、forces、サンプリング線など）。`controlDict` の `functions` に列挙されます。[Add Function Object](#add-function-object) を参照。
+- **`postProcessing/` / サンプリングライン（sampled line）** — 関数オブジェクトが結果を書く場所で、関数ごと、開始時刻ごとにフォルダーがあります。**サンプリングライン**（またはセット）は、計算領域を通る線に沿った関数オブジェクトの値で、出力時刻ごとに新しいファイルとして書かれます。probes や forces など多くの関数オブジェクトは、時間ステップごとに 1 つのファイルへ 1 行ずつ追記します。[Plot Results](#plot-results) はどちらも読みます。
 - **`0.orig`** — 初期場のまっさらなコピー。`setFields` などは `0/` を上書きするため、チュートリアルはクリーンな実行の前に `0.orig/` から `0/` を復元します。[Restore 0/ from 0.orig](#restore-0-from-0orig) を参照。
 - **分割済み / `processor*`（decomposed）** — 並列実行では、`decomposePar` がケースを `processor0`、`processor1`、… のディレクトリに分割し、`reconstructPar` が結果を元に戻します。[Run decomposePar](#run-decomposepar) と [Run reconstructPar](#run-reconstructpar) を参照。
 - **`Allrun` / `log.*`** — `Allrun` は、ケースのワークフロー全体（メッシュ、フィールド、ソルバー）を実行するスクリプトで、どのチュートリアルにもあります。実行する各ステップは、その出力を `log.blockMesh` や `log.icoFoam` のような `log.<アプリケーション>` ファイルに書きます。FoDE の Run ツールも同じログを書きます。[Allrun Steps](#allrun-steps) を参照。

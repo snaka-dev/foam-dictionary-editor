@@ -21,6 +21,7 @@
 | 13 — ログから Allrun を作る | `damBreak-create-allrun` | 同梱 `tutorials/damBreak` | 約 80 秒 | https://vimeo.com/1247139406?texttrack=ja |
 | 14 — ログがないときの Allrun | `damBreak-create-allrun-fresh` | 同梱 `tutorials/damBreak` | 約 60 秒 | https://vimeo.com/1247139407?texttrack=ja |
 | 15 — 逐次と並列の Allrun | `cavity-create-allrun-parallel` | 同梱 `tutorials/cavity/cavity` | 約 95 秒 | https://vimeo.com/1247139405?texttrack=ja |
+| 16 — 実行が書いたものをプロットする | `pitzDaily-plot-results` | `tools/stage_plot_cases.sh` で作る 2 つの `pitzDaily` の実行 — **同梱ではありません** | 約 122 秒 | https://vimeo.com/1249931669?texttrack=ja |
 
 ## 何を見せるかの選定
 
@@ -347,6 +348,29 @@ snappyHexMesh や topoSet のあるケースでは提案の確かさが下がり
 | 1:12 | 実行中 | **Allrun-parallel**、**Yes**。icoFoam が 9 プロセスで *Running*、その後 *5 of 5 steps done*。ファイル一覧に `0/vorticity`… | Allrun-parallel が実行されます: Allrun.pre の blockMesh、decomposePar、9 プロセッサでの icoFoam、reconstructPar、そして postProcess。 |
 
 入力したコマンドは、両方のスクリプトのソルバーの後に入ります。`Allrun-parallel` では `reconstructPar` の後、元に戻した時刻に対して実行されます。
+
+## 動画 16 — 実行が書いたものをプロットする（`pitzDaily`、約 122 秒）
+
+**シーン:** `pitzDaily-plot-results`。**ケース:** OpenCFD の `pitzDaily` を k-epsilon と k-omega SST で実行した 2 つ。`tools/stage_plot_cases.sh` が `/tmp/OpenFOAM/run/plot` に作ります。プロットには実行結果が要るため**同梱ではありません**。OpenFOAM v2606 のインストールから 10 秒ほどで作れます。**伝えること:** 関数オブジェクトやソルバーが書いたものを、FoDE の中でプロットし、実行どうしを比べ、保存したり、スクリプトや見出し付きのデータとして書き出したりでき、各線の元のファイルも右クリック 1 つで見られる。
+
+| 時刻 | ビート | 画面 | ナレーション |
+|---|---|---|---|
+| 0:00 | 実行 | `pitzDaily-kEpsilon` を開き、エディタに `probes` と `lineSample` の関数を持つ `system/controlDict` | k-epsilon モデルで実行した pitzDaily です。controlDict には、プローブと、流路を横切るサンプリングラインを加えてあります。 |
+| 0:10 | Plot Results | **Tools > Plot Results…**: `lineSample/x0.1_k_p_U.xy`、`probes/U`、`probes/p`、`log.simpleFoam` | Plot Results は、実行が書いたものをすべて並べます。サンプリングライン、プローブ、そしてソルバーログの残差です。 |
+| 0:19 | 残差 | `log.simpleFoam` を展開し、`Ux` と `p` をチェック: 残差の曲線が 2 本、Y 軸は対数 | 列にチェックを入れるとプロットされます。残差は対数軸になります。 |
+| 0:30 | サンプリングライン | 残差のチェックを外すと軸は線形に戻る。サンプリングラインの `U_x` をチェック | サンプリングラインは最新の時刻でプロットされます。段差の下流で流路を横切る速度です。 |
+| 0:36 | 時刻 | **Time** のスライダーを 100、200、281 と進め、*Latest* に戻す | Time のスライダーで出力時刻ごとに進められます。軸は動きません。 |
+| 0:47 | 2 つ目の実行 | **Add Case…**、選択ダイアログに `pitzDaily-kOmegaSST` を入力。1 つ目の下にケースが加わる | Add Case で 2 つ目の実行を加えます。同じケースを k-omega SST モデルで実行したものです。 |
+| 0:56 | 比較 | `U_x` を右クリックし **Plot This Column in Every Case**: 凡例は *pitzDaily-kEpsilon @ 281*、*pitzDaily-kOmegaSST @ 381* | Plot This Column in Every Case で、両方のケースでチェックされます。凡例には線を区別する部分 — ケースとサンプル時刻 — だけが書かれます。 |
+| 1:09 | 設定 | Title と軸ラベルに *Velocity at x = 0.1 m*、*y [m]*、*U_x [m/s]* を入力 | タイトルと軸ラベルはプロットの下で設定します。範囲、目盛り間隔、対数表示も同じ場所です。 |
+| 1:12 | 凡例 | 凡例を左上から曲線の下の空いた場所へドラッグ。リストは *Where dragged* になる | 凡例は好きな位置にドラッグできます。保存する画像やスクリプトでも同じ位置になります。 |
+| 1:20 | Outside right | リストを開き **Outside right** を選ぶ: 凡例がプロットの横に | リストから位置を選ぶこともでき、プロットの外側にも置けます。 |
+| 1:34 | エクスポート | **Export Script > Python (matplotlib)…**、ケースの最上位に `Velocity_at_x_0.1_m.py` として保存 | Export Script は、このプロットを描き直す matplotlib や gnuplot のスクリプトを書き出します。実行するたびにケースのファイルを読み直します。 |
+| 1:40 | データ | **Export Data…**、`Velocity_at_x_0.1_m.csv` として `.source.txt` とともに保存: ケースごとに x と U_x の列の組 | Export Data は、プロット中の線そのものを見出し付きの CSV として保存し、それぞれの出どころを記した説明ファイルを添えます。 |
+| 1:46 | ファイル | `probes/U` にポインター: ツールチップに `postProcessing/probes/0/U` | データにマウスを重ねると、読み込んだファイルが表示されます。 |
+| 1:53 | Open File | 右クリックして **Open File**: `probes/0/U` を読み取り専用で表示。反復ごと・プローブごとに `(x y z)` が 1 つ | 右クリックすると、ファイルそのものを読み取り専用で開けます。ここでは、反復ごと・プローブごとの速度ベクトルです。 |
+
+この動画を撮ることで 3 つの不具合が見つかり、収録前に直しました。残差のために入った対数軸が残り、次にチェックした速度分布がゼロ未満をすべて失っていたこと、軸の下にドラッグした凡例に合わせてプロットが縮んでしまうこと、エクスポートの既定の名前がタイトルそのまま（空白や `=` を含む）だったことです。4 つ目は収録用ディスプレイの性質でした。ウィンドウマネージャーがないため非モーダルのウィンドウがアクティブにならないのですが、メインウィンドウがアクティブなときにも同じことが起きるため、このウィンドウはどちらの場合もツールチップを表示するようにしました。
 
 ## 収録
 

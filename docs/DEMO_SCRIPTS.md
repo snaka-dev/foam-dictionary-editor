@@ -21,6 +21,7 @@ Every movie below is **scripted in full and runs**: `tools/demo_driver.py` drive
 | 13 — An Allrun from your logs | `damBreak-create-allrun` | bundled `tutorials/damBreak` | ~80 s | https://vimeo.com/1247139406?texttrack=en |
 | 14 — An Allrun with no logs | `damBreak-create-allrun-fresh` | bundled `tutorials/damBreak` | ~60 s | https://vimeo.com/1247139407?texttrack=en |
 | 15 — Serial and parallel Allruns | `cavity-create-allrun-parallel` | bundled `tutorials/cavity/cavity` | ~95 s | https://vimeo.com/1247139405?texttrack=en |
+| 16 — Plotting what a run wrote | `pitzDaily-plot-results` | two `pitzDaily` runs from `tools/stage_plot_cases.sh` — **not** bundled | ~122 s | https://vimeo.com/1249931669?texttrack=en |
 
 ## Choosing what to show
 
@@ -347,6 +348,29 @@ The bundled cavity has no `Allrun` and no logs, and a `decomposeParDict` (9 subd
 | 1:12 | Running | **Allrun-parallel**, **Yes**; icoFoam *Running* on 9 processes, then *5 of 5 steps done*, `0/vorticity`… in the file list | Allrun-parallel runs: blockMesh from Allrun.pre, decomposePar, icoFoam on nine processors, reconstructPar, then postProcess. |
 
 The typed command lands in both scripts, after the solver; in `Allrun-parallel` it runs after `reconstructPar`, on the reconstructed times.
+
+## Movie 16 — Plotting what a run wrote (`pitzDaily`, ~122 s)
+
+**Scene:** `pitzDaily-plot-results`. **Cases:** two runs of OpenCFD's `pitzDaily`, k-epsilon and k-omega SST, made by `tools/stage_plot_cases.sh` in `/tmp/OpenFOAM/run/plot` — **not** bundled, because a plot needs a run's output; the script makes them in about ten seconds from an OpenFOAM v2606 installation. **What it argues:** what the function objects and the solver wrote can be plotted, compared across runs, saved, exported as a script or as data with headings without leaving FoDE — and the files behind each line are one right-click away.
+
+| At | Beat | On screen | Narration |
+|---|---|---|---|
+| 0:00 | The run | `pitzDaily-kEpsilon` open, `system/controlDict` in the editor with its `probes` and `lineSample` functions | pitzDaily, run with the k-epsilon model. Its controlDict adds a probe and a line sampled across the channel. |
+| 0:10 | Plot Results | **Tools > Plot Results…**: `lineSample/x0.1_k_p_U.xy`, `probes/U`, `probes/p`, `log.simpleFoam` | Plot Results lists everything the run wrote: the sampled line, the probes, and the residuals in the solver log. |
+| 0:19 | Residuals | `log.simpleFoam` expanded, `Ux` and `p` ticked: two residual curves, the y axis logarithmic | Tick a column and it is plotted. Residuals get a log scale. |
+| 0:30 | A sampled line | Residuals unticked, the axis linear again; `U_x` of the sampled line ticked | A sampled line is plotted at its latest time: the velocity across the channel, behind the step. |
+| 0:36 | Time | The **Time** slider stepped through 100, 200 and 281, then back to *Latest* | The Time slider steps it through its output times, the axes held still. |
+| 0:47 | A second run | **Add Case…**, `pitzDaily-kOmegaSST` typed into the chooser; the case added below the first | Add Case brings in a second run: the same case with the k-omega SST model. |
+| 0:56 | Compare | `U_x` right-clicked, **Plot This Column in Every Case**: the legend reads *pitzDaily-kEpsilon @ 281*, *pitzDaily-kOmegaSST @ 381* | Plot This Column in Every Case ticks it in both. The legend names only what tells the lines apart: the case and its sample time. |
+| 1:09 | Settings | *Velocity at x = 0.1 m*, *y [m]*, *U_x [m/s]* typed into Title and the axis labels | Title and axis labels go below the plot, beside ranges, tick spacing and log scales. |
+| 1:12 | The legend | The legend dragged from the top left to the empty space under the curves; the list reads *Where dragged* | Drag the legend where you want it. Saved images and scripts put it there too. |
+| 1:20 | Outside right | The list opened, **Outside right** chosen: the legend beside the plot | Or pick a place from the list, outside the plot included. |
+| 1:34 | Export | **Export Script > Python (matplotlib)…**, saved as `Velocity_at_x_0.1_m.py` at the case's top level | Export Script writes a matplotlib or gnuplot script that draws this plot again, reading the case files each time it runs. |
+| 1:40 | The data | **Export Data…**, saved as `Velocity_at_x_0.1_m.csv` beside its `.source.txt`: one x/U_x column pair per case | Export Data saves the plotted lines themselves as a CSV with headings, and a note of where each came from. |
+| 1:46 | The files | The pointer on `probes/U`: its tooltip names `postProcessing/probes/0/U` | Hover over a data set to see the files it was read from. |
+| 1:53 | Open File | Right-click, **Open File**: `probes/0/U` read-only, one `(x y z)` per probe per iteration | Right-click it to open the file itself, read-only: here, one velocity vector per probe per iteration. |
+
+Shooting this movie found three faults, all fixed before the take: the log scale switched on for residuals stayed on, so the velocity profile ticked next lost everything below zero; a legend dragged below the axes made the plot shrink to fit it; and the export's default name was the title verbatim, spaces and `=` included. A fourth was a property of the take's display rather than the app — it has no window manager, so the non-modal window is never the active one — but it is also true beside an active main window, so the window now shows its tooltips either way.
 
 ## Recording
 

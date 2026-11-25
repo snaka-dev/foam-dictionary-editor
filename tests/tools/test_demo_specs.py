@@ -41,7 +41,7 @@ PLACEHOLDERS = ("{repo}", "{cases}", "{work}")
 # The ways a step can name what it acts on, i.e. every branch of resolve().
 TARGET_KEYS = frozenset({
     "point", "menu", "menu_item", "file", "group", "tree", "cell", "tab",
-    "widget", "button", "field", "case", "item",
+    "widget", "button", "field", "case", "item", "legend",
 })
 
 # Steps that act on a target and so must name exactly one.
@@ -59,6 +59,8 @@ LABEL_SOURCES = (
     ROOT / "ui" / "panels" / "block_mesh_panel.py",
     # ...as did the shape-overlay menus the BlockMesh panel builds.
     ROOT / "ui" / "panels" / "_shape_overlay_menu.py",
+    # Plot Results' own menus: Export Script's formats.
+    ROOT / "ui" / "dialogs" / "plot_results_dialog.py",
 )
 
 STEP_KINDS = frozenset(
@@ -315,13 +317,21 @@ class TestLabels:
             for path in (ROOT / "ui").rglob("*.py")
         )
         for name, step in steps_of(scenes):
-            dotted = step.get("widget")
+            # "in" and "legend" name a window by the same attribute grammar.
+            for key in ("widget", "in", "legend"):
+                self._check_path(name, step.get(key), source)
+
+    @staticmethod
+    def _check_path(name, dotted, source):
+        if True:
             if not dotted:
-                continue
+                return
             # Only that the name exists somewhere in ui/. Resolving the path
             # for real needs a MainWindow, and standing one up would drag a
             # QApplication into a suite that otherwise needs no display.
             for part in dotted.split("."):
+                if part.isdigit():
+                    continue  # a list index (`_viewers.0`)
                 assert part in source, f"{name}: no widget attribute {part!r} anywhere in ui/"
 
 

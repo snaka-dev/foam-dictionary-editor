@@ -79,6 +79,7 @@ from ui.dialogs.case_browser_dialog import CaseBrowserDialog
 from ui.dialogs.case_check_dialog import CaseCheckDialog
 from ui.dialogs.find_examples_dialog import FindExamplesDialog
 from ui.dialogs.log_summary_dialog import LogSummaryDialog
+from ui.dialogs.plot_results_dialog import PlotResultsDialog
 from ui.dialogs.processor_delete_dialog import ProcessorDeleteDialog
 from ui.menu_builder import BuiltMenu
 from ui.pane_minimize import PaneMinimizer
@@ -133,6 +134,7 @@ class MainWindowProtocol(QMainWindow):
     _foam_monitor_timer: QTimer
     _file_list_refresh_timer: QTimer
     _log_summary_dialog: LogSummaryDialog | None
+    _plot_results_dialog: PlotResultsDialog | None
     _case_check_dialog: CaseCheckDialog | None
     _allrun_steps_dialog: AllrunStepsDialog | None
     _find_examples_dialog: FindExamplesDialog | None
@@ -177,6 +179,7 @@ class MainWindowProtocol(QMainWindow):
     _clean_case_action: QAction | None
     _open_paraview_action: QAction | None
     _view_log_summary_action: QAction | None
+    _plot_results_action: QAction | None
     _check_case_action: QAction | None
     _allrun_steps_action: QAction | None
     _create_allrun_action: QAction | None
@@ -388,6 +391,8 @@ class MainWindowProtocol(QMainWindow):
     def _on_clean_case_clicked(self) -> None: ...
     def _show_cached_dialog(self, attr: str, factory) -> None: ...
     def _on_view_log_summary_clicked(self) -> None: ...
+    def _on_plot_results_clicked(self) -> None: ...
+    def _plot_results_case_changed(self, case_dir: str) -> None: ...
     def _on_find_examples_clicked(self) -> None: ...
     def _on_example_compare_requested(self, case_dir: str) -> None: ...
     def _on_example_duplicate_requested(self, case_dir: str) -> None: ...
