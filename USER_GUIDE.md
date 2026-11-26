@@ -617,7 +617,7 @@ Right-click any directory header in the file list — including the **case root*
 - **Duplicate '\<dir\>' → '\<counterpart\>'...** — copy a `0/` or `0.orig/` directory to create the missing counterpart (see [Duplicating a field directory](#duplicating-a-field-directory)). This action is shown only for `0` and `0.orig` headers, and only when exactly one of the two directories is present.
 - **Delete '0' directory...** — permanently delete the `0/` directory from disk (see [Deleting a field directory](#deleting-a-field-directory)). Shown only on the `0` header, and only when `0.orig` exists.
 
-Added files are saved to `.foam-editor-files.json` in the case directory and are restored the next time the case is opened. The config file is also copied when **Duplicate Case…** uses the app-visible files only mode.
+Added files are saved to `.foam-editor-files.json` in the case directory and are restored the next time the case is opened. Only paths inside the case are kept: an absolute path or one leading out through `..` — which a case from someone else could carry — is ignored and dropped from the file. The config file is also copied when **Duplicate Case…** uses the app-visible files only mode.
 
 Extra files are displayed in a distinct colour in the file list so they can be told apart from the default target files at a glance.
 

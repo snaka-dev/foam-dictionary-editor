@@ -22,6 +22,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from app_config import get_app_config
+from app_config.app_config_manager import AppConfigManager
 from app_config.defaults import (
     DEFAULT_UI_SCALE,
     DEFAULT_WINDOW_HEIGHT,
@@ -47,6 +48,20 @@ def _apply_variant(variant: str) -> None:
         sys.exit(1)
     features = json.loads(preset_path.read_text(encoding="utf-8")).get("features", {})
     get_app_config().set_features(features)
+
+
+def _default_windows_to_no_terminal(cfg: AppConfigManager, platform: str) -> None:
+    """On Windows, leave the terminal out unless a variant has asked for it.
+
+    The Simple terminal's shell there is ``cmd.exe``, which runs none of the Tools
+    commands, and it used to be told ``cd`` into every opened case with Unix
+    quoting -- a folder named ``case&calc&rem `` then ran ``calc``. The widget no
+    longer types the path (it starts the shell in the directory instead), and this
+    keeps the terminal off for a plain launch as well. A feature mapping already in
+    the config came from an explicit ``--variant``, so it is respected.
+    """
+    if platform == "win32" and not cfg.has_feature("terminal"):
+        cfg.set_feature("terminal", False)
 
 
 def _apply_ui_scale(percent: int, forced: bool) -> None:
@@ -116,6 +131,8 @@ def main():
 
     if args.variant:
         _apply_variant(args.variant)
+    else:
+        _default_windows_to_no_terminal(get_app_config(), sys.platform)
 
     # Before MainWindow, so every widget is built against the final palette.
     # --theme overrides the stored value for this process only: nothing writes

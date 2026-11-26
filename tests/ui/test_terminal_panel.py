@@ -8,6 +8,8 @@ without exercising event-driven I/O or the running shell process.
 """
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from ui.panels.terminal_panel import _XTERM_AVAILABLE, SimpleTerminalWidget, TerminalPanel
@@ -81,6 +83,46 @@ class TestSimpleTerminalWidgetWorkingDirectory:
         simple_widget.set_working_directory("/tmp/case_a")
         simple_widget.set_working_directory("/tmp/case_b")
         assert simple_widget._cwd == "/tmp/case_b"
+
+
+class TestSimpleTerminalWidgetWindowsPath:
+    """On Windows the case path must never be typed into cmd.exe.
+
+    shlex quoting means nothing to cmd, so ``cd 'C:\\x\\case&calc&rem '`` ran
+    calc when such a folder was opened. The shell is restarted in the
+    directory instead.
+    """
+
+    def test_path_is_not_typed_and_shell_restarts_there(
+        self, simple_widget, monkeypatch, tmp_path
+    ):
+        typed: list[str] = []
+        started: list[str] = []
+        monkeypatch.setattr(simple_widget, "_execute", typed.append)
+        monkeypatch.setattr(
+            simple_widget,
+            "_start_shell",
+            lambda: started.append(simple_widget._process.workingDirectory()),
+        )
+        monkeypatch.setattr(sys, "platform", "win32")
+        evil = tmp_path / "case&calc&rem "
+        evil.mkdir()
+        simple_widget.set_working_directory(str(evil))
+        monkeypatch.undo()
+        assert typed == []
+        assert len(started) == 1
+        assert "Restarting" not in simple_widget._output.toPlainText()
+
+    def test_a_shell_that_died_restarts_in_the_case(self, simple_widget, tmp_path):
+        # The old restart typed "cd <path>" after starting; now the shell is
+        # started in the directory, so nothing is typed on any platform.
+        typed: list[str] = []
+        simple_widget._cwd = str(tmp_path)
+        simple_widget._execute = typed.append  # type: ignore[method-assign]
+        simple_widget._process.kill()
+        simple_widget._process.waitForFinished(3000)
+        assert simple_widget._process.workingDirectory() == str(tmp_path)
+        assert typed == []
 
 
 # ── SimpleTerminalWidget: cleanup ─────────────────────────────────────────────

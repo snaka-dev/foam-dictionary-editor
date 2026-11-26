@@ -32,6 +32,7 @@ class SimpleTerminalWidget(QWidget):
         super().__init__(parent)
 
         self._cwd: str | None = None
+        self._restarting = False
         self._history: list[str] = []
         self._history_pos: int = 0
         self._closing = False
@@ -89,6 +90,19 @@ class SimpleTerminalWidget(QWidget):
 
     def set_working_directory(self, path: str) -> None:
         self._cwd = path
+        if sys.platform == "win32":
+            # Never type the path into cmd.exe: shlex quoting means nothing to
+            # it, so a case folder named "case&calc&rem " ran calc on opening,
+            # and cmd has no quoting that is safe for every legal name (%VAR%
+            # expands even inside double quotes). Restart the shell in the
+            # directory instead; cmd holds no state worth keeping.
+            if self._process.state() != QProcess.ProcessState.NotRunning:
+                self._restarting = True
+                self._process.kill()
+                self._process.waitForFinished(3000)
+                self._restarting = False
+                self._start_shell()
+            return
         # QProcess buffers writes made while still Starting and flushes them
         # once the shell is up, so only skip when the process is not running.
         if self._process.state() != QProcess.ProcessState.NotRunning:
@@ -109,6 +123,10 @@ class SimpleTerminalWidget(QWidget):
         self._output.setPalette(palette)
 
     def _start_shell(self) -> None:
+        # The shell starts in the case directory, so a restart needs no cd
+        # typed into it (and on Windows no path is ever typed at all).
+        if self._cwd:
+            self._process.setWorkingDirectory(self._cwd)
         if sys.platform == "win32":
             self._process.start("cmd.exe", ["/Q"])
         else:
@@ -137,14 +155,12 @@ class SimpleTerminalWidget(QWidget):
         sb.setValue(sb.maximum())
 
     def _on_finished(self, exit_code: int) -> None:
-        if self._closing:
+        if self._closing or self._restarting:
             return
         self._output.appendPlainText(
             f"\n[Shell exited with code {exit_code}. Restarting...]"
         )
         self._start_shell()
-        if self._cwd:
-            self._execute(f"cd {shlex.quote(self._cwd)}")
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         if obj is self._input and event.type() == QEvent.Type.KeyPress:

@@ -2,11 +2,13 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+import hashlib
 import os
 import shlex
 import signal
 import struct
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal, Slot
@@ -30,6 +32,76 @@ if sys.platform != "win32":
         pass
 
 _XTERM_VERSION = "6.0.0"
+
+# (local name, URL, SHA-256). The page these scripts run in has a QWebChannel bridge
+# that writes straight to the shell, so whoever controls this JavaScript controls the
+# user's account: a download is installed only if every file matches, and files already
+# on disk are checked again before each load. The hashes were taken from the npm
+# registry tarballs (verified against the registry's own sha512 integrity) and match
+# what jsDelivr serves. Changing a version means updating its hash in the same commit.
+_XTERM_FILES: tuple[tuple[str, str, str], ...] = (
+    (
+        "xterm.js",
+        "https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/lib/xterm.js",
+        "14903579ff54664cd72f8e8699e6961a6272c21863ec1c3b118cdc8af5d4a972",
+    ),
+    (
+        "xterm.css",
+        "https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/css/xterm.css",
+        "854a7c0fb70e8b1a083c16797ab827299fb18744f5ad34f227b48337e33293c6",
+    ),
+    (
+        "xterm-addon-fit.js",
+        "https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.11.0/lib/addon-fit.js",
+        "ba3ea256ce0620a0992a197d6c9baea64823fc93d8da07a9e366ca9943c18527",
+    ),
+)
+
+
+def _sha256(path: Path) -> str | None:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def xterm_files_valid(xterm_dir: Path) -> bool:
+    """True when every xterm file in *xterm_dir* is present and has its pinned hash."""
+    return all(_sha256(xterm_dir / name) == digest for name, _url, digest in _XTERM_FILES)
+
+
+def download_xterm_files(
+    xterm_dir: Path,
+    fetch: Callable[[str, Path], object] | None = None,
+) -> bool:
+    """Download the xterm files into *xterm_dir*; True if a verified set is installed.
+
+    Everything goes to a temporary directory first and replaces *xterm_dir* only when
+    every file matches its pinned hash, so a failed or tampered download leaves no
+    file behind that the page could load. *fetch(url, dest)* defaults to
+    ``urllib.request.urlretrieve`` and is a parameter for the tests.
+    """
+    import shutil
+    import tempfile
+    import urllib.request
+
+    if fetch is None:
+        fetch = urllib.request.urlretrieve
+    tmp_dir = Path(tempfile.mkdtemp())
+    try:
+        for name, url, _digest in _XTERM_FILES:
+            fetch(url, tmp_dir / name)
+    except Exception:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        return False
+    if not xterm_files_valid(tmp_dir):
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        return False
+    shutil.rmtree(xterm_dir, ignore_errors=True)
+    shutil.move(str(tmp_dir), str(xterm_dir))
+    (xterm_dir / "version.txt").write_text(_XTERM_VERSION, encoding="utf-8")
+    return True
+
 _LOCAL_CSS = '<link rel="stylesheet" href="xterm/xterm.css">'
 _LOCAL_JS = (
     '<script src="xterm/xterm.js"></script>\n'
@@ -234,22 +306,18 @@ if _XTERM_AVAILABLE:
             ui_dir = Path(__file__).parent.parent
             xterm_dir = ui_dir / "xterm"
 
-            version_file = xterm_dir / "version.txt"
-            needs_download = (
-                not (xterm_dir / "xterm.js").exists()
-                or not version_file.exists()
-                or version_file.read_text(encoding="utf-8").strip() != _XTERM_VERSION
-            )
-            if needs_download:
-                self._download_xterm_files(xterm_dir)
+            # The hash check covers a stale version, a partial copy and a file
+            # changed after it was downloaded, all of which earn a fresh download.
+            if not xterm_files_valid(xterm_dir):
+                download_xterm_files(xterm_dir)
 
-            if (xterm_dir / "xterm.js").exists():
+            if xterm_files_valid(xterm_dir):
                 css_tag, js_tags = _LOCAL_CSS, _LOCAL_JS
             else:
                 self._view.setHtml(
                     "<body style='background:#1e1e1e;color:#d4d4d4;font-family:monospace'>"
-                    "<p>Terminal unavailable: could not download xterm.js.<br>"
-                    "Place xterm.js, xterm.css, and xterm-addon-fit.js in ui/xterm/.</p></body>"
+                    "<p>Terminal unavailable: could not download a verified copy of "
+                    "xterm.js.<br>Check the network connection, or use Simple mode.</p></body>"
                 )
                 return
 
@@ -264,37 +332,6 @@ if _XTERM_AVAILABLE:
             )
             base_url = QUrl.fromLocalFile(str(ui_dir) + "/")
             self._view.setHtml(html, base_url)
-
-        @staticmethod
-        def _download_xterm_files(xterm_dir: Path) -> None:
-            import shutil
-            import tempfile
-            import urllib.request
-
-            downloads = [
-                (
-                    "xterm.js",
-                    "https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/lib/xterm.js",
-                ),
-                (
-                    "xterm.css",
-                    "https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/css/xterm.css",
-                ),
-                (
-                    "xterm-addon-fit.js",
-                    "https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.11.0/lib/addon-fit.js",
-                ),
-            ]
-            tmp_dir = Path(tempfile.mkdtemp())
-            try:
-                for name, url in downloads:
-                    urllib.request.urlretrieve(url, tmp_dir / name)
-            except Exception:
-                shutil.rmtree(tmp_dir, ignore_errors=True)
-                return
-            shutil.rmtree(xterm_dir, ignore_errors=True)
-            shutil.move(str(tmp_dir), str(xterm_dir))
-            (xterm_dir / "version.txt").write_text(_XTERM_VERSION, encoding="utf-8")
 
         def cleanup(self) -> None:
             self._backend.stop()

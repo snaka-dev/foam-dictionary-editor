@@ -144,7 +144,7 @@ python3 main.py --ui-scale 150                    # この実行のみ。QT_SCAL
 
 `RELEASE_NOTES.md` と `RELEASE_NOTES_ja.md` では、新しい項目を `## Unreleased` 見出しの下に積み上げます。項目は追記のみで、1 段落 1 行の長い行とし、リリースまでは統合しません。その節が漏れなく揃っていると信じる前に、最後のタグ以降の `git log` と突き合わせてください。
 
-リリースで触れるファイルはちょうど 3 つです。`_version.py`（`__version__`）と、`RELEASE_NOTES.md`・`RELEASE_NOTES_ja.md` の `## Unreleased` 見出し（バージョン番号に改名）です。コミットは `release: vX.Y.Z` とし、`vX.Y.Z` のタグを付けます。チェックアウトから動かすと `get_version()` が開発用の接尾辞（タグからのコミット数、短いハッシュ、未コミット変更があれば `*`）を付けるので、開発ビルドからの不具合報告でもビルドを特定できます。
+リリースで触れるファイルはちょうど 3 つです。`_version.py`（`__version__`）と、`RELEASE_NOTES.md`・`RELEASE_NOTES_ja.md` の `## Unreleased` 見出し（バージョン番号に改名）です。コミットは `release: vX.Y.Z` とし、`vX.Y.Z` のタグを付けます。`get_version()` は常に `__version__` を報告し、チェックアウトから動かすと開発用の接尾辞（タグからのコミット数、短いハッシュ、未コミット変更があれば `*`）を付けるので、開発ビルドからの不具合報告でもビルドを特定できます。番号をタグから取ることはありません: タグを取得しないクローンでは、1.21.1 のコードが `1.15.1 (dev+117, …)` と表示されていました。コミット数は `git describe` がこのバージョン自身のタグを見つけたときだけ表示し、それ以外はハッシュだけでビルドを特定します。
 
 **リリースを切る前に**、`tests/test_docs.py` では判断できない点を読んで確かめます:
 
@@ -1988,7 +1988,8 @@ DISPLAY=:1 python3 tools/demo_driver.py damBreak-end-to-end --stage            #
 - `test_i18n.py` — `i18n/ja.py` の `TRANSLATIONS` に重複キーがないこと、`ui/` 配下のすべての `tr()` 呼び出しが `ja.py` に項目を持つか実測済みの縮小専用の未翻訳許可リストにあること、そして許可リストに古い項目がないこと。
 - `test_lint.py` — ruff と mypy をテストとして実行し、テスト衛生の 2 つのガードも含みます。[Lint と型チェック](#lint-と型チェック)を参照。
 - `test_main_ui_scale.py` — `main._apply_ui_scale`: UI Scale 設定が `QApplication` の生成前に `QT_SCALE_FACTOR` として書かれること。設定ファイルの値は環境変数に譲り、`--ui-scale` はそれを上書きし、100% は何も設定しません。
-- `test_version.py` — `_version.get_version()` の整形: タグ一致、タグより先、未コミット変更あり、ハッシュのみ、git がない場合のフォールバック。
+- `test_main_windows_terminal.py` — `main._default_windows_to_no_terminal`: Windows で素の起動ではターミナルを入れないこと（以前はケースを開くたびに cmd.exe へ Unix 流の引用で `cd` を送っていた）、明示した `--variant` による機能設定は尊重されること、ほかのプラットフォームは変わらないこと。
+- `test_version.py` — `_version.get_version()` の整形: リリースのコミット上、タグより先、未コミット変更あり、ハッシュのみ、git がない場合のフォールバック、そして別バージョンのタグ（タグを取得しないクローンの古いタグや、同じコミット上の別のタグ）ではハッシュだけを付けて `__version__` を表示すること。
 
 **`tests/foam/`**
 - `test_block_mesh_extractor.py` — `extract_block_mesh_data` の出力: 境界面の抽出（パッチの間に置かれた `#include` によって `outlet` が名前と面を失っていたリグレッションを含む）、`#include` を含む `blocks` リストおよび先読みが `raw_list` に落としたリストからの hex 抽出、`default_faces`（境界が全面を占有 → 空、未割り当ての外部面の収集、任意の頂点回転での占有判定、ブロック間で共有される内部面の除外）など。
@@ -2092,7 +2093,8 @@ DISPLAY=:1 python3 tools/demo_driver.py damBreak-end-to-end --stage            #
 - `test_reset_all_settings.py` — **Reset All Settings** の後に `app_config.json` がどうなるかを検証します。ファイルを削除するだけでは処理の半分でしかありません。
 - `test_run_tool_dialog.py` — `RunToolDialog`: 初期状態のライブプレビューが `get_command()` と一致すること、チェックボックス/値編集によるコマンド更新、`last_values` の復元と `get_values()` の新しいダイアログへのラウンドトリップ、解析不能な追加オプションでの実行ボタン無効化、プレフィックスチェックボックスによるシェルプレフィックスの付加、Browse によるケース相対パスの挿入（ケース外は絶対パス）。
 - `test_stays_open_menu.py` — ツールバーのドロップダウンメニュー（`Vertices ▾`、`Blocks ▾`、`Scale ▾`、`topoSet ▾`、`snappyHexMesh ▾`）がチェック可能項目のクリックでは開いたままになり、チェック不可のアクションでは通常どおり閉じること。
-- `test_terminal_panel.py` — `SimpleTerminalWidget` と `TerminalPanel`: 初期状態、作業ディレクトリの切替、クリーンアップ、コマンド履歴、タブラベル、`run_command()`（シェル準備前のキューイングを含む）。あわせて実行中コマンドの保護: Simple ターミナルと xterm の PTY バックエンドそれぞれで実際の `sleep` が報告されること、何も実行していなければ確認を出さないこと、確認がコマンド名を示し既定が No であることなど。
+- `test_terminal_panel.py` — `SimpleTerminalWidget` と `TerminalPanel`: 初期状態、作業ディレクトリの切替、クリーンアップ、コマンド履歴、タブラベル、`run_command()`（シェル準備前のキューイングを含む）。あわせて実行中コマンドの保護: Simple ターミナルと xterm の PTY バックエンドそれぞれで実際の `sleep` が報告されること、何も実行していなければ確認を出さないこと、確認がコマンド名を示し既定が No であることなど。Windows ではケースのパスをシェルに打ち込まず、そのディレクトリでシェルを起動し直すこと、終了したシェルは何も打ち込まずにケースで再起動すること。
+- `test_xterm_download.py` — `download_xterm_files`/`xterm_files_valid`: ダウンロードはすべてのファイルが固定した SHA-256 と一致したときだけ導入されること、改ざんや失敗したダウンロードは何も導入せず正常な導入済みファイルを残すこと、ダウンロード後に変更されたファイルは有効と見なされないこと。ネットワークは使わず、取得処理を差し替えます。
 - `test_theme.py` — `ui/theme.py` の配色テーブルをデータとして検証します: コントラスト計算、選択行の前景・背景ペアに関する慣習ルール（Windows のアクセントカラー `#0078d4` を明示的に指定したリグレッションテストを含む。黒と白のうちコントラストが高い方を選ぶ実装だと、この不具合を再現してしまうため）、どのアクセントカラーでも判読不能なペアが生じないことを網羅的に確認するテスト、両テーブルのすべての前景色がそのテーマの `Base` に対して 3:1 を下回らないことなど。
 - `test_fonts.py` — `ui/fonts.py` の検証: エディタと 2 つのターミナルがアプリケーションフォントから導出する等幅フォントサイズ。`ui_point_size` が `QFontInfo` にフォールバックするのはプラットフォームフォントがピクセル指定の場合だけであること（`QFontInfo` は整数ピクセルに量子化するため、96 dpi の 13 pt は 12.75 として返ってくる）、および xterm ページ用に `css_pixel_size` が 96/72 固定で変換することを含む。
 - `test_icons.py` — `ui/icons.py`: `ICON_NAMES` とアセットディレクトリの対応を両方向で検証すること、宣言されたすべての名前が非 null かつ空でないピクセルのアイコンを返すこと、未知の名前は例外ではなく null のアイコンに落ちること、すべての SVG アセットがパース可能で SPDX ヘッダーを持つこと、`icon_pixel_size()` がアプリケーションフォントに追従して大きくなることなど。
@@ -2125,10 +2127,10 @@ DISPLAY=:1 python3 tools/demo_driver.py damBreak-end-to-end --stage            #
 - `test_allrun_create.py` — `allrun_create`: ヘッダー（除くオプション、括弧のつなぎ直し、フルパス）、開始時刻と終了時刻による順序、`runParallel` と `-np`、サフィックスと FoDE の part ログ、失敗と読むだけの行のチェック外し、reconstructPar の移動、ログの一覧へ合流する辞書からの提案と骨組み（並列は processor ディレクトリがあるときだけ）、フォークごとの復元の行、メッシュを残す場合を含む Allclean の形、引用、`sh -n`、ファイルを決して置き換えないこと、書いた Allrun が同じログとして読み戻せること。並列実行の後だけの reconstructPar、cavity 型とログのある並列ケースの分割（各スクリプトに `sh -n`）、チェックの入ったソルバーやサブドメインがなければ分割しないこと、ソルバーより前に何もなければ Allrun.pre を作らないこと、入力したコマンド。
 - `test_case_check.py` — `case_check`: 各指摘を起こすケースと、起こしてはならないケース — 正規表現・グループ・`setConstraintTypes` によるカバー、項目のない `empty` パッチ、たどる／飛ばす include、point 場、`patchType`、メッシュ生成前の `blockMeshDict` からの推定とそれを止める条件、マルチリージョン、controlDict と decomposeParDict のしきい値、フォークを考慮した辞書の規則。
 - `test_case_check_corpus.py` — 誤検出の防波堤: v2606 と Foundation-12 のすべてのチュートリアルが `restore0Dir` 後にレビュー済みの指摘しか出さないこと。ツリーがなければスキップ。
-- `test_case_copier.py` — `copy_visible_files`: 可視ファイルがレイアウトを保ってコピーされること、非表示エントリ（ルートの `log.*`、時刻ディレクトリ、未登録ファイル）はスキップされること、登録済み追加ファイルと `.foam-editor-files.json` 自体が引き継がれること、設定ファイルなしでも動作すること、ネストしたコピー先の作成。
+- `test_case_copier.py` — `copy_visible_files`: 可視ファイルがレイアウトを保ってコピーされること、非表示エントリ（ルートの `log.*`、時刻ディレクトリ、未登録ファイル）はスキップされること、登録済み追加ファイルと `.foam-editor-files.json` 自体が引き継がれること、設定ファイルなしでも動作すること、ネストしたコピー先の作成、細工した設定の `../` や絶対パスの項目がコピー先の外に何も書かないこと。
 - `test_disk_stamp.py` — `services/disk_stamp.py`: 別のプログラムによる書き換えは同じサイズでも変更、touch や同一内容の書き直しは変更ではない、削除は変更、存在しないファイルにはスタンプがないこと。
 - `test_include_scan.py` — `scan_includes`/`included_files`/`copy_destination_for`/`foam_etc_dirs`: パーサーが保存するのと同じ生ディレクティブテキストを hit が持つこと（ツールチップ検索のキー）、`#codeStream` の C++ ヘッダーのスキップ、非再帰性、サイズ・ログ・スクリプトのガード、mtime メモが未変更ファイルを読み直さず変更時には読み直すこと、ケース内／外の振り分け、既に一覧にあるファイルに対するシンボリックリンク考慮の重複排除など。
-- `test_case_files_config.py` — `TestCaseFilesConfigDirs`: `DirEntry` の追加・削除・インプレース更新、プレーン文字列 JSON の後方互換ロード、設定リセット。
+- `test_case_files_config.py` — `TestCaseFilesConfigDirs`: `DirEntry` の追加・削除・インプレース更新、プレーン文字列 JSON の後方互換ロード、設定リセット。`TestEntriesOutsideTheCase`: 絶対パス、`..`、Windows のドライブ指定の項目は読み込み時に捨てられ（次の保存からも消え）、`add_file`/`add_dir` も拒むこと。点を含むだけの名前は通ること。
 - `test_case_fs_ops.py` — 安全確認の中核を、主にその拒否を通じて検証する: ソース自身のサブツリーへの移動・コピー（直接の場合とシンボリックリンク経由の場合の両方 — これにより `normpath` ではなく `resolve()` が使われていることが証明される）、既存の宛先の*中へ*移動しないこと、新しい名前へのパストラバーサルとセパレータ、保護対象パス、シンボリックリンクをリンクとして削除しリンク先はそのまま残ること、コピーがシンボリックリンクを辿らないこと、ケースに限ったリネームの例外、注入された削除処理の順序とエラー伝播など。
 - `test_case_loader.py` — `detect_time_dirs` と `TestExtraDirs`: フラット・再帰スキャン、存在しないディレクトリの許容、重複排除。
 - `test_example_search.py` — `example_search`: インストールルート／素の tutorials ディレクトリ／非インストールディレクトリに対する `installation_from_dir`、環境変数マッピングの注入・`extra_roots` の優先・重複排除を含む `discover_installations`、`stop` 境界付きで祖先を遡る `case_root_for`など。

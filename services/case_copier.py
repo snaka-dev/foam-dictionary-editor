@@ -5,7 +5,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from services.case_files_config import CaseFilesConfig
+from services.case_files_config import CaseFilesConfig, is_inside_case
 from services.case_loader import list_case_files
 
 
@@ -18,7 +18,14 @@ def copy_visible_files(source_dir: str, dest: Path) -> None:
     visible_paths = list_case_files(source_dir, extra_files)
     dest.mkdir(parents=True, exist_ok=True)
     for src_path_str in visible_paths:
-        rel = Path(src_path_str).relative_to(source)
+        # CaseFilesConfig already refuses entries that leave the case; this is
+        # the second lock on the one place a bad entry would *write* outside it.
+        try:
+            rel = Path(src_path_str).relative_to(source)
+        except ValueError:
+            continue
+        if not is_inside_case(str(rel)):
+            continue
         dst_path = dest / rel
         dst_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_path_str, dst_path)

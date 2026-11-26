@@ -1,5 +1,17 @@
 # Release Notes
 
+## v1.21.1 — 2026-11-26
+
+### Security
+
+- **On Windows, opening a case can no longer run commands.** With the terminal enabled, FoDE typed `cd` into the case folder into the Simple terminal's `cmd.exe` using Unix shell quoting, which `cmd.exe` does not honour, so a case folder whose name contained `&` could run commands of the folder author's choosing as soon as it was opened, or reopened at startup. The terminal now starts its shell in the case folder instead of typing the path, and on Windows FoDE starts without the terminal unless `--variant standard` asks for it (it cannot run the Tools commands there anyway). Reported by an outside security review; Linux and macOS were not affected.
+- **The terminal's xterm.js download is checked before it is used.** The three files FoDE fetches from jsDelivr on first start ran in a page that types into your shell, and nothing checked them. Each is now compared with a fixed SHA-256 checksum, taken from the npm registry's own package and matching what jsDelivr serves, and the terminal uses them only when all three match; a mismatch is downloaded again, never installed.
+- **A case's file list can no longer reach outside the case.** `.foam-editor-files.json` travels inside a case, so a case from someone else decides what it lists. An absolute path in it (`/home/you/.ssh/id_rsa`) put that file in the file list, and a `../` path made **Duplicate Case…** write a file outside the new case. Such entries are now ignored and dropped from the file. Files that `#include` pulls in from outside the case are unchanged: they are how OpenFOAM works and FoDE already shows them read-only. As before, treat a case from someone else like a program: **Run Allrun** runs its script, and OpenFOAM itself can compile and run code a dictionary contains.
+
+### Bug fixes
+
+- **The About window shows the right version in a clone that has not fetched the newer tags.** Run from a git checkout, FoDE took its version number from the newest tag the clone knew, so a clone that had not fetched the newer tags showed `1.15.1 (dev+117, …)` for 1.21.1 code. The number now always comes from FoDE itself; the commit count after it is shown only when the clone has that version's tag, and otherwise the commit hash alone identifies the build.
+
 ## v1.21.0 — 2026-11-25
 
 ### New features

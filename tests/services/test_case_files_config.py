@@ -204,3 +204,49 @@ class TestCaseFilesConfigProperties:
         cfg = CaseFilesConfig(str(tmp_path))
         cfg.save()
         assert cfg.exists is True
+
+
+class TestEntriesOutsideTheCase:
+    """A case from someone else must not list, or make FoDE copy, outside files."""
+
+    def _write(self, case, **data):
+        (case / ".foam-editor-files.json").write_text(json.dumps(data), encoding="utf-8")
+
+    def test_absolute_and_parent_entries_are_dropped_on_load(self, tmp_path):
+        self._write(
+            tmp_path,
+            extra_files=[
+                "system/myDict",
+                "/home/someone/.ssh/id_rsa",
+                "../../.bashrc",
+                "system/../../escape",
+                "C:\\Users\\someone\\secret",
+                "..\\..\\secret",
+            ],
+            extra_dirs=[{"path": "data", "recursive": True}, {"path": "/etc", "recursive": True},
+                        "../sibling"],
+        )
+        cfg = CaseFilesConfig(str(tmp_path))
+        assert cfg.get_extra_files() == ["system/myDict"]
+        assert cfg.get_extra_dirs() == [("data", True)]
+
+    def test_save_writes_the_file_back_without_them(self, tmp_path):
+        self._write(tmp_path, extra_files=["system/myDict", "/etc/passwd"])
+        CaseFilesConfig(str(tmp_path)).save()
+        saved = json.loads((tmp_path / ".foam-editor-files.json").read_text())
+        assert saved["extra_files"] == ["system/myDict"]
+
+    def test_add_refuses_them_too(self, tmp_path):
+        cfg = CaseFilesConfig(str(tmp_path))
+        cfg.add_file("/etc/passwd")
+        cfg.add_file("../x")
+        cfg.add_dir("/etc")
+        cfg.add_dir("../x", recursive=True)
+        assert cfg.get_extra_files() == []
+        assert cfg.get_extra_dirs() == []
+
+    def test_names_that_merely_contain_dots_are_fine(self, tmp_path):
+        cfg = CaseFilesConfig(str(tmp_path))
+        for rel in ("system/..hidden", "constant/a..b", "0.orig/U", "./system/x"):
+            cfg.add_file(rel)
+        assert len(cfg.get_extra_files()) == 4

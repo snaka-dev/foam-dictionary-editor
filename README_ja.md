@@ -20,7 +20,7 @@
 ## 動作環境
 
 - **Python 3.10 以上。**
-- 主な対象は **Linux** で、**macOS** でも動きます。**Windows** では `no-terminal` バリアントを使ってください（「[起動オプション](#起動オプション)」を参照）。xterm ターミナルは Unix の疑似端末を必要とし、Tools のコマンドは OpenFOAM のシェルコマンドで、シンプルモードの `cmd.exe` では実行できないためです。
+- 主な対象は **Linux** で、**macOS** でも動きます。**Windows** では FoDE はターミナルなしの `no-terminal` バリアントとして起動します（「[起動オプション](#起動オプション)」を参照）。xterm ターミナルは Unix の疑似端末を必要とし、Tools のコマンドは OpenFOAM のシェルコマンドで、シンプルモードの `cmd.exe` では実行できないためです。`--variant standard` でターミナルを戻せます。
 - **編集だけなら OpenFOAM は不要です。** Tools メニューから何かを実行するには必要です。FoDE を起動するシェルで OpenFOAM の `bashrc` を読み込んでおくと、内蔵ターミナルがそれを引き継ぎます。両方の系統に対応しています — openfoam.com の OpenFOAM（v2xxx）と openfoam.org の OpenFOAM（番号付きのバージョン）です。
 
 ## インストール
@@ -45,6 +45,8 @@ pip install -r requirements.txt pyvista pyvistaqt matplotlib
 | `xterm.js` | `https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/lib/xterm.js` |
 | `xterm.css` | `https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/css/xterm.css` |
 | `xterm-addon-fit.js` | `https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.11.0/lib/addon-fit.js` |
+
+ターミナルのページはシェルに入力できるため、FoDE は各ファイルを固定した SHA-256 チェックサムと照合し、3 つすべてが一致したときだけ使います。一致しないファイルはダウンロードし直します。
 
 </details>
 
@@ -121,8 +123,8 @@ FoDE に同梱の `tutorials/damBreak` を使います。
 ## 起動オプション
 
 ```bash
-python3 main.py                                   # 標準: ターミナルと 3D ビューア
-python3 main.py --variant no-terminal             # ターミナルなし（Windows ではこちらを推奨）
+python3 main.py                                   # 標準: ターミナルと 3D ビューア（Windows ではターミナルなし）
+python3 main.py --variant no-terminal             # ターミナルなし（Windows ではこの形で起動）
 python3 main.py --variant no-terminal-blockmesh   # ターミナルなし、3D ビューアを常に表示
 ```
 

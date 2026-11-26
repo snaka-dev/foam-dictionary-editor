@@ -20,7 +20,7 @@
 ## Requirements
 
 - **Python 3.10 or newer.**
-- **Linux** is the main platform; **macOS** works too. On **Windows**, use the `no-terminal` variant (see [Launch options](#launch-options)): the xterm terminal needs a Unix pseudo-terminal, and the Tools commands are OpenFOAM shell commands, which Simple mode's `cmd.exe` cannot run.
+- **Linux** is the main platform; **macOS** works too. On **Windows**, FoDE starts without the terminal, as the `no-terminal` variant (see [Launch options](#launch-options)): the xterm terminal needs a Unix pseudo-terminal, and the Tools commands are OpenFOAM shell commands, which Simple mode's `cmd.exe` cannot run. `--variant standard` brings it back.
 - **OpenFOAM is not needed to edit.** It is needed to run anything from the Tools menu: source OpenFOAM's `bashrc` in the shell you start FoDE from, and the built-in terminal inherits it. Both forks are supported — OpenFOAM from openfoam.com (v2xxx) and from openfoam.org (numbered versions).
 
 ## Install
@@ -45,6 +45,8 @@ The built-in terminal uses xterm.js, which is downloaded into `ui/xterm/` the fi
 | `xterm.js` | `https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/lib/xterm.js` |
 | `xterm.css` | `https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/css/xterm.css` |
 | `xterm-addon-fit.js` | `https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.11.0/lib/addon-fit.js` |
+
+FoDE checks each file against a fixed SHA-256 checksum and uses the files only when all three match, since the terminal page can type into your shell; a file that differs is downloaded again.
 
 </details>
 
@@ -121,8 +123,8 @@ Each heading links to the full description in the [User Guide](USER_GUIDE.md).
 ## Launch options
 
 ```bash
-python3 main.py                                   # standard: terminal and 3-D viewer
-python3 main.py --variant no-terminal             # no terminal (recommended on Windows)
+python3 main.py                                   # standard: terminal and 3-D viewer (no terminal on Windows)
+python3 main.py --variant no-terminal             # no terminal (what Windows starts as)
 python3 main.py --variant no-terminal-blockmesh   # no terminal, 3-D viewer always shown
 ```
 

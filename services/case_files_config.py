@@ -2,7 +2,7 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from app_config.json_io import load_json, save_json
 
@@ -10,6 +10,26 @@ _CONFIG_FILENAME = ".foam-editor-files.json"
 
 # (relative path, recursive)
 DirEntry = tuple[str, bool]
+
+
+def is_inside_case(rel_path: str) -> bool:
+    """True when *rel_path* names something under the case directory, read lexically.
+
+    ``.foam-editor-files.json`` travels inside a case, so a case from someone else
+    decides what is in it. ``Path(case) / "/home/u/.ssh/id_rsa"`` is that absolute
+    path, and ``case/../../x`` climbs out, so either would put an outside file in
+    the file list -- and Duplicate Case, which copies ``source/rel`` to
+    ``dest/rel``, would write outside the new case. Every path FoDE itself stores
+    comes from ``relative_to(case)`` and passes. Both path flavours are checked so
+    a config written on one platform is judged the same way on the other.
+    """
+    if not rel_path or "\0" in rel_path:
+        return False
+    for flavour in (PurePosixPath, PureWindowsPath):
+        p = flavour(rel_path)
+        if p.is_absolute() or p.anchor or ".." in p.parts:
+            return False
+    return True
 
 
 class CaseFilesConfig:
@@ -32,19 +52,23 @@ class CaseFilesConfig:
             self._extra_dirs = []
             self._viewer_kinds = {}
             return
-        self._extra_files = [str(f) for f in data.get("extra_files", [])]
+        # Entries that leave the case are dropped, not just skipped at use: a
+        # later save() then writes the file back without them.
+        self._extra_files = [
+            str(f) for f in data.get("extra_files", []) if is_inside_case(str(f))
+        ]
         self._viewer_kinds = {
             str(k): str(v) for k, v in (data.get("viewer_kinds") or {}).items() if v
         }
         self._extra_dirs = []
         for d in data.get("extra_dirs", []):
             if isinstance(d, dict):
-                self._extra_dirs.append(
-                    (str(d.get("path", "")), bool(d.get("recursive", False)))
-                )
+                entry = (str(d.get("path", "")), bool(d.get("recursive", False)))
             else:
                 # Backward compat: old format stored plain strings (non-recursive).
-                self._extra_dirs.append((str(d), False))
+                entry = (str(d), False)
+            if is_inside_case(entry[0]):
+                self._extra_dirs.append(entry)
 
     def save(self) -> None:
         data: dict = {"extra_files": self._extra_files}
@@ -60,7 +84,7 @@ class CaseFilesConfig:
         return list(self._extra_files)
 
     def add_file(self, rel_path: str) -> None:
-        if rel_path not in self._extra_files:
+        if is_inside_case(rel_path) and rel_path not in self._extra_files:
             self._extra_files.append(rel_path)
 
     def remove_file(self, rel_path: str) -> None:
@@ -71,6 +95,8 @@ class CaseFilesConfig:
         return list(self._extra_dirs)
 
     def add_dir(self, rel_path: str, recursive: bool = False) -> None:
+        if not is_inside_case(rel_path):
+            return
         for i, (p, _) in enumerate(self._extra_dirs):
             if p == rel_path:
                 self._extra_dirs[i] = (rel_path, recursive)

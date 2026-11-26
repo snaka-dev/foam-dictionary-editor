@@ -315,6 +315,10 @@ class AppConfigManager:
         """Return the value of a feature flag; defaults to True when absent."""
         return bool(self._features.get(name, default))
 
+    def has_feature(self, name: str) -> bool:
+        """True when the flag has been set, by a --variant preset or set_feature."""
+        return name in self._features
+
     def set_feature(self, name: str, value: bool) -> None:
         self._features[name] = value
 

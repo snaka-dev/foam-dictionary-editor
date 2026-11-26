@@ -3,9 +3,15 @@
 """Single source of truth for the application version.
 
 Bump ``__version__`` on each release (alongside the matching ``vX.Y.Z`` git
-tag). ``get_version()`` returns that number for installed copies, and enriches
-it with a short dev suffix (commits-past-tag + commit hash, ``*`` if the tree is
-dirty) when running from a git checkout so bug reports can pinpoint the build.
+tag). ``get_version()`` always reports that number, and in a git checkout adds a
+short suffix (commits past the release + commit hash, ``*`` if the tree is
+dirty) so bug reports can pinpoint the build.
+
+The number never comes from the tag. A clone whose git client was set not to
+fetch tags still had ``v1.15.1`` as its newest, and showed
+``1.15.1 (dev+117, …)`` for 1.21.1 code. The commit count is shown only when the
+tag ``git describe`` found is this version's own, since a count from another tag
+is just as wrong; otherwise the hash alone identifies the build.
 """
 from __future__ import annotations
 
@@ -13,18 +19,22 @@ import re
 import subprocess
 from pathlib import Path
 
-__version__ = "1.21.0"
+__version__ = "1.21.1"
 
 _REPO_DIR = Path(__file__).resolve().parent
 
 
 def _git_describe() -> str | None:
-    """Return ``git describe --tags --dirty`` output, or None if unavailable."""
+    """Return ``git describe --tags --long --always --dirty=*`` output, or None.
+
+    ``--long`` keeps the hash even on the tagged commit itself ("v1.21.1-0-g…"),
+    so a tag that turns out not to be this version's still leaves a hash to show.
+    """
     if not (_REPO_DIR / ".git").exists():
         return None
     try:
         out = subprocess.run(
-            ["git", "describe", "--tags", "--always", "--dirty=*"],
+            ["git", "describe", "--tags", "--long", "--always", "--dirty=*"],
             cwd=_REPO_DIR,
             capture_output=True,
             text=True,
@@ -44,19 +54,19 @@ def get_version() -> str:
     if described is None:
         return __version__
 
-    # "v1.7.0-3-g e75192d" (optionally "*"-suffixed when dirty) → ahead of tag.
+    # "v1.21.1-3-ge75192d", "*"-suffixed when dirty.
     m = re.match(
         r"v?(?P<tag>.+?)-(?P<n>\d+)-g(?P<sha>[0-9a-f]+)(?P<dirty>\*?)$",
         described,
     )
+    if m and m["tag"] == __version__:
+        if m["n"] == "0":
+            return f"{__version__} (dirty)" if m["dirty"] else __version__
+        return f"{__version__} (dev+{m['n']}, g{m['sha']}{m['dirty']})"
     if m:
-        return f"{m['tag']} (dev+{m['n']}, g{m['sha']}{m['dirty']})"
+        # Another version's tag (tags not fetched, or a stale one): its number
+        # and commit count are both wrong for this code, so keep only the hash.
+        return f"{__version__} (g{m['sha']}{m['dirty']})"
 
-    # Exact tag, optionally dirty: "v1.7.0" / "v1.7.0*".
-    m = re.match(r"v?(?P<tag>.+?)(?P<dirty>\*?)$", described)
-    if m and m["tag"] and not re.fullmatch(r"[0-9a-f]{7,}", m["tag"]):
-        dirty = " (dirty)" if m["dirty"] else ""
-        return f"{m['tag']}{dirty}"
-
-    # No tags reachable — bare commit hash from "--always".
+    # No tags reachable: "--always" gives a bare hash, "*"-suffixed when dirty.
     return f"{__version__} (g{described})"

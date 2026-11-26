@@ -68,3 +68,19 @@ class TestCopyVisibleFiles:
         dest = tmp_path / "a" / "b" / "copy"
         copy_visible_files(str(case_dir), dest)
         assert (dest / "system" / "controlDict").is_file()
+
+
+class TestEntriesOutsideTheCase:
+    """Duplicate Case copies source/rel to dest/rel, so a "../" entry would write
+    outside the new case. Such entries are refused when the config is read."""
+
+    def test_parent_entry_writes_nothing_outside_dest(self, case_dir, tmp_path):
+        outside = tmp_path / "outside.txt"
+        outside.write_text("attacker\n")
+        (case_dir / ".foam-editor-files.json").write_text(
+            json.dumps({"extra_files": ["../outside.txt", str(outside)]})
+        )
+        dest = tmp_path / "parent" / "copy"
+        copy_visible_files(str(case_dir), dest)
+        assert not (tmp_path / "parent" / "outside.txt").exists()
+        assert (dest / "system" / "controlDict").is_file()
