@@ -19,6 +19,7 @@ itself scanned. See DEVELOPER.md's "Include resolution" section.
 from __future__ import annotations
 
 import dataclasses
+import os
 import re
 from collections.abc import Sequence
 from functools import lru_cache
@@ -33,6 +34,7 @@ from foam.include_resolver import (
     resolve_include,
 )
 from foam.utils import is_log_filename, is_script_path, read_foam_file
+from services.case_paths import editable
 from services.example_search import discover_installations
 
 # Same directive set as foam/include_resolver's own regex; every match is handed
@@ -210,11 +212,15 @@ def included_files(
     ``(new_paths, origin_labels, read_only_paths)``:
 
     * ``new_paths`` -- resolved include targets **not already in** ``paths``,
-      in a stable order. A ``.gz`` resolution is listed like any other:
+      in a stable order, **one per real file**: ``"shared"`` from ``constant/``
+      and ``"../constant/shared"`` from ``system/`` are one file under two
+      spellings, and two rows would be two buffers saved over each other.
+      The first spelling met is the one listed. A ``.gz`` resolution is listed like any other:
       ``foam.utils.read_foam_file`` decompresses it and ``write_foam_file``
       compresses it again on save.
     * ``origin_labels`` -- path -> a human label naming the including file(s).
-    * ``read_only_paths`` -- the subset that lies outside ``case_dir``.
+    * ``read_only_paths`` -- the subset whose real location is outside
+      ``case_dir`` (symlinks followed, ``..`` collapsed).
     """
     case_path = Path(case_dir)
     known = {_dedupe_key(p) for p in paths}
@@ -222,6 +228,7 @@ def included_files(
     new_paths: list[str] = []
     origins: dict[str, list[str]] = {}
     read_only: set[str] = set()
+    listed_as: dict[str, str] = {}  # real path -> the spelling listed
 
     for hit in scan_includes(case_dir, paths, etc_dirs=etc_dirs):
         target = hit.resolved.path
@@ -230,7 +237,7 @@ def included_files(
         key = _dedupe_key(str(target))
         if key in known:
             continue
-        listed = str(target)
+        listed = listed_as.setdefault(key, str(target))
         if listed not in origins:
             new_paths.append(listed)
             origins[listed] = []
@@ -249,19 +256,27 @@ def _dedupe_key(path_str: str) -> str:
     if cached is not None:
         return cached
     try:
-        key = str(Path(path_str).resolve())
-    except OSError:
-        key = str(Path(path_str))
+        # Device and inode: resolved text would keep two spellings apart on a
+        # case-insensitive filesystem.
+        st = os.stat(path_str)
+        key = f"{st.st_dev}:{st.st_ino}"
+    except (OSError, ValueError):
+        try:
+            key = str(Path(path_str).resolve())
+        except OSError:
+            key = str(Path(path_str))
     _realpath_cache[path_str] = key
     return key
 
 
 def _is_inside(path: Path, case_dir: Path) -> bool:
-    try:
-        path.relative_to(case_dir)
-    except ValueError:
-        return False
-    return True
+    """True when *path* may be edited as part of the case.
+
+    Resolved on disk, not compared as text: ``<case>/system/../../x`` and a
+    target reached through a symlink are both outside. See
+    ``services/case_paths.py``.
+    """
+    return editable(path, case_dir)
 
 
 def _origin_label(source: Path, case_dir: Path) -> str:

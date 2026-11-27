@@ -183,3 +183,27 @@ def test_safe_filename_sanitizes_and_falls_back():
     assert _safe_filename("inlet box") == "inlet_box"
     assert _safe_filename("") == "shape"
     assert _safe_filename("a/b\\c") == "a_b_c"
+
+
+def test_export_never_writes_through_a_link_at_a_shape_name(qapp, tmp_path):
+    """The file name comes from the case's dictionaries, so a link can wait at it."""
+    topo = _topo_shapes()
+    out = tmp_path / "out"
+    out.mkdir()
+    victim = tmp_path / "victim"
+    victim.write_text("keep", encoding="utf-8")
+    dangling_target = tmp_path / "not-created"
+    first, second = (_safe_filename(s.label) for s in topo[:2])
+    assert first != second
+    (out / f"{first}.stl").symlink_to(victim)
+    (out / f"{second}.stl").symlink_to(dangling_target)
+
+    dlg = ExportStlDialog(topo, set(), [], set(), None)
+    dlg._select_all()
+    dlg._folder_edit.setText(str(out))
+    dlg._export()
+
+    assert victim.read_text(encoding="utf-8") == "keep"
+    assert not dangling_target.exists()
+    assert (out / f"{first}.stl").is_symlink()
+    assert len([f for f in out.glob("*.stl") if not f.is_symlink()]) == len(topo) - 2

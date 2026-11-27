@@ -14,7 +14,7 @@ from model.boundary_model import extract_boundary
 from services.case_loader import FIELD_DIRS
 from ui.dialogs.boundary_edit_dialog import BoundaryEditDialog
 from ui.dialogs.rename_boundary_dialog import RenameBoundaryDialog
-from ui.layout_constants import STATUS_NORMAL, STATUS_SHORT
+from ui.layout_constants import STATUS_NORMAL, STATUS_SHORT, STATUS_WARNING
 
 
 def _find_boundary_field(root: FoamNode) -> FoamNode | None:
@@ -104,6 +104,8 @@ class _BoundaryOpsMixin(_Base):
     # ── patch edit signals ────────────────────────────────────────────────────
 
     def _on_patch_edit_requested(self, path: str, patch_name: str, patch_node: object) -> None:
+        if self._read_only_refused(path):
+            return  # outside the case: the edit could never be saved
         root = self.state.parsed_roots.get(path)
         if root is None:
             return
@@ -154,6 +156,8 @@ class _BoundaryOpsMixin(_Base):
         )
 
     def _on_patch_create_requested(self, path: str, patch_name: str) -> None:
+        if self._read_only_refused(path):
+            return  # outside the case: the edit could never be saved
         root = self.state.parsed_roots.get(path)
         if root is None:
             return
@@ -193,6 +197,8 @@ class _BoundaryOpsMixin(_Base):
         )
 
     def _on_patch_paste_requested(self, path: str, patch_name: str, content: str) -> None:
+        if self._read_only_refused(path):
+            return  # outside the case: the edit could never be saved
         root = self.state.parsed_roots.get(path)
         if root is None:
             return
@@ -226,6 +232,8 @@ class _BoundaryOpsMixin(_Base):
         )
 
     def _on_patch_delete_requested(self, path: str, patch_name: str) -> None:
+        if self._read_only_refused(path):
+            return  # outside the case: the edit could never be saved
         root = self.state.parsed_roots.get(path)
         if root is None:
             return
@@ -258,7 +266,9 @@ class _BoundaryOpsMixin(_Base):
         if self.state.current_file and self.state.current_root is not None:
             roots[self.state.current_file] = self.state.current_root
 
-        targets = find_rename_targets(old_name, roots)
+        found = find_rename_targets(old_name, roots)
+        targets = {p: nodes for p, nodes in found.items() if not self._is_read_only(p)}
+        left = [p for p in found if p not in targets]
 
         dlg = RenameBoundaryDialog(old_name, targets, self.state.current_case_dir or "", self)
         if dlg.exec() != QDialog.DialogCode.Accepted:
@@ -281,8 +291,8 @@ class _BoundaryOpsMixin(_Base):
         self.statusBar().showMessage(
             tr("Renamed '{old}' → '{new}' in {n} file(s).").format(
                 old=old_name, new=new_name, n=len(selected)
-            ),
-            STATUS_NORMAL,
+            ) + self._left_read_only_note(left),
+            STATUS_WARNING if left else STATUS_NORMAL,
         )
 
     def _on_patch_selected(self, path: str, patch_name: str) -> None:
@@ -290,6 +300,18 @@ class _BoundaryOpsMixin(_Base):
             self.load_selected_file(path)
             self.file_list_panel.select_file(path)
         self.editor_panel.jump_to_text(patch_name)
+
+    def _left_read_only_note(self, paths: list[str]) -> str:
+        """A status-line suffix naming the read-only files an operation left alone.
+
+        A file whose real location is outside the case (a link, an out-of-case
+        include) is never written, so a boundary operation must not change
+        its buffer either: the edit would show in the panel and go nowhere.
+        """
+        if not paths:
+            return ""
+        names = ", ".join(sorted(Path(p).name for p in paths))
+        return " " + tr("Read-only, left unchanged: {files}.").format(files=names)
 
     def _apply_boundary_root_change(self, path: str, root: FoamNode) -> None:
         text = self._write_root_to_buffer(path, root)
@@ -299,11 +321,17 @@ class _BoundaryOpsMixin(_Base):
         self.boundary_panel.update_field(path, root)
 
     def _on_patch_delete_all_requested(self, patch_name: str) -> None:
-        affected = [
+        holding = [
             path for path, root in self.state.parsed_roots.items()
             if patch_name in extract_boundary(root)
         ]
+        affected = [p for p in holding if not self._is_read_only(p)]
+        left = [p for p in holding if p not in affected]
         if not affected:
+            if left:
+                self.statusBar().showMessage(
+                    self._left_read_only_note(left).strip(), STATUS_WARNING
+                )
             return
 
         file_list = "\n".join(f"  • {Path(p).name}" for p in sorted(affected, key=lambda p: Path(p).name))
@@ -332,8 +360,8 @@ class _BoundaryOpsMixin(_Base):
         self.statusBar().showMessage(
             tr("Deleted BoundaryField '{patch}' from {n} file(s).").format(
                 patch=patch_name, n=len(affected)
-            ),
-            STATUS_SHORT,
+            ) + self._left_read_only_note(left),
+            STATUS_WARNING if left else STATUS_SHORT,
         )
 
     def _on_patch_add_all_requested(self, patch_name: str) -> None:
@@ -341,6 +369,7 @@ class _BoundaryOpsMixin(_Base):
             path for path, root in self.state.parsed_roots.items()
             if patch_name not in extract_boundary(root)
             and _find_boundary_field(root) is not None
+            and not self._is_read_only(path)
         ]
         if not targets:
             return

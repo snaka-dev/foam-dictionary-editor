@@ -294,6 +294,11 @@ class _ProcessorOpsMixin(_Base):
                     "mesh — run reconstructPar -time {t} again"
                 )
             return text.format(t=problem.time, files=shown)
+        if problem.kind == "outside":
+            return tr(
+                "{dirs} is not inside the case directory (a link) — FoDE deletes "
+                "only inside the case; delete it by hand if you are sure"
+            ).format(dirs=", ".join(problem.detail))
         if problem.kind == "processes_running":
             return tr(
                 "{procs} is working in this case — wait for it to finish, "

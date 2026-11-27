@@ -61,6 +61,7 @@ class FileListModel:
         self._dirty: dict[str, bool] = {}
         self._diff_counts: dict[str, int | None] = {}
         self._included: dict[str, str] = {}
+        self._read_only: set[str] = set()
 
     # ── public API ────────────────────────────────────────────────────────────
 
@@ -71,8 +72,10 @@ class FileListModel:
         extra_files: list[str] | None = None,
         extra_dirs: list[str] | None = None,
         included_files: dict[str, str] | None = None,
+        read_only: set[str] | None = None,
     ) -> None:
         self.case_dir = case_dir
+        self._read_only = set(read_only or ())
         self._extra_dir_set = {str(Path(d)) for d in (extra_dirs or [])}
         if extra_files and case_dir:
             self._extra_files = {str(Path(ef)) for ef in extra_files}
@@ -91,6 +94,7 @@ class FileListModel:
         self._dirty = {}
         self._diff_counts = {}
         self._included = {}
+        self._read_only = set()
 
     def sorted_groups(self) -> list[tuple[str, list[str]]]:
         """Return [(group_name, [sorted_paths])] in display order."""
@@ -132,11 +136,16 @@ class FileListModel:
         return self._included.get(path)
 
     def is_read_only(self, path: str) -> bool:
-        """True for an included file outside the case directory.
+        """True for a file whose real location is outside the case directory.
 
-        Editing one would change a file shared by every case (typically inside
-        the OpenFOAM installation), so those rows are shown but not editable.
+        The caller's set (``state.read_only_files``: linked files and include
+        targets, resolved on disk) decides. Without one, an included file
+        outside the case by its path is still read-only. Editing such a file
+        would change one shared with other cases or the OpenFOAM
+        installation, so those rows are shown but not editable.
         """
+        if path in self._read_only:
+            return True
         if path not in self._included or not self.case_dir:
             return False
         try:

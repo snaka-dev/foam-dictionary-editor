@@ -130,7 +130,9 @@ def read_foam_file(path: str | Path) -> str:
         return p.read_text(encoding="latin-1")
 
 
-def write_foam_file(path: str | Path, text: str, *, compress: bool | None = None) -> None:
+def write_foam_file(
+    path: str | Path, text: str, *, compress: bool | None = None, exclusive: bool = False
+) -> None:
     """Write *text* to *path*, gzip-compressed when the name ends in ``.gz``.
 
     Every path that writes a buffer back goes through here, so a compressed
@@ -138,12 +140,25 @@ def write_foam_file(path: str | Path, text: str, *, compress: bool | None = None
     OpenFOAM, which picks the gzip stream by the ``.gz`` suffix; *compress*
     overrides it for a name that does not say (a backup ``U.gz.bak_…`` keeps
     its source's format, so renaming it back restores a real ``U.gz``).
+
+    *exclusive* creates the file and fails with ``FileExistsError`` if any
+    entry already has the name -- a dangling symlink included, which a plain
+    write would follow and create wherever it points. Every path that makes
+    a new file in a case passes it (see ``services/case_paths.py``).
     """
     p = Path(path)
     if compress is None:
         compress = p.name.endswith(".gz")
-    if compress:
-        p.write_bytes(gzip.compress(text.encode("utf-8")))
+    data = gzip.compress(text.encode("utf-8")) if compress else None
+    if exclusive and data is not None:
+        with open(p, "xb") as f:
+            f.write(data)
+    elif exclusive:
+        # Text mode, like write_text below, so line endings match a plain save.
+        with open(p, "x", encoding="utf-8") as f:
+            f.write(text)
+    elif data is not None:
+        p.write_bytes(data)
     else:
         p.write_text(text, encoding="utf-8")
 

@@ -2,6 +2,7 @@
 # Copyright (C) 2025-2026 Shinji NAKAGAWA
 from __future__ import annotations
 
+import os
 import time
 from functools import partial
 from pathlib import Path
@@ -257,8 +258,9 @@ class FileListPanel(QWidget):
         extra_files: list[str] | None = None,
         extra_dirs: list[str] | None = None,
         included_files: dict[str, str] | None = None,
+        read_only: set[str] | None = None,
     ) -> None:
-        self._model.load(paths, case_dir, extra_files, extra_dirs, included_files)
+        self._model.load(paths, case_dir, extra_files, extra_dirs, included_files, read_only)
         loaded_set = set(paths)
 
         self._list.blockSignals(True)
@@ -787,6 +789,10 @@ def _make_item(
         )
     if is_read_only:
         tooltip += f"\n({tr('read-only — outside the case directory')})"
+        # Reached through a link or a "..": name where it really is.
+        real = os.path.realpath(path)
+        if real != os.path.normpath(path) and not is_symlink:
+            tooltip += f"\n{_SYMLINK_MARKER.strip()} {real}"
     if variant_of:
         tooltip += "\n" + tr(
             "A variant of {base}. OpenFOAM reads it only when a command names it "

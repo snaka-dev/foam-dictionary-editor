@@ -107,6 +107,10 @@ class PlotSpec:
     title: str = ""
     x: Axis = field(default_factory=Axis)
     y: Axis = field(default_factory=Axis)
+    # Draw each line's column along x and its x column (time, position)
+    # along y: a sampled line across a channel reads as ``y`` against ``Ux``.
+    # ``x`` and ``y`` above stay the horizontal and vertical axes.
+    swap_axes: bool = False
     grid: bool = True
     legend: bool = True
     legend_loc: str = "best"
@@ -164,6 +168,7 @@ class PlotSpec:
             title=str(data.get("title", "")),
             x=axis(data.get("x")),
             y=axis(data.get("y")),
+            swap_axes=bool(data.get("swap_axes", False)),
             grid=bool(data.get("grid", True)),
             legend=bool(data.get("legend", True)),
             legend_loc=loc if (loc := data.get("legend_loc")) in LEGEND_LOCATIONS else "best",
@@ -233,8 +238,11 @@ class ResolvedSeries:
     kind: str
     # The files read, in the order the reader stitches them.
     files: tuple[str, ...]
+    # The data set's x column (time, position), whichever axis it is drawn on.
     x_name: str
     label: str
+    # The points as drawn: horizontal, vertical. With ``swap_axes`` these are
+    # the column's values and the x column's, in that order.
     x: list[float]
     y: list[float]
 
@@ -246,6 +254,8 @@ class Resolved:
     y_label: str
     # Series whose data set or column no longer exists, as (series, reason).
     missing: list[tuple[Series, str]] = field(default_factory=list)
+    # The spec's ``swap_axes``, for writers that name the drawn columns.
+    swap_axes: bool = False
 
 
 def case_label(case_dir: str) -> str:
@@ -323,6 +333,8 @@ def resolve(spec: PlotSpec, sources: dict[str, list[Source]] | None = None) -> R
             missing.append((s, "column"))
             continue
         x, y = finite_pairs(table.column(x_name), table.column(s.column))
+        if spec.swap_axes:
+            x, y = y, x
         out.append(ResolvedSeries(
             series=s,
             kind=source.kind,
@@ -336,11 +348,15 @@ def resolve(spec: PlotSpec, sources: dict[str, list[Source]] | None = None) -> R
     # Labels last: which parts are shown depends on every line plotted.
     for r, label in zip(out, auto_labels(parts)):
         r.label = r.label or label
+    along_x, along_y = default_x_label(out), default_y_label(out)
+    if spec.swap_axes:
+        along_x, along_y = along_y, along_x
     return Resolved(
         series=out,
-        x_label=spec.x.label or default_x_label(out),
-        y_label=spec.y.label or default_y_label(out),
+        x_label=spec.x.label or along_x,
+        y_label=spec.y.label or along_y,
         missing=missing,
+        swap_axes=spec.swap_axes,
     )
 
 

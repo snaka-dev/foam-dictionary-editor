@@ -120,7 +120,7 @@ def _run_exported(script: str, tmp_path: Path, spec: PlotSpec) -> Figure:
 @pytest.mark.parametrize(
     "variant",
     ["plain", "settings", "log", "legend outside", "legend dragged", "styled", "fonts",
-     "frame"],
+     "frame", "swapped"],
 )
 def test_exported_python_script_draws_the_same_figure(cases, tmp_path, variant):
     spec = _spec(cases)
@@ -145,6 +145,9 @@ def test_exported_python_script_draws_the_same_figure(cases, tmp_path, variant):
         a.color, a.linestyle, a.marker, a.linewidth = "#d62728", "--", "o", 2.5
         spec.series[1].linestyle, spec.series[1].marker = "none", "s"
         spec.series[2].x_column = "U_y"  # a profile plotted against another column
+    elif variant == "swapped":
+        spec.swap_axes = True
+        spec.y = Axis(min=0.0, step=0.2)  # now the time/position axis
     stamp = ""
     if variant == "frame":
         # An animation frame: pinned "C<n>" colours, fixed axes, the stamp.
@@ -253,6 +256,22 @@ def test_a_chosen_x_column_reaches_the_plot_and_its_label(cases):
     assert resolved.x_label == "p"
     spec.series[0].x_column = "nonexistent"
     assert [why for _, why in resolve(spec).missing] == ["column"]
+
+
+def test_swapped_axes_draw_the_column_along_x(cases):
+    a, _ = cases
+    spec = PlotSpec(series=[Series(str(a), "postProcessing/graph/line_p_U.xy", "U_x",
+                                   time="0.1", x_column="p")], swap_axes=True)
+    resolved = resolve(spec)
+    assert resolved.series[0].x == [1, 2, 3] and resolved.series[0].y == [0.1, 0.1, 0.1]
+    assert (resolved.x_label, resolved.y_label) == ("U_x", "p")
+    # The axis rows are the drawn axes: a label set there is used as is.
+    spec.x = Axis(label="Ux [m/s]")
+    assert resolve(spec).x_label == "Ux [m/s]"
+    # The gnuplot snapshot names its two columns in the order they are drawn.
+    assert "# U_x\tp\n" in gnuplot_data(resolved)
+    assert PlotSpec.from_dict(spec.to_dict()).swap_axes is True
+    assert PlotSpec.from_dict({}).swap_axes is False
 
 
 def test_settings_file_round_trips_and_refuses_strangers(cases, tmp_path):

@@ -595,6 +595,8 @@ Where an included file appears depends on where it lives:
 
 Files outside the case are **read-only**. Editing one would change a file shared by every case on the machine, so the editor shows it — tree and text — but the text editor is locked (a `read-only` badge appears beside the Line indicator), tree entries cannot be edited, and Save, Create Backup, Duplicate and Delete are unavailable. To customise one, right-click it and choose **Copy into case...**: the file is copied into your case (normally into `system/`, which is where OpenFOAM looks first) and the copy is editable. For `#includeFunc`, the copy takes effect immediately; for `#includeEtc`, change the directive to a plain `#include "<name>"` so it picks up your local version.
 
+The same applies to anything in the file list whose real location is outside the case, even though its name looks like a case file: a symbolic link such as `system/fvSolution` pointing elsewhere, a file inside a linked folder, or an `#include` whose path climbs out with `../`. FoDE checks where each file really is, so a case you received from someone else cannot get you to change a file elsewhere on your disk by saving. Such a file is read-only and shown in italic, and hovering over it shows where it really is. For a link, **Copy into case...** offers the link's own name and, after asking, replaces the link with a copy of the file it points to; the original is not changed. FoDE checks again just before every save, so a link changed after the file list was built is caught too.
+
 To jump from a directive to the file it names, right-click the directive's row in the tree and choose **Open Included File**, or double-click the row's Key or Type cell. Hovering over the row shows what the directive resolved to, or why it did not:
 
 - **not found** — the file does not exist. This is normal before a case has been run, since some tutorials generate their included files in `Allrun`.
@@ -605,7 +607,7 @@ Two limits are worth knowing. Includes are followed **one level only**, so a fil
 
 ### Symbolic links
 
-Symbolic links in the file list are shown with a `⇢` marker appended to the file name and the item text is rendered in italic. Hovering over the item shows a tooltip containing the path and the link target. Editing a symlink writes through to the target file, exactly as the operating system resolves the link.
+Symbolic links in the file list are shown with a `⇢` marker appended to the file name and the item text is rendered in italic. Hovering over the item shows a tooltip containing the path and the link target. A link whose target is inside the case, such as one region's dictionary shared with another, is edited like any other file: saving writes through to the target, exactly as the operating system resolves the link. A link that leads outside the case is read-only; see [Included files](#included-files).
 
 ### Adding files at runtime
 
@@ -876,7 +878,9 @@ Select **Case > Duplicate Case…** to save a copy of the current case under a n
   - **Copy all files** (default) — performs a full directory copy. Every file and subdirectory under the case root is included, such as mesh data, time-step directories, and log files.
   - **Copy app-visible files only** — copies only the files listed in the file panel (`system/controlDict`, `fvSchemes`, `fvSolution`, etc., and all files under `0/` and `0.orig/`). Files not shown by the application, such as `constant/polyMesh`, `processor*/`, and arbitrary time-step directories, are not copied.
 
-If the destination already exists, a confirmation prompt is shown before overwriting. After a successful copy, the application offers to open the new case immediately.
+If the destination already exists, a confirmation prompt is shown before overwriting. A destination that is the case being copied, lies inside it or contains it — however it is written, `..` and links included — is refused before anything is removed. After a successful copy, the application offers to open the new case immediately.
+
+Files whose real location is outside the case (see [Included files](#included-files)) are never copied as contents. **Copy app-visible files only** leaves them out and lists them when it finishes; **Copy all files** keeps links as links, so the new case points where the old one did and shows those files read-only too. **Save as New Case** follows the same rules, and an unsaved edit to such a file is not written into the new case; it is listed instead.
 
 If there are unsaved changes when **Duplicate Case…** is pressed, the application asks whether to save all modified files before copying so that the duplicated case reflects the latest edits.
 
@@ -998,7 +1002,7 @@ When a cell shows `–` (no patch entry in that file), the file is still opened 
 
 ### Editing a boundary condition
 
-Double-click a cell (or right-click → **Edit**) to open the **Edit boundary** dialog. The dialog header shows the variable name and patch name in read-only form.
+Double-click a cell (or right-click → **Edit**) to open the **Edit boundary** dialog. The dialog header shows the variable name and patch name in read-only form. A field file shown read-only in the file list (its real location is outside the case; see [Included files](#included-files)) cannot be edited here either: single-cell actions are refused, and the all-files actions below leave it out and name it on the status bar.
 
 **Normal mode** (no `†` marker) — the full content of the patch sub-dictionary is shown in an editable text area. Edit any lines, including `type`, and click **OK** to apply. If the content is unchanged, **OK** has no effect and the file is not marked as modified.
 
@@ -1142,7 +1146,7 @@ The **STL ▾** menu loads reference surfaces and exports the shapes FoDE draws.
 - **Load STL / OBJ…** shows STL or OBJ files as translucent overlays. Several files can be selected at once and further loads add to what is shown; if one file cannot be read, the rest still load and a single warning names the ones that failed. Gzip-compressed files (`.stl.gz`, `.obj.gz`) load directly.
 - Each loaded file gets its own checkable row at the bottom of the menu, with a colour swatch so several surfaces stay apart. **Show loaded surfaces**, **Show all surfaces** and **Hide all surfaces** switch them together, the same arrangement as the overlay menus above. A surface is drawn even with no `blockMeshDict` open.
 - Loading a file that is already loaded re-reads it into its existing row, which is how you refresh a surface edited outside FoDE. **Unload ▸** removes one file and **Clear STL** removes all of them (both greyed out when none are loaded); opening another case also clears them.
-- **Export Shapes as STL…** opens a dialog listing every renderable `topoSetDict`, `snappyHexMeshDict` and `setFieldsDict` shape currently loaded, with a checkbox per shape (defaulting to its current visibility in the 3-D view) and **Select All** / **Deselect All**. Choose an output folder and click Export to write each checked shape as its own `.stl` file, named after its label. It is greyed out when none of that geometry is loaded.
+- **Export Shapes as STL…** opens a dialog listing every renderable `topoSetDict`, `snappyHexMeshDict` and `setFieldsDict` shape currently loaded, with a checkbox per shape (defaulting to its current visibility in the 3-D view) and **Select All** / **Deselect All**. Choose an output folder and click Export to write each checked shape as its own `.stl` file, named after its label. A name that is already a symbolic link in that folder is skipped and listed, never written through. It is greyed out when none of that geometry is loaded.
 - Point-marker shapes (e.g. `nearestToCell`) and `planeToFaceZone` discs are not offered, because they have no meaningful STL surface. Exported geometry is always the full, unclipped shape, even when the 3-D view shows it clipped.
 
 ### topoSetDict overlay
@@ -1561,7 +1565,7 @@ Select **Tools > Delete processor\* Directories…** to free the disk space a de
 - that the copies at the case root are complete and belong to the current mesh, not cut off by an interrupted `reconstructPar` or left over from another mesh — if one is not, the message tells you to run `reconstructPar -time <t>` again;
 - that nothing else is working in the case right now, such as a `reconstructPar` in another terminal or a solver run with `-case`. The process is named; idle shells, editors and ParaView do not count. This is checked again just before deleting.
 
-If anything would be lost, the dialog lists what (for example "time 0.3 exists only in processor\*") and deletes nothing; there is no "delete anyway". Collated data (`processorsN`) is refused too, because FoDE cannot read inside it.
+If anything would be lost, the dialog lists what (for example "time 0.3 exists only in processor\*") and deletes nothing; there is no "delete anyway". Collated data (`processorsN`) is refused too, because FoDE cannot read inside it. So is a `processor*` directory that is a link to somewhere outside the case, for example on a scratch disk: FoDE deletes only inside the case, and the message names where the link leads so you can delete that data yourself.
 
 When the check passes, a confirmation states what will be deleted and how much, with **No** as the default. Its checkbox **Keep the latest time (t) and the decomposed mesh** is ticked by default:
 
@@ -1675,7 +1679,7 @@ Select **Tools > Plot Results…** (also in the **View** menu) to plot what a ru
 
 **Sampled lines.** A sampled set (`.xy`, `.csv`) is written once per output time. The latest time is plotted. The **Time** slider under the plot moves every sampled line through its times together (see *Animation* below); to hold one line at another time, choose it under **Sample time** in that line's **Line Settings…**. Open File, Save as CSV and the data set's tooltip follow the time shown.
 
-**Plot settings.** Below the plot: a title, and for each axis a label, a minimum and maximum, the spacing of the major ticks and a log-scale switch. Leave a field empty for the automatic choice. The toolbar above the plot zooms and pans (its home button goes back); **Use Current View** copies the range you zoomed to into Min and Max, and **Automatic Ranges** clears them. **Font sizes** sets the title, the axis labels, the numbers along the axes and the legend separately, in points. **Default** leaves matplotlib's size and shows what it is (*Default (12 pt)*); the arrows step from that size, so one click up gives 13 pt. Step down to the bottom, or type 0, to return to Default. Sizes are points on the saved image, so set them with the **Image size** in mind: a figure printed small needs larger text.
+**Plot settings.** Below the plot: a title, and for each axis a label, a minimum and maximum, the spacing of the major ticks and a log-scale switch. Leave a field empty for the automatic choice. **Swap X and Y** draws each column along the horizontal axis and its time or position up the vertical one — a sampled line across a channel then reads as `y` against `Ux`. The X and Y axis rows swap with it, so a range you set stays with its quantity; they always describe the horizontal and vertical axes as drawn. The toolbar above the plot zooms and pans (its home button goes back); **Use Current View** copies the range you zoomed to into Min and Max, and **Automatic Ranges** clears them. **Font sizes** sets the title, the axis labels, the numbers along the axes and the legend separately, in points. **Default** leaves matplotlib's size and shows what it is (*Default (12 pt)*); the arrows step from that size, so one click up gives 13 pt. Step down to the bottom, or type 0, to return to Default. Sizes are points on the saved image, so set them with the **Image size** in mind: a figure printed small needs larger text.
 
 **The legend.** The list beside **Legend** places it: **Best** (matplotlib picks the emptiest corner), a corner or edge, or **Outside right**, beside the plot, for when the lines leave no room inside. You can also drag the legend with the mouse; it stays where you drop it (inside the plot — **Outside right** is the way to put it outside), the list then reads **Where dragged**, and saved images and exported scripts put it there too. gnuplot has no "best" placement, so there **Best** becomes gnuplot's default top-right corner.
 
@@ -2032,6 +2036,12 @@ Changes are saved to `app_config.json` when the dialog is closed.
 **Some vertices, blocks or shapes are missing from the 3-D view.** A reference FoDE cannot resolve — a misspelt variable name, an `#include` that is not found — makes the vertex, block or shape that uses it vanish quietly. Check the spelling, and that a variable kept in another file is pulled in with `#include`. See [Variable resolution](#variable-resolution) and [Parameters kept in an included file](#parameters-kept-in-an-included-file).
 
 **The 3-D view shows nothing for a file.** FoDE draws a dictionary it recognises by its name or by the `object` entry in its `FoamFile` header, and sampling files by their content. A file with a custom name and no header is not recognised: right-click it in the file list and choose **Show in 3-D view as**. A file that is only an `#include` fragment — a bare `hex …` list with no enclosing dictionary — is deliberately not drawn on its own. See [BlockMesh panel](#blockmesh-panel).
+
+**A file is shown in italic and cannot be edited, or a save says "leads outside the case directory".** The file's real location is outside the case: it is a symbolic link to somewhere else, it sits in a linked folder, or it is an `#include` from outside. FoDE writes only inside the case. Hover over the row to see where the file really is, and use **Copy into case...** on its right-click menu to get an editable copy; see [Included files](#included-files).
+
+**A save says "the case folder was replaced on disk".** The folder FoDE opened is no longer at that path: it was renamed or deleted and another put in its place, or the case was opened through a link that now points elsewhere. FoDE will not write your edits into the other folder. Copy any text you need out of the editor, then use **Case > Reload Case** to work on the folder that is there now.
+
+**Save Case says "another unsaved file is the same file on disk".** Two rows in the file list are one file (a link inside the case to another case file) and both have unsaved edits that differ. Neither is written. Reload one of them with **Reload File from Disk** (`F5`) and save again.
 
 ## Keyboard shortcuts
 

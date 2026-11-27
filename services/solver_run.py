@@ -21,6 +21,7 @@ from foam.nodes import FoamNode
 from foam.parser import OpenFoamParser
 from foam.tree_utils import find_child
 from services.case_loader import detect_time_dirs
+from services.case_paths import real_path, removable_tree
 from services.field_integrity import Cancelled, MeshSizes, inspect_file, read_mesh_sizes
 from services.process_tree import processes_in_directory
 
@@ -306,7 +307,12 @@ class DeletionProblem:
       from a run on another mesh;
     - ``processes_running``: something other than FoDE is working in the
       case right now (``detail``: "name (pid N)"), so what is on disk may
-      still be changing.
+      still be changing;
+    - ``outside``: a processor directory is a link, or otherwise has its real
+      location outside the case (``detail``: "name → real path" each). FoDE
+      deletes only inside the case -- see services/case_paths.py -- and
+      ``rmtree`` follows a link in a parent, so the time directories under a
+      linked ``processor0`` would be deleted wherever it points.
 
     A root file is only held to a standard its processor copy meets, so a
     file OpenFOAM writes without a closing line or header is never flagged.
@@ -569,6 +575,10 @@ def check_processor_deletion(case_dir: str, *, keep_latest: bool = False) -> Del
     dirs = tuple(processor_dirs(case_dir))
     if not dirs:
         return DeletionCheck((), 0, ())
+    outside = _outside_processor_dirs(case_dir, dirs)
+    if outside:
+        # Nothing under it is read either: it is not this case's data.
+        return DeletionCheck(dirs, 0, (DeletionProblem("outside", detail=outside),))
     at_root = _times_of(case_dir)
     latest_root = _latest(at_root)
     if any(d.startswith("processors") for d in dirs):
@@ -655,6 +665,17 @@ def check_processor_deletion(case_dir: str, *, keep_latest: bool = False) -> Del
     )
 
 
+def _outside_processor_dirs(case_dir: str, dirs: Iterable[str]) -> tuple[str, ...]:
+    """The processor directories FoDE must not delete from, as "name → real path"."""
+    found = []
+    for d in dirs:
+        path = os.path.join(case_dir, d)
+        if not removable_tree(path, case_dir):
+            real = real_path(path)
+            found.append(f"{d} → {real if real is not None else '?'}")
+    return tuple(found)
+
+
 @dataclasses.dataclass(frozen=True)
 class DecompositionStatus:
     """What the file list's "Decomposed" line says about processor*."""
@@ -719,7 +740,9 @@ def delete_processor_data(
     ``app_config/keyword_generator.py`` -- so a caller on a worker thread can
     show progress and stop. Stopping between targets is always safe: each
     target is a whole time directory that the check found at the case root.
-    The caller has confirmed ``check.safe``; this does not re-check.
+    The caller has confirmed ``check.safe``; this does not re-check the
+    data. Where each target really is *is* checked again, just before it
+    goes: a real directory inside the case, or it is left and reported.
     """
     targets = deletion_targets(case_dir, check)
     failed: list[str] = []
@@ -729,6 +752,9 @@ def delete_processor_data(
         rel = os.path.relpath(target, case_dir)
         if progress is not None:
             progress(n, len(targets), rel)
+        if not removable_tree(target, case_dir):
+            failed.append(f"{rel}: leads outside the case directory")
+            continue
         try:
             shutil.rmtree(target)
         except OSError as e:

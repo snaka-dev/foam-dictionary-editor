@@ -175,6 +175,24 @@ def test_settings_reach_the_plot(dialog):
     assert spec.x.max is None and spec.y.step == 0.5 and not spec.grid
 
 
+def test_swap_x_and_y(dialog, tmp_path):
+    case = str(_case(tmp_path, "scaled", scale=10.0))
+    dialog.set_case_dir(case)
+    dialog.tick(case, PROBE, "probe0")
+    dialog.x_fields.min.setText("1.5")  # a Time range
+    dialog.swap_check.setChecked(True)
+    line = _lines(dialog)[0]
+    assert list(line.get_xdata()) == [10.0, 20.0, 30.0]  # probe0 along x
+    assert list(line.get_ydata()) == [1.0, 2.0, 3.0]  # Time along y
+    ax = dialog.figure.axes[0]
+    assert (ax.get_xlabel(), ax.get_ylabel()) == ("probe0", "Time")
+    # The range moved with its quantity to the Y axis row.
+    assert dialog.x_fields.min.text() == "" and dialog.y_fields.min.text() == "1.5"
+    assert dialog.spec().swap_axes
+    dialog.swap_check.setChecked(False)
+    assert dialog.x_fields.min.text() == "1.5" and not dialog.spec().swap_axes
+
+
 def test_legend_position_choice(dialog):
     dialog.tick(dialog.cases[0], PROBE, "probe0")
     dialog.legend_combo.setCurrentIndex(dialog.legend_combo.findData("lower left"))
@@ -593,6 +611,7 @@ def test_settings_save_and_load_again(dialog, tmp_path, monkeypatch, answer_mess
     dialog.y_fields.step.setText("0.5")
     dialog.legend_combo.setCurrentIndex(dialog.legend_combo.findData("lower right"))
     dialog.legend_size_spin.setValue(8)
+    dialog.swap_check.setChecked(True)
     saved = dialog.spec()
     path = tmp_path / "out.plot.json"
     monkeypatch.setattr(dialog, "_ask_path", lambda *a: str(path))

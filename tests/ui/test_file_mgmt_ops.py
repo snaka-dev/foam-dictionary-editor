@@ -11,6 +11,7 @@ of the call site would guess.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -88,7 +89,8 @@ class TestBackup:
         reported: list[str] = []
         monkeypatch.setattr(type(win), "_error", lambda self, t, m: reported.append(m))
         monkeypatch.setattr(
-            Path, "write_text", lambda self, *a, **k: (_ for _ in ()).throw(OSError("read-only"))
+            "ui.mixins._file_mgmt_ops.write_foam_file",
+            lambda *a, **k: (_ for _ in ()).throw(OSError("read-only")),
         )
         assert win._create_backup(str(case / "system" / "controlDict")) is False
         assert reported
@@ -119,7 +121,8 @@ class TestDeleteFile:
         # which is strictly worse than either button on its own.
         _answer_delete_dialog(monkeypatch, "backup")
         monkeypatch.setattr(
-            Path, "write_text", lambda self, *a, **k: (_ for _ in ()).throw(OSError("read-only"))
+            "ui.mixins._file_mgmt_ops.write_foam_file",
+            lambda *a, **k: (_ for _ in ()).throw(OSError("read-only")),
         )
         target = case / "system" / "controlDict"
         win._on_delete_file_requested(str(target))
@@ -138,7 +141,8 @@ class TestDeleteFile:
         reported: list[str] = []
         monkeypatch.setattr(type(win), "_error", lambda self, t, m: reported.append(m))
         monkeypatch.setattr(
-            Path, "unlink", lambda self, *a, **k: (_ for _ in ()).throw(OSError("busy"))
+            "ui.mixins._file_mgmt_ops.os.unlink",
+            lambda *a, **k: (_ for _ in ()).throw(OSError("busy")),
         )
         target = case / "system" / "controlDict"
         win._on_delete_file_requested(str(target))
@@ -206,7 +210,8 @@ class TestCreateFile:
         reported: list[str] = []
         monkeypatch.setattr(type(win), "_error", lambda self, t, m: reported.append(m))
         monkeypatch.setattr(
-            Path, "write_text", lambda self, *a, **k: (_ for _ in ()).throw(OSError("read-only"))
+            "ui.mixins._file_mgmt_ops.write_foam_file",
+            lambda *a, **k: (_ for _ in ()).throw(OSError("read-only")),
         )
         win._on_create_file_requested(str(case), "system")
         assert reported
@@ -335,14 +340,14 @@ class TestCleanBackups:
         two = with_backups / "system" / "controlDict.bak_20260102_000000"
         stub_dialog("ui.mixins._file_mgmt_ops.CleanBackupsDialog",
                     paths_to_delete=[str(one), str(two)])
-        real_unlink = Path.unlink
+        real_unlink = os.unlink
 
-        def flaky(self, *a, **k):
-            if self.name.endswith("20260101_000000"):
+        def flaky(path, *a, **k):
+            if str(path).endswith("20260101_000000"):
                 raise OSError("busy")
-            return real_unlink(self, *a, **k)
+            return real_unlink(path, *a, **k)
 
-        monkeypatch.setattr(Path, "unlink", flaky)
+        monkeypatch.setattr("ui.mixins._file_mgmt_ops.os.unlink", flaky)
         warned = answer_message_box(None)
         win._on_clean_backups()
         assert warned, "a failed deletion was not reported"

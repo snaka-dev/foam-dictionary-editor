@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from app_config.json_io import load_json, save_json
+from services.case_paths import case_root_changed
 
 _CONFIG_FILENAME = ".foam-editor-files.json"
 
@@ -36,6 +37,7 @@ class CaseFilesConfig:
     """Manages per-case extra file/directory list stored in .foam-editor-files.json."""
 
     def __init__(self, case_dir: str):
+        self._case_dir = case_dir
         self._path = Path(case_dir) / _CONFIG_FILENAME
         self._extra_files: list[str] = []
         self._extra_dirs: list[DirEntry] = []
@@ -70,7 +72,11 @@ class CaseFilesConfig:
             if is_inside_case(entry[0]):
                 self._extra_dirs.append(entry)
 
-    def save(self) -> None:
+    def save(self) -> bool:
+        """Write the file. False, writing nothing, when the case folder is no
+        longer the one that was opened (see ``case_paths.pin_case_root``)."""
+        if case_root_changed(self._case_dir):
+            return False
         data: dict = {"extra_files": self._extra_files}
         if self._viewer_kinds:
             data["viewer_kinds"] = dict(self._viewer_kinds)
@@ -79,6 +85,7 @@ class CaseFilesConfig:
                 {"path": p, "recursive": r} for p, r in self._extra_dirs
             ]
         save_json(self._path, data)
+        return True
 
     def get_extra_files(self) -> list[str]:
         return list(self._extra_files)
@@ -132,6 +139,8 @@ class CaseFilesConfig:
         reloads the case from disk, so a swallowed failure told the user it had worked
         and then put every entry straight back in the list a moment later.
         """
+        if case_root_changed(self._case_dir):
+            return False  # another folder's file; the entries stay as they are
         ok = True
         try:
             if self._path.exists():

@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import stat
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -21,6 +23,13 @@ from i18n import tr
 from services.backup_files import find_backup_files
 from services.case_files_config import CaseFilesConfig
 from services.case_loader import TARGET_FILES, list_case_files
+from services.case_paths import (
+    case_root_changed,
+    creatable,
+    removable,
+    removable_tree,
+    writable,
+)
 from services.include_scan import copy_destination_for, resolve_directive_text
 from ui.dialogs.add_files_dialog import AddFilesDialog
 from ui.dialogs.clean_backups_dialog import CleanBackupsDialog
@@ -76,12 +85,12 @@ class _FileManagementOpsMixin(_Base):
             ),
             Path(case_dir) / group,
         )
-        if target is None:
+        if target is None or self._create_refused(target):
             return
 
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
-            write_foam_file(target, _foamfile_template(group, target.name))
+            write_foam_file(target, _foamfile_template(group, target.name), exclusive=True)
         except OSError as e:
             self._error(tr("Create File Error"), tr("Could not create file:\n{e}").format(e=e))
             return
@@ -96,7 +105,8 @@ class _FileManagementOpsMixin(_Base):
         self.file_list_panel.select_file(str(target))
 
     def _on_add_file_requested(self, case_dir: str, group: str) -> None:
-
+        if self._case_folder_replaced():
+            return
         cfg = CaseFilesConfig(case_dir)
         extra = cfg.get_extra_files() or None
         extra_dirs = cfg.get_extra_dirs() or None
@@ -110,6 +120,8 @@ class _FileManagementOpsMixin(_Base):
         if not selected:
             return
 
+        if self._case_folder_replaced():  # again, after the dialog
+            return
         base = Path(case_dir)
         config = CaseFilesConfig(case_dir)
         for abs_path in selected:
@@ -123,6 +135,19 @@ class _FileManagementOpsMixin(_Base):
         self.statusBar().showMessage(
             tr("Added {n} file(s) to the file list.").format(n=len(selected)), STATUS_SHORT
         )
+
+    def _case_folder_replaced(self) -> bool:
+        """Report and return True when the open case's folder is no longer the one opened.
+
+        For actions that end by reloading the case: the reload would pin the
+        new folder and clear the buffers, which only Open and Reload Case --
+        the user's own decision -- may do.
+        """
+        case_dir = self.state.current_case_dir
+        if not case_dir or not case_root_changed(case_dir):
+            return False
+        self.statusBar().showMessage(_not_written_message(case_dir, ""), STATUS_WARNING)
+        return True
 
     def _read_only_refused(self, path: str) -> bool:
         """Report and return True when ``path`` is an out-of-case include.
@@ -140,6 +165,41 @@ class _FileManagementOpsMixin(_Base):
         )
         return True
 
+    def _edit_refused(self, path: str) -> bool:
+        """Report and return True unless Save may write ``path`` right now.
+
+        The read-only set is worked out when the file list loads; this checks
+        the disk again just before writing, so a link changed since cannot
+        lead a save outside the case. See services/case_paths.py.
+        """
+        if self._read_only_refused(path):
+            return True
+        case_dir = self.state.current_case_dir
+        if case_dir and writable(path, case_dir):
+            return False
+        self.statusBar().showMessage(
+            _not_written_message(case_dir, display_file_name(path)), STATUS_WARNING
+        )
+        return True
+
+    def _create_refused(self, path: str | Path) -> bool:
+        """Report and return True unless a new file may be made at ``path``.
+
+        Nothing may already have the name (a dangling link included) and the
+        directory it goes in must be inside the case. The caller then
+        creates it exclusively, so the name cannot be taken in between.
+        """
+        case_dir = self.state.current_case_dir
+        if case_dir and creatable(path, case_dir):
+            return False
+        name = display_file_name(str(path))
+        if os.path.lexists(path):
+            msg = tr("File already exists: {name}").format(name=name)
+        else:
+            msg = _not_written_message(case_dir, name)
+        self.statusBar().showMessage(msg, STATUS_WARNING)
+        return True
+
     def _create_backup(self, path: str) -> bool:
         """Write a .bak_<timestamp> copy. Returns True on success."""
         if self._read_only_refused(path):
@@ -147,6 +207,8 @@ class _FileManagementOpsMixin(_Base):
         p = Path(path)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_path = p.parent / f"{p.name}.bak_{timestamp}"
+        if self._create_refused(backup_path):
+            return False
 
         if path in self.state.file_buffers:
             content = self.state.file_buffers[path]
@@ -161,7 +223,9 @@ class _FileManagementOpsMixin(_Base):
 
         try:
             # Same format as the source, so renaming the backup back restores it.
-            write_foam_file(backup_path, content, compress=p.name.endswith(".gz"))
+            write_foam_file(
+                backup_path, content, compress=p.name.endswith(".gz"), exclusive=True
+            )
         except Exception as e:
             self._error(tr("Backup Error"), tr("Could not write backup:\n{e}").format(e=e))
             return False
@@ -307,8 +371,17 @@ class _FileManagementOpsMixin(_Base):
             if not self._create_backup(path):
                 return
 
+        case_dir = self.state.current_case_dir
+        if not case_dir or not removable(path, case_dir):
+            self.statusBar().showMessage(
+                tr("Not deleted — {name} is not inside the case directory.").format(
+                    name=display_file_name(path)
+                ),
+                STATUS_WARNING,
+            )
+            return
         try:
-            Path(path).unlink()
+            os.unlink(path)  # the entry itself: a symlink goes, never its target
         except OSError as e:
             self._error(tr("Delete Error"), tr("Could not delete file:\n{e}").format(e=e))
             return
@@ -366,8 +439,10 @@ class _FileManagementOpsMixin(_Base):
 
         content = re.sub(r'(object\s+)\S+;', rf'\g<1>{dest.name};', content, count=1)
 
+        if self._create_refused(dest):
+            return
         try:
-            write_foam_file(dest, content)
+            write_foam_file(dest, content, exclusive=True)
         except OSError as e:
             self._error(tr("Duplicate Error"), tr("Could not write file:\n{e}").format(e=e))
             return
@@ -386,11 +461,15 @@ class _FileManagementOpsMixin(_Base):
         self.file_list_panel.select_file(str(dest))
 
     def _on_copy_into_case_requested(self, src_path: str) -> None:
-        """Copy a read-only included file into the case so it can be edited.
+        """Copy a read-only file into the case so it can be edited.
 
-        Offered only for an `#include` target outside the case directory. The
-        destination follows `include_scan.copy_destination_for`, which puts the
-        copy where OpenFOAM will pick it up in preference to the original.
+        Offered for every read-only row: an `#include` target outside the case,
+        or a case file whose real location is outside (a symlink, or a file
+        under a linked directory). For an include the destination follows
+        `include_scan.copy_destination_for`, which puts the copy where OpenFOAM
+        will pick it up in preference to the original. A row that is itself a
+        symlink is offered its own name: the link is replaced by a copy of the
+        file it points to, which is left unchanged.
         """
         case_dir = self.state.current_case_dir
         if not case_dir:
@@ -400,7 +479,8 @@ class _FileManagementOpsMixin(_Base):
         if self.state.current_case_dir:
             resolved = self._resolved_include_for(src_path)
             ref = resolved.ref if resolved is not None else None
-        default_dest = copy_destination_for(src, Path(case_dir), ref)
+        own_link = ref is None and src.is_symlink() and self._case_relative(src) is not None
+        default_dest = src if own_link else copy_destination_for(src, Path(case_dir), ref)
         rel_default = default_dest.relative_to(Path(case_dir))
 
         new_rel, ok = QInputDialog.getText(
@@ -426,15 +506,40 @@ class _FileManagementOpsMixin(_Base):
                 tr("Destination must be inside the case directory."), STATUS_WARNING
             )
             return
-        if dest.exists():
-            self.statusBar().showMessage(
-                tr("File already exists: {name}").format(name=new_rel), STATUS_WARNING
-            )
+        replace_link = own_link and dest == Path(os.path.normpath(src))
+        target = os.path.realpath(src)  # what the question below shows
+        if replace_link:
+            if not removable(dest, case_dir):
+                self._create_refused(dest)
+                return
+            if not self._confirm(
+                tr("Copy into Case"),
+                tr(
+                    "Replace the link {rel} with a copy of the file it points to?\n\n"
+                    "{target}\n\nThat file is not changed."
+                ).format(rel=new_rel, target=target),
+            ):
+                return
+        elif self._create_refused(dest):
             return
 
         try:
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, dest)
+            if replace_link:
+                if not removable(dest, case_dir):  # again, after the prompt
+                    self._create_refused(dest)
+                    return
+                if not dest.is_symlink() or os.path.realpath(dest) != target:
+                    # The copy must be of the file the question named.
+                    self.statusBar().showMessage(
+                        tr("Not copied — the link {rel} changed while the question was open.")
+                        .format(rel=new_rel),
+                        STATUS_WARNING,
+                    )
+                    return
+                _replace_link_with_copy(dest, Path(target))
+            else:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                _copy_exclusive(src, dest)
         except OSError as e:
             self._error(tr("Copy Error"), tr("Could not copy file:\n{e}").format(e=e))
             return
@@ -477,6 +582,14 @@ class _FileManagementOpsMixin(_Base):
     def _on_duplicate_dir_requested(self, case_dir: str, src: str, dst: str) -> None:
         src_path = Path(case_dir) / src
         dst_path = Path(case_dir) / dst
+        if not removable_tree(src_path, case_dir) or not creatable(dst_path, case_dir):
+            # removable_tree: a real directory inside the case, not a link to one.
+            self.statusBar().showMessage(
+                tr("Not duplicated — '{src}/' or '{dst}/' is not inside the case directory, "
+                   "or '{dst}/' already exists.").format(src=src, dst=dst),
+                STATUS_WARNING,
+            )
+            return
         if not self._confirm(
             tr("Duplicate Directory"),
             tr(
@@ -484,8 +597,17 @@ class _FileManagementOpsMixin(_Base):
             ).format(src=src, dst=dst, src_path=src_path, dst_path=dst_path),
         ):
             return
+        # Again after the prompt: the copy must go where the check looked.
+        if not removable_tree(src_path, case_dir) or not creatable(dst_path, case_dir):
+            self.statusBar().showMessage(
+                tr("Not duplicated — '{src}/' or '{dst}/' is not inside the case directory, "
+                   "or '{dst}/' already exists.").format(src=src, dst=dst),
+                STATUS_WARNING,
+            )
+            return
         try:
-            shutil.copytree(str(src_path), str(dst_path))
+            # Links stay links: their targets' contents are not copied in.
+            shutil.copytree(str(src_path), str(dst_path), symlinks=True)
         except Exception as e:
             self._error(
                 tr("Duplicate Error"),
@@ -520,6 +642,14 @@ class _FileManagementOpsMixin(_Base):
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
+        if not removable_tree(dir_path, case_dir):
+            self.statusBar().showMessage(
+                tr("Not deleted — '{group}/' is not a directory inside the case.").format(
+                    group=group
+                ),
+                STATUS_WARNING,
+            )
+            return
 
         affected = [p for p in list(self.state.file_buffers) if Path(p).is_relative_to(dir_path)]
         for path in affected:
@@ -552,9 +682,13 @@ class _FileManagementOpsMixin(_Base):
 
         errors: list[str] = []
         deleted_count = 0
+        case_dir = self.state.current_case_dir
         for path in paths:
+            if not removable(path, case_dir):
+                errors.append(f"{Path(path).name}: " + tr("not inside the case directory"))
+                continue
             try:
-                Path(path).unlink()
+                os.unlink(path)
                 deleted_count += 1
             except OSError as e:
                 errors.append(f"{Path(path).name}: {e}")
@@ -581,6 +715,53 @@ class _FileManagementOpsMixin(_Base):
             )
 
         self.statusBar().showMessage(tr("Deleted {n} backup file(s).").format(n=deleted_count), STATUS_SHORT)
+
+
+def _not_written_message(case_dir: str | None, name: str) -> str:
+    """Why a write was refused: the case folder itself changed, or the file leads out."""
+    if case_dir and case_root_changed(case_dir):
+        return tr(
+            "Not written — the case folder was replaced on disk since it was opened. "
+            "Reload the case (Case > Reload Case)."
+        )
+    return tr("Not written — {name} leads outside the case directory.").format(name=name)
+
+
+def _copy_exclusive(src: Path, dest: Path) -> None:
+    """Copy *src*'s bytes to a new file *dest*, failing if any entry has the name.
+
+    ``shutil.copy2`` would follow a symlink planted at *dest*. The bytes are
+    copied as they are, so a ``.gz`` include stays compressed.
+    """
+    with open(src, "rb") as fin, open(dest, "xb") as fout:
+        shutil.copyfileobj(fin, fout)
+    try:
+        shutil.copystat(src, dest)
+    except OSError:
+        pass  # the timestamps are a courtesy; the copy is what matters
+
+
+def _replace_link_with_copy(link: Path, target: Path) -> None:
+    """Put a copy of *target*, the file *link* points to, in the link's place.
+
+    The copy is written beside the link under a random, exclusively created
+    name and renamed over it only when complete (``os.replace`` replaces the
+    link itself, never its target). A failed read or write therefore leaves
+    the link as it was, and no partial file under its name.
+    """
+    fd, tmp = tempfile.mkstemp(dir=link.parent, prefix=f".{link.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as fout, open(target, "rb") as fin:
+            shutil.copyfileobj(fin, fout)
+        # The point of the copy is to edit it: keep the mode, but owner-writable.
+        os.chmod(tmp, stat.S_IMODE(os.stat(target).st_mode) | stat.S_IWUSR)
+        os.replace(tmp, link)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def _foamfile_template(group: str, filename: str) -> str:

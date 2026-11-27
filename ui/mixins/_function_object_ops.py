@@ -15,6 +15,7 @@ from foam.parser import OpenFoamParser
 from foam.sampling_extractor import extract_sampling_data
 from i18n import tr
 from services.case_loader import detect_time_dirs
+from services.case_paths import creatable, editable
 from services.domain_bounds import domain_bounds
 from services.function_templates import (
     add_include_func,
@@ -265,14 +266,21 @@ class _FunctionObjectOpsMixin(_Base):
                 ).format(name=name),
             )
             return False
-        if os.path.exists(target):
+        if os.path.lexists(target):
             self._error(
                 tr("Add Function Object"),
                 tr("system/{name} already exists; nothing was written.").format(name=name),
             )
             return False
+        if not creatable(target, case_dir) or not editable(control_dict, case_dir):
+            self._error(
+                tr("Add Function Object"),
+                tr("system/ or its controlDict leads outside the case directory; "
+                   "nothing was written."),
+            )
+            return False
         try:
-            with open(target, "w", encoding="utf-8") as f:
+            with open(target, "x", encoding="utf-8") as f:
                 f.write(content if content.endswith("\n") else content + "\n")
             # In place, like every other controlDict write: a running solver
             # may be watching the file.

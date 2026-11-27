@@ -51,6 +51,7 @@ import sys
 import time
 
 from services.case_loader import detect_time_dirs
+from services.case_paths import editable
 
 PID_FILE = ".fode-background-run"
 STOP_FILE = ".fode-stopAt-restore"
@@ -213,8 +214,9 @@ def request_stop(case_dir: str, run: BackgroundRun | None = None) -> str | None:
         with open(path, encoding="utf-8") as f:
             text = f.read()
         record = os.path.join(case_dir, STOP_FILE)
-        if not os.path.exists(record):
-            with open(record, "w", encoding="utf-8") as f:
+        if not os.path.lexists(record):
+            # Exclusive: a link planted at the name is never written through.
+            with open(record, "x", encoding="utf-8") as f:
                 json.dump(
                     {
                         "stopAt": read_stop_at(text),
@@ -224,7 +226,7 @@ def request_stop(case_dir: str, run: BackgroundRun | None = None) -> str | None:
                     },
                     f,
                 )
-        _write_in_place(path, with_stop_at(text, "writeNow"))
+        _write_in_place(path, with_stop_at(text, "writeNow"), case_dir)
     except OSError as e:
         return str(e)
     return None
@@ -274,7 +276,7 @@ def finish_stop(case_dir: str) -> StopReport | None:
         with open(path, encoding="utf-8") as f:
             text = f.read()
         if read_stop_at(text) == "writeNow":
-            _write_in_place(path, with_stop_at(text, original))
+            _write_in_place(path, with_stop_at(text, original), case_dir)
             restored = original or "(removed)"
         os.remove(os.path.join(case_dir, STOP_FILE))
     except OSError:
@@ -361,12 +363,16 @@ def _read_record(case_dir: str) -> dict | None:
     return record if isinstance(record, dict) else {"stopAt": "endTime"}
 
 
-def _write_in_place(path: str, text: str) -> None:
+def _write_in_place(path: str, text: str, case_dir: str) -> None:
     """Rewrite *path* in place, keeping its inode.
 
     Not the usual write-then-rename: with ``fileModificationChecking
     inotify`` a running solver watches the file itself, and a rename would
     swap a new file in under the watch rather than modify the watched one.
+    Refused (``OSError``) when *path* leads outside the case, as every write
+    FoDE makes into a case is -- see services/case_paths.py.
     """
+    if not editable(path, case_dir):
+        raise OSError(f"{path} leads outside the case directory")
     with open(path, "w", encoding="utf-8") as f:
         f.write(text)

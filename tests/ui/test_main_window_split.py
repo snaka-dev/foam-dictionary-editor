@@ -26,6 +26,9 @@ CASE_OPS_METHODS = [
     "_duplicate_case_from",
     "_pick_case_from_library",
     "_confirm_and_remove_existing_dir",
+    "_destination_refused",
+    "_copy_case",
+    "_write_dirty_buffers_to",
     "_run_duplicate",
     "_confirm_open_dir",
     "_copy_visible_files",
@@ -156,6 +159,9 @@ FILE_MGMT_OPS_METHODS = [
     "_on_create_file_requested",
     "_on_add_file_requested",
     "_read_only_refused",
+    "_edit_refused",
+    "_case_folder_replaced",
+    "_create_refused",
     "_create_backup",
     "_on_backup_file_requested",
     "_on_manage_extra_files",
@@ -217,6 +223,7 @@ BOUNDARY_OPS_METHODS = [
     "_on_rename_boundary_by_name",
     "_on_patch_selected",
     "_apply_boundary_root_change",
+    "_left_read_only_note",
 ]
 
 DIFF_OPS_METHODS = [

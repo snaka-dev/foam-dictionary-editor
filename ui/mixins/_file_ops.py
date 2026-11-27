@@ -26,6 +26,13 @@ from foam.variants import clear_variant_cache
 from i18n import tr
 from services.case_files_config import CaseFilesConfig
 from services.case_loader import FIELD_DIRS, list_case_files
+from services.case_paths import (
+    case_root_changed,
+    conflicting_writes,
+    editable,
+    pin_case_root,
+    writable,
+)
 from services.disk_stamp import DELETED, changed_since, take_stamp
 from services.include_scan import (
     clear_scan_cache,
@@ -73,6 +80,9 @@ class _FileOpsMixin(_Base):
     def _load_case_dir(self, directory: str) -> None:
         previous_dir = self.state.current_case_dir
         self.state.current_case_dir = directory
+        # Every buffer is cleared below, so from here the buffers and the pinned
+        # directory are the same case. Before the listing, which classifies by it.
+        pin_case_root(directory)
         self.state.case_files_config = CaseFilesConfig(directory)
         self._update_case_label()
 
@@ -88,6 +98,7 @@ class _FileOpsMixin(_Base):
             extra_files=extra,
             extra_dirs=extra_dir_paths,
             included_files=origins,
+            read_only=self.state.read_only_files,
         )
 
         self.state.file_buffers.clear()
@@ -141,6 +152,10 @@ class _FileOpsMixin(_Base):
         extra_dir_paths = [p for p, _ in extra_dirs] if extra_dirs else None
 
         included, origins, read_only = included_files(case_dir, paths)
+        # A listed file is read-only too when its real location is outside the
+        # case: a symlink, or a file under a linked directory. The check runs on
+        # disk -- see services/case_paths.py.
+        read_only |= {p for p in paths if not editable(p, case_dir)}
         self.state.read_only_files = read_only
         return paths + included, extra, extra_dir_paths, origins
 
@@ -191,6 +206,7 @@ class _FileOpsMixin(_Base):
             extra_files=extra,
             extra_dirs=extra_dir_paths,
             included_files=origins,
+            read_only=self.state.read_only_files,
         )
         for path, dirty in self.state.file_dirty.items():
             if dirty:
@@ -405,13 +421,16 @@ class _FileOpsMixin(_Base):
     def save_file(self) -> None:
         if not self.state.current_file:
             return
-        if self._read_only_refused(self.state.current_file):
-            return
+        if self._edit_refused(self.state.current_file):
+            return  # the buffer stays dirty
 
         text = self.editor_panel.get_text()
         if self._changed_outside([self.state.current_file]) and not self._confirm_overwrite(
             [self.state.current_file]
         ):
+            return
+        # Checked again once the prompt has returned, however long it was open.
+        if self._edit_refused(self.state.current_file):
             return
         try:
             write_foam_file(self.state.current_file, text)
@@ -483,8 +502,25 @@ class _FileOpsMixin(_Base):
 
         saved = []
         failed = []
+        case_dir = self.state.current_case_dir
+        conflicts = conflicting_writes(
+            {p: self.state.file_buffers.get(p, "") for p in dirty_paths}
+        )
         for path in dirty_paths:
             text = self.state.file_buffers.get(path, "")
+            if path in conflicts:
+                # Stays dirty, like any refused file.
+                failed.append((path, tr("another unsaved file is the same file on disk")))
+                continue
+            # Checked again on disk just before writing; a refused file stays
+            # dirty and is named in the partial-failure summary.
+            if not case_dir or not writable(path, case_dir):
+                if case_dir and case_root_changed(case_dir):
+                    why = tr("the case folder was replaced on disk; reload the case")
+                else:
+                    why = tr("leads outside the case directory")
+                failed.append((path, why))
+                continue
             try:
                 write_foam_file(path, text)
                 self._record_disk_stamp(path, text)
@@ -504,7 +540,7 @@ class _FileOpsMixin(_Base):
             self._update_file_label()
 
         if failed:
-            failed_names = ", ".join(display_file_name(p) for p, _ in failed)
+            failed_names = "\n".join(f"{display_file_name(p)}: {why}" for p, why in failed)
             QMessageBox.warning(
                 self,
                 tr("Save All - Partial Failure"),
@@ -519,6 +555,8 @@ class _FileOpsMixin(_Base):
         if not self.state.current_case_dir:
             QMessageBox.information(self, tr("No Case Open"), tr("Please open a case first."))
             return
+        if self._case_folder_replaced():
+            return
         config = CaseFilesConfig(self.state.current_case_dir)
         if not config.exists:
             self.statusBar().showMessage(tr("No extra files configured for this case."), STATUS_SHORT)
@@ -530,6 +568,8 @@ class _FileOpsMixin(_Base):
                 "The .foam-editor-files.json file will be deleted."
             ),
         ):
+            return
+        if self._case_folder_replaced():  # again, after the question
             return
         deleted = config.delete_config_file()
         self._load_case_dir(self.state.current_case_dir)

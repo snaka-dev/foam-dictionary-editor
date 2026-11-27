@@ -1,5 +1,29 @@
 # Release Notes
 
+## v1.22.0 — 2026-11-27
+
+### Security
+
+- **Saving FoDE's per-case settings can no longer overwrite a file outside the case.** A case could be prepared so that the next time FoDE saved its settings for that case (Add files, **Show in 3-D view as**, removing a file), a file elsewhere on the user's disk was replaced with those settings. FoDE now writes them in a way nothing in the case can redirect.
+- **A case's links and `../` paths can no longer lead a save, a new file or a deletion outside the case.** v1.21.1 refused absolute and `../` entries in the case's file list by their text, but a symbolic link (a dictionary pointing at a file elsewhere, or a linked folder) passed, and an `#include` that climbs out with `../` was listed as editable. FoDE now checks where each file really is, on disk. A file whose real location is outside the case is read-only, shown in italic with its real location in the tooltip, and **Copy into case...** makes an editable copy (for a link, it replaces the link). Every save, new file, backup, duplicate and deletion checks again just before it writes, so a link changed in the meantime is caught as well. **Delete processor\* Directories…** follows the same rule: a `processor*` directory that is a link to somewhere outside the case is refused, and the message names where it leads. **Export Shapes as STL…** no longer writes through a link already waiting at a shape's file name.
+- **Duplicate Case and Save As New Case no longer copy a file from outside the case into the new one.** Copying app-visible files only now leaves such files out and lists them; copying all files keeps links as links. Unsaved edits to such files are not written into the new case either.
+
+As before, treat a case from someone else like a program: running it (Allrun, the Tools menu's commands, the terminal) runs what it contains, and those commands follow links as any shell does.
+
+### Bug fixes
+
+- **Duplicate Case and Save As New Case refuse a destination that would delete the case being copied.** Naming the case itself, a folder inside it, or a folder containing it (for example by typing `..` as the new name) led to "Overwrite?" and then to deleting that folder. Such a destination is now refused before anything is removed. The case is also recognised under another spelling of its name: on a filesystem that ignores letter case, a destination differing from the case only in case was not taken for the same folder. That part has not been run on such a filesystem.
+- **Boundary edits to a read-only file are refused instead of silently lost.** Editing, pasting, adding or deleting a patch in a field file FoDE shows read-only changed what the boundary table displayed, but the file could never be saved. The single-file actions now say the file is read-only; rename, delete-from-all and add-to-all leave such files out and name them on the status bar.
+- **Save As New Case keeps your unsaved edits when it cannot write them into the new case.** After warning that some edits were not written, it opened the new case anyway, which discarded them: they were then in neither case. The original case now stays open with those edits still unsaved, and the message says where the new case is. An unsaved edit to an included file reached through `../` inside the case is now carried into the new case instead of being reported as not written.
+- **Copy into case... on a link keeps the link if the copy fails, and copies the file it named.** The link was removed before the copy was written, so a failed write (a full disk, say) left neither. The copy is now completed first and then put in the link's place. If the link was pointed elsewhere while the question was open, the copy was of the new target; it now stops instead.
+- **Checks made before a confirmation are repeated after it.** Save, overwriting an existing case folder and Duplicate Directory checked where they would write, asked, and then wrote without looking again, however long the question stayed open.
+- **One file is no longer listed, or saved, twice.** A file included by two dictionaries under different spellings of its path (`"shared"` from `constant/`, `"../constant/shared"` from `system/`) got one row per spelling. Editing two of those rows and saving wrote one over the other, and the edit that lost was gone. Such a file now has one row. Where two names are still one file (a link inside the case to another case file), Save Case and Save As New Case write neither when their unsaved contents differ, and say so. Names are compared by the file they are, so two spellings differing only in letter case count as one on a filesystem that ignores case (not run on such a filesystem).
+- **Edits are not saved into a different folder that has taken the case's place.** If the case folder was renamed and another put at the same name while the case was open (or the case was opened through a link that was then pointed elsewhere), saving wrote the open case's edits into the other folder. FoDE now remembers which folder it opened and refuses to write until the case is reloaded (**Case > Reload Case**). The case's own settings file is covered too, and Add files and Reset File List stop instead of reloading over your unsaved edits.
+
+### New features
+
+- **Plot Results can swap its axes.** **Swap X and Y** in the plot settings draws each column along x and its time or position along y, so a velocity profile sampled across a channel reads as `y` against `Ux`. The axis settings swap with it, and saved settings, images, animations and exported Python and gnuplot scripts all follow.
+
 ## v1.21.1 — 2026-11-26
 
 ### Security

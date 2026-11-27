@@ -132,7 +132,8 @@ def python_script(
     body += [
         "ax = fig.add_subplot()",
         "for s in SERIES:",
-        "    x, y = load(s)",
+        # Swapped: the column along x, the x column along y.
+        "    y, x = load(s)" if spec.swap_axes else "    x, y = load(s)",
         "    ax.plot(x, y, label=s[\"label\"], **s[\"style\"])",
     ]
     if spec.title:
@@ -294,7 +295,8 @@ def gnuplot_data(resolved: Resolved) -> str:
     for i, s in enumerate(resolved.series):
         lines = [f"# index {i}: {s.label}"]
         lines += [f"# from {f}" for f in s.files]
-        lines.append(f"# {s.x_name}\t{s.series.column}")
+        names = (s.x_name, s.series.column)
+        lines.append("# " + "\t".join(reversed(names) if resolved.swap_axes else names))
         lines += [f"{x!r}\t{y!r}" for x, y in zip(s.x, s.y)]
         blocks.append("\n".join(lines))
     # Two blank lines end an index block in gnuplot.

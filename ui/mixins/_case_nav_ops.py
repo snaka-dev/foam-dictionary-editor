@@ -32,6 +32,7 @@ from services.case_fs_ops import (
     perform_move,
     perform_new_folder,
 )
+from services.case_paths import pin_case_root
 from services.include_scan import clear_scan_cache
 from ui.case_navigation import refusal_message
 from ui.layout_constants import STATUS_NORMAL, STATUS_WARNING
@@ -335,6 +336,7 @@ class _CaseNavOpsMixin(_Base):
         clear_expand_cache()
         clear_variant_cache()
         self.state.current_case_dir = None
+        pin_case_root(None)
         self.state.case_files_config = None
         self.state.file_buffers.clear()
         self.state.file_dirty.clear()

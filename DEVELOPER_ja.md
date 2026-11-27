@@ -37,7 +37,7 @@ disk file
 - [スキーマシステム](#スキーマシステム)：[スキーマモジュールの書き方](#スキーマモジュールの書き方)、[KeySchema と ChoiceItem](#keyschema-と-choiceitem)、[キーが何であるかの記録: `status` フィールド](#キーが何であるかの記録-status-フィールド)、[キーを省略したときどうなるか: `default` と `required`](#キーを省略したときどうなるか-default-と-required)、[生成モジュール（foamlore からのベンダリング）](#生成モジュールfoamlore-からのベンダリング)、[SchemaRegistry](#schemaregistry)、[設定: デフォルトは置換ではなくマージ](#設定-デフォルトは置換ではなくマージ)
 - [差分アルゴリズム](#差分アルゴリズム)：[API](#api)、[ステータス値](#ステータス値)、[再帰とスキップ](#再帰とスキップ)
 - [インクルードの解決](#インクルードの解決)：[3-D ビューア向けのインクルード展開](#3-d-ビューア向けのインクルード展開)
-- [ケースとファイル](#ケースとファイル)：[サフィックス付きの派生ファイル](#サフィックス付きの派生ファイル)、[ケースナビゲーション](#ケースナビゲーション)、[追加ディレクトリ](#追加ディレクトリ)、[ケースルートのスクリプト](#ケースルートのスクリプト)、[同じ辞書が複数あるケース](#同じ辞書が複数あるケース)、[ツールメニュー](#ツールメニュー)（[Run ダイアログ](#run-ダイアログの仕組み)、[postProcess](#postprocess-とソルバ)、[バックグラウンド実行](#バックグラウンド実行)、[processor\* の削除](#processor-ディレクトリの削除)、[Allrun のステップ](#allrun-のステップ)、[ログから Allrun を作成](#ログから-allrun-を作成)、[ログの助言](#ログの助言)、[Check Case](#check-case)、[Plot Results](#plot-results)、[モジュール](#tools-メニューの背後のモジュール)）
+- [ケースとファイル](#ケースとファイル)：[書き込みはケースの中に留める](#書き込みはケースの中に留める)、[サフィックス付きの派生ファイル](#サフィックス付きの派生ファイル)、[ケースナビゲーション](#ケースナビゲーション)、[追加ディレクトリ](#追加ディレクトリ)、[ケースルートのスクリプト](#ケースルートのスクリプト)、[同じ辞書が複数あるケース](#同じ辞書が複数あるケース)、[ツールメニュー](#ツールメニュー)（[Run ダイアログ](#run-ダイアログの仕組み)、[postProcess](#postprocess-とソルバ)、[バックグラウンド実行](#バックグラウンド実行)、[processor\* の削除](#processor-ディレクトリの削除)、[Allrun のステップ](#allrun-のステップ)、[ログから Allrun を作成](#ログから-allrun-を作成)、[ログの助言](#ログの助言)、[Check Case](#check-case)、[Plot Results](#plot-results)、[モジュール](#tools-メニューの背後のモジュール)）
 - [メインウィンドウの挙動](#メインウィンドウの挙動)：[ツリーとエディタの同期](#ツリーとエディタの同期)、[バウンダリパネルとエディタのナビゲーション](#バウンダリパネルとエディタのナビゲーション)、[ダーティ状態の追跡](#ダーティ状態の追跡)、[ツリーのコピー・ペーストショートカット](#ツリーのコピーペーストショートカット)、[ブロックの選択と CRUD](#ブロックの選択と-crud)、[ツリー編集の Undo/Redo](#ツリー編集の-undoredo)、[3-D ビューアのオーバーレイ](#3-d-ビューアのオーバーレイ)、[レイアウトとパネル](#レイアウトとパネル)、[セッションの復元](#セッションの復元)
 - [UI の規約](#ui-の規約)：[国際化（i18n）](#国際化i18n)、[テーマと配色](#テーマと配色)、[フォントサイズと表示スケーリング](#フォントサイズと表示スケーリング)、[GPU / OpenGL に関する注意](#gpu--opengl-に関する注意)、[ツールバーとメニューの構造](#ツールバーとメニューの構造)、[キーワードスキャナ](#キーワードスキャナ)、[ウィジェットと補助モジュール](#ウィジェットと補助モジュール)
 - [ドキュメント用ツール](#ドキュメント用ツール)：[スクリーンショットの撮影](#スクリーンショットの撮影)、[デモ動画の収録](#デモ動画の収録)
@@ -94,7 +94,7 @@ python3 main.py --ui-scale 150                    # この実行のみ。QT_SCAL
 
 ### アプリケーション設定
 
-`AppConfigManager`（`app_config/app_config_manager.py`）はアプリケーションの永続設定を管理します。`get_app_config()` でシングルトンインスタンスを取得し、セッション全体で再利用します。読み込み/保存の実処理は `app_config/json_io.py`（`load_json`/`save_json`）に委譲しており、これは `services/case_files_config.py` とも共有しています。`save_json` はアトミックに書き込みます（`atomic_write_text`: 隣接する `.tmp` ファイル + `os.replace` なので、書き込みが失敗しても既存の設定ファイルが壊れることはありません。`tempfile.mkstemp` ではなく名前付き一時ファイルを使うことで umask デフォルトのパーミッションを保ちます）。
+`AppConfigManager`（`app_config/app_config_manager.py`）はアプリケーションの永続設定を管理します。`get_app_config()` でシングルトンインスタンスを取得し、セッション全体で再利用します。読み込み/保存の実処理は `app_config/json_io.py`（`load_json`/`save_json`）に委譲しており、これは `services/case_files_config.py` とも共有しています。`save_json` はアトミックに書き込みます（`atomic_write_text`: ランダムな名前で排他的に作る隣接の一時ファイル + `os.replace` なので、書き込みが失敗しても既存の設定ファイルが壊れることはなく、予測できる名前に何かを置かれても書き込み先は変わりません。既存のファイルはモードを保ち、新しいファイルは `new_mode` から umask を引いたものになります（`app_config.json` は `0o600`）— [書き込みはケースの中に留める](#書き込みはケースの中に留める) を参照）。
 
 #### 設定が読めない・書けないとき
 
@@ -156,7 +156,7 @@ python3 main.py --ui-scale 150                    # この実行のみ。QT_SCAL
 
 ### パッケージのビルド
 
-`build_linux.sh` は `requirements-packaging.txt` をインストールし、`build/` と `dist/` を掃除して、`foam-dictionary-editor.spec` を onedir モードで PyInstaller に掛け、README と実行時メモを `dist/foam-dictionary-editor/` に追加します。`foam_dict_editor.spec` と `main.spec` は参考用に残してある以前の spec です。xterm.js のターミナル資産は同梱しません。`package.json` が、ターミナルが実行時にダウンロードするパッケージを固定しています。
+`build_linux.sh` は `requirements-packaging.txt` をインストールし、`build/` と `dist/` を掃除して、`foam-dictionary-editor.spec` を onedir モードで PyInstaller に掛け、README と実行時メモを `dist/foam-dictionary-editor/` に追加します。`foam_dict_editor.spec` と `main.spec` は参考用に残してある以前の spec です。xterm.js のターミナル資産は同梱しません。`package.json`（と `package-lock.json`）は、ターミナルが実行時にダウンロードするパッケージを正確なバージョンで記録しています。実際に使う URL と SHA-256 チェックサムは `ui/widgets/_xterm_widget.py` の `_XTERM_FILES` にあり、両者のバージョンが食い違うと `tests/ui/test_xterm_download.py` が失敗します。
 
 ### コミットの前に
 
@@ -1054,7 +1054,7 @@ v2512 チュートリアル全体では 1081 件中 1072 件のディレクテ�
 
 `model/file_list_model.py` の `_group_name` は 1 箇所だけ変更しました。`except ValueError`（ケースディレクトリ配下でないパス）の分岐が新しい `INCLUDED_GROUP` センチネル（`"<included>"`、順序 2000 で `ROOT_GROUP` より下）を返します。ケース*内*のインクルードは `relative_to` に成功して `constant`/`system`/`0/heater` などの本来のグループへ自動的に収まります — グループ分けの規則はこれだけです。`case_dir is None` の経路のために従来の `p.parent.name` フォールバックは残しています。
 
-**読み取り専用の契約。** ケース外のインクルードは表示のみで書き込みません。編集すれば全ケースが共有するファイルを変えてしまうためです。述語は `_is_read_only(path)`（`ui/mixins/_model_ops.py`）1 つだけで、一覧読み込みのたびに `_case_file_paths` が再構築する `state.read_only_files` を参照します。ゲートは 9 箇所です。`_mark_dirty`/`_mark_path_dirty`（**実質的な錠前**。dirty にならないことで `*` マーカー・Save All・未保存確認がまとめて成立しなくなります）、`save_file`、`save_all_files`、`EditorPanel.set_read_only`、`FoamTreeModel.flags`（`ItemIsEditable` を与えないことでインライン編集*と*値の貼り付けの両方が無効化されます）、`DetailPanel._populate_normal`、ツリーのコンテキストメニューの変更系項目、`apply_text_to_tree`、そして `_create_backup`/`_on_delete_file_requested`/`_on_duplicate_file_requested`（いずれも当該ファイルかその隣に書き込みます）。`ui/mixins/_diff_ops.py` は変更不要です — `_recompute_diff` と `_precompute_diff_step` は既に `relative_to(case_path)` を `try/except ValueError` で囲んでおり、ケース外ファイルは自動的にスキップされます。この既存のガードが今や本質的な役割を担っています。
+**読み取り専用の契約。** ケース外のインクルードは表示のみで書き込みません。編集すれば全ケースが共有するファイルを変えてしまうためです。同じ集合には、実際の場所がケースの外にある一覧上のファイル（リンク、リンクされたディレクトリの下のファイル）もすべて入り、書き込みのハンドラはディスク上でもう一度確かめます。[書き込みはケースの中に留める](#書き込みはケースの中に留める) を参照してください。述語は `_is_read_only(path)`（`ui/mixins/_model_ops.py`）1 つだけで、一覧読み込みのたびに `_case_file_paths` が再構築する `state.read_only_files` を参照します。ゲートは 10 箇所です。`_mark_dirty`/`_mark_path_dirty`（**実質的な錠前**。dirty にならないことで `*` マーカー・Save All・未保存確認がまとめて成立しなくなります）、`save_file`、`save_all_files`、`EditorPanel.set_read_only`、`FoamTreeModel.flags`（`ItemIsEditable` を与えないことでインライン編集*と*値の貼り付けの両方が無効化されます）、`DetailPanel._populate_normal`、ツリーのコンテキストメニューの変更系項目、`apply_text_to_tree`、そして `_create_backup`/`_on_delete_file_requested`/`_on_duplicate_file_requested`（いずれも当該ファイルかその隣に書き込みます）、そして `ui/mixins/_boundary_ops.py` の境界のハンドラ（保存できないバッファを変えてしまうため）。`ui/mixins/_diff_ops.py` は変更不要です — `_recompute_diff` と `_precompute_diff_step` は既に `relative_to(case_path)` を `try/except ValueError` で囲んでおり、ケース外ファイルは自動的にスキップされます。この既存のガードが今や本質的な役割を担っています。
 
 **ケースにコピー**（`_on_copy_into_case_requested`、`ui/mixins/_file_mgmt_ops.py`）が逃げ道で、読み取り専用の行にのみ表示されます。コピー先は `include_scan.copy_destination_for` が決めます。`includeFunc`/`includeEtc` は `system/<name>` に平坦化し、相対パスを持つ素の `#include` はその相対パスを維持するので、ディレクティブを一切編集せずにコピー先へ再解決されます。包含チェックは事前に正規化します — `Path.relative_to` は純粋に字句的なので、そうしないと `<case>/../escaped` が通ってしまいます。処理後は `_reload_file_list()` を呼びます。`_load_case_dir` では未保存バッファがすべて失われるためです。
 
@@ -1069,6 +1069,7 @@ FoDE がケースとその中のファイルを見つけ、一覧にし、開き
 - `model/case_tree_model.py` — `CaseTreeModel`（`QAbstractItemModel`）: ルート配下のディレクトリを保持し、ケースには ◆ の記号を付けて*降りていかない*。`QFileSystemModel` をあえて使っていない理由は後述の「ケースナビゲーション」参照。翻訳対象の文言は持たず、ツールチップのフォーマッタは注入される。
 - `services/backup_files.py` — `find_backup_files(case_dir)`: ケース配下の `<name>.bak_YYYYMMDD_HHMMSS` ファイルすべてについて [(`abs_path`, `rel_path`, `size_bytes`)] を返す。`ui/dialogs/clean_backups_dialog.py` の削除チェックリストに使われ、`ui/mixins/_file_mgmt_ops.py` から呼び出される。
 - `services/case_fs_ops.py` — ケースディレクトリに対する Qt 非依存の移動・リネーム・コピー・削除・新規フォルダ作成と、その手前にある安全確認ロジック: `check_*()` は Refusal *コード*を返し、`perform_*()` が実処理を行う。`perform_delete` は削除処理を注入で受け取る作りで、実体は Qt の `QFile.moveToTrash()`。
+- `services/case_paths.py` — FoDE がケースに書き込むすべての操作に使う、ただ一つの包含判定: 操作ごとの `editable`/`writable`/`creatable`/`removable`/`removable_tree` と、Duplicate Case / Save As 用の `copy_destination_problem`。ディスク上で解決して判定します（[書き込みはケースの中に留める](#書き込みはケースの中に留める)を参照）。
 - `services/case_loader.py` — `VARIANT_FILE_BASES` と `_list_variant_files` により `system/<viewerDict>*` を自動で一覧に載せるため、`topoSetDict-slices` と `topoSetDict-background` を持つケースでも手動の Add files は不要。それ以外の一覧済み辞書については `system/` と `constant/` で `_list_suffixed_variants` が同じことを、より厳しい条件で行います（[サフィックス付きの派生ファイル](#サフィックス付きの派生ファイル)を参照）。`detect_poly_mesh()` も含む -- `constant/polyMesh/owner` の `FoamFile` note フィールドから `PolyMeshInfo(n_points, n_cells, n_faces, stale)` を生成。
 - `services/case_scan.py` — ケースナビゲーター向けの Qt 非依存ディレクトリ一覧: `list_subdirectories()` -> `DirEntry(path, name, is_case, is_symlink, readable, has_subdirs)`。ディレクトリのみを対象とし隠しエントリは除外、OSError に対して安全。`case_summary()` は行のツールチップ用に `case_loader` のタイムディレクトリ・`polyMesh` 探索をラップする。
 - `ui/case_navigation.py` — `CaseNavigator`（`QObject`）: Cases タブと Case Browser ウィンドウの背後にある共有コントローラ -- 1 つの `CaseTreeModel`、1 つの現在位置、両ビューが発するすべてのシグナルを持つ。下位層の上に立つ `tr()` 利用層でもある: `refusal_message()` が `services/case_fs_ops` の Refusal コードを文へ変換し、`describe_entry()` が行のツールチップを組み立てる。
@@ -1077,6 +1078,43 @@ FoDE がケースとその中のファイルを見つけ、一覧にし、開き
 - `ui/dialogs/case_browser_dialog.py` — `CaseBrowserDialog`: **非モーダル**（`log_summary_dialog`・`find_examples_dialog`・`case_check_dialog`・`allrun_steps_dialog` と同様）の 2 ペイン構成のケースブラウザ — フォルダツリーとディレクトリ一覧を並べ、Cases タブが使うのと*同じ* `CaseNavigator`・`CaseTreeModel` の上で動くため両者がずれることはない。状態も操作ロジックも持たず、すべてのボタンは `navigator.request_*()` を呼ぶ。
 - `ui/dialogs/save_as_new_case_dialog.py` — `SaveAsNewCaseDialog`（`_CaseDestDialogBase`）: 名前サフィックスは "`_new`"、デフォルトで「Copy app-visible files only」が選択済み、未保存の編集についての斜体注記ラベルを追加。
 - `ui/panels/case_nav_panel.py` — `CaseNavPanel`: `main_splitter` インデックス 0 でファイル一覧の隣に並ぶ「Cases」タブ（どちらも `MainWindow.left_tabs` の中）。ケースディレクトリを 1 階層ずつ辿るブラウザで、ケースをダブルクリックすると降りていくのではなく*開く* — ケースの中身を扱うのはファイル一覧の役目だから。
+
+### 書き込みはケースの中に留める
+
+ケースは他人から受け取ることがあり、シンボリックリンク（別の場所のファイルを指す `system/fvSolution`、リンクされたディレクトリ）や、ケースの外へ出る `#include "../../x"` を含むことがあります。`Path.relative_to` のような文字列の比較ではどちらも見えません。`<case>/system/../../x` は `<case>/` で始まるからです。そこで FoDE がケースに書き込むときは必ず `services/case_paths.py` を通します。ここではパスをディスク上で解決し（`os.path.realpath(strict=True)`）、解決済みのケースディレクトリとパスの要素ごとに比べます。解決できないパスは拒否します。ケース外のファイルを**読む**ことは引き続き行います。ユーザー自身のデータを表示することは危険ではないからです。
+
+**操作ごとに一つの規則**を使います。「中にある」の意味が操作ごとに違うためです。
+
+| 操作 | 判定 | その後 |
+|---|---|---|
+| Save、Save Case、バックグラウンド実行の停止での `controlDict` の書き換え | `editable`（実際の場所が中にある通常ファイル）。`writable` はディスク上で消されたファイルの作り直しも認める | 書き込む |
+| New File、Backup、Duplicate File、Copy into Case、Add Function Object | `creatable`: その名前に何もない（壊れたリンクも不可）、存在する最も近い祖先が中のディレクトリ、`..` を含まない | `write_foam_file(..., exclusive=True)` / モード `"x"` |
+| Delete File、Clean Backups | `removable`: それを**含む**ディレクトリが中にある | `os.unlink`。リンクを消し、リンク先は消さない |
+| Delete Directory、Duplicate Directory のコピー元 | `removable_tree`: ルートより下の本物のディレクトリ（リンクではない） | `rmtree` / `copytree(symlinks=True)` |
+| Delete processor\* Directories | チェックの段階ですべての `processor*` に `removable_tree`（問題 `outside`。実際のパスを示す）、さらに各対象を消す直前にもう一度 | `rmtree` — それ自体がリンクのパスは拒否しますが、*親*にあるリンクはたどるため、リンクされた `processor0` の下の `processor0/<time>` にはこの判定が必要です |
+| Duplicate Case、Save As New Case | 上書き確認の**前に**、そして確認の後にもう一度 `copy_destination_problem`: コピー元そのもの、その中、それを含む場所、リンクのいずれでもない。解決済みパスで比べ、解決しても一致しない書き方についてはデバイスと inode でも比べる | コピーし、その後の未保存バッファの書き込みで両端を再確認 |
+
+**二段構え。** `_case_file_paths` は、`editable` を満たさない一覧上のパスすべて（とケース外の include 先すべて）を `state.read_only_files` に入れ、UI はこれを読みます（斜体の行、ロックされたエディタ、**Copy into case...** のみ）。この集合はファイル一覧を読み込んだ時点のものなので、書き込み処理はそれぞれ書く直前にもう一度確かめます（`ui/mixins/_file_mgmt_ops.py` の `_edit_refused`、`_create_refused`、`save_all_files` の `writable`）。強制しているのは二段目で、一段目はユーザーに見せるためのものです。新しい書き込み経路には、読み取り専用集合を見るだけでなく、その操作の判定が必要です。
+
+**コピー。** 表示ファイルのみのコピーは、実際の場所が外にあるもの（ケースの設定ファイルを含む）を飛ばし、ダイアログが一覧表示する `CopyReport` を返します。全ファイルのコピーは `copytree(symlinks=True)` を使います。リンクはリンクのまま残り、リンク先の中身は新しいケースに入らず、新しいケースを開いたときに改めて判定されます。`_write_dirty_buffers_to` は、バッファをコピー元に対して、さらにコピー後のコピー先に対して確かめます。コピーされたリンクがバッファの書き込みを受けてはならないからです。
+
+**Save As は、未保存の編集がすべて新しいケースに届いたときだけ新しいケースを開きます。** ケースを開くとすべてのバッファが消えるので、拒否された、または書き込みに失敗した編集はどちらのケースにも残らなくなります。その場合は元のケースを未保存のまま開いておき、メッセージで新しいケースの場所を示します。一覧にある `#include` のパスは `..` を含むことがあります（`system/../constant/x`）。新しいケースでの位置を求めるために文字列として畳みますが、畳んだ名前がディスク上で同じファイルである場合に限って受け付けます。`..` の前にリンクがあれば同じファイルにはなりません。
+
+**文字列だけでなく同一性も。** `realpath` は与えられた書き方を保つので、大文字と小文字を区別しないファイルシステム（macOS、Windows）では、大文字小文字だけが違う 2 つのコピー先が異なる文字列に解決され、同じディレクトリを指します。`_identity_overlap` は、コピー先とその祖先を、コピー元とその祖先と `os.path.samefile` で比べます。テストは、別名と、それを解決しない `real_path` でそうしたファイルシステムの代わりをしています。大文字と小文字を区別しないファイルシステム上では実行していません。
+
+**確認ダイアログの後に、もう一度判定する。** モーダルの確認はいくらでも長く開いたままにできます。Save（ディスク上で変更されたときの質問）、ケースの上書き、Duplicate Directory、Copy into Case のリンク置き換えは、確認から戻ったときに判定を繰り返します。残るのは、下に書いた判定と書き込みの間の一瞬だけです。
+
+**ルートを固定する。** FoDE はケースを開いたときのパスを保持し、書き込みのたびに解決します。そのため、そのパスが別のディレクトリを指すようになると（フォルダーの名前が変えられ同じ名前に新しいものが置かれた、リンクの向け先が変えられた）、バッファが古いほうのファイルを保持したまま、すべての判定が新しいほうに対して通ってしまいます。`_load_case_dir` は `pin_case_root` を呼び、パスの解決先とそのディレクトリのデバイスと inode を記録します。`case_paths.py` のすべての判定は `_root` を通してルートを得ており、`case_root_changed` になると `_root` は None を返します。`_load_case_dir` はすべてのバッファを消すので、そこで固定すればバッファと固定先は同じケースになります。新しいフォルダーを受け入れる手段は Reload Case です。開いているケースは一度に 1 つなので、固定はモジュールレベルの値 1 つで、ほかのディレクトリに対する判定（Save As のコピー先）はこれに縛られません。ケースを開いたときに特定できなかったルートは、そのように固定されて同じく拒否するので、後から現れたパスに固定なしで書き込むことはありません。`CaseFilesConfig.save`/`delete_config_file` は自分で `case_root_changed` を確かめ、False を返します。ケースの再読み込みで終わる操作（Add files、Reset File List）は、先に `_case_folder_replaced` で止まります。内部の再読み込みは新しいフォルダーを固定してバッファを消してしまい、それをしてよいのは Open と Reload Case だけだからです。開いているケースに対して `_load_case_dir` を呼ぶ新しいハンドラーには、このガードが必要です。
+
+**1 つのファイルには 1 回の書き込み。** 一覧の 2 つの名前がディスク上で同じファイルであることがあります。ケース内の別のファイルを指すケース内のリンクや、2 つのファイルが別々の書き方で取り込む 1 つの include です。include スキャンは実ファイルごとに 1 行だけを一覧に出し（最初に見つかった書き方）、`conflicting_writes` がその後ろの備えになります。`file_identity`（デバイスと inode）でまとめるので、大文字と小文字を区別しないファイルシステムでの大文字小文字の違いやハードリンクも 1 つのファイルとして数えます。include スキャンの重複判定のキーも同じです。Save Case と Save As は、同じ実ファイルを共有し内容が異なる 2 つの未保存バッファのどちらも書かず、両方を報告します。順に書くと、後のほうが黙って勝っていました。Save As はこれを 2 回行います。コピー元に対してと、バッファを 1 つも書く前に予定したコピー先に対してです。コピー元の 2 つのファイルが新しいケースでは 1 つのファイルになることがあるためです。
+
+**リンクの置き換え**（それ自体がリンクである行での Copy into Case）は、質問で示したリンク先をコピーし、質問から戻ったときにリンクがそこを指していなければ中止します。コピーをリンクの隣にランダムな排他的な名前で書き、`os.replace` でリンクの上に置きます。読み取りや書き込みに失敗してもリンクはそのまま残ります。以前は先にリンクを削除していました。
+
+**設定ファイルの書き込み**（`app_config/json_io.atomic_write_text`）は、一時ファイルをランダムな名前で排他的に作ります。以前は固定の `<name>.tmp` を使っており、ケースがそこにシンボリックリンクを置いておくと、次の設定保存でリンク先が上書きされました。`os.replace` はディレクトリエントリを入れ替えるので、最終的な名前にあるリンクは置き換えられ、リンク先に書き込まれることはありません。既存ファイルはモードを保ち（`lstat` で読む）、新しいファイルは `new_mode` から umask を引いたモードになります。ユーザーごとの `app_config.json` は `0o600` です。
+
+**境界の操作**が変えるのはバッファであってファイルではなく、読み取り専用ファイルは未保存の印が付きません。そのためガードがないと、リンクされた `0/U` への編集はパネルには現れるのに、黙って保存されないままでした。`ui/mixins/_boundary_ops.py` の単一ファイルのハンドラは `_read_only_refused` で拒否し、名前の変更・全ファイルからの削除・全ファイルへの追加は読み取り専用ファイルを対象から外して、ステータス行に名前を示します。**Export Shapes as STL** はユーザーが選んだフォルダーに、ケースの辞書から取った名前で書き込むため、すでにシンボリックリンクになっている名前は飛ばします。
+
+**保証をひとことで。** FoDE が判定した時点のパスについて、FoDE がケースのために行う書き込み・作成・削除は、開いたフォルダーの中の、ユーザーに示したファイルに届き、未保存のバッファを別のバッファで置き換えることはありません。**保証の範囲外**として文書化しているもの: 判定と書き込みの間の一瞬に変えられたエントリ（判定は確認ダイアログのたびに繰り返しますが、書き込みの間じゅう保持するわけではありません）、ケースのファイルから外のファイルへのハードリンク、ターミナルで実行するコマンド（Tools > Run …、Allrun、バックグラウンド実行のラッパーとその `log.*` ファイル）。これらはどのシェルとも同じくリンクをたどります。Plot Results は独自の出力規則（`services/plot_output.py`）を持ちます。テスト: `tests/services/test_case_paths.py` と `tests/ui/test_case_containment.py`。
 
 ### サフィックス付きの派生ファイル
 
@@ -2051,6 +2089,7 @@ DISPLAY=:1 python3 tools/demo_driver.py damBreak-end-to-end --stage            #
 - `test_block_mesh_selected_block.py` — ツリー → 3D のブロックハイライト: 初期状態ではどのブロックもハイライトされないこと、`set_selected_block` が `RenderSettings.selected_block` に届くこと、解除、別メッシュ読み込みでの破棄。`_highlight_selected_block` が `block_entry` 行の番号を転送し、それ以外の行では解除すること。
 - `test_bm_side_by_side_multi_dict.py` — `⊞` サイドバイサイドコーナーボタン（`_update_bm_side_by_side_btn`）: `blockMeshDict`・`topoSetDict`・`snappyHexMeshDict`・`controlDict`（サンプリングオーバーレイ）では有効化され、無関係な辞書（例: `fvSchemes`）では無効化されることを検証。ツリー/BlockMesh スプリッターの両ペインが折りたたみ不可であることと、パネルが 150 px の最小幅を保つことも検証。
 - `test_flow_layout.py` — `FlowLayout`（ui/widgets/flow_layout.py）: 最小幅が最も幅の広い 1 項目分に等しいこと、狭めたときの `heightForWidth` による折り返し、折り返し後の項目の順序と位置、`takeAt` の管理を検証。
+- `test_case_containment.py` — 書き込みがケースの中に留まることを、実際のウィンドウを通して確かめます。リンクされたファイル、リンクされたディレクトリの下のファイル、外へ出る include は読み取り専用。Save と Save Case は書き込み時にも拒否し（一覧の読み込み後にリンクが変えられた場合を含む）、未保存のまま残すこと。New File、Backup、Delete、Clean Backups、ディレクトリの削除・複製、Copy into Case が `outside/` に手を付けないこと。Duplicate Case と Save As がどちらのコピーモードでも外の中身をコピーせず、リンク越しにバッファを書かないこと。重なるコピー先は何も削除する前に拒否されること。Save As は編集を持ち越せなかったとき元のケースを開いたままにし、`..` を含む include を持ち越し、リンクの後の `..` は畳まないこと。確認ダイアログの後に繰り返す判定（Save、ケースの上書き、Duplicate Directory）。リンクの置き換えに失敗してもリンクが残り、一時ファイルが残らないこと、質問の間に向け先を変えられたリンクは置き換えないこと。同じファイルである 2 つの未保存バッファを Save Case も Save As も書かないこと。ケースフォルダーがディスク上で置き換えられたとき、ケースを再読み込みするまで Save、Save Case、New File が何も書かず理由を示し、Reset File List と Add files が新しいフォルダーに触れず再読み込みもしないこと。新しいケースで 1 つのファイルになる 2 つのバッファを Save As が止めること。
 - `test_case_ops.py` — ケース全体を開く・再読み込みする・複製する・名前を付けて保存する操作（カバレッジ 16% → 66%）。まず破壊的な側から。
 - `test_file_mgmt_ops.py` — `ui/mixins/_file_mgmt_ops.py` 全体（カバレッジ 28% → 80%）。まずバックアップ、ファイル削除、ディレクトリ削除、すなわちディスクから対象を取り除く操作。
 - `test_boundary_ops.py` — `ui/mixins/_boundary_ops.py` の複数ファイルにまたがる操作。1 クリックで複数のフィールドファイルに書き込むもの（全ファイルからの削除、全ファイルへの追加、テーブルのコンテキストメニューから呼ばれる単一ファイルの編集・作成・貼り付け・削除）を対象とする。
@@ -2127,6 +2166,7 @@ DISPLAY=:1 python3 tools/demo_driver.py damBreak-end-to-end --stage            #
 - `test_allrun_create.py` — `allrun_create`: ヘッダー（除くオプション、括弧のつなぎ直し、フルパス）、開始時刻と終了時刻による順序、`runParallel` と `-np`、サフィックスと FoDE の part ログ、失敗と読むだけの行のチェック外し、reconstructPar の移動、ログの一覧へ合流する辞書からの提案と骨組み（並列は processor ディレクトリがあるときだけ）、フォークごとの復元の行、メッシュを残す場合を含む Allclean の形、引用、`sh -n`、ファイルを決して置き換えないこと、書いた Allrun が同じログとして読み戻せること。並列実行の後だけの reconstructPar、cavity 型とログのある並列ケースの分割（各スクリプトに `sh -n`）、チェックの入ったソルバーやサブドメインがなければ分割しないこと、ソルバーより前に何もなければ Allrun.pre を作らないこと、入力したコマンド。
 - `test_case_check.py` — `case_check`: 各指摘を起こすケースと、起こしてはならないケース — 正規表現・グループ・`setConstraintTypes` によるカバー、項目のない `empty` パッチ、たどる／飛ばす include、point 場、`patchType`、メッシュ生成前の `blockMeshDict` からの推定とそれを止める条件、マルチリージョン、controlDict と decomposeParDict のしきい値、フォークを考慮した辞書の規則。
 - `test_case_check_corpus.py` — 誤検出の防波堤: v2606 と Foundation-12 のすべてのチュートリアルが `restore0Dir` 後にレビュー済みの指摘しか出さないこと。ツリーがなければスキップ。
+- `test_case_paths.py` — `services/case_paths.py` の操作ごとの判定: シンボリックリンクされたファイルとディレクトリ、`..`、リンク経由で開いたケース、ループと存在しないパス。どんな書き方でもコピー先の重なりを検出し、文字列が異なる場合は同一性で検出すること。`conflicting_writes`。include の行が実ファイルごとに 1 つであること。固定されたルート（置き換えられたフォルダーと向け先を変えられたリンクはすべての判定を拒否し、開き直すと固定し直し、ほかのディレクトリには影響せず、特定できないフォルダーは拒否し、ケースの設定は書き込みも削除もされない）。1 つのファイルの 2 つの名前に対する `file_identity`。include スキャンの読み取り専用集合。`copy_visible_files` が外のエントリ（ケースの設定ファイルを含む）を飛ばして報告すること。設定の一時ファイル書き込み（仕込まれた `.tmp` リンク、最終名にあるリンク、既存と新規のモード、後始末）。壊れたリンクに対する排他的作成。リンクされた `controlDict` をバックグラウンド停止が拒むこと。
 - `test_case_copier.py` — `copy_visible_files`: 可視ファイルがレイアウトを保ってコピーされること、非表示エントリ（ルートの `log.*`、時刻ディレクトリ、未登録ファイル）はスキップされること、登録済み追加ファイルと `.foam-editor-files.json` 自体が引き継がれること、設定ファイルなしでも動作すること、ネストしたコピー先の作成、細工した設定の `../` や絶対パスの項目がコピー先の外に何も書かないこと。
 - `test_disk_stamp.py` — `services/disk_stamp.py`: 別のプログラムによる書き換えは同じサイズでも変更、touch や同一内容の書き直しは変更ではない、削除は変更、存在しないファイルにはスタンプがないこと。
 - `test_include_scan.py` — `scan_includes`/`included_files`/`copy_destination_for`/`foam_etc_dirs`: パーサーが保存するのと同じ生ディレクティブテキストを hit が持つこと（ツールチップ検索のキー）、`#codeStream` の C++ ヘッダーのスキップ、非再帰性、サイズ・ログ・スクリプトのガード、mtime メモが未変更ファイルを読み直さず変更時には読み直すこと、ケース内／外の振り分け、既に一覧にあるファイルに対するシンボリックリンク考慮の重複排除など。
@@ -2137,7 +2177,7 @@ DISPLAY=:1 python3 tools/demo_driver.py damBreak-end-to-end --stage            #
 - `test_log_advice.py` — `log_advice`: 本物の v2606 のログ（`tests/fixtures/logs/v2606/`）それぞれが、正しいコード・値・ファイル・行に対応すること。セミコロン抜けで飲み込まれた項目、0.orig からの復元、クーラン数による分岐、並列のランク接頭辞と重複除去、認識できないエラーを扱わないこと、ソースから組み立てた Foundation の文言。
 - `test_log_summary.py` — `parse_log`/`format_summary`: `blockMesh` の Mesh Information/Patches 抽出と致命的エラー検出、`snappyHexMesh` の `Wrote mesh in` マーカーによるフェーズ分割・カテゴリごとの細分化反復回数・最終的なパッチ別レイヤーテーブル・件数付きの警告重複排除、`topoSet` のマルチソースセットの集約（`Read set` チェックポイントは新規セットではなく同一セットの継続として扱われること）など。
 - `test_tool_options.py` — `tool_options`: 期待される `TOOL_SPECS` の集合とデフォルトコマンド（snappyHexMesh のデフォルトでオンの `-overwrite`）、`build_args` の bool/value/file の仕様順処理、空値の省略、追加テキストの shlex 分割（閉じていない引用符 → `ValueError`）、古い未知フラグの無視など。
-- `test_solver_run.py` — `solver_run`: controlDict の `application`（通常・引用符付き・欠落・解析不能）、foamRun の `solver` モジュール（foamRun のときのみ）、foamMultiRun の `regionSolvers`、`numberOfSubdomains`（0 以下や `$var` は不明扱い）、ソルバー名の検証（シェルのメタ文字・パス・先頭の `-` を拒否）など。
+- `test_solver_run.py` — リンクされた `processor*`（またはその中のリンクされた時刻ディレクトリ）を、チェックと削除そのものの両方が拒否して手を付けないこと。`solver_run`: controlDict の `application`（通常・引用符付き・欠落・解析不能）、foamRun の `solver` モジュール（foamRun のときのみ）、foamMultiRun の `regionSolvers`、`numberOfSubdomains`（0 以下や `$var` は不明扱い）、ソルバー名の検証（シェルのメタ文字・パス・先頭の `-` を拒否）など。
 - `test_plot_animation.py` — コマが出力時刻の数値順の和集合であること。コマが各線を最新の時刻で持ち、まだない線を除くこと。色の固定。固定した範囲が全コマを覆い、設定した Min を保つこと。GIF、PNG、（ffmpeg があれば）MP4 の書き出しがすべてのコマを通常の権限で置くこと。取り消した保存が何も残さず、既存のコマのフォルダーを置き換えないこと。
 - `test_plot_data.py` — `plot_data`: 調べたすべての形式（OpenCFD と Foundation の forces、probes、solverInfo、途中で繰り返されるヘッダー、パッチごとの組み替え、ビンごとの列、ヘッダーのないサンプリングセットとあるもの、CSV、gzip）、リスタートの連結、ログの残差、探索とキャッシュ、書きかけの最後の行を書き込み中のファイルからだけ捨てること、リーダーが FoDE のものを何も import しないこと。
 - `test_plot_script.py` — `plot_spec`/`plot_render`/`plot_script`: エクスポートした Python スクリプトを実行し、その figure を `draw()` のものと要素ごとに比べること、単独で実行して PNG を保存すること、リーダーがそのまま埋め込まれること、ラベル、見つからない系列、CJK フォント、寛容な spec の往復、スタイル、文字の大きさ、選んだ X の列（figure の比較でも）、設定ファイルの外枠、gnuplot がインストールされていれば（線のスタイルを含む）gnuplot でのエクスポートの実行。
@@ -2155,7 +2195,7 @@ DISPLAY=:1 python3 tools/demo_driver.py damBreak-end-to-end --stage            #
 **`tests/app_config/`**
 - `test_app_config.py` — `AppConfigManager`: ウィンドウサイズ、デフォルトケースディレクトリ、Case Library ディレクトリ（`$WM_PROJECT_DIR/tutorials` フォールバックを含む）、`save()`/`reset()` のセマンティクス、`app_config.json` が存在しない場合のフォールバック、設定の組み合わせ、JSON 構造、フィーチャーフラグの扱い（`set_feature`/`set_features`）。
 - `test_foam_env.py` — `foam_env_dirs`: 明示的な `FOAM_*` 変数が `WM_PROJECT_DIR` フォールバックより優先されること、サブディレクトリ単位のフォールバックはディレクトリが存在する場合のみ働くこと、無効・空白の変数は未設定扱いになること、バージョンの解決。
-- `test_json_io.py` — `load_json` の欠落・破損・正常 JSON の扱い、`save_json` のラウンドトリップと親ディレクトリ作成、`atomic_write_text` が成功時に `.tmp` を残さないこと、最終リネームやシリアライズが失敗しても元ファイルが無傷のまま（一時ファイルも掃除される）こと。
+- `test_json_io.py` — `load_json` の欠落・破損・正常 JSON の扱い、`save_json` のラウンドトリップと親ディレクトリ作成、`atomic_write_text` が成功時に一時ファイルを残さないこと、最終リネームやシリアライズが失敗しても元ファイルが無傷のまま（一時ファイルも掃除される）こと。
 - `test_keyword_generator.py` — `keyword_generator`: `*.C`/`*.H` から辞書読み取り呼び出し（`lookup`/`get<…>`/`readEntry`/`found` など）を収集する `scan_src_lookup_keywords()`（キーワードでない形式は除外）、フィクスチャのインストールツリーに対する `generate(project_dir=…)` — 環境変数は無視、`version` はディレクトリ名由来、ペイロードの来歴メタデータ、何も収集できない場合の `RuntimeError`。
 - `test_config_failure_reporting.py` — 設定ファイルを読めない・書けない・削除できないときにユーザーに伝える内容: 失敗は出力されるのではなく記録されて `take_warnings()` で取り出されること、解析できないファイルは終了時に既定値で上書きされるのではなく `.json.bad` に退避されること。
 

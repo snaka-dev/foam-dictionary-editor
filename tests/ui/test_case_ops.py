@@ -49,20 +49,20 @@ class TestOverwriteGuard:
         monkeypatch.setattr(
             type(win), "_confirm", lambda self, t, m: asked.append(t) or True
         )
-        assert win._confirm_and_remove_existing_dir(tmp_path / "new", "T") is True
+        assert win._confirm_and_remove_existing_dir(tmp_path / "new", "T", win.state.current_case_dir) is True
         assert asked == []
 
     def test_an_existing_directory_is_removed_only_after_a_yes(self, win, tmp_path):
         dest = tmp_path / "existing"
         (dest / "system").mkdir(parents=True)
-        assert win._confirm_and_remove_existing_dir(dest, "T") is True
+        assert win._confirm_and_remove_existing_dir(dest, "T", win.state.current_case_dir) is True
         assert not dest.exists()
 
     def test_declining_leaves_the_directory_alone(self, win, tmp_path, monkeypatch):
         dest = tmp_path / "existing"
         (dest / "system").mkdir(parents=True)
         monkeypatch.setattr(type(win), "_confirm", lambda self, *a, **k: False)
-        assert win._confirm_and_remove_existing_dir(dest, "T") is False
+        assert win._confirm_and_remove_existing_dir(dest, "T", win.state.current_case_dir) is False
         assert (dest / "system").is_dir(), "the directory was removed despite a No"
 
     def test_the_prompt_names_the_directory_at_risk(self, win, tmp_path, monkeypatch):
@@ -72,7 +72,7 @@ class TestOverwriteGuard:
         monkeypatch.setattr(
             type(win), "_confirm", lambda self, t, m: seen.append(m) or False
         )
-        win._confirm_and_remove_existing_dir(dest, "T")
+        win._confirm_and_remove_existing_dir(dest, "T", win.state.current_case_dir)
         assert str(dest) in seen[0]
 
     def test_a_failed_removal_refuses_rather_than_continuing(self, win, tmp_path, monkeypatch):
@@ -85,7 +85,7 @@ class TestOverwriteGuard:
         )
         reported: list[str] = []
         monkeypatch.setattr(type(win), "_error", lambda self, t, m: reported.append(m))
-        assert win._confirm_and_remove_existing_dir(dest, "T") is False
+        assert win._confirm_and_remove_existing_dir(dest, "T", win.state.current_case_dir) is False
         assert reported, "a failed rmtree was not reported"
 
 

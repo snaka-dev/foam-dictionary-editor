@@ -9,6 +9,8 @@ so whoever controls that JavaScript controls the user's account. No network:
 from __future__ import annotations
 
 import hashlib
+import json
+import re
 from pathlib import Path
 
 from ui.widgets import _xterm_widget as xw
@@ -43,6 +45,26 @@ def test_pinned_hashes_cover_every_downloaded_file():
     for _name, url, digest in xw._XTERM_FILES:
         assert url.startswith("https://")
         assert len(digest) == 64 and int(digest, 16) >= 0
+
+
+def test_package_json_names_exactly_what_is_downloaded():
+    """package.json and its lockfile record the downloaded packages, at their exact versions."""
+    root = Path(__file__).resolve().parents[2]
+    downloaded = {
+        m.group(1): m.group(2)
+        for _name, url, _digest in xw._XTERM_FILES
+        if (m := re.search(r"/npm/(@xterm/[^@/]+)@([^/]+)/", url))
+    }
+    package = json.loads((root / "package.json").read_text(encoding="utf-8"))
+    assert package["dependencies"] == downloaded
+    lock = json.loads((root / "package-lock.json").read_text(encoding="utf-8"))
+    assert lock["packages"][""]["dependencies"] == downloaded
+    locked = {
+        key.removeprefix("node_modules/"): entry["version"]
+        for key, entry in lock["packages"].items()
+        if key
+    }
+    assert locked == downloaded
 
 
 def test_matching_download_is_installed(monkeypatch, tmp_path):

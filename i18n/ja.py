@@ -290,6 +290,8 @@ TRANSLATIONS: dict[str, str] = {
     "(no fieldValues)": "（fieldValues なし）",
     "Axes": "軸",
     "Grid": "グリッド",
+    "Swap X and Y": "X と Y を入れ替え",
+    "Draw each column along x and its time or position along y, e.g. y against Ux": "各列を横軸に、時刻や位置を縦軸に描きます（例: Ux に対する y）",
     "Dimensions": "寸法",
     "Scale": "スケール",
     "Label size:": "ラベルサイズ:",
@@ -452,7 +454,21 @@ TRANSLATIONS: dict[str, str] = {
     "Failed to duplicate case:\n{e}": "ケースの複製に失敗しました:\n{e}",
     "Case duplicated to:\n{dest}\n\nOpen the duplicated case now?":
         "ケースを複製しました:\n{dest}\n\n今すぐ複製したケースを開きますか？",
-    "Some edited files could not be written:\n{errors}": "一部の編集済みファイルを書き込めませんでした:\n{errors}",
+    "The new case was created, but these unsaved edits could not be written to it:\n{errors}":
+        "新しいケースは作成されましたが、次の未保存の編集は書き込めませんでした:\n{errors}",
+    "The original case stays open, with the edits still unsaved. The new case is at:\n{dest}":
+        "元のケースを開いたままにし、編集は未保存のまま残しています。新しいケースの場所:\n{dest}",
+    "the case folder was replaced on disk; reload the case":
+        "ケースフォルダーがディスク上で置き換えられました。ケースを再読み込みしてください",
+    "Not written — the case folder was replaced on disk since it was opened. "
+    "Reload the case (Case > Reload Case).":
+        "書き込みませんでした — ケースを開いた後に、ケースフォルダーがディスク上で置き換えられました。"
+        "ケースを再読み込みしてください（Case > Reload Case）。",
+    "another unsaved file is the same file on disk": "未保存の別のファイルがディスク上で同じファイルです",
+    "Not copied — the link {rel} changed while the question was open.":
+        "コピーしませんでした — 質問を開いている間にリンク {rel} が変更されました。",
+    "New case created without some unsaved edits: {dest}":
+        "新しいケースを作成しました（一部の未保存の編集を除く）: {dest}",
     "No directories are registered in the Case Library.\n\n"
     "Add directories via Settings > Manage Case Library...":
         "ケースライブラリにディレクトリが登録されていません。\n\n"
@@ -1619,6 +1635,10 @@ TRANSLATIONS: dict[str, str] = {
         "データが collated 形式（processorsN）のため FoDE では確認できません — "
         "確信がある場合は手作業で削除してください",
     "time {t} exists only in processor*": "時刻 {t} は processor* にしかありません",
+    "{dirs} is not inside the case directory (a link) — FoDE deletes "
+    "only inside the case; delete it by hand if you are sure":
+        "{dirs} はケースディレクトリの中にありません（リンク）— FoDE はケース内だけを削除します。"
+        "確信がある場合は手作業で削除してください",
     "time {t}: {files} exist only in processor*":
         "時刻 {t}: {files} は processor* にしかありません",
     "the mesh exists only in processor* — run reconstructParMesh first":
@@ -2067,4 +2087,25 @@ TRANSLATIONS: dict[str, str] = {
     "Could not create file:\n{e}": "ファイルを作成できませんでした:\n{e}",
     "Could not read file: {error}": "ファイルを読み込めませんでした: {error}",
     "Save As — Partial Failure": "名前を付けて保存 — 一部失敗",
+    'Cannot copy the case to:\n{dest}\n\n{reason}': 'ケースを次の場所にコピーできません:\n{dest}\n\n{reason}',
+    'Not copied — these lead outside the case directory:\n{files}': 'コピーしませんでした — 次のファイルはケースディレクトリの外を指しています:\n{files}',
+    "Not deleted — '{group}/' is not a directory inside the case.": "削除しませんでした — '{group}/' はケース内のディレクトリではありません。",
+    'Not deleted — {name} is not inside the case directory.': '削除しませんでした — {name} はケースディレクトリ内にありません。',
+    "Not duplicated — '{src}/' or '{dst}/' is not inside the case directory, or '{dst}/' already exists.": "複製しませんでした — '{src}/' か '{dst}/' がケースディレクトリ内にないか、'{dst}/' がすでにあります。",
+    'Not written — {name} leads outside the case directory.': '書き込みませんでした — {name} はケースディレクトリの外を指しています。',
+    'Replace the link {rel} with a copy of the file it points to?\n\n{target}\n\nThat file is not changed.': 'リンク {rel} を、リンク先ファイルのコピーで置き換えますか?\n\n{target}\n\nリンク先のファイルは変更しません。',
+    'Saved as new case, with omissions: {dest}': '新しいケースとして保存しました（一部を除く）: {dest}',
+    'The case being copied cannot be read.': 'コピー元のケースを読み取れません。',
+    'The destination contains the case being copied.': 'コピー先がコピー元のケースを含んでいます。',
+    'The destination is a symbolic link.': 'コピー先がシンボリックリンクです。',
+    'The destination is inside the case being copied.': 'コピー先がコピー元のケースの中にあります。',
+    'The destination is the case being copied.': 'コピー先がコピー元のケースそのものです。',
+    "The destination's parent folder does not exist.": 'コピー先の親フォルダーがありません。',
+    'leads outside the case directory': 'ケースディレクトリの外を指しています',
+    '{file} is a symbolic link; not written': '{file} はシンボリックリンクのため書き込みませんでした',
+    'Read-only, left unchanged: {files}.': '読み取り専用のため変更していません: {files}。',
+    'leads outside the new case directory': '新しいケースディレクトリの外を指しています',
+    'not inside the case directory': 'ケースディレクトリ内にありません',
+    'not part of the case': 'ケースに含まれていません',
+    'system/ or its controlDict leads outside the case directory; nothing was written.': 'system/ またはその controlDict がケースディレクトリの外を指しているため、何も書き込みませんでした。',
 }

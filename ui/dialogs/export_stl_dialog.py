@@ -175,7 +175,15 @@ class ExportStlDialog(QDialog):
                     name = f"{base}_{n}"
                     n += 1
                 used_names.add(name)
-                surface.save(str(out_dir / f"{name}.stl"))
+                target = out_dir / f"{name}.stl"
+                if target.is_symlink():
+                    # The name comes from the case's dictionaries; a link
+                    # waiting at it would take the write wherever it points.
+                    failed.append(f"{label}: " + tr("{file} is a symbolic link; not written").format(
+                        file=target.name
+                    ))
+                    continue
+                surface.save(str(target))
                 written.append(f"{name}.stl")
             except Exception as e:
                 failed.append(f"{label}: {e}")

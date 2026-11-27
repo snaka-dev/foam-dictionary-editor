@@ -180,7 +180,8 @@ class AppConfigManager:
                 data["remind_background_runs"] = self._remind_background_runs
             if self._sessions:
                 data["sessions"] = self._sessions
-            save_json(self._config_path, data)
+            # Private: it records the cases opened and the windows' layout.
+            save_json(self._config_path, data, new_mode=0o600)
         except OSError as e:
             self._warnings.append(f"Settings could not be saved: {e}")
 

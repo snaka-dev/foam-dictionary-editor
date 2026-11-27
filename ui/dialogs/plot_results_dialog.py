@@ -477,6 +477,12 @@ class PlotResultsDialog(QDialog):
         for c in (self.grid_check, self.legend_check):
             c.toggled.connect(self._schedule_replot)
             extras.addWidget(c)
+        self.swap_check = QCheckBox(tr("Swap X and Y"))
+        self.swap_check.setToolTip(
+            tr("Draw each column along x and its time or position along y, e.g. y against Ux")
+        )
+        self.swap_check.toggled.connect(self._on_swap_toggled)
+        extras.addWidget(self.swap_check)
         self.legend_combo = QComboBox()
         for key, name in _legend_location_names().items():
             self.legend_combo.addItem(name, key)
@@ -923,6 +929,18 @@ class PlotResultsDialog(QDialog):
             self._setting_log = False
         self._auto_log = on
 
+    def _on_swap_toggled(self, _on: bool) -> None:
+        """Swap the X and Y axis rows too, so a range stays with its quantity."""
+        x_axis, y_axis = self.x_fields.axis(), self.y_fields.axis()
+        self._setting_log = True
+        try:
+            self.x_fields.set_axis(y_axis)
+            self.y_fields.set_axis(x_axis)
+        finally:
+            self._setting_log = False
+        self._auto_log = False
+        self._schedule_replot()
+
     def _on_y_log_toggled(self, _on: bool) -> None:
         if not self._setting_log:
             self._auto_log = False
@@ -1270,6 +1288,8 @@ class PlotResultsDialog(QDialog):
                 setattr(got, name, getattr(want, name))
             got.time = want.time
         self.title_edit.setText(spec.title)
+        with QSignalBlocker(self.swap_check):
+            self.swap_check.setChecked(spec.swap_axes)
         self.x_fields.set_axis(spec.x)
         self._setting_log = True
         try:
@@ -1305,6 +1325,7 @@ class PlotResultsDialog(QDialog):
             title=self.title_edit.text(),
             x=self.x_fields.axis(),
             y=self.y_fields.axis(),
+            swap_axes=self.swap_check.isChecked(),
             grid=self.grid_check.isChecked(),
             legend=self.legend_check.isChecked(),
             legend_loc=self.legend_combo.currentData(),

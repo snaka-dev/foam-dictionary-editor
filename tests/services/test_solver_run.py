@@ -291,6 +291,79 @@ class TestProcessorDeletion:
         assert not check.safe
 
 
+class TestProcessorDirsOutsideTheCase:
+    """A linked processor* directory is someone else's data: nothing is deleted there.
+
+    rmtree refuses a path that is itself a link but follows one in a parent,
+    so processor0/<time> under a linked processor0 would go wherever it points.
+    """
+
+    @staticmethod
+    def _linked(tmp_path):
+        """A safe-looking case whose processor1 is a link to a directory outside it."""
+        import shutil
+
+        case = _reconstructed_case(tmp_path / "case")
+        outside = tmp_path / "elsewhere"
+        shutil.move(str(case / "processor1"), str(outside))
+        (case / "processor1").symlink_to(outside)
+        return case, outside
+
+    @staticmethod
+    def _snapshot(directory):
+        return sorted(str(p.relative_to(directory)) for p in directory.rglob("*"))
+
+    @pytest.mark.parametrize("keep_latest", [False, True])
+    def test_refused_naming_the_real_location(self, tmp_path, keep_latest):
+        case, outside = self._linked(tmp_path)
+        check = check_processor_deletion(str(case), keep_latest=keep_latest)
+        assert not check.safe
+        assert [p.kind for p in check.problems] == ["outside"]
+        assert check.problems[0].detail == (f"processor1 → {outside.resolve()}",)
+
+    @pytest.mark.parametrize("keep_latest", [False, True])
+    def test_the_deletion_itself_leaves_the_target_alone(self, tmp_path, keep_latest):
+        """Even handed a check made before the link appeared."""
+        import shutil
+
+        from services.solver_run import delete_processor_data
+
+        case = _reconstructed_case(tmp_path / "case")
+        check = check_processor_deletion(str(case), keep_latest=keep_latest)
+        assert check.safe
+        outside = tmp_path / "elsewhere"
+        shutil.move(str(case / "processor1"), str(outside))
+        (case / "processor1").symlink_to(outside)
+        before = self._snapshot(outside)
+
+        result = delete_processor_data(str(case), check)
+
+        assert self._snapshot(outside) == before
+        assert result.failed and all("processor1" in line for line in result.failed)
+        assert (case / "processor1").is_symlink()
+        # The real directory beside it was still handled.
+        assert not (case / "processor0" / "0").exists()
+
+    def test_a_linked_time_directory_is_left(self, tmp_path):
+        import shutil
+
+        from services.solver_run import delete_processor_data
+
+        case = _reconstructed_case(tmp_path / "case")
+        check = check_processor_deletion(str(case))
+        outside = tmp_path / "elsewhere"
+        shutil.move(str(case / "processor0" / "0.5"), str(outside))
+        (case / "processor0" / "0.5").symlink_to(outside)
+        before = self._snapshot(outside)
+        delete_processor_data(str(case), check)
+        assert self._snapshot(outside) == before
+
+    def test_a_case_opened_through_a_link_still_works(self, tmp_path):
+        case = _reconstructed_case(tmp_path / "case")
+        (tmp_path / "alias").symlink_to(case)
+        assert check_processor_deletion(str(tmp_path / "alias")).safe
+
+
 class TestKeepLatest:
     """Keep the newest processor time and constant/, delete the rest."""
 
